@@ -1,0 +1,46 @@
+#pragma once
+
+#include "compositor/display.hpp"
+
+
+#include <wayland-client-core.h>
+#include "xdg-shell-client-protocol.h"
+#include "xdg-decoration-unstable-v1-client-protocol.h"
+
+struct WaylandKeyboard : Keyboard
+{
+    struct wl_keyboard* wl_keyboard;
+
+    std::array<bool, 256> pressed = {};
+};
+
+struct Backend
+{
+    Display* display;
+    ListenerSet listeners;
+
+    struct wl_display* wl_display;
+    struct wl_registry* wl_registry;
+    struct wl_compositor* wl_compositor;
+    struct xdg_wm_base* xdg_wm_base;
+    struct zxdg_decoration_manager_v1* decoration_manager;
+
+    struct wl_seat* seat;
+
+    struct wl_pointer* pointer;
+    struct wl_touch* touch;
+
+    WaylandKeyboard* keyboard;
+};
+
+namespace listeners
+{
+    extern const xdg_surface_listener xdg_surface;
+    extern const xdg_wm_base_listener xdg_wm_base;
+    extern const wl_pointer_listener wl_pointer;
+    extern const wl_keyboard_listener wl_keyboard;
+    extern const wl_seat_listener wl_seat;
+    extern const wl_registry_listener wl_registry;
+    extern const zxdg_toplevel_decoration_v1_listener zxdg_toplevel_decoration_v1;
+    extern const xdg_toplevel_listener xdg_toplevel;
+}
