@@ -36,7 +36,7 @@ EventLoop* event_loop_create()
     return event_loop;
 }
 
-void event_loop_add_fd(EventLoop* event_loop, int fd, uint32_t events, event_loop_fn callback, void* data)
+void event_loop_add_fd(EventLoop* event_loop, int fd, u32 events, event_loop_fn callback, void* data)
 {
     epoll_event event {
         .events = events,

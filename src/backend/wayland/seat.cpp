@@ -3,6 +3,138 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+// -----------------------------------------------------------------------------
+
+static
+void listen_wl_pointer_enter(void* data, wl_pointer*, u32 /* serial */, wl_surface* surface, wl_fixed_t sx, wl_fixed_t sy)
+{
+    log_info("pointer_axis_enter");
+
+    auto* pointer = static_cast<WaylandPointer*>(data);
+    pointer->current_output = backend_find_output_for_surface(pointer->display->backend, surface);
+    pointer_absolute(pointer, pointer->current_output, {wl_fixed_to_double(sx), wl_fixed_to_double(sy)});
+}
+
+static
+void listen_wl_pointer_leave(void* /* data */, wl_pointer*, u32 /* serial */, wl_surface*)
+{
+    log_info("pointer_axis_leave");
+}
+
+static
+void listen_wl_pointer_motion(void* data, wl_pointer*, u32 /* time */, wl_fixed_t sx, wl_fixed_t sy)
+{
+    auto* pointer = static_cast<WaylandPointer*>(data);
+    pointer_absolute(pointer, pointer->current_output, {wl_fixed_to_double(sx), wl_fixed_to_double(sy)});
+}
+
+static
+void listen_wl_pointer_button(void* data, wl_pointer*, u32 /* serial */, u32 /* time */, u32 button, u32 state)
+{
+    auto* pointer = static_cast<WaylandPointer*>(data);
+    log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
+    pointer_button(pointer, button, state == WL_POINTER_BUTTON_STATE_PRESSED);
+}
+
+static
+void listen_wl_pointer_axis(void* data, wl_pointer*, u32 /* time */, u32 axis, wl_fixed_t value)
+{
+    log_debug("pointer_axis(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), wl_fixed_to_double(value));
+
+    auto* pointer = static_cast<WaylandPointer*>(data);
+    pointer_axis(pointer, {
+        axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? wl_fixed_to_double(value) : 0.0,
+        axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? wl_fixed_to_double(value) : 0.0,
+    });
+}
+
+static
+void listen_wl_pointer_frame(void* /* data */, wl_pointer*)
+{
+    // log_info("pointer_axis_frame");
+}
+
+static
+void listen_wl_pointer_axis_source(void* /* data */, wl_pointer*, u32 axis_source)
+{
+    log_debug("pointer_axis_source({})", magic_enum::enum_name(wl_pointer_axis_source(axis_source)));
+}
+
+static
+void listen_wl_pointer_axis_stop(void* /* data */, wl_pointer*, u32 /* time */, u32 axis)
+{
+    log_debug("pointer_axis_stop({})", magic_enum::enum_name(wl_pointer_axis(axis)));
+}
+
+static
+void listen_wl_pointer_axis_discrete(void* /* data */, wl_pointer*, u32 axis, i32 discrete)
+{
+    log_debug("pointer_axis_discrete(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), discrete);
+}
+
+static
+void listen_wl_pointer_axis_value120(void* /* data */, wl_pointer*, u32 axis, i32 value120)
+{
+    log_debug("pointer_axis_value120(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), value120);
+}
+
+static
+void listen_wl_pointer_axis_relative_direction(void* /* data */, wl_pointer*, u32 axis, u32 direction)
+{
+    log_debug("pointer_axis_relative_direction(axis = {}, direction = {})",
+        magic_enum::enum_name(wl_pointer_axis(axis)),
+        magic_enum::enum_name(wl_pointer_axis_relative_direction(direction)));
+}
+
+const wl_pointer_listener listeners::wl_pointer {
+    .enter                   = listen_wl_pointer_enter,
+    .leave                   = listen_wl_pointer_leave,
+    .motion                  = listen_wl_pointer_motion,
+    .button                  = listen_wl_pointer_button,
+    .axis                    = listen_wl_pointer_axis,
+    .frame                   = listen_wl_pointer_frame,
+    .axis_source             = listen_wl_pointer_axis_source,
+    .axis_stop               = listen_wl_pointer_axis_stop,
+    .axis_discrete           = listen_wl_pointer_axis_discrete,
+    .axis_value120           = listen_wl_pointer_axis_value120,
+    .axis_relative_direction = listen_wl_pointer_axis_relative_direction,
+};
+
+static
+void pointer_destroy(Backend* backend)
+{
+    if (!backend->keyboard) return;
+
+    log_debug("pointer_destroy({})", (void*)backend->keyboard);
+
+    wl_keyboard_release(backend->keyboard->wl_keyboard);
+    xkb_keymap_unref(backend->keyboard->xkb_keymap);
+    xkb_state_unref(backend->keyboard->xkb_state);
+    xkb_context_unref(backend->keyboard->xkb_context);
+
+    delete backend->keyboard;
+}
+
+static
+void pointer_set(Backend* backend, struct wl_pointer* wl_pointer)
+{
+    if (!backend->pointer || backend->pointer->wl_pointer != wl_pointer) {
+        log_debug("pointer_set({}, old = {})", (void*)wl_pointer, (void*)(backend->pointer ? backend->pointer->wl_pointer : nullptr));
+    }
+
+    if (backend->pointer && backend->pointer->wl_pointer != wl_pointer) {
+        pointer_destroy(backend);
+    }
+
+    auto* pointer = backend->pointer = new WaylandPointer {};
+    pointer->wl_pointer = wl_pointer;
+    pointer->display = backend->display;
+
+    wl_pointer_add_listener(wl_pointer, &listeners::wl_pointer, pointer);
+}
+
+// -----------------------------------------------------------------------------
+
 static
 void listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 format, i32 fd, u32 size)
 {
@@ -82,7 +214,7 @@ void listen_wl_keyboard_repeat_info(void* data, wl_keyboard*, i32 rate, i32 dela
     kb->delay = delay;
 }
 
-static constexpr struct wl_keyboard_listener wl_keyboard_listener {
+const wl_keyboard_listener listeners::wl_keyboard {
     .keymap      = listen_wl_keyboard_keymap,
     .enter       = listen_wl_keyboard_enter,
     .leave       = listen_wl_keyboard_leave,
@@ -119,10 +251,11 @@ void keyboard_set(Backend* backend, struct wl_keyboard* wl_keyboard)
 
     auto* keyboard = backend->keyboard = new WaylandKeyboard {};
     keyboard->wl_keyboard = wl_keyboard;
+    keyboard->display = backend->display;
 
     keyboard->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
-    wl_keyboard_add_listener(wl_keyboard, &wl_keyboard_listener, keyboard);
+    wl_keyboard_add_listener(wl_keyboard, &listeners::wl_keyboard, keyboard);
 }
 
 // -----------------------------------------------------------------------------
@@ -137,6 +270,12 @@ void listen_wl_seat_capabilities(void* data, wl_seat* seat, u32 capabilities)
         keyboard_set(backend, wl_seat_get_keyboard(seat));
     } else if (backend->keyboard) {
         keyboard_destroy(backend);
+    }
+
+    if (capabilities & WL_SEAT_CAPABILITY_POINTER) {
+        pointer_set(backend, wl_seat_get_pointer(seat));
+    } else if (backend->pointer) {
+        pointer_destroy(backend);
     }
 }
 

@@ -1,8 +1,9 @@
 #pragma once
 
 #include "pch.hpp"
+#include "common/types.hpp"
 
-enum class LogLevel : uint32_t
+enum class LogLevel : u32
 {
     trace,
     debug,

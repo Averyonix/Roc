@@ -51,7 +51,7 @@ void output_frame(Output* output)
 
     vk->CmdClearColorImage(cmd, current.image,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        ptr_to(VkClearColorValue{.float32{1.f, 1.f, 1.f, 1.f}}),
+        ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
         1, ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
     vk_transition(vk, cmd, current.image,

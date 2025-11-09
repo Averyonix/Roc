@@ -213,7 +213,7 @@ auto iterate(std::span<T> view, bool reverse = false)
     struct Iterator
     {
         std::span<T> view;
-        int64_t cur, end, step;
+        i64 cur, end, step;
 
         bool operator==(std::default_sentinel_t) const { return cur == end; }
         void operator++() { cur += step; }
@@ -227,8 +227,8 @@ auto iterate(std::span<T> view, bool reverse = false)
 
         Iterator begin() {
             return backward
-                ? Iterator { view, int64_t(view.size()) - 1, -1, -1 }
-                : Iterator { view, 0, int64_t(view.size()), 1 };
+                ? Iterator { view, i64(view.size()) - 1, -1, -1 }
+                : Iterator { view, 0, i64(view.size()), 1 };
         }
 
         std::default_sentinel_t end() { return {}; }
@@ -242,7 +242,7 @@ auto iterate(std::span<T> view, bool reverse = false)
 template<typename T>
 std::span<T> to_span(wl_array* array)
 {
-    size_t count = array->size / sizeof(T);
+    usz count = array->size / sizeof(T);
     return std::span<T>(static_cast<T*>(array->data), count);
 }
 
@@ -251,7 +251,7 @@ std::span<T> to_span(wl_array* array)
 struct CommandParser
 {
     std::span<const std::string_view> args;
-    uint32_t index;
+    u32 index;
 
     operator bool() const { return index < args.size(); }
 
@@ -284,12 +284,12 @@ struct CommandParser
     }
 
     std::optional<int> get_int()    { return get_from_chars<int>(); }
-    std::optional<int> get_double() { return get_from_chars<double>(); }
+    std::optional<int> get_double() { return get_from_chars<f64>(); }
 };
 
 // -----------------------------------------------------------------------------
 
-std::string duration_to_string(std::chrono::duration<double, std::nano> dur);
+std::string duration_to_string(std::chrono::duration<f64, std::nano> dur);
 
 // -----------------------------------------------------------------------------
 

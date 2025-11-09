@@ -78,8 +78,10 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/compositor/display.cpp
     src/compositor/output.cpp
     src/compositor/keyboard.cpp
+    src/compositor/pointer.cpp
     src/backend/wayland/wayland.cpp
     src/backend/wayland/seat.cpp
+    src/backend/wayland/output.cpp
     src/renderer/renderer.cpp
     src/renderer/vulkan_context_init.cpp
     src/renderer/vulkan_context.cpp

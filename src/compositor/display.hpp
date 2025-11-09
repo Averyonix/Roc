@@ -38,7 +38,7 @@ struct Output
 
     VkSurfaceKHR vk_surface;
     VkSemaphore timeline;
-    uint64_t timeline_value = 0;
+    u64 timeline_value = 0;
     VkSurfaceFormatKHR format;
     vkwsi_swapchain* swapchain;
 };
@@ -54,10 +54,33 @@ void backend_create_output(Backend*);
 
 // -----------------------------------------------------------------------------
 
-struct Keyboard;
+struct Keyboard
+{
+    Display* display;
+
+    struct xkb_context* xkb_context;
+    struct xkb_state*   xkb_state;
+    struct xkb_keymap*  xkb_keymap;
+
+    i32 rate;
+    i32 delay;
+};
 
 void keyboard_added(Keyboard*);
-void keyboard_key(Keyboard*, uint32_t keycode, bool pressed);
+void keyboard_key(  Keyboard*, u32 keycode, bool pressed);
+
+// -----------------------------------------------------------------------------
+
+struct Pointer
+{
+    Display* display;
+};
+
+void pointer_added(   Pointer*);
+void pointer_button(  Pointer*, u32 button, bool pressed);
+void pointer_absolute(Pointer*, Output*, vec2 pos);
+void pointer_relative(Pointer*, Output*, vec2 rel);
+void pointer_axis(    Pointer*, vec2 rel);
 
 // -----------------------------------------------------------------------------
 
@@ -67,14 +90,4 @@ struct Display
     Renderer* renderer;
 
     EventLoop* event_loop;
-};
-
-struct Keyboard
-{
-    struct xkb_context* xkb_context;
-    struct xkb_state*   xkb_state;
-    struct xkb_keymap*  xkb_keymap;
-
-    i32 rate;
-    i32 delay;
 };

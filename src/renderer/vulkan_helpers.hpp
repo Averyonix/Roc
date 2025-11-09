@@ -21,9 +21,9 @@ VkResult vk_check(VkResult res, auto... allowed)
 template<typename Container, typename Fn, typename... Args>
 void vk_enumerate(Container& container, Fn&& fn, Args&&... args)
 {
-    uint32_t count = static_cast<uint32_t>(container.size());
+    u32 count = static_cast<u32>(container.size());
     for (;;) {
-        uint32_t old_count = count;
+        u32 old_count = count;
         if constexpr (std::same_as<VkResult, decltype(fn(args..., &count, nullptr))>) {
             vk_check(fn(args..., &count, container.data()), VK_INCOMPLETE);
         } else {

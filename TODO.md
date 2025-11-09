@@ -1,7 +1,8 @@
 # To Do
 
-- Visible window
-- Keyboard / Pointer input
+- ✅ Visible window
+- ✅ Keyboard / Pointer input
 - Draw rectangle
 - Draw image
 - Draw cursor
+- Window close

@@ -7,11 +7,28 @@
 #include "xdg-shell-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 
+// -----------------------------------------------------------------------------
+
+struct WaylandOutput : Output
+{
+    struct wl_surface* wl_surface;
+    struct xdg_surface* xdg_surface;
+    xdg_toplevel* toplevel;
+    zxdg_toplevel_decoration_v1* decoration;
+};
+
 struct WaylandKeyboard : Keyboard
 {
     struct wl_keyboard* wl_keyboard;
 
     std::array<bool, 256> pressed = {};
+};
+
+struct WaylandPointer : Pointer
+{
+    struct wl_pointer* wl_pointer;
+
+    WaylandOutput* current_output;
 };
 
 struct Backend
@@ -27,11 +44,13 @@ struct Backend
 
     struct wl_seat* seat;
 
-    struct wl_pointer* pointer;
-    struct wl_touch* touch;
+    std::vector<WaylandOutput*> outputs;
 
     WaylandKeyboard* keyboard;
+    WaylandPointer*  pointer;
 };
+
+WaylandOutput* backend_find_output_for_surface(Backend*, wl_surface*);
 
 namespace listeners
 {

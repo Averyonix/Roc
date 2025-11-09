@@ -26,7 +26,7 @@ std::string escape_utf8(std::string_view in)
     return out;
 }
 
-void keyboard_key(Keyboard* kb, uint32_t libinput_keycode, bool pressed)
+void keyboard_key(Keyboard* kb, u32 libinput_keycode, bool pressed)
 {
     u32 xkb_keycode = libinput_keycode + 8;
     char name[128] = {};

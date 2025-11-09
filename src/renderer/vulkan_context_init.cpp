@@ -61,7 +61,7 @@ VulkanContext* vulkan_context_create(Backend* backend)
     }
 
     {
-        vk->physical_device = physical_devices[1];
+        vk->physical_device = physical_devices[0];
 
         VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
         vk->GetPhysicalDeviceProperties2(vk->physical_device, &props);
@@ -135,7 +135,7 @@ VulkanContext* vulkan_context_create(Backend* backend)
             .queueCount = 1,
             .pQueuePriorities = ptr_to(1.f),
         }),
-        .enabledExtensionCount = uint32_t(device_extensions.size()),
+        .enabledExtensionCount = u32(device_extensions.size()),
         .ppEnabledExtensionNames = device_extensions.data(),
     }), nullptr, &vk->device));
 
