@@ -72,6 +72,7 @@ struct VulkanImage
     VkImage image;
     VkImageView view;
     VkDeviceMemory memory;
+    VkExtent3D extent;
 };
 
 VulkanImage vk_image_create(VulkanContext*, VkExtent2D extent, const void* data);

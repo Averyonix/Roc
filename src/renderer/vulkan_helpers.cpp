@@ -107,6 +107,8 @@ VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* da
 {
     VulkanImage image = {};
 
+    image.extent = { extent.width, extent.height, 1 };
+
     auto format = VK_FORMAT_R8G8B8A8_UNORM;
     // auto format = VK_FORMAT_R8G8B8A8_SRGB;
 
@@ -114,13 +116,13 @@ VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* da
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent = { extent.width, extent.height, 1 },
+        .extent = image.extent,
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_CONCURRENT,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image.image));
 
@@ -165,7 +167,7 @@ VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* da
         vk_transition(vk, cmd, image.image,
             0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
         vulkan_context_submit_commands(vk, cmd);
     }

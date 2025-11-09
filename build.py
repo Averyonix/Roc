@@ -51,6 +51,10 @@ git_fetch(vendor_dir / "magic-enum", "https://github.com/Neargye/magic_enum.git"
 
 # -----------------------------------------------------------------------------
 
+git_fetch(vendor_dir / "stb", "https://github.com/nothings/stb.git", "master")
+
+# -----------------------------------------------------------------------------
+
 git_fetch(vendor_dir / "glm", "https://github.com/g-truc/glm.git", "master")
 
 # -----------------------------------------------------------------------------

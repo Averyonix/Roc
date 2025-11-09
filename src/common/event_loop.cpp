@@ -68,8 +68,14 @@ void event_loop_run(EventLoop* event_loop)
 
     for (;;) {
         epoll_event events[16];
-        auto events_ready = unix_check_n1(epoll_wait(event_loop->epoll_fd, events, std::size(events), -1), EINTR);
-        if (events_ready < 0) continue;
+        auto events_ready = unix_check_n1(epoll_wait(event_loop->epoll_fd, events, std::size(events), -1), EINTR, EBADF);
+        if (events_ready < 0) {
+            if (errno == EBADF) {
+                log_info("Closing event loop");
+                break;
+            }
+            continue;
+        }
 
         for (int i = 0; i < events_ready; ++i) {
             auto* handler = static_cast<EventSource*>(events[i].data.ptr);
@@ -80,4 +86,10 @@ void event_loop_run(EventLoop* event_loop)
             post.fn(post.data);
         }
     }
+}
+
+void event_loop_stop(EventLoop* event_loop)
+{
+    close(event_loop->epoll_fd);
+    event_loop->epoll_fd = -1;
 }

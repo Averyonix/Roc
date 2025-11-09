@@ -14,6 +14,7 @@
 struct Display;
 
 void display_run(int argc, char* argv[]);
+void display_terminate(Display*);
 
 // -----------------------------------------------------------------------------
 
@@ -50,7 +51,8 @@ void output_frame(Output*);
 void output_init_swapchain(Output*);
 vkwsi_swapchain_image output_acquire_image(Output*);
 
-void backend_create_output(Backend*);
+void backend_output_create(Backend*);
+void backend_output_destroy(Output*);
 
 // -----------------------------------------------------------------------------
 
@@ -79,15 +81,14 @@ struct Pointer
 void pointer_added(   Pointer*);
 void pointer_button(  Pointer*, u32 button, bool pressed);
 void pointer_absolute(Pointer*, Output*, vec2 pos);
-void pointer_relative(Pointer*, Output*, vec2 rel);
+void pointer_relative(Pointer*, vec2 rel);
 void pointer_axis(    Pointer*, vec2 rel);
 
 // -----------------------------------------------------------------------------
 
 struct Display
 {
-    Backend*  backend;
-    Renderer* renderer;
-
+    Backend*   backend;
+    Renderer*  renderer;
     EventLoop* event_loop;
 };

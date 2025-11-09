@@ -18,7 +18,7 @@ void pointer_absolute(Pointer* pointer, Output*, vec2 pos)
     (void)pos;
 }
 
-void pointer_relative(Pointer* pointer, Output*, vec2 rel)
+void pointer_relative(Pointer* pointer, vec2 rel)
 {
     (void)pointer;
     (void)rel;

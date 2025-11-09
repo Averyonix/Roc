@@ -76,7 +76,8 @@
     DO(DestroyDescriptorSetLayout) \
     DO(UpdateDescriptorSets) \
     DO(CmdBindDescriptorSets) \
-    DO(SetDebugUtilsObjectNameEXT)
+    DO(SetDebugUtilsObjectNameEXT) \
+    DO(CmdBlitImage2)
 
 #define VULKAN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

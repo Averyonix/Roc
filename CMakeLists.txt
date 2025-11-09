@@ -27,6 +27,13 @@ add_subdirectory(${VENDOR_DIR}/magic-enum EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
+add_library(                stb-image ${VENDOR_DIR}/stb/stb_image.h)
+set_source_files_properties(stb-image PUBLIC ${VENDOR_DIR}/stb/stb_image.h PROPERTIES LANGUAGE C)
+target_include_directories( stb-image PUBLIC ${VENDOR_DIR}/stb)
+target_compile_definitions( stb-image PRIVATE STB_IMAGE_IMPLEMENTATION=1)
+
+# ------------------------------------------------------------------------------
+
 add_subdirectory(${VENDOR_DIR}/glm EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
@@ -108,4 +115,5 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     Vulkan::Headers
     Vulkan::UtilityHeaders
     vk-wsi::vk-wsi
+    stb-image
     )

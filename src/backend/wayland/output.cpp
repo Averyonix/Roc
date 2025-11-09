@@ -107,6 +107,17 @@ void listen_toplevel_close(void* data, xdg_toplevel*)
     (void)output;
 
     log_debug("xdg_toplevel::close");
+
+    output_removed(output);
+
+    auto display = output->display;
+
+    backend_output_destroy(output);
+
+    if (display->backend->outputs.empty()) {
+        log_debug("Last output closed, quitting...");
+        display_terminate(display);
+    }
 }
 
 static
@@ -152,7 +163,7 @@ const zxdg_toplevel_decoration_v1_listener listeners::zxdg_toplevel_decoration_v
 
 // -----------------------------------------------------------------------------
 
-void backend_create_output(Backend* backend)
+void backend_output_create(Backend* backend)
 {
     if (!backend->wl_compositor) {
         log_error("No wl_compositor interface bound");
@@ -190,4 +201,20 @@ void backend_create_output(Backend* backend)
 
     // This will call `wl_surface_commit`
     register_frame_callback(output);
+}
+
+void backend_output_destroy(Output* _output)
+{
+    WaylandOutput* output = static_cast<WaylandOutput*>(_output);
+
+    std::erase(output->display->backend->outputs, output);
+
+    if (output->swapchain) vkwsi_swapchain_destroy(output->swapchain);
+
+    if (output->decoration)  zxdg_toplevel_decoration_v1_destroy(output->decoration);
+    if (output->toplevel)    xdg_toplevel_destroy(output->toplevel);
+    if (output->xdg_surface) xdg_surface_destroy(output->xdg_surface);
+    if (output->wl_surface)  wl_surface_destroy(output->wl_surface);
+
+    delete output;
 }

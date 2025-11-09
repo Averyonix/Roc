@@ -36,7 +36,7 @@ void listen_registry_global(void *data, wl_registry*, u32 name, const char* inte
     if (matched) { \
         u32 bind_version = std::min(version, u32(Interface.version)); \
         backend->Member = static_cast<decltype(backend->Member)>(wl_registry_bind(backend->wl_registry, name, &Interface, bind_version)); \
-        log_info("wl_registry::global(name = {:2}, interface = {:41}, version = {:2} ({:2}))", name, interface, version, bind_version); \
+        log_info("wl_registry::global(name = {:2}, interface = {:41}, version = {:2} ({}))", name, interface, version, bind_version); \
         { __VA_ARGS__ }\
         break; \
     }
@@ -100,7 +100,7 @@ void backend_init(Display* display)
         wl_display_flush(static_cast<Backend*>(data)->wl_display);
     }, backend);
 
-    backend_create_output(backend);
+    backend_output_create(backend);
 }
 
 void backend_destroy(Backend* backend)

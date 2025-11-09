@@ -2,7 +2,8 @@
 
 - ✅ Visible window
 - ✅ Keyboard / Pointer input
-- Draw rectangle
-- Draw image
+- ✅ Vulkan Validation Layers
+- ✅ Draw image
+- ✅ Window close
+- Draw rectangle (requires shader support)
 - Draw cursor
-- Window close
