@@ -1,6 +1,14 @@
+# Development
 .cache/
 .vscode/
 
+# Artifacts
 .build/
+test/
 
+# Runtime
 *.log
+
+# Generated
+src/compositor/protocol/wayland_request_dispatch.cpp
+src/compositor/protocol/wayland_server.hpp

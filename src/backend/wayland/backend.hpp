@@ -1,11 +1,23 @@
 #pragma once
 
-#include "compositor/display.hpp"
+#define VK_USE_PLATFORM_WAYLAND_KHR
+#include "renderer/vulkan_include.hpp"
+#include "vulkan/vulkan_wayland.h"
 
+#include "compositor/server.hpp"
 
 #include <wayland-client-core.h>
 #include "xdg-shell-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+std::span<T> to_span(wl_array* array)
+{
+    usz count = array->size / sizeof(T);
+    return std::span<T>(static_cast<T*>(array->data), count);
+}
 
 // -----------------------------------------------------------------------------
 
@@ -33,8 +45,7 @@ struct WaylandPointer : Pointer
 
 struct Backend
 {
-    Display* display;
-    ListenerSet listeners;
+    Server* server;
 
     struct wl_display* wl_display;
     struct wl_registry* wl_registry;
@@ -48,6 +59,8 @@ struct Backend
 
     WaylandKeyboard* keyboard;
     WaylandPointer*  pointer;
+
+    PFN_vkCreateWaylandSurfaceKHR vkCreateWaylandSurfaceKHR;
 };
 
 WaylandOutput* backend_find_output_for_surface(Backend*, wl_surface*);

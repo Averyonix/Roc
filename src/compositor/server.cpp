@@ -1,32 +1,35 @@
-#include "display.hpp"
+#include "server.hpp"
 
 #include "renderer/renderer.hpp"
 #include "renderer/vulkan_context.hpp"
 #include "renderer/vulkan_helpers.hpp"
 
-void display_run(int /* argc */, char* /* argv */[])
+void server_run(int /* argc */, char* /* argv */[])
 {
-    Display display = {};
+    Server server = {};
 
-    display.event_loop = event_loop_create();
+    server.event_loop = event_loop_create();
 
-    backend_init(&display);
-    renderer_init(&display);
+    backend_init(&server);
+    renderer_init(&server);
 
-    log_info("Running compositor");
+    using namespace wayland::server;
+    server.display = display_create("wayland-1", server.event_loop);
 
-    event_loop_run(display.event_loop);
+    log_info("Running compositor on");
+
+    event_loop_run(server.event_loop);
 
     log_info("Compositor shutting down");
 
-    if (display.backend) {
-        backend_destroy(display.backend);
+    if (server.backend) {
+        backend_destroy(server.backend);
     }
 }
 
-void display_terminate(Display* display)
+void server_terminate(Server* server)
 {
-    event_loop_stop(display->event_loop);
+    event_loop_stop(server->event_loop);
 }
 
 void output_added(Output* /* output */)
@@ -41,7 +44,7 @@ void output_removed(Output* /* output */)
 
 void output_frame(Output* output)
 {
-    auto* vk = output->display->renderer->vk;
+    auto* vk = output->server->renderer->vk;
     auto cmd = vulkan_context_begin_commands(vk);
 
     log_info("acquiring image");
@@ -59,10 +62,10 @@ void output_frame(Output* output)
         ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
         1, ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
-    auto& image = output->display->renderer->image;
+    auto& image = output->server->renderer->image;
     vk->CmdBlitImage2(cmd, ptr_to(VkBlitImageInfo2 {
         .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
-        .srcImage = output->display->renderer->image.image,
+        .srcImage = output->server->renderer->image.image,
         .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
         .dstImage = current.image,
         .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,

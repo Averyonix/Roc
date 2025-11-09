@@ -9,12 +9,14 @@
 
 #include "common/event_loop.hpp"
 
+#include "protocol/wayland_core.hpp"
+
 // -----------------------------------------------------------------------------
 
-struct Display;
+struct Server;
 
-void display_run(int argc, char* argv[]);
-void display_terminate(Display*);
+void server_run(int argc, char* argv[]);
+void server_terminate(Server*);
 
 // -----------------------------------------------------------------------------
 
@@ -24,7 +26,7 @@ struct Renderer;
 
 struct Backend;
 
-void backend_init(Display*);
+void backend_init(Server*);
 void backend_destroy(Backend*);
 
 std::span<const char* const> backend_get_required_instance_extensions(Backend*);
@@ -33,7 +35,7 @@ std::span<const char* const> backend_get_required_instance_extensions(Backend*);
 
 struct Output
 {
-    Display* display;
+    Server* server;
 
     ivec2 size;
 
@@ -58,7 +60,7 @@ void backend_output_destroy(Output*);
 
 struct Keyboard
 {
-    Display* display;
+    Server* server;
 
     struct xkb_context* xkb_context;
     struct xkb_state*   xkb_state;
@@ -75,7 +77,7 @@ void keyboard_key(  Keyboard*, u32 keycode, bool pressed);
 
 struct Pointer
 {
-    Display* display;
+    Server* server;
 };
 
 void pointer_added(   Pointer*);
@@ -86,9 +88,10 @@ void pointer_axis(    Pointer*, vec2 rel);
 
 // -----------------------------------------------------------------------------
 
-struct Display
+struct Server
 {
     Backend*   backend;
     Renderer*  renderer;
     EventLoop* event_loop;
+    wayland::server::Display* display;
 };

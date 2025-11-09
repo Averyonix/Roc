@@ -1,6 +1,6 @@
-#include "compositor/display.hpp"
+#include "compositor/server.hpp"
 
 int main(int argc, char* argv[])
 {
-    display_run(argc, argv);
+    server_run(argc, argv);
 }

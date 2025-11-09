@@ -2,12 +2,12 @@
 
 #include <stb_image.h>
 
-void renderer_init(Display* display)
+void renderer_init(Server* server)
 {
-    auto* renderer = display->renderer = new Renderer {};
-    renderer->display = display;
+    auto* renderer = server->renderer = new Renderer {};
+    renderer->server = server;
 
-    renderer->vk = vulkan_context_create(display->backend);
+    renderer->vk = vulkan_context_create(server->backend);
 
     std::filesystem::path path = getenv("WALLPAPER");
 

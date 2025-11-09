@@ -21,7 +21,6 @@
 
 #include <csignal>
 
-#include <wayland-server-core.h>
 #include <xkbcommon/xkbcommon.h>
 #include <libevdev/libevdev.h>
 

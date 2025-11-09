@@ -13,8 +13,7 @@
     DO(DestroySurfaceKHR) \
     DO(DestroyDevice) \
     DO(DestroyInstance) \
-    DO(GetPhysicalDeviceMemoryProperties) \
-    DO(CreateWaylandSurfaceKHR)
+    DO(GetPhysicalDeviceMemoryProperties)
 
 #define VULKAN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \

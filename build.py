@@ -81,6 +81,10 @@ build_luajit()
 
 # -----------------------------------------------------------------------------
 
+git_fetch(vendor_dir / "wayland-protocol", "https://gitlab.freedesktop.org/wayland/wayland.git", "main")
+
+# -----------------------------------------------------------------------------
+
 wlroots_src_dir = vendor_dir / "wlroots"
 
 def build_wlroots():

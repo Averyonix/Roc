@@ -11,7 +11,7 @@ void listen_wl_pointer_enter(void* data, wl_pointer*, u32 /* serial */, wl_surfa
     log_info("pointer_axis_enter");
 
     auto* pointer = static_cast<WaylandPointer*>(data);
-    pointer->current_output = backend_find_output_for_surface(pointer->display->backend, surface);
+    pointer->current_output = backend_find_output_for_surface(pointer->server->backend, surface);
     pointer_absolute(pointer, pointer->current_output, {wl_fixed_to_double(sx), wl_fixed_to_double(sy)});
 }
 
@@ -128,7 +128,7 @@ void pointer_set(Backend* backend, struct wl_pointer* wl_pointer)
 
     auto* pointer = backend->pointer = new WaylandPointer {};
     pointer->wl_pointer = wl_pointer;
-    pointer->display = backend->display;
+    pointer->server = backend->server;
 
     wl_pointer_add_listener(wl_pointer, &listeners::wl_pointer, pointer);
 }
@@ -251,7 +251,7 @@ void keyboard_set(Backend* backend, struct wl_keyboard* wl_keyboard)
 
     auto* keyboard = backend->keyboard = new WaylandKeyboard {};
     keyboard->wl_keyboard = wl_keyboard;
-    keyboard->display = backend->display;
+    keyboard->server = backend->server;
 
     keyboard->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 

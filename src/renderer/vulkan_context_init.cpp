@@ -1,7 +1,7 @@
 #include "vulkan_context.hpp"
 #include "vulkan_helpers.hpp"
 
-#include "compositor/display.hpp"
+#include "compositor/server.hpp"
 
 #include <dlfcn.h>
 

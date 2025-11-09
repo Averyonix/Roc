@@ -1,17 +1,17 @@
 #pragma once
 
-#include "compositor/display.hpp"
+#include "compositor/server.hpp"
 
 #include "vulkan_context.hpp"
 #include "vulkan_helpers.hpp"
 
 struct Renderer
 {
-    Display* display;
+    Server* server;
 
     VulkanContext* vk;
 
     VulkanImage image;
 };
 
-void renderer_init(Display*);
+void renderer_init(Server*);

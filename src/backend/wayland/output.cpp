@@ -84,9 +84,14 @@ void listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 height,
     if (!output->vk_surface) {
         log_debug("Creating vulkan surface");
 
-        auto* backend = output->display->backend;
-        auto* vk = output->display->renderer->vk;
-        vk_check(vk->CreateWaylandSurfaceKHR(vk->instance, ptr_to(VkWaylandSurfaceCreateInfoKHR {
+        auto* backend = output->server->backend;
+        auto* vk = output->server->renderer->vk;
+
+        if (!backend->vkCreateWaylandSurfaceKHR) {
+            backend->vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vk->GetInstanceProcAddr(vk->instance, "vkCreateWaylandSurfaceKHR");
+            if (!backend->vkCreateWaylandSurfaceKHR) log_error("failed to load vkCreateWaylandSurfaceKHR");
+        }
+        vk_check(backend->vkCreateWaylandSurfaceKHR(vk->instance, ptr_to(VkWaylandSurfaceCreateInfoKHR {
             .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
             .display = backend->wl_display,
             .surface = output->wl_surface,
@@ -110,13 +115,13 @@ void listen_toplevel_close(void* data, xdg_toplevel*)
 
     output_removed(output);
 
-    auto display = output->display;
+    auto* server = output->server;
 
     backend_output_destroy(output);
 
-    if (display->backend->outputs.empty()) {
+    if (server->backend->outputs.empty()) {
         log_debug("Last output closed, quitting...");
-        display_terminate(display);
+        server_terminate(server);
     }
 }
 
@@ -179,7 +184,7 @@ void backend_output_create(Backend* backend)
 
     backend->outputs.emplace_back(output);
 
-    output->display = backend->display;
+    output->server = backend->server;
 
     output->wl_surface = wl_compositor_create_surface(backend->wl_compositor);
     output->xdg_surface = xdg_wm_base_get_xdg_surface(backend->xdg_wm_base, output->wl_surface);
@@ -207,7 +212,7 @@ void backend_output_destroy(Output* _output)
 {
     WaylandOutput* output = static_cast<WaylandOutput*>(_output);
 
-    std::erase(output->display->backend->outputs, output);
+    std::erase(output->server->backend->outputs, output);
 
     if (output->swapchain) vkwsi_swapchain_destroy(output->swapchain);
 

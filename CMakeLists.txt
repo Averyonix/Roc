@@ -71,6 +71,8 @@ target_compile_options(    ${PROJECT_NAME} PUBLIC
     -Wno-unknown-pragmas
     -Wno-gnu-conditional-omitted-operand
     -Wno-zero-length-array
+    -Wno-c99-designator
+    -Wno-unused-parameter # ...
     -Wimplicit-fallthrough
     -Wshadow
     )
@@ -80,15 +82,24 @@ endif()
 target_include_directories(${PROJECT_NAME} PUBLIC src)
 target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
+
     src/common/log.cpp
     src/common/event_loop.cpp
-    src/compositor/display.cpp
+
+    src/compositor/server.cpp
     src/compositor/output.cpp
     src/compositor/keyboard.cpp
     src/compositor/pointer.cpp
+
+    src/compositor/protocol/wayland_core.cpp
+    src/compositor/protocol/wayland_request_dispatch.cpp
+
+    src/compositor/requests.cpp
+
     src/backend/wayland/wayland.cpp
     src/backend/wayland/seat.cpp
     src/backend/wayland/output.cpp
+
     src/renderer/renderer.cpp
     src/renderer/vulkan_context_init.cpp
     src/renderer/vulkan_context.cpp
@@ -117,3 +128,5 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     vk-wsi::vk-wsi
     stb-image
     )
+
+add_subdirectory(test)

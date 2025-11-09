@@ -74,98 +74,6 @@ constexpr vec2 round_to_zero(vec2 v)         { return copysign(glm::floor(glm::a
 
 // -----------------------------------------------------------------------------
 
-#define TYPE_CHECKED_LISTENERS 1
-
-struct Listener
-{
-    Listener* next;
-    void* userdata;
-    wl_listener listener;
-
-#if TYPE_CHECKED_LISTENERS
-    const std::type_info* typeinfo;
-#endif
-};
-
-template<typename T>
-Listener* listen(wl_signal* signal, T userdata, void(*notify_func)(wl_listener*, void*))
-{
-    static_assert(sizeof(userdata) <= sizeof(void*));
-
-    Listener* l = new Listener{};
-#if TYPE_CHECKED_LISTENERS
-    l->typeinfo = &typeid(T);
-#endif
-    std::memcpy(&l->userdata, &userdata, sizeof(T));
-    l->listener.notify = notify_func;
-    if (signal) wl_signal_add(signal, &l->listener);
-    return l;
-}
-
-inline
-void unlisten(Listener* l)
-{
-    if (l->listener.notify) {
-        wl_list_remove(&l->listener.link);
-    }
-    delete l;
-}
-
-inline
-Listener* listener_from(wl_listener* listener)
-{
-    Listener* l = wl_container_of(listener, l, listener);
-    return l;
-}
-
-template<typename T>
-T listener_userdata(wl_listener* listener)
-{
-    Listener* l = listener_from(listener);
-#if TYPE_CHECKED_LISTENERS
-    if (&typeid(T) != l->typeinfo) {
-        log_error("listener_userdata type match, expected '{}' got '{}'", l->typeinfo->name(), typeid(T).name());
-        return {};
-    }
-#endif
-    T userdata;
-    std::memcpy(&userdata, &l->userdata, sizeof(T));
-    return userdata;
-}
-
-struct ListenerSet
-{
-    Listener* first = nullptr;
-
-    ~ListenerSet() { clear(); }
-
-    void clear()
-    {
-        Listener* cur = first;
-        while (cur) {
-            Listener* next = cur->next;
-            unlisten(cur);
-            cur = next;
-        }
-        first = nullptr;
-    }
-
-    Listener* add(Listener* l)
-    {
-        l->next = first;
-        first = l;
-        return l;
-    }
-
-    template<typename T>
-    Listener* listen(wl_signal* signal, T userdata, void(*notify_func)(wl_listener*, void*))
-    {
-        return add(::listen(signal, userdata, notify_func));
-    }
-};
-
-// -----------------------------------------------------------------------------
-
 struct WeakState
 {
     void* value;
@@ -239,15 +147,6 @@ auto iterate(std::span<T> view, bool reverse = false)
 
 // -----------------------------------------------------------------------------
 
-template<typename T>
-std::span<T> to_span(wl_array* array)
-{
-    usz count = array->size / sizeof(T);
-    return std::span<T>(static_cast<T*>(array->data), count);
-}
-
-// -----------------------------------------------------------------------------
-
 struct CommandParser
 {
     std::span<const std::string_view> args;
@@ -314,7 +213,7 @@ struct unix_check_helper
 {
     template<typename T>
     static constexpr
-    T check(T res, auto... allowed)
+    T check(std::source_location loc, T res, auto... allowed)
     {
         bool error_occured = false;
         int error_code = 0;
@@ -326,13 +225,13 @@ struct unix_check_helper
 
         if (!error_occured || (... || (error_code == allowed))) return res;
 
-        log_unix_error("unix_check", error_code);
+        log_unix_error(std::format("unix_check {}@{}", loc.file_name(), loc.line()), error_code);
 
         return res;
     }
 };
 
-#define unix_check_null(func, ...)                       unix_check_helper<UnixErrorBehaviour::RetNull    >::check((func) __VA_OPT__(,) __VA_ARGS__)
-#define unix_check_n1(func, ...)                         unix_check_helper<UnixErrorBehaviour::RetNeg1    >::check((func) __VA_OPT__(,) __VA_ARGS__)
-#define unix_check_ne(func, ...)                         unix_check_helper<UnixErrorBehaviour::RetNegErrno>::check((func) __VA_OPT__(,) __VA_ARGS__)
-#define unix_check_ce(func, ...) [&] { errno = 0; return unix_check_helper<UnixErrorBehaviour::CheckErrno >::check((func) __VA_OPT__(,) __VA_ARGS__); }()
+#define unix_check_null(func, ...)                       unix_check_helper<UnixErrorBehaviour::RetNull    >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
+#define unix_check_n1(func, ...)                         unix_check_helper<UnixErrorBehaviour::RetNeg1    >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
+#define unix_check_ne(func, ...)                         unix_check_helper<UnixErrorBehaviour::RetNegErrno>::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
+#define unix_check_ce(func, ...) [&] { errno = 0; return unix_check_helper<UnixErrorBehaviour::CheckErrno >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__); }()

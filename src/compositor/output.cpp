@@ -1,4 +1,4 @@
-#include "display.hpp"
+#include "server.hpp"
 
 #include "renderer/renderer.hpp"
 #include "renderer/vulkan_context.hpp"
@@ -6,10 +6,10 @@
 
 void output_init_swapchain(Output* output)
 {
-    auto* vk = output->display->renderer->vk;
+    auto* vk = output->server->renderer->vk;
 
     log_debug("Creating vulkan swapchain");
-    vk_check(vkwsi_swapchain_create(&output->swapchain, output->display->renderer->vk->vkwsi, output->vk_surface));
+    vk_check(vkwsi_swapchain_create(&output->swapchain, output->server->renderer->vk->vkwsi, output->vk_surface));
 
     vk_check(vk->CreateSemaphore(vk->device, ptr_to(VkSemaphoreCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -63,7 +63,7 @@ void vulkan_wait_for_timeline_value(VulkanContext* vk, const VkSemaphoreSubmitIn
 
 vkwsi_swapchain_image output_acquire_image(Output* output)
 {
-    auto vk = output->display->renderer->vk;
+    auto vk = output->server->renderer->vk;
 
     vkwsi_swapchain_resize(output->swapchain, {u32(output->size.x), u32(output->size.y)});
 

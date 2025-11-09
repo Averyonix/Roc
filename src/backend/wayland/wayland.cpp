@@ -73,19 +73,20 @@ void listen_backend_display_read(void* data, int fd, u32 /* events */)
 
     // log_trace("backend display read, events = {:#x}", events);
 
-    int res = wl_display_dispatch(backend->wl_display);
-    if (res <= 0) {
+    timespec timeout = {};
+    int res = wl_display_dispatch_timeout(backend->wl_display, &timeout);
+    if (res < 0) {
         log_error("  wl_display_dispatch: {}", res);
-        event_loop_remove_fd(backend->display->event_loop, fd);
+        event_loop_remove_fd(backend->server->event_loop, fd);
     }
 
     // log_trace("  done");
 }
 
-void backend_init(Display* display)
+void backend_init(Server* server)
 {
     auto* backend = new Backend{};
-    backend->display = display;
+    backend->server = server;
 
     backend->wl_display = wl_display_connect(nullptr);
     backend->wl_registry = wl_display_get_registry(backend->wl_display);
@@ -93,10 +94,10 @@ void backend_init(Display* display)
     wl_registry_add_listener(backend->wl_registry, &listeners::wl_registry, backend);
     wl_display_roundtrip(backend->wl_display);
 
-    display->backend = backend;
+    server->backend = backend;
 
-    event_loop_add_fd(display->event_loop, wl_display_get_fd(backend->wl_display), EPOLLIN, listen_backend_display_read, backend);
-    event_loop_add_post_step(display->event_loop, [](void* data) {
+    event_loop_add_fd(server->event_loop, wl_display_get_fd(backend->wl_display), EPOLLIN, listen_backend_display_read, backend);
+    event_loop_add_post_step(server->event_loop, [](void* data) {
         wl_display_flush(static_cast<Backend*>(data)->wl_display);
     }, backend);
 
