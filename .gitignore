@@ -10,5 +10,6 @@ test/
 *.log
 
 # Generated
-src/compositor/protocol/wayland_request_dispatch.cpp
+src/compositor/protocol/wayland_dispatch_request.cpp
+src/compositor/protocol/wayland_dispatch_event.cpp
 src/compositor/protocol/wayland_server.hpp

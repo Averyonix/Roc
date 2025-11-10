@@ -3,6 +3,7 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Any
+import os
 
 # ------------------------------------------------------------------------------
 
@@ -79,7 +80,7 @@ def parse_enum(el: ET.Element) -> Dict[str, Any]:
 # ---- Code generation ---------------------------------------------------------
 
 CPP_HEADER = """#pragma once
-#include "wayland_core.hpp"
+#include "compositor/protocol/wayland_core.hpp"
 
 namespace wayland::server
 {
@@ -92,7 +93,7 @@ def cpp_sanitize_identifier(name: str) -> str:
     if name[0].isdigit():
         return "_" + name
 
-    if name in ("default"):
+    if name in ("default", "export", "auto"):
         return name + "_"
 
     return name.replace("-", "_")
@@ -118,11 +119,14 @@ def cpp_type(iface: Interface, arg: Dict[str, str]) -> str:
         return "f64"
     if t == "string":
         return "std::string_view"
-    if t == "object" or t == "new_id":
+    if t == "object":
         iface = arg.get("interface")
         return f"{iface}*" if iface else "Object*"
+    if t == "new_id":
+        iface = arg.get("interface")
+        return f"{iface}*" if iface else "NewId"
     if t == "array":
-        return "std::span<u8>"
+        return "std::span<const u8>"
 
     return "int"
 
@@ -137,26 +141,29 @@ def emit_enum(enum: Dict[str, Any], iface_name: str) -> str:
         lines.append(f"DECORATE_FLAG_ENUM({name})\n")
     return "\n".join(lines)
 
-def arg_parameter_name(iface: Interface, arg: Dict[str, str], stub: bool):
+def arg_parameter_name(iface: Interface, arg: Dict[str, str], decl: bool, stub: bool = False):
     name = arg['name']
-    if name not in ('x', 'y', 'id'):
-        type = cpp_type(iface, arg)
-        if len(name) > 1 and type.find(name) != -1:
-            return ""
+    if decl:
+        if name not in ('x', 'y', 'id'):
+            type = cpp_type(iface, arg)
+            if len(name) > 1 and type.find(name) != -1:
+                return ""
     arg_str = f"/* {name} */" if stub else name
     return f" {arg_str}"
 
-def emit_message_declaration(iface: Interface, msg: Dict[str, Any], kind: str, stub: bool) -> str:
+def emit_message_parameters(iface: Interface, msg: Dict[str, Any], kind: str, decl: bool, stub: bool) -> str:
     args = []
-    if kind == "request":
-        args.append("Client*")
+    args.append("Client*" if decl else "Client* client")
     for arg in msg["args"]:
-        args.append(f"{cpp_type(iface, arg)}{arg_parameter_name(iface, arg, False)}")
-    arglist = ", ".join(args)
+        args.append(f"{cpp_type(iface, arg)}{arg_parameter_name(iface, arg, decl)}")
+    return ", ".join(args)
 
+
+def emit_message_declaration(iface: Interface, msg: Dict[str, Any], kind: str, stub: bool) -> str:
+    arglist = emit_message_parameters(iface, msg, kind, True, stub)
     line_end = " {}" if stub else ";"
 
-    return f"    void {msg['name']}({arglist}){line_end}"
+    return f"    void {cpp_sanitize_identifier(msg['name'])}({arglist}){line_end}"
 
 def emit_interface_forward_enums(f, iface: Interface) -> str:
     for enum in iface.enums:
@@ -173,6 +180,11 @@ def emit_interface(iface: Interface, stub: bool) -> str:
     lines.append(f"struct {iface.name} : Object\n{{")
 
     lines.append(f"    {iface.name}(): Object({iface.interface_id}) {{}}")
+    lines.append(f"    {iface.name}(Display* display): Object({iface.interface_id}, display_allocate_id(display)) {{}}")
+    lines.append("")
+
+    lines.append(f"    static constexpr std::string_view InterfaceName = \"{iface.name}\";")
+    lines.append(f"    static constexpr u32 Version = {iface.version};")
     lines.append("")
 
     if iface.requests:
@@ -184,7 +196,7 @@ def emit_interface(iface: Interface, stub: bool) -> str:
     if iface.events:
         lines.append("    /* events */")
         for evt in iface.events:
-            lines.append(emit_message_declaration(iface, evt, "event", True))
+            lines.append(emit_message_declaration(iface, evt, "event", False))
     lines.append("};\n")
 
     return "\n".join(lines)
@@ -194,47 +206,45 @@ def emit_interface(iface: Interface, stub: bool) -> str:
 def emit_parameter_parse(iface: Interface, arg: dict) -> str:
     enum = arg.get("enum")
     if enum:
-        return f"message_read_enum<{get_enum_name(iface, enum)}>(message)"
+        return f"message.read_enum<{get_enum_name(iface, enum)}>()"
 
     t = arg["type"]
 
     if t in ("int", "fd"):
-        return "message_read_int(message)"
+        return "message.read_int()"
     if t == "uint":
-        return "message_read_uint(message)"
+        return "message.read_uint()"
     if t == "fixed":
-        return "message_read_fixed(message)"
+        return "message.read_fixed()"
     if t == "string":
-        return "message_read_string(message)"
+        return "message.read_string()"
     if t == "object":
         iface_name = arg.get("interface")
         if iface_name:
-            return f"message_read_object<{iface_name}>(message, client, {iface.interface_id})"
+            return f"message.read_object<{iface_name}>(client, {iface.interface_id})"
         raise RuntimeError("Expected object type")
     if t == "new_id":
         iface = arg.get("interface")
         if iface:
-            return f"message_read_new_id<{iface}>(message, client)"
-        return "message_read_new_id<Object>(message, client)"
+            if iface == "Object":
+                print("ERROR")
+            return f"message.read_new_id<{iface}>(client)"
+        return "message.read_untyped_new_id(client)"
     if t == "array":
-        return "message_read_array(message)"
+        return "message.read_array()"
     if t == "enum":
         enum = arg.get("enum")
         if enum:
-            return f"message_read_enum<{enum}>(message)"
-        return "message_read_int(message)"
+            return f"message.read_enum<{enum}>()"
+        return "message.read_int()"
 
-    # Fallback
-    return "message_read_int(message)"
-
+    raise RuntimeError("Unknown type")
 
 def emit_request_dispatch(interfaces: list[object]) -> str:
     lines = []
-    lines.append('#include "wayland_internal.hpp"')
-    lines.append('#include "wayland_server.hpp"\n')
+    lines.append('#include "compositor/protocol/wayland_internal.hpp"')
+    lines.append('#include "compositor/protocol/wayland_server.hpp"\n')
     lines.append("namespace wayland::server\n{")
-    lines.append("")
-    lines.append("using DispatchFn = void(*)(Client* client, Object* object, Message);")
     lines.append("")
 
     # Per-interface dispatch tables
@@ -245,7 +255,7 @@ def emit_request_dispatch(interfaces: list[object]) -> str:
         lines.append(f"DispatchFn {table_name}[] {{")
         for idx, req in enumerate(iface.requests):
             comment = f"{idx} /* {req['name']} */"
-            lines.append(f"    [{comment}] = [](Client* client, Object* object, [[maybe_unused]] Message message) {{")
+            lines.append(f"    [{comment}] = [](Client* client, Object* object, [[maybe_unused]] MessageReader message) {{")
             arg_exprs = []
             for arg in req["args"]:
                 parse_expr = emit_parameter_parse(iface, arg)
@@ -254,7 +264,7 @@ def emit_request_dispatch(interfaces: list[object]) -> str:
                 lines.extend(arg_exprs)
             # Build call
             args = ", ".join(["client"] + [a["name"] for a in req["args"]])
-            lines.append(f"        static_cast<{iface.name}*>(object)->{req['name']}({args});")
+            lines.append(f"        static_cast<{iface.name}*>(object)->{cpp_sanitize_identifier(req['name'])}({args});")
             lines.append("    },")
         lines.append("};\n")
 
@@ -276,13 +286,87 @@ def emit_request_dispatch(interfaces: list[object]) -> str:
 
 # ------------------------------------------------------------------------------
 
+def emit_message_definition(iface: Interface, msg: Dict[str, Any], kind: str) -> str:
+    arglist = emit_message_parameters(iface, msg, kind, False, False)
+
+    return f"void {iface.name}::{cpp_sanitize_identifier(msg['name'])}({arglist})"
+
+def cpp_writer_for_type(arg: dict) -> str:
+    t = arg["type"]
+
+    if arg.get("enum"):
+        return f"write_enum({arg['name']})"
+
+    if t in ("int", "fd"):
+        return f"write_int({arg['name']})"
+    if t == "uint":
+        return f"write_uint({arg['name']})"
+    if t == "fixed":
+        return f"write_fixed({arg['name']})"
+    if t == "string":
+        return f"write_string({arg['name']})"
+    if t == "object" or t == "new_id":
+        return f"write_object({arg['name']}, client)"
+    if t == "array":
+        return f"write_array({arg['name']})"
+
+    raise RuntimeError(f"Unknown type: {t}")
+
+def emit_event_dispatch(interfaces: list[Interface]) -> str:
+    lines = []
+    lines.append('#include "compositor/protocol/wayland_internal.hpp"')
+    lines.append('#include "compositor/protocol/wayland_server.hpp"\n')
+    lines.append("namespace wayland::server\n{")
+    lines.append("")
+
+    # for iface in interfaces:
+    #     if not iface.events:
+    #         continue
+    #     for event in iface.events:
+    #         lines.append(emit_message_definition(iface, event, "event") + " {}")
+    #     lines.append("")
+
+    for iface in interfaces:
+        for idx, event in enumerate(iface.events):
+            # emit function signature using existing helper
+            lines.append(f"{emit_message_definition(iface, event, kind="event")}")
+            lines.append("{")
+            lines.append("    Message msg;")
+            lines.append("    for (auto[c, c_id] : _client_ids) {")
+            lines.append("        if (client && c != client) continue;")
+            lines.append("        MessageWriter writer{&msg};")
+
+            # Write each event argument in order
+            for arg in event["args"]:
+                lines.append(f"        writer.{cpp_writer_for_type(arg)};")
+
+            # header + send
+            lines.append(f"        writer.write_header(c_id, {idx});")
+            lines.append("        display_send_event(c, msg);")
+            lines.append("    }")
+            lines.append("}\n")
+
+    lines.append("} // namespace wayland::server\n")
+
+    return "\n".join(lines)
+
+# ------------------------------------------------------------------------------
+
+def list_wayland_protocols():
+    wayland_protocols = []
+    system_protocol_dir = Path("/usr/share/wayland-protocols")
+
+    wayland_protocols.append(".build/3rdparty/wayland-protocol/protocol/wayland.xml")
+    wayland_protocols.append(system_protocol_dir / "stable/xdg-shell/xdg-shell.xml")
+
+    return wayland_protocols
+
+def ensure_dir(path):
+    os.makedirs(path, exist_ok=True)
+    return Path(path)
+
 def main():
-    xml_files = [
-        ".build/3rdparty/wayland-protocol/protocol/wayland.xml",
-        "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
-    ]
-    header_path = "src/compositor/protocol/wayland_server.hpp"
-    dispatch_source_path = "src/compositor/protocol/wayland_request_dispatch.cpp"
+    xml_files = list_wayland_protocols()
     target_ifaces = [
         "wl_display",
         "wl_registry",
@@ -297,36 +381,53 @@ def main():
         "xdg_toplevel",
     ]
 
-    total_interfaces: Dict[str, Interface] = {}
-    interfaces: Dict[str, Interface] = {}
+    generated_code_dir = ensure_dir(".build/generated")
+    generated_header_dir = ensure_dir(generated_code_dir / "include")
+    generated_src_dir = ensure_dir(generated_code_dir / "src")
+
+    header_path = generated_header_dir / "compositor/protocol/wayland_server.hpp"
+    ensure_dir(header_path.parent)
+    dispatch_request_source_path = generated_src_dir / "wayland_dispatch_request.cpp"
+    dispatch_event_source_path = generated_src_dir / "wayland_dispatch_event.cpp"
+
+    seen_names: Dict[str, Interface] = {}
+    interfaces: List[Interface] = []
 
     for xml_path in xml_files:
         for iface in parse_protocol_file(xml_path):
-            total_interfaces[iface.name] = iface
-            if iface.name in target_ifaces:
-                interfaces[iface.name] = iface
+            if iface.name in seen_names:
+                print(f"ERROR duplicate interface [{iface.name}] in [{xml_path}]")
+            interfaces.append(iface)
+            seen_names[iface.name] = interfaces
+
+            # total_interfaces[iface.name] = iface
+            # if iface.name in target_ifaces:
+            #     interfaces[iface.name] = iface
 
     with open(header_path, "w", encoding="utf-8") as f:
         f.write(CPP_HEADER)
 
-        for iface in total_interfaces.values():
+        for iface in interfaces:
             emit_interface_forward_enums(f, iface)
 
         f.write("\n")
 
-        for iface in total_interfaces.values():
+        for iface in interfaces:
             f.write(f"struct {iface.name};\n")
 
         f.write("\n")
 
-        for iface in total_interfaces.values():
-            f.write(emit_interface(iface, stub = iface.name not in interfaces))
+        for iface in interfaces:
+            f.write(emit_interface(iface, stub = iface.name not in target_ifaces))
             f.write("\n")
 
         f.write(CPP_FOOTER)
 
-    with open(dispatch_source_path, "w", encoding="utf-8") as f:
-        f.write(emit_request_dispatch(total_interfaces.values()))
+    with open(dispatch_request_source_path, "w", encoding="utf-8") as f:
+        f.write(emit_request_dispatch(interfaces))
+
+    with open(dispatch_event_source_path, "w", encoding="utf-8") as f:
+        f.write(emit_event_dispatch(interfaces))
 
 if __name__ == "__main__":
     main()

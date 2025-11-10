@@ -79,7 +79,10 @@ target_compile_options(    ${PROJECT_NAME} PUBLIC
 if(USE_ASAN)
     target_compile_options(${PROJECT_NAME} PUBLIC -fsanitize=address)
 endif()
-target_include_directories(${PROJECT_NAME} PUBLIC src)
+target_include_directories(${PROJECT_NAME} PUBLIC
+    src
+    .build/generated/include
+    )
 target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
 
@@ -92,7 +95,8 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/compositor/pointer.cpp
 
     src/compositor/protocol/wayland_core.cpp
-    src/compositor/protocol/wayland_request_dispatch.cpp
+    .build/generated/src/wayland_dispatch_request.cpp
+    .build/generated/src/wayland_dispatch_event.cpp
 
     src/compositor/requests.cpp
 

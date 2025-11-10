@@ -99,22 +99,10 @@ build_wlroots()
 
 def list_wayland_protocols():
     wayland_protocols = []
-
     system_protocol_dir = Path("/usr/share/wayland-protocols")
-    for category in os.listdir(system_protocol_dir):
-        category_path = system_protocol_dir / category
-        if category_path.is_dir():
-            for subfolder in os.listdir(category_path):
-                subfolder_path = category_path / subfolder
-                if subfolder_path.is_dir():
-                    for name in os.listdir(subfolder_path):
-                        if Path(name).suffix == ".xml":
-                            wayland_protocols += [(subfolder_path / name, Path(name).stem)]
 
-    wlroots_protocol_dir = wlroots_src_dir / "protocol"
-    for name in os.listdir(wlroots_protocol_dir):
-        if Path(name).suffix == ".xml":
-            wayland_protocols += [(wlroots_protocol_dir.absolute() / name, Path(name).stem)]
+    wayland_protocols.append((system_protocol_dir / "stable/xdg-shell/xdg-shell.xml", "xdg-shell"))
+    wayland_protocols.append((system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "xdg-decoration-unstable-v1"))
 
     return wayland_protocols
 

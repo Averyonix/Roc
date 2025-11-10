@@ -1,5 +1,5 @@
 #include "server.hpp"
-#include "protocol/wayland_server.hpp"
+#include "compositor/protocol/wayland_server.hpp"
 
 using namespace wayland::server;
 
@@ -7,17 +7,31 @@ using namespace wayland::server;
 
 void wl_display::sync(Client*, wl_callback* callback)
 {
-    log_warn("wl_display::sync(callback = {})", callback->client_ids[0].id);
+    log_warn("wl_display::sync(callback = {})", callback->_client_ids[0].id);
+
+    callback->done({}, 0);
 }
 
-void wl_display::get_registry(Client*, wl_registry* registry)
+void wl_display::get_registry(Client* client, wl_registry* registry)
 {
-    log_warn("wl_display::get_registry(registry = {})", registry->client_ids[0].id);
+    log_warn("wl_display::get_registry(registry = {})", registry->_client_ids[0].id);
+
+    auto compositor = new wl_compositor(display_from_client(client));
+    registry->global({}, compositor->_name, wl_compositor::InterfaceName, wl_compositor::Version);
+
+    auto shm = new wl_shm(display_from_client(client));
+    registry->global({}, shm->_name, wl_shm::InterfaceName, wl_compositor::Version);
+
+    auto xdg_wm_base = new server::xdg_wm_base(display_from_client(client));
+    registry->global({}, xdg_wm_base->_name, server::xdg_wm_base::InterfaceName, server::xdg_wm_base::Version);
 }
 
 // ---- wl_registry ------------------------------------------------------------
 
-void wl_registry::bind(Client*, u32 name, Object* id) {}
+void wl_registry::bind(Client*, u32 name, NewId id)
+{
+    log_warn("wl_registry::bind(interface = {}, version = {}, new_id = {})", id.interface, id.version, id.new_id);
+}
 
 // ---- wl_output --------------------------------------------------------------
 
