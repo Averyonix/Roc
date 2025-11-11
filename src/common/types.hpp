@@ -1,3 +1,5 @@
+#pragma once
+
 #include "pch.hpp"
 
 using namespace std::literals;
@@ -27,3 +29,12 @@ using f64 = double;
 using fvec4 = glm:: vec4;
 using  vec2 = glm::dvec2;
 using ivec2 = glm::ivec2;
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+struct rect
+{
+    glm::vec<2, T> origin;
+    glm::vec<2, T> extent;
+};

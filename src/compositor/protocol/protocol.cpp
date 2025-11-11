@@ -8,7 +8,16 @@
 // -----------------------------------------------------------------------------
 
 const struct wl_compositor_interface impl_wl_compositor = {
-    .create_region = INTERFACE_STUB,
+    .create_region = [](wl_client* client, wl_resource* resource, u32 id) {
+        auto* compositor = get_userdata<Compositor>(resource);
+        auto* new_resource = wl_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
+        debug_track_resource(new_resource);
+        auto* region = new Region {};
+        region->server = compositor->server;
+        region->wl_region = new_resource;
+        pixman_region32_init(&region->region);
+        wl_resource_set_implementation(new_resource, &impl_wl_region, region, SIMPLE_RESOURCE_UNREF(Region, wl_region));
+    },
     .create_surface = [](wl_client* client, wl_resource* resource, u32 id) {
         auto* compositor = get_userdata<Compositor>(resource);
         auto* new_resource = wl_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
@@ -32,12 +41,39 @@ const wl_global_bind_func_t bind_wl_compositor = [](wl_client* client, void* dat
 
 // -----------------------------------------------------------------------------
 
+const struct wl_region_interface impl_wl_region = {
+    .add = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height) {
+        auto* region = get_userdata<Region>(resource);
+        pixman_region32_union_rect(&region->region, &region->region, x, y, width, height);
+    },
+    .destroy = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
+    .subtract = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height) {
+        auto* region = get_userdata<Region>(resource);
+
+        pixman_region32_union_rect(&region->region, &region->region, x, y, width, height);
+
+        pixman_region32_t rect;
+        pixman_region32_init_rect(&rect, x, y, width, height);
+        pixman_region32_subtract(&region->region, &region->region, &rect);
+        pixman_region32_fini(&rect);
+    },
+};
+
+Region::~Region()
+{
+    pixman_region32_fini(&region);
+}
+
+// -----------------------------------------------------------------------------
+
 const struct wl_surface_interface impl_wl_surface = {
     .destroy = INTERFACE_STUB,
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
         auto* surface = get_userdata<Surface>(resource);
         auto* buffer = get_userdata<ShmBuffer>(wl_buffer);
-        surface->pending_buffer = buffer;
+        surface->pending.buffer = buffer;
     },
     .damage = INTERFACE_STUB,
     .frame = [](wl_client* client, wl_resource* resource, u32 callback) {
@@ -69,7 +105,7 @@ const struct wl_surface_interface impl_wl_surface = {
                 }
                 xdg_toplevel_send_configure(surface->xdg_toplevel, 0, 0, ptr_to(to_array<const xdg_toplevel_state>({ XDG_TOPLEVEL_STATE_ACTIVATED })));
                 if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-                    xdg_toplevel_send_wm_capabilities(resource, ptr_to(to_array<const xdg_toplevel_wm_capabilities>({
+                    xdg_toplevel_send_wm_capabilities(surface->xdg_toplevel, ptr_to(to_array<const xdg_toplevel_wm_capabilities>({
                         XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
                         XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
                     })));
@@ -80,25 +116,40 @@ const struct wl_surface_interface impl_wl_surface = {
             }
         }
 
-        if (surface->pending_buffer) {
+        if (surface->pending.buffer) {
             auto* vk = surface->server->renderer->vk;
-            if (surface->current_image.image) {
-                vk_image_destroy(vk, surface->current_image);
+            if (surface->current.image.image) {
+                vk_image_destroy(vk, surface->current.image);
             }
 
-            if (surface->pending_buffer->wl_buffer) {
-                auto* buffer = surface->pending_buffer.get();
+            if (surface->pending.buffer->wl_buffer) {
+                auto* buffer = surface->pending.buffer.get();
                 if (buffer->type == BufferType::shm) {
                     auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
-                    surface->current_image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
+                    surface->current.image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
                 }
 
-                wl_buffer_send_release(surface->pending_buffer->wl_buffer);
+                wl_buffer_send_release(surface->pending.buffer->wl_buffer);
             } else {
                 log_warn("pending wl_buffer was destroyed, surface contents has been cleared");
             }
 
-            surface->pending_buffer = nullptr;
+            surface->pending.buffer = nullptr;
+        }
+
+        if (auto& pending = surface->pending.geometry) {
+            if (!pending->extent.x || !pending->extent.y) {
+                log_warn("Zero size invalid geometry committed, treating as if geometry never set!");
+            } else {
+                surface->current.geometry = *pending;
+            }
+            surface->pending.geometry = std::nullopt;
+        }
+
+        if (surface->current.geometry) {
+            log_debug("Geometry: (({}, {}), ({}, {}))",
+                surface->current.geometry->origin.x, surface->current.geometry->origin.y,
+                surface->current.geometry->extent.x, surface->current.geometry->extent.y);
         }
     },
     .set_buffer_transform = INTERFACE_STUB,
@@ -111,8 +162,8 @@ Surface::~Surface()
 {
     std::erase(server->surfaces, this);
 
-    if (current_image.image) {
-        vk_image_destroy(server->renderer->vk, current_image);
+    if (current.image.image) {
+        vk_image_destroy(server->renderer->vk, current.image);
     }
 }
 
@@ -124,14 +175,9 @@ const struct xdg_wm_base_interface impl_xdg_wm_base = {
     .get_xdg_surface = [](wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface) {
         auto* new_resource = wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
         debug_track_resource(new_resource);
-        auto* surface = get_userdata<Surface>(wl_surface);
-        log_warn("Acquiring xdg_surface for surface: {}", (void*)surface);
+        auto* surface = ref(get_userdata<Surface>(wl_surface));
         surface->xdg_surface = new_resource;
-        wl_resource_set_implementation(new_resource, &impl_xdg_surface, surface, [](wl_resource* xdg_surface) {
-            auto* surface = get_userdata<Surface>(xdg_surface);
-            log_warn("Destroying xdg_surface for surface: {}", (void*)surface);
-            surface->xdg_surface = nullptr;
-        });
+        wl_resource_set_implementation(new_resource, &impl_xdg_surface, surface, SIMPLE_RESOURCE_UNREF(Surface, xdg_surface));
     },
     .pong = INTERFACE_STUB,
 };
@@ -150,19 +196,17 @@ const wl_global_bind_func_t bind_xdg_wm_base = [](wl_client* client, void* data,
 const struct xdg_surface_interface impl_xdg_surface = {
     .destroy = INTERFACE_STUB,
     .get_toplevel = [](wl_client* client, wl_resource* resource, u32 id) {
-        auto* surface = get_userdata<Surface>(resource);
+        auto* surface = ref(get_userdata<Surface>(resource));
         auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
         debug_track_resource(new_resource);
-        log_warn("Acquiring role xdg_toplevel for surface: {}", (void*)surface);
         surface->xdg_toplevel = new_resource;
-        wl_resource_set_implementation(new_resource, &impl_xdg_toplevel, surface, [](wl_resource* xdg_toplevel) {
-            auto* surface = get_userdata<Surface>(xdg_toplevel);
-            log_warn("Destroying xdg_toplevel for surface: {}", (void*)surface);
-            surface->xdg_toplevel = nullptr;
-        });
+        wl_resource_set_implementation(new_resource, &impl_xdg_toplevel, surface, SIMPLE_RESOURCE_UNREF(Surface, xdg_toplevel));
     },
     .get_popup = INTERFACE_STUB,
-    .set_window_geometry = INTERFACE_STUB,
+    .set_window_geometry = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height) {
+        auto* surface = get_userdata<Surface>(resource);
+        surface->pending.geometry = {{x, y}, {width, height}};
+    },
     .ack_configure = INTERFACE_STUB,
 };
 
@@ -199,7 +243,9 @@ const struct wl_shm_interface impl_wl_shm = {
             wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
         }
     },
-    .release = INTERFACE_STUB,
+    .release = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
 };
 
 const wl_global_bind_func_t bind_wl_shm = [](wl_client* client, void* data, uint32_t version, uint32_t id) {

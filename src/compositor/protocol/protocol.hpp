@@ -44,6 +44,7 @@ wl_array to_array(std::span<T> span)
 }
 
 extern const struct wl_compositor_interface impl_wl_compositor;
+extern const struct wl_region_interface     impl_wl_region;
 extern const struct wl_surface_interface    impl_wl_surface;
 
 extern const struct xdg_wm_base_interface   impl_xdg_wm_base;

@@ -68,6 +68,19 @@ struct Compositor : RefCounted
     wl_resource* wl_compositor;
 };
 
+struct Region : RefCounted
+{
+    Server* server;
+
+    wl_resource* wl_region;
+
+    pixman_region32 region;
+
+    ~Region();
+};
+
+struct Buffer;
+
 struct Surface : RefCounted
 {
     Server* server;
@@ -80,8 +93,15 @@ struct Surface : RefCounted
 
     bool initial_commit = true;
 
-    Ref<struct Buffer> pending_buffer;
-    VulkanImage current_image;
+    struct {
+        Ref<Buffer> buffer;
+        std::optional<rect<i32>> geometry;
+    } pending;
+
+    struct {
+        VulkanImage image;
+        std::optional<rect<i32>> geometry;
+    } current;
 
     ~Surface();
 };

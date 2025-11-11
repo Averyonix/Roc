@@ -116,8 +116,8 @@ void output_frame(Output* output)
     blit(output->server->renderer->image);
 
     for (Surface* surface : output->server->surfaces) {
-        if (surface->current_image.image) {
-            blit(surface->current_image);
+        if (surface->current.image.image) {
+            blit(surface->current.image);
         }
     }
 
