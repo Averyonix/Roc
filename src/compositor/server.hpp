@@ -7,9 +7,7 @@
 
 #include "vk-wsi.h"
 
-#include "common/event_loop.hpp"
-
-#include "protocol/wayland_core.hpp"
+#include "wayland-server-core.h"
 
 // -----------------------------------------------------------------------------
 
@@ -92,6 +90,7 @@ struct Server
 {
     Backend*   backend;
     Renderer*  renderer;
-    EventLoop* event_loop;
-    wayland::server::Display* display;
+
+    wl_display* display;
+    wl_event_loop* event_loop;
 };

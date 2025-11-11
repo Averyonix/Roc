@@ -94,11 +94,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/compositor/keyboard.cpp
     src/compositor/pointer.cpp
 
-    src/compositor/protocol/wayland_core.cpp
-    .build/generated/src/wayland_dispatch_request.cpp
-    .build/generated/src/wayland_dispatch_event.cpp
-
-    src/compositor/requests.cpp
+    src/compositor/protocol/protocol.cpp
 
     src/backend/wayland/wayland.cpp
     src/backend/wayland/seat.cpp

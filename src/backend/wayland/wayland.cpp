@@ -67,7 +67,7 @@ const wl_registry_listener listeners::wl_registry {
     .global_remove = listen_registry_global_remove,
 };
 
-void listen_backend_display_read(void* data, int fd, u32 /* events */)
+int listen_backend_display_read(int fd, u32 mask, void* data)
 {
     auto* backend = static_cast<Backend*>(data);
 
@@ -77,10 +77,12 @@ void listen_backend_display_read(void* data, int fd, u32 /* events */)
     int res = wl_display_dispatch_timeout(backend->wl_display, &timeout);
     if (res < 0) {
         log_error("  wl_display_dispatch: {}", res);
-        event_loop_remove_fd(backend->server->event_loop, fd);
+        wl_event_source_remove(backend->event_source);
     }
 
-    // log_trace("  done");
+    wl_display_flush(backend->wl_display);
+
+    return 1;
 }
 
 void backend_init(Server* server)
@@ -96,12 +98,12 @@ void backend_init(Server* server)
 
     server->backend = backend;
 
-    event_loop_add_fd(server->event_loop, wl_display_get_fd(backend->wl_display), EPOLLIN, listen_backend_display_read, backend);
-    event_loop_add_post_step(server->event_loop, [](void* data) {
-        wl_display_flush(static_cast<Backend*>(data)->wl_display);
-    }, backend);
+    backend->event_source = wl_event_loop_add_fd(server->event_loop, wl_display_get_fd(backend->wl_display), WL_EVENT_READABLE,
+        listen_backend_display_read, backend);
 
     backend_output_create(backend);
+
+    wl_display_flush(backend->wl_display);
 }
 
 void backend_destroy(Backend* backend)

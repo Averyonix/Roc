@@ -61,6 +61,8 @@ struct Backend
     WaylandPointer*  pointer;
 
     PFN_vkCreateWaylandSurfaceKHR vkCreateWaylandSurfaceKHR;
+
+    wl_event_source* event_source;
 };
 
 WaylandOutput* backend_find_output_for_surface(Backend*, wl_surface*);

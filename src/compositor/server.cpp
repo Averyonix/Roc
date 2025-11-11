@@ -4,21 +4,29 @@
 #include "renderer/vulkan_context.hpp"
 #include "renderer/vulkan_helpers.hpp"
 
+#include "protocol/protocol.hpp"
+
 void server_run(int /* argc */, char* /* argv */[])
 {
     Server server = {};
 
-    server.event_loop = event_loop_create();
+    setenv("WAYLAND_DEBUG", "1", true);
+    server.display = wl_display_create();
+    unsetenv("WAYLAND_DEBUG");
+    server.event_loop = wl_display_get_event_loop(server.display);
 
     backend_init(&server);
     renderer_init(&server);
 
-    using namespace wayland::server;
-    server.display = display_create("wayland-1", server.event_loop);
+    const char* socket = wl_display_add_socket_auto(server.display);
 
-    log_info("Running compositor on");
+    wl_global_create(server.display, &wl_compositor_interface, wl_compositor_interface.version, nullptr, bind_wl_compositor);
+    wl_global_create(server.display, &wl_shm_interface,        wl_shm_interface.version,        nullptr, bind_wl_shm);
+    wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   nullptr, bind_xdg_wm_base);
 
-    event_loop_run(server.event_loop);
+    log_info("Running compositor on: {}", socket);
+
+    wl_display_run(server.display);
 
     log_info("Compositor shutting down");
 
@@ -29,7 +37,7 @@ void server_run(int /* argc */, char* /* argv */[])
 
 void server_terminate(Server* server)
 {
-    event_loop_stop(server->event_loop);
+    wl_display_terminate(server->display);
 }
 
 void output_added(Output* /* output */)
