@@ -87,7 +87,6 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
 
     src/common/log.cpp
-    src/common/event_loop.cpp
 
     src/compositor/server.cpp
     src/compositor/output.cpp
