@@ -39,7 +39,8 @@ const struct wl_surface_interface impl_wl_surface = {
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
         auto* surface = get_userdata<Surface>(resource);
         auto* buffer = get_userdata<ShmBuffer>(wl_buffer);
-        surface->current_buffer = buffer;
+        unref(surface->pending_buffer);
+        surface->pending_buffer = ref(buffer);
     },
     .damage = INTERFACE_STUB,
     .frame = [](wl_client* client, wl_resource* resource, u32 callback) {
@@ -82,20 +83,26 @@ const struct wl_surface_interface impl_wl_surface = {
             }
         }
 
-        if (surface->current_buffer) {
+        if (surface->pending_buffer) {
             auto* vk = surface->server->renderer->vk;
             if (surface->current_image.image) {
                 vk_image_destroy(vk, surface->current_image);
             }
 
-            auto* buffer = surface->current_buffer;
-            if (buffer->type == BufferType::shm) {
-                auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
-                surface->current_image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
+            if (surface->pending_buffer->wl_buffer) {
+                auto* buffer = surface->pending_buffer;
+                if (buffer->type == BufferType::shm) {
+                    auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
+                    surface->current_image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
+                }
+
+                wl_buffer_send_release(surface->pending_buffer->wl_buffer);
+            } else {
+                log_warn("pending wl_buffer was destroyed, surface contents has been cleared");
             }
 
-            wl_buffer_send_release(surface->current_buffer->wl_buffer);
-            surface->current_buffer = nullptr;
+            unref(surface->pending_buffer);
+            surface->pending_buffer = nullptr;
         }
     },
     .set_buffer_transform = INTERFACE_STUB,
@@ -111,6 +118,8 @@ Surface::~Surface()
     if (current_image.image) {
         vk_image_destroy(server->renderer->vk, current_image);
     }
+
+    unref(pending_buffer);
 }
 
 // -----------------------------------------------------------------------------

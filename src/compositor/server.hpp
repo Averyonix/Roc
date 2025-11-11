@@ -85,7 +85,7 @@ struct Surface : RefCounted
 
     bool initial_commit = true;
 
-    struct Buffer* current_buffer;
+    struct Buffer* pending_buffer;
     VulkanImage current_image;
 
     ~Surface();
