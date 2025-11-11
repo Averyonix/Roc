@@ -3,8 +3,6 @@
 #include "renderer/renderer.hpp"
 #include "renderer/vulkan_helpers.hpp"
 
-#include <vulkan/vulkan_wayland.h>
-
 WaylandOutput* backend_find_output_for_surface(Backend* backend, wl_surface* surface)
 {
     for (auto* output : backend->outputs) {
@@ -87,11 +85,7 @@ void listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 height,
         auto* backend = output->server->backend;
         auto* vk = output->server->renderer->vk;
 
-        if (!backend->vkCreateWaylandSurfaceKHR) {
-            backend->vkCreateWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vk->GetInstanceProcAddr(vk->instance, "vkCreateWaylandSurfaceKHR");
-            if (!backend->vkCreateWaylandSurfaceKHR) log_error("failed to load vkCreateWaylandSurfaceKHR");
-        }
-        vk_check(backend->vkCreateWaylandSurfaceKHR(vk->instance, ptr_to(VkWaylandSurfaceCreateInfoKHR {
+        vk_check(vk->CreateWaylandSurfaceKHR(vk->instance, ptr_to(VkWaylandSurfaceCreateInfoKHR {
             .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
             .display = backend->wl_display,
             .surface = output->wl_surface,

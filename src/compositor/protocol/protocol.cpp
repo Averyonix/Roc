@@ -3,8 +3,6 @@
 #include "compositor/server.hpp"
 #include "renderer/renderer.hpp"
 
-#include <sys/mman.h>
-
 #define INTERFACE_STUB [](auto...){}
 
 // -----------------------------------------------------------------------------

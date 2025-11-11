@@ -4,8 +4,6 @@
 
 #include "common/util.hpp"
 
-#include "vulkan/vk_enum_string_helper.h"
-
 const char* vk_result_to_string(VkResult res)
 {
     return string_VkResult(res);

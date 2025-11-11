@@ -1,14 +1,6 @@
 #pragma once
 
-#define VK_USE_PLATFORM_WAYLAND_KHR
-#include "renderer/vulkan_include.hpp"
-#include "vulkan/vulkan_wayland.h"
-
 #include "compositor/server.hpp"
-
-#include <wayland-client-core.h>
-#include "xdg-shell-client-protocol.h"
-#include "xdg-decoration-unstable-v1-client-protocol.h"
 
 // -----------------------------------------------------------------------------
 
@@ -59,8 +51,6 @@ struct Backend
 
     WaylandKeyboard* keyboard;
     WaylandPointer*  pointer;
-
-    PFN_vkCreateWaylandSurfaceKHR vkCreateWaylandSurfaceKHR;
 
     wl_event_source* event_source;
 };

@@ -1,7 +1,5 @@
 #include "renderer.hpp"
 
-#include <stb_image.h>
-
 void renderer_init(Server* server)
 {
     auto* renderer = server->renderer = new Renderer {};

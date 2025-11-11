@@ -1,11 +1,6 @@
 #include "server.hpp"
 
-#include <random>
-
 #include "protocol/protocol.hpp"
-
-#include <sys/mman.h>
-#include <sys/stat.h>
 
 void keyboard_added(Keyboard* kb)
 {

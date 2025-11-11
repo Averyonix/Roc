@@ -5,11 +5,6 @@
 #include "common/util.hpp"
 #include "common/log.hpp"
 
-#include <vk-wsi.h>
-
-#include <wayland-server-core.h>
-#include <wayland-server-protocol.h>
-
 #include "renderer/vulkan_helpers.hpp"
 #include "protocol/protocol.hpp"
 

@@ -3,8 +3,6 @@
 #include "common/types.hpp"
 #include "common/log.hpp"
 
-#include "vulkan_include.hpp"
-
 struct VulkanContext;
 
 const char* vk_result_to_string(VkResult res);

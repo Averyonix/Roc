@@ -3,8 +3,6 @@
 
 #include "compositor/server.hpp"
 
-#include <dlfcn.h>
-
 VulkanContext* vulkan_context_create(Backend* backend)
 {
     auto vk = new VulkanContext {};

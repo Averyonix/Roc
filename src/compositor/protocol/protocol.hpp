@@ -1,9 +1,5 @@
 #pragma once
 
-#include "wayland-server-core.h"
-#include "wayland-server-protocol.h"
-#include "xdg-shell-protocol.h"
-
 #include "common/log.hpp"
 
 #define INTERFACE_STUB [](auto...){}

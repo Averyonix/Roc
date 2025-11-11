@@ -3,8 +3,6 @@
 #include "common/types.hpp"
 #include "vulkan_functions.hpp"
 
-#include "vk-wsi.h"
-
 struct VulkanContext
 {
     VULKAN_DECLARE_FUNCTION(GetInstanceProcAddr)

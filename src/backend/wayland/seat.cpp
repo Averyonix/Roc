@@ -1,8 +1,5 @@
 #include "backend.hpp"
 
-#include <sys/mman.h>
-#include <unistd.h>
-
 // -----------------------------------------------------------------------------
 
 static

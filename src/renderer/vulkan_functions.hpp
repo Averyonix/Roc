@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vulkan_include.hpp"
+#include "common/pch.hpp"
 
 #define VULKAN_INSTANCE_FUNCTIONS(DO) \
     DO(EnumeratePhysicalDevices) \
@@ -13,7 +13,8 @@
     DO(DestroySurfaceKHR) \
     DO(DestroyDevice) \
     DO(DestroyInstance) \
-    DO(GetPhysicalDeviceMemoryProperties)
+    DO(GetPhysicalDeviceMemoryProperties) \
+    DO(CreateWaylandSurfaceKHR)
 
 #define VULKAN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \
