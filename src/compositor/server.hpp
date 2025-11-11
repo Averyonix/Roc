@@ -63,23 +63,23 @@ struct XdgWmBase
 {
     Server* server;
 
-    struct wl_resource* xdg_wm_base;
+    wl_resource* xdg_wm_base;
 };
 
 struct Compositor
 {
     Server* server;
 
-    struct wl_resource* wl_compositor;
+    wl_resource* wl_compositor;
 };
 
 struct Surface
 {
     Server* server;
 
-    struct wl_resource* wl_surface;
-    struct wl_resource* xdg_surface;
-    struct wl_resource* xdg_toplevel;
+    wl_resource* wl_surface;
+    wl_resource* xdg_surface;
+    wl_resource* xdg_toplevel;
 
     struct wl_resource* frame_callback;
 
@@ -104,7 +104,7 @@ struct Buffer
 
     BufferType type;
 
-    struct wl_resource* wl_buffer;
+    wl_resource* wl_buffer;
 };
 
 // -----------------------------------------------------------------------------
@@ -113,14 +113,14 @@ struct Shm
 {
     Server* server;
 
-    struct wl_resource* wl_shm;
+    wl_resource* wl_shm;
 };
 
 struct ShmPool
 {
     Server* server;
 
-    struct wl_resource* wl_shm_pool;
+    wl_resource* wl_shm_pool;
 
     i32 size;
     int fd;
@@ -142,26 +142,51 @@ struct ShmBuffer : Buffer
 
 // -----------------------------------------------------------------------------
 
+struct Seat
+{
+    Server* server;
+
+    struct Keyboard* keyboard;
+    struct Pointer*  pointer;
+
+    std::string name;
+
+    std::vector<wl_resource*> wl_seat;
+};
+
+// -----------------------------------------------------------------------------
+
 struct Keyboard
 {
     Server* server;
 
+    std::vector<wl_resource*> wl_keyboard;
+    wl_resource* focused;
+
     struct xkb_context* xkb_context;
     struct xkb_state*   xkb_state;
     struct xkb_keymap*  xkb_keymap;
+
+    int keymap_fd = -1;
+    i32 keymap_size;
 
     i32 rate;
     i32 delay;
 };
 
 void keyboard_added(Keyboard*);
+void keyboard_keymap_update(Keyboard*);
 void keyboard_key(  Keyboard*, u32 keycode, bool pressed);
+void keyboard_modifiers(Keyboard*, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group);
 
 // -----------------------------------------------------------------------------
 
 struct Pointer
 {
     Server* server;
+
+    std::vector<wl_resource*> wl_pointer;
+    wl_resource* focused;
 };
 
 void pointer_added(   Pointer*);
@@ -176,6 +201,7 @@ struct Server
 {
     Backend*  backend;
     Renderer* renderer;
+    Seat*     seat;
 
     std::chrono::steady_clock::time_point epoch;
 
@@ -185,7 +211,7 @@ struct Server
     std::vector<Surface*> surfaces;
 };
 
-u32 server_get_elapsed_milliseconds(Server*, std::chrono::steady_clock::time_point);
+u32 server_get_elapsed_milliseconds(Server*);
 
 inline
 Surface::~Surface()

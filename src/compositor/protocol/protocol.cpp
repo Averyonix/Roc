@@ -242,3 +242,50 @@ const struct wl_buffer_interface impl_wl_buffer_for_shm = {
         wl_resource_destroy(resource);
     },
 };
+
+// -----------------------------------------------------------------------------
+
+const struct wl_seat_interface impl_wl_seat = {
+    .get_keyboard = [](wl_client* client, wl_resource* resource, u32 id) {
+        auto* seat = get_userdata<Seat>(resource);
+        auto* new_resource = wl_resource_create(client, &wl_keyboard_interface, wl_resource_get_version(resource), id);
+        seat->keyboard->wl_keyboard.emplace_back(new_resource);
+        wl_resource_set_implementation(new_resource, &impl_wl_keyboard, seat->keyboard, [](wl_resource* resource) {
+            auto* keyboard = get_userdata<Keyboard>(resource);
+            std::erase(keyboard->wl_keyboard, resource);
+            if (keyboard->focused == resource) keyboard->focused = nullptr;
+        });
+
+        {
+            auto* kb = seat->keyboard;
+            wl_keyboard_send_keymap(new_resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, kb->keymap_fd, kb->keymap_size);
+        }
+    },
+    .get_pointer = INTERFACE_STUB,
+    .get_touch = INTERFACE_STUB,
+    .release = INTERFACE_STUB,
+};
+
+const struct wl_keyboard_interface impl_wl_keyboard = {
+    .release = INTERFACE_STUB,
+};
+
+const struct wl_pointer_interface impl_wl_pointer = {
+    .release = INTERFACE_STUB,
+    .set_cursor = INTERFACE_STUB,
+};
+
+const wl_global_bind_func_t bind_wl_seat = [](wl_client* client, void* data, uint32_t version, uint32_t id) {
+    auto* seat = static_cast<Seat*>(data);
+    auto* new_resource = wl_resource_create(client, &wl_seat_interface, version, id);
+    seat->wl_seat.emplace_back(new_resource);
+    wl_resource_set_implementation(new_resource, &impl_wl_seat, seat, [](wl_resource* resource) {
+        auto* seat = get_userdata<Seat>(resource);
+        std::erase(seat->wl_seat, resource);
+    });
+    wl_seat_send_name(new_resource, seat->name.c_str());
+    u32 caps = {};
+    if (seat->keyboard) caps |= WL_SEAT_CAPABILITY_KEYBOARD;
+    if (seat->pointer)  caps |= WL_SEAT_CAPABILITY_POINTER;
+    wl_seat_send_capabilities(new_resource, caps);
+};

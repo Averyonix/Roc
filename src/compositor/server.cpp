@@ -20,6 +20,10 @@ void server_run(int /* argc */, char* /* argv */[])
     Server server = {};
     log_warn("server = {}", (void*)&server);
 
+    Seat seat = {};
+    seat.name = "seat-0";
+    server.seat = &seat;
+
     server.epoch = std::chrono::steady_clock::now();
 
     setenv("WAYLAND_DEBUG", "1", true);
@@ -35,6 +39,7 @@ void server_run(int /* argc */, char* /* argv */[])
     wl_global_create(server.display, &wl_compositor_interface, wl_compositor_interface.version, &server, bind_wl_compositor);
     wl_global_create(server.display, &wl_shm_interface,        wl_shm_interface.version,        &server, bind_wl_shm);
     wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   &server, bind_xdg_wm_base);
+    wl_global_create(server.display, &wl_seat_interface,       wl_seat_interface.version,       &seat,   bind_wl_seat);
 
     log_info("Running compositor on: {}", socket);
 

@@ -159,6 +159,8 @@ void listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 format, i3
 
     kb->xkb_keymap = keymap;
     kb->xkb_state = state;
+
+    keyboard_keymap_update(kb);
 }
 
 static
@@ -203,6 +205,7 @@ void listen_wl_keyboard_modifiers(void* data, wl_keyboard*, u32 /* serial */, u3
 {
     auto kb = static_cast<WaylandKeyboard*>(data);
     xkb_state_update_mask(kb->xkb_state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
+    keyboard_modifiers(kb, mods_depressed, mods_latched, mods_locked, group);
 }
 
 static
@@ -256,6 +259,7 @@ void keyboard_set(Backend* backend, struct wl_keyboard* wl_keyboard)
     keyboard->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
     wl_keyboard_add_listener(wl_keyboard, &listeners::wl_keyboard, keyboard);
+    keyboard_added(keyboard);
 }
 
 // -----------------------------------------------------------------------------
