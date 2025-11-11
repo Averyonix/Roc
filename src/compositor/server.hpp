@@ -81,12 +81,30 @@ struct Surface
     struct wl_resource* xdg_surface;
     struct wl_resource* xdg_toplevel;
 
+    struct wl_resource* frame_callback;
+
     bool initial_commit = true;
 
-    struct ShmBuffer* current_buffer;
+    struct Buffer* current_buffer;
     VulkanImage current_image;
 
     ~Surface();
+};
+
+// -----------------------------------------------------------------------------
+
+enum class BufferType
+{
+    shm,
+};
+
+struct Buffer
+{
+    Server* server;
+
+    BufferType type;
+
+    struct wl_resource* wl_buffer;
 };
 
 // -----------------------------------------------------------------------------
@@ -100,21 +118,22 @@ struct Shm
 
 struct ShmPool
 {
-    Shm* shm;
+    Server* server;
 
     struct wl_resource* wl_shm_pool;
 
     i32 size;
     int fd;
+    void* data;
+
+    ~ShmPool();
 };
 
-struct ShmBuffer
+struct ShmBuffer : Buffer
 {
     ShmPool* pool;
 
-    struct wl_resource* wl_buffer;
-
-    void* data;
+    i32 offset;
     i32 width;
     i32 height;
     i32 stride;
@@ -155,14 +174,18 @@ void pointer_axis(    Pointer*, vec2 rel);
 
 struct Server
 {
-    Backend*   backend;
-    Renderer*  renderer;
+    Backend*  backend;
+    Renderer* renderer;
+
+    std::chrono::steady_clock::time_point epoch;
 
     wl_display* display;
     wl_event_loop* event_loop;
 
     std::vector<Surface*> surfaces;
 };
+
+u32 server_get_elapsed_milliseconds(Server*, std::chrono::steady_clock::time_point);
 
 inline
 Surface::~Surface()

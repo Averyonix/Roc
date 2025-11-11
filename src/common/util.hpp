@@ -74,47 +74,6 @@ constexpr vec2 round_to_zero(vec2 v)         { return copysign(glm::floor(glm::a
 
 // -----------------------------------------------------------------------------
 
-struct WeakState
-{
-    void* value;
-};
-
-struct WeaklyReferenceable
-{
-    std::shared_ptr<WeakState> weak_state;
-
-    ~WeaklyReferenceable() { if (weak_state) weak_state->value = nullptr; }
-};
-
-template<typename T>
-struct Weak
-{
-    std::shared_ptr<WeakState> weak_state;
-
-    T*     get() { return weak_state ? static_cast<T*>(weak_state->value) : nullptr; }
-    void reset() { weak_state = {}; }
-
-    template<typename T2>
-        requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
-    operator Weak<T2>() { return Weak<T2>{weak_state}; }
-};
-
-template<typename T>
-Weak<T> weak_from(T* t)
-{
-    if (!t) return {};
-    if (!t->weak_state) t->weak_state.reset(new WeakState{t});
-    return Weak<T>{t->weak_state};
-}
-
-// -----------------------------------------------------------------------------
-
-template<typename T>
-void fixup_weak_vector(std::vector<Weak<T>>& vector)
-{
-    std::erase_if(vector, [](const Weak<T>& v) { return !v.get(); });
-}
-
 template<typename T>
 auto iterate(std::span<T> view, bool reverse = false)
 {

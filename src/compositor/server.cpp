@@ -6,10 +6,21 @@
 
 #include "protocol/protocol.hpp"
 
+u32 server_get_elapsed_milliseconds(Server* server)
+{
+    // TODO: This will elapse after 46 days of runtime, should we base it on surface epoch?
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = now - server->epoch;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+}
+
 void server_run(int /* argc */, char* /* argv */[])
 {
     Server server = {};
     log_warn("server = {}", (void*)&server);
+
+    server.epoch = std::chrono::steady_clock::now();
 
     setenv("WAYLAND_DEBUG", "1", true);
     server.display = wl_display_create();
@@ -100,13 +111,6 @@ void output_frame(Output* output)
     blit(output->server->renderer->image);
 
     for (Surface* surface : output->server->surfaces) {
-        if (surface->current_buffer) {
-            if (!surface->current_image.image) {
-                log_info("Initializing surface image!");
-                surface->current_image = vk_image_create(vk, {u32(surface->current_buffer->width), u32(surface->current_buffer->height)}, surface->current_buffer->data);
-            }
-        }
-
         if (surface->current_image.image) {
             blit(surface->current_image);
         }
@@ -119,4 +123,13 @@ void output_frame(Output* output)
 
     vulkan_context_submit_commands(vk, cmd);
     vk_check(vkwsi_swapchain_present(&output->swapchain, 1, vk->queue, nullptr, 0, false));
+
+    auto elapsed = server_get_elapsed_milliseconds(output->server);
+
+    for (Surface* surface : output->server->surfaces) {
+        if (surface->frame_callback) {
+            wl_callback_send_done(surface->frame_callback, elapsed);
+            wl_resource_destroy(surface->frame_callback);
+        }
+    }
 }

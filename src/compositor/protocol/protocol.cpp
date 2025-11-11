@@ -1,37 +1,11 @@
 #include "protocol.hpp"
 
 #include "compositor/server.hpp"
+#include "renderer/renderer.hpp"
 
 #include <sys/mman.h>
 
 #define INTERFACE_STUB [](auto...){}
-
-#define CREATE_DUMMY_RESOURCE(InterfaceName, Implementation, Version) \
-    log_warn("Creating dummy resource: " #InterfaceName); \
-    auto* res = wl_resource_create(client, &InterfaceName##_interface, Version, id); \
-    wl_resource_set_implementation(res, &Implementation, nullptr, nullptr)
-
-template<typename T>
-T* get_userdata(wl_resource* resource)
-{
-    return static_cast<T*>(wl_resource_get_user_data(resource));
-}
-
-template<typename T>
-void resource_delete(wl_resource* resource)
-{
-    delete static_cast<T*>(wl_resource_get_user_data(resource));
-}
-
-template<typename T>
-wl_array to_array(std::span<T> span)
-{
-    return wl_array {
-        .size = span.size_bytes(),
-        .alloc = span.size_bytes(),
-        .data = const_cast<void*>(static_cast<const void*>(span.data())),
-    };
-}
 
 // -----------------------------------------------------------------------------
 
@@ -63,13 +37,25 @@ const struct wl_surface_interface impl_wl_surface = {
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
         auto* surface = get_userdata<Surface>(resource);
         auto* buffer = get_userdata<ShmBuffer>(wl_buffer);
-        if (surface->current_buffer) {
-            log_error("TODO: Clean up old buffer");
-        }
         surface->current_buffer = buffer;
     },
     .damage = INTERFACE_STUB,
-    .frame = INTERFACE_STUB,
+    .frame = [](wl_client* client, wl_resource* resource, u32 callback) {
+        auto* surface = get_userdata<Surface>(resource);
+        auto new_resource = wl_resource_create(client, &wl_callback_interface, 1, callback);
+        if (surface->frame_callback) {
+            wl_resource_destroy(surface->frame_callback);
+        }
+        log_warn("frame callback {} created", (void*)new_resource);
+        surface->frame_callback = new_resource;
+        wl_resource_set_implementation(new_resource, nullptr, surface, [](wl_resource* resource) {
+            auto* surface = get_userdata<Surface>(resource);
+            log_warn("frame callback {} destroyed", (void*)resource);
+            if (surface->frame_callback == resource) {
+                surface->frame_callback = nullptr;
+            }
+        });
+    },
     .set_opaque_region = INTERFACE_STUB,
     .set_input_region = INTERFACE_STUB,
     .commit = [](wl_client* client, wl_resource* resource) {
@@ -91,6 +77,22 @@ const struct wl_surface_interface impl_wl_surface = {
             if (surface->xdg_surface) {
                 xdg_surface_send_configure(surface->xdg_surface, wl_display_next_serial(surface->server->display));
             }
+        }
+
+        if (surface->current_buffer) {
+            auto* vk = surface->server->renderer->vk;
+            if (surface->current_image.image) {
+                vk_image_destroy(vk, surface->current_image);
+            }
+
+            auto* buffer = surface->current_buffer;
+            if (buffer->type == BufferType::shm) {
+                auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
+                surface->current_image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
+            }
+
+            wl_buffer_send_release(surface->current_buffer->wl_buffer);
+            surface->current_buffer = nullptr;
         }
     },
     .set_buffer_transform = INTERFACE_STUB,
@@ -167,12 +169,16 @@ const struct wl_shm_interface impl_wl_shm = {
     .create_pool = [](wl_client* client, wl_resource* resource, u32 id, int fd, i32 size) {
         auto* new_resource = wl_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
         auto* pool = new ShmPool {
-            .shm = get_userdata<Shm>(resource),
+            .server = get_userdata<Shm>(resource)->server,
             .wl_shm_pool = new_resource,
             .fd = fd,
             .size = size,
         };
         wl_resource_set_implementation(new_resource, &impl_wl_shm_pool, pool, resource_delete<ShmPool>);
+        pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
+        if (pool->data == MAP_FAILED) {
+            wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
+        }
     },
     .release = INTERFACE_STUB,
 };
@@ -197,30 +203,42 @@ const struct wl_shm_pool_interface impl_wl_shm_pool = {
             return;
         }
 
-        void* data = mmap(nullptr, stride * height, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, offset);
-        if (data == MAP_FAILED) {
-            wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
-            return;
-        }
-
-        log_warn("Mapped! ({})", data);
-
         auto* new_resource = wl_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
         auto* shm_buffer = new ShmBuffer {
-            .pool = get_userdata<ShmPool>(resource),
-            .wl_buffer = new_resource,
-            .data = data,
+            {
+                .server = get_userdata<ShmPool>(resource)->server,
+                .type = BufferType::shm,
+                .wl_buffer = new_resource,
+            },
+            .pool = pool,
             .width = width,
             .height = height,
             .stride = stride,
             .format = wl_shm_format(format),
         };
-        wl_resource_set_implementation(new_resource, &impl_wl_buffer, shm_buffer, resource_delete<ShmBuffer>);
+        wl_resource_set_implementation(new_resource, &impl_wl_buffer_for_shm, shm_buffer, resource_delete<ShmBuffer>);
     },
-    .destroy = INTERFACE_STUB,
-    .resize = INTERFACE_STUB,
+    .destroy = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
+    .resize = [](wl_client* client, wl_resource* resource, i32 size) {
+        auto* pool = get_userdata<ShmPool>(resource);
+        munmap(pool->data, pool->size);
+        pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
+        pool->size = size;
+        if (!pool->data) {
+            wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed while resizing pool");
+        }
+    },
 };
 
-const struct wl_buffer_interface impl_wl_buffer = {
-    .destroy = INTERFACE_STUB,
+ShmPool::~ShmPool()
+{
+    if (data) munmap(data, size);
+}
+
+const struct wl_buffer_interface impl_wl_buffer_for_shm = {
+    .destroy = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
 };
