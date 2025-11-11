@@ -99,7 +99,6 @@ static
 void listen_toplevel_close(void* data, xdg_toplevel*)
 {
     auto output = static_cast<WaylandOutput*>(data);
-    (void)output;
 
     log_debug("xdg_toplevel::close");
 

@@ -23,12 +23,14 @@ struct RefCounted
     {
         log_trace("RefCounted ++ {}", debug_global_ref_counted_objects++);
     }
-
-    ~RefCounted()
-    {
-        log_trace("RefCounted -- {}", --debug_global_ref_counted_objects);
-    }
 #endif
+
+    virtual ~RefCounted()
+    {
+#if NOISY_REF_COUNTS
+        log_trace("RefCounted -- {}", --debug_global_ref_counted_objects);
+#endif
+    }
 };
 
 template<typename T>
@@ -46,6 +48,75 @@ void unref(T* t)
         delete t;
     }
 }
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+struct Ref
+{
+    T* value;
+
+    Ref() = default;
+
+    ~Ref()
+    {
+        unref(value);
+    }
+
+    Ref(T* t)
+        : value(t)
+    {
+        ref(t);
+    }
+
+    Ref& operator=(T* t)
+    {
+        reset(t);
+        return *this;
+    }
+
+    void reset(T* t = nullptr)
+    {
+        if (t == value) return;
+        unref(value);
+        value = ref(t);
+    }
+
+    Ref(const T& other)
+        : value(ref(other.value))
+    {}
+
+    Ref& operator=(const T& other)
+    {
+        if (value != other.value) {
+            unref(value);
+            value = ref(other.value);
+        }
+        return *this;
+    }
+
+    Ref(T&& other)
+        : value(std::exchange(other.value))
+    {}
+
+    Ref& operator=(T&& other)
+    {
+        if (value != other.value) {
+            unref(value);
+            value = std::exchange(other.value);
+        }
+        return *this;
+    }
+
+    operator bool() const { return value; }
+
+    T*        get() const { return value; }
+    T* operator->() const { return value; }
+
+    template<typename T2>
+        requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
+    operator Ref<T2>() { return Ref<T2>(value); }
+};
 
 // -----------------------------------------------------------------------------
 

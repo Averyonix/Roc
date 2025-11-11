@@ -37,8 +37,7 @@ const struct wl_surface_interface impl_wl_surface = {
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
         auto* surface = get_userdata<Surface>(resource);
         auto* buffer = get_userdata<ShmBuffer>(wl_buffer);
-        unref(surface->pending_buffer);
-        surface->pending_buffer = ref(buffer);
+        surface->pending_buffer = buffer;
     },
     .damage = INTERFACE_STUB,
     .frame = [](wl_client* client, wl_resource* resource, u32 callback) {
@@ -88,7 +87,7 @@ const struct wl_surface_interface impl_wl_surface = {
             }
 
             if (surface->pending_buffer->wl_buffer) {
-                auto* buffer = surface->pending_buffer;
+                auto* buffer = surface->pending_buffer.get();
                 if (buffer->type == BufferType::shm) {
                     auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
                     surface->current_image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
@@ -99,7 +98,6 @@ const struct wl_surface_interface impl_wl_surface = {
                 log_warn("pending wl_buffer was destroyed, surface contents has been cleared");
             }
 
-            unref(surface->pending_buffer);
             surface->pending_buffer = nullptr;
         }
     },
@@ -116,8 +114,6 @@ Surface::~Surface()
     if (current_image.image) {
         vk_image_destroy(server->renderer->vk, current_image);
     }
-
-    unref(pending_buffer);
 }
 
 // -----------------------------------------------------------------------------
@@ -232,7 +228,7 @@ const struct wl_shm_pool_interface impl_wl_shm_pool = {
         shm_buffer->server = get_userdata<ShmPool>(resource)->server;
         shm_buffer->type = BufferType::shm;
         shm_buffer->wl_buffer = new_resource;
-        shm_buffer->pool = ref(pool);
+        shm_buffer->pool = pool;
         shm_buffer->width = width;
         shm_buffer->height = height;
         shm_buffer->stride = stride;
@@ -263,11 +259,6 @@ const struct wl_buffer_interface impl_wl_buffer_for_shm = {
         wl_resource_destroy(resource);
     },
 };
-
-ShmBuffer::~ShmBuffer()
-{
-    unref(pool);
-}
 
 // -----------------------------------------------------------------------------
 

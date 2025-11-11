@@ -80,7 +80,7 @@ struct Surface : RefCounted
 
     bool initial_commit = true;
 
-    struct Buffer* pending_buffer;
+    Ref<struct Buffer> pending_buffer;
     VulkanImage current_image;
 
     ~Surface();
@@ -126,7 +126,7 @@ struct ShmPool : RefCounted
 
 struct ShmBuffer : Buffer
 {
-    ShmPool* pool;
+    Ref<ShmPool> pool;
 
     using Buffer::wl_buffer;
 
@@ -135,8 +135,6 @@ struct ShmBuffer : Buffer
     i32 height;
     i32 stride;
     wl_shm_format format;
-
-    ~ShmBuffer();
 };
 
 // -----------------------------------------------------------------------------
