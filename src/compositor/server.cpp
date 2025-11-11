@@ -50,21 +50,21 @@ void server_run(int /* argc */, char* /* argv */[])
     if (server.backend) {
         backend_destroy(server.backend);
     }
+
+    wl_display_destroy_clients(server.display);
+
+    if (server.renderer) {
+        renderer_destroy(server.renderer);
+    }
+
+    wl_display_destroy(server.display);
+
+    log_info("Shutdown complete");
 }
 
 void server_terminate(Server* server)
 {
     wl_display_terminate(server->display);
-}
-
-void output_added(Output* /* output */)
-{
-    log_debug("Output added");
-}
-
-void output_removed(Output* /* output */)
-{
-    log_debug("Output removed");
 }
 
 void output_frame(Output* output)

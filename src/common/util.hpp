@@ -3,6 +3,7 @@
 #include "pch.hpp"
 #include "log.hpp"
 #include "types.hpp"
+#include "ref.hpp"
 
 // -----------------------------------------------------------------------------
 

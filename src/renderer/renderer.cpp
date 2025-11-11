@@ -19,3 +19,10 @@ void renderer_init(Server* server)
 
     renderer->image = vk_image_create(renderer->vk, { u32(w), u32(h) }, data);
 }
+
+void renderer_destroy(Renderer* renderer)
+{
+    vk_image_destroy(renderer->vk, renderer->image);
+    vkwsi_context_destroy(renderer->vk->vkwsi);
+    vulkan_context_destroy(renderer->vk);
+}

@@ -4,6 +4,7 @@
 #include "renderer/vulkan_context.hpp"
 #include "renderer/vulkan_helpers.hpp"
 
+static
 void output_init_swapchain(Output* output)
 {
     auto* vk = output->server->renderer->vk;
@@ -38,6 +39,26 @@ void output_init_swapchain(Output* output)
     sw_info.format = output->format.format;
     sw_info.color_space = output->format.colorSpace;
     vkwsi_swapchain_set_info(output->swapchain, &sw_info);
+}
+
+void output_added(Output* output)
+{
+    log_debug("Output added");
+
+    if (!output->swapchain) {
+        output_init_swapchain(output);
+    }
+}
+
+void output_removed(Output* output)
+{
+    log_debug("Output removed");
+    if (output->timeline) {
+        output->server->renderer->vk->DestroySemaphore(output->server->renderer->vk->device, output->timeline, nullptr);
+    }
+    if (output->swapchain) {
+        vkwsi_swapchain_destroy(output->swapchain);
+    }
 }
 
 static

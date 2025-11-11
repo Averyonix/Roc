@@ -15,3 +15,4 @@ struct Renderer
 };
 
 void renderer_init(Server*);
+void renderer_destroy(Renderer*);

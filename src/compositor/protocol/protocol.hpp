@@ -4,6 +4,8 @@
 #include "wayland-server-protocol.h"
 #include "xdg-shell-protocol.h"
 
+#include "common/log.hpp"
+
 #define INTERFACE_STUB [](auto...){}
 
 template<typename T>
@@ -12,11 +14,28 @@ T* get_userdata(wl_resource* resource)
     return static_cast<T*>(wl_resource_get_user_data(resource));
 }
 
-template<typename T>
-void resource_delete(wl_resource* resource)
+inline
+void debug_track_resource(wl_resource* resource)
 {
-    delete static_cast<T*>(wl_resource_get_user_data(resource));
+    static i64 count = 0;
+    log_trace("wl_resource ++ {}", ++count);
+
+    auto* destroy_listener = new wl_listener {};
+    destroy_listener->notify = [](wl_listener* listener, void*) {
+        log_trace("wl_resource -- {}", --count);
+        wl_list_remove(&listener->link);
+        delete listener;
+    };
+    wl_resource_add_destroy_listener(resource, destroy_listener);
 }
+
+#define SIMPLE_RESOURCE_UNREF(Type, Member) \
+    [](wl_resource* resource) { \
+        if (auto* t = get_userdata<Type>(resource)) { \
+            t->Member = nullptr; \
+            unref(t); \
+        } \
+    }
 
 template<typename T>
 wl_array to_array(std::span<T> span)

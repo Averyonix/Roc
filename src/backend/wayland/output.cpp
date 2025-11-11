@@ -98,10 +98,6 @@ void listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 height,
         }), nullptr, &output->vk_surface));
     }
 
-    if (!output->swapchain) {
-        output_init_swapchain(output);
-    }
-
     output_added(output);
 }
 
@@ -214,7 +210,7 @@ void backend_output_destroy(Output* _output)
 
     std::erase(output->server->backend->outputs, output);
 
-    if (output->swapchain) vkwsi_swapchain_destroy(output->swapchain);
+    if (output->vk_surface) output->server->renderer->vk->DestroySurfaceKHR(output->server->renderer->vk->instance, output->vk_surface, nullptr);
 
     if (output->decoration)  zxdg_toplevel_decoration_v1_destroy(output->decoration);
     if (output->toplevel)    xdg_toplevel_destroy(output->toplevel);

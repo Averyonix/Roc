@@ -11,6 +11,7 @@
 #include <wayland-server-protocol.h>
 
 #include "renderer/vulkan_helpers.hpp"
+#include "protocol/protocol.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -51,7 +52,6 @@ void output_added(Output*);
 void output_removed(Output*);
 void output_frame(Output*);
 
-void output_init_swapchain(Output*);
 vkwsi_swapchain_image output_acquire_image(Output*);
 
 void backend_output_create(Backend*);
@@ -59,21 +59,21 @@ void backend_output_destroy(Output*);
 
 // -----------------------------------------------------------------------------
 
-struct XdgWmBase
+struct XdgWmBase : RefCounted
 {
     Server* server;
 
     wl_resource* xdg_wm_base;
 };
 
-struct Compositor
+struct Compositor : RefCounted
 {
     Server* server;
 
     wl_resource* wl_compositor;
 };
 
-struct Surface
+struct Surface : RefCounted
 {
     Server* server;
 
@@ -81,7 +81,7 @@ struct Surface
     wl_resource* xdg_surface;
     wl_resource* xdg_toplevel;
 
-    struct wl_resource* frame_callback;
+    wl_resource* frame_callback;
 
     bool initial_commit = true;
 
@@ -98,7 +98,7 @@ enum class BufferType
     shm,
 };
 
-struct Buffer
+struct Buffer : RefCounted
 {
     Server* server;
 
@@ -109,14 +109,14 @@ struct Buffer
 
 // -----------------------------------------------------------------------------
 
-struct Shm
+struct Shm : RefCounted
 {
     Server* server;
 
     wl_resource* wl_shm;
 };
 
-struct ShmPool
+struct ShmPool : RefCounted
 {
     Server* server;
 
@@ -133,11 +133,15 @@ struct ShmBuffer : Buffer
 {
     ShmPool* pool;
 
+    using Buffer::wl_buffer;
+
     i32 offset;
     i32 width;
     i32 height;
     i32 stride;
     wl_shm_format format;
+
+    ~ShmBuffer();
 };
 
 // -----------------------------------------------------------------------------
@@ -212,9 +216,3 @@ struct Server
 };
 
 u32 server_get_elapsed_milliseconds(Server*);
-
-inline
-Surface::~Surface()
-{
-    std::erase(server->surfaces, this);
-}
