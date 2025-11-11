@@ -25,19 +25,19 @@ void register_frame_callback(WaylandOutput* output)
     constexpr static wl_callback_listener listener {
         .done = listen_wl_callback_done,
     };
-    auto res = wl_callback_add_listener(callback, &listener, output);
+    /* auto res = */wl_callback_add_listener(callback, &listener, output);
     wl_surface_commit(output->wl_surface);
-    log_trace("registered: {}", res);
+    // log_trace("registered: {}", res);
 }
 
 void listen_wl_callback_done(void* data, struct wl_callback*, u32 time)
 {
     auto* output = static_cast<WaylandOutput*>(data);
 
-    log_trace("wl_callback::done(time = {})", time);
+    // log_trace("wl_callback::done(time = {})", time);
     output_frame(output);
 
-    // register_frame_callback(output);
+    register_frame_callback(output);
 }
 
 // -----------------------------------------------------------------------------

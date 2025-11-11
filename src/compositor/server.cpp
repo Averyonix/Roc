@@ -9,6 +9,7 @@
 void server_run(int /* argc */, char* /* argv */[])
 {
     Server server = {};
+    log_warn("server = {}", (void*)&server);
 
     setenv("WAYLAND_DEBUG", "1", true);
     server.display = wl_display_create();
@@ -20,9 +21,9 @@ void server_run(int /* argc */, char* /* argv */[])
 
     const char* socket = wl_display_add_socket_auto(server.display);
 
-    wl_global_create(server.display, &wl_compositor_interface, wl_compositor_interface.version, nullptr, bind_wl_compositor);
-    wl_global_create(server.display, &wl_shm_interface,        wl_shm_interface.version,        nullptr, bind_wl_shm);
-    wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   nullptr, bind_xdg_wm_base);
+    wl_global_create(server.display, &wl_compositor_interface, wl_compositor_interface.version, &server, bind_wl_compositor);
+    wl_global_create(server.display, &wl_shm_interface,        wl_shm_interface.version,        &server, bind_wl_shm);
+    wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   &server, bind_xdg_wm_base);
 
     log_info("Running compositor on: {}", socket);
 
@@ -55,10 +56,7 @@ void output_frame(Output* output)
     auto* vk = output->server->renderer->vk;
     auto cmd = vulkan_context_begin_commands(vk);
 
-    log_info("acquiring image");
-
     auto current = output_acquire_image(output);
-    log_info("Rendering frame ({}, {})", current.extent.width, current.extent.height);
 
     vk_transition(vk, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -70,29 +68,49 @@ void output_frame(Output* output)
         ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
         1, ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
-    auto& image = output->server->renderer->image;
-    vk->CmdBlitImage2(cmd, ptr_to(VkBlitImageInfo2 {
-        .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
-        .srcImage = output->server->renderer->image.image,
-        .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .dstImage = current.image,
-        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .regionCount = 1,
-        .pRegions = ptr_to(VkImageBlit2 {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
-            .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-            .srcOffsets = {
-                VkOffset3D { },
-                VkOffset3D { i32(image.extent.width), i32(image.extent.height), 1 },
-            },
-            .dstSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-            .dstOffsets = {
-                VkOffset3D { },
-                VkOffset3D { i32(current.extent.width), i32(current.extent.height), 1 },
-            },
-        }),
-        .filter = VK_FILTER_NEAREST,
-    }));
+    auto blit = [&](const VulkanImage& image) {
+        vk->CmdBlitImage2(cmd, ptr_to(VkBlitImageInfo2 {
+            .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
+            .srcImage = image.image,
+            .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .dstImage = current.image,
+            .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .regionCount = 1,
+            .pRegions = ptr_to(VkImageBlit2 {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
+                .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                .srcOffsets = {
+                    VkOffset3D { },
+                    VkOffset3D { i32(image.extent.width), i32(image.extent.height), 1 },
+                },
+                .dstSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                .dstOffsets = {
+                    VkOffset3D { },
+                    VkOffset3D {
+                        i32(std::min(current.extent.width, image.extent.width)),
+                        i32(std::min(current.extent.height, image.extent.height)),
+                        1
+                    },
+                },
+            }),
+            .filter = VK_FILTER_NEAREST,
+        }));
+    };
+
+    blit(output->server->renderer->image);
+
+    for (Surface* surface : output->server->surfaces) {
+        if (surface->current_buffer) {
+            if (!surface->current_image.image) {
+                log_info("Initializing surface image!");
+                surface->current_image = vk_image_create(vk, {u32(surface->current_buffer->width), u32(surface->current_buffer->height)}, surface->current_buffer->data);
+            }
+        }
+
+        if (surface->current_image.image) {
+            blit(surface->current_image);
+        }
+    }
 
     vk_transition(vk, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,

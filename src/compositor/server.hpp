@@ -5,9 +5,12 @@
 #include "common/util.hpp"
 #include "common/log.hpp"
 
-#include "vk-wsi.h"
+#include <vk-wsi.h>
 
-#include "wayland-server-core.h"
+#include <wayland-server-core.h>
+#include <wayland-server-protocol.h>
+
+#include "renderer/vulkan_helpers.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -56,6 +59,70 @@ void backend_output_destroy(Output*);
 
 // -----------------------------------------------------------------------------
 
+struct XdgWmBase
+{
+    Server* server;
+
+    struct wl_resource* xdg_wm_base;
+};
+
+struct Compositor
+{
+    Server* server;
+
+    struct wl_resource* wl_compositor;
+};
+
+struct Surface
+{
+    Server* server;
+
+    struct wl_resource* wl_surface;
+    struct wl_resource* xdg_surface;
+    struct wl_resource* xdg_toplevel;
+
+    bool initial_commit = true;
+
+    struct ShmBuffer* current_buffer;
+    VulkanImage current_image;
+
+    ~Surface();
+};
+
+// -----------------------------------------------------------------------------
+
+struct Shm
+{
+    Server* server;
+
+    struct wl_resource* wl_shm;
+};
+
+struct ShmPool
+{
+    Shm* shm;
+
+    struct wl_resource* wl_shm_pool;
+
+    i32 size;
+    int fd;
+};
+
+struct ShmBuffer
+{
+    ShmPool* pool;
+
+    struct wl_resource* wl_buffer;
+
+    void* data;
+    i32 width;
+    i32 height;
+    i32 stride;
+    wl_shm_format format;
+};
+
+// -----------------------------------------------------------------------------
+
 struct Keyboard
 {
     Server* server;
@@ -93,4 +160,12 @@ struct Server
 
     wl_display* display;
     wl_event_loop* event_loop;
+
+    std::vector<Surface*> surfaces;
 };
+
+inline
+Surface::~Surface()
+{
+    std::erase(server->surfaces, this);
+}

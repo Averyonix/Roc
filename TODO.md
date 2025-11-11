@@ -5,5 +5,7 @@
 - ✅ Vulkan Validation Layers
 - ✅ Draw image
 - ✅ Window close
-- Draw rectangle (requires shader support)
-- Draw cursor
+- ✅ Draw single client buffer
+- Buffer lifetimes
+- Surface geometry
+- Client seat communications
