@@ -2,7 +2,7 @@
 
 #include "common/pch.hpp"
 
-#define VULKAN_INSTANCE_FUNCTIONS(DO) \
+#define WREN_INSTANCE_FUNCTIONS(DO) \
     DO(EnumeratePhysicalDevices) \
     DO(GetPhysicalDeviceProperties2) \
     DO(GetPhysicalDeviceQueueFamilyProperties) \
@@ -17,7 +17,7 @@
     DO(GetPhysicalDeviceFormatProperties2) \
     DO(CreateWaylandSurfaceKHR)
 
-#define VULKAN_DEVICE_FUNCTIONS(DO) \
+#define WREN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \
     DO(CreateCommandPool) \
     DO(AllocateCommandBuffers) \
@@ -83,10 +83,10 @@
     DO(GetImageMemoryRequirements2) \
     DO(BindImageMemory2)
 
-#define VULKAN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
+#define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 
-struct VulkanContext;
+struct wren_context;
 
-void vulkan_init_functions(VulkanContext*, PFN_vkGetInstanceProcAddr);
-void vulkan_load_instance_functions(VulkanContext*);
-void vulkan_load_device_functions(VulkanContext*);
+void wren_init_functions(wren_context*, PFN_vkGetInstanceProcAddr);
+void wren_load_instance_functions(wren_context*);
+void wren_load_device_functions(wren_context*);

@@ -1,40 +1,43 @@
 #pragma once
 
+#include "protocol/protocol.hpp"
+
 #include "common/pch.hpp"
 #include "common/types.hpp"
 #include "common/util.hpp"
 #include "common/log.hpp"
 
 #include "renderer/vulkan_helpers.hpp"
-#include "protocol/protocol.hpp"
 
 // -----------------------------------------------------------------------------
 
-struct Server;
-
-void server_run(int argc, char* argv[]);
-void server_terminate(Server*);
+#define WROC_STUB [](auto...) {}
 
 // -----------------------------------------------------------------------------
 
-struct Renderer;
+struct wroc_server;
+
+void wroc_run(int argc, char* argv[]);
+void wroc_terminate(wroc_server*);
 
 // -----------------------------------------------------------------------------
 
-struct Backend;
-
-void backend_init(Server*);
-void backend_destroy(Backend*);
-
-std::span<const char* const> backend_get_required_instance_extensions(Backend*);
+struct wren_renderer;
 
 // -----------------------------------------------------------------------------
 
-struct Output
+struct wroc_backend;
+
+void wroc_backend_init(wroc_server*);
+void wroc_backend_destroy(wroc_backend*);
+
+// -----------------------------------------------------------------------------
+
+struct wroc_output
 {
-    Server* server;
+    wroc_server* server;
 
-    ivec2 size;
+    wrei_vec2i32 size;
 
     VkSurfaceKHR vk_surface;
     VkSemaphore timeline;
@@ -43,47 +46,47 @@ struct Output
     vkwsi_swapchain* swapchain;
 };
 
-void output_added(Output*);
-void output_removed(Output*);
-void output_frame(Output*);
+void wroc_output_added(wroc_output*);
+void wroc_output_removed(wroc_output*);
+void wroc_output_frame(wroc_output*);
 
-vkwsi_swapchain_image output_acquire_image(Output*);
+vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
 
-void backend_output_create(Backend*);
-void backend_output_destroy(Output*);
+void wroc_backend_output_create(wroc_backend*);
+void wroc_backend_output_destroy(wroc_output*);
 
 // -----------------------------------------------------------------------------
 
-struct XdgWmBase : RefCounted
+struct wroc_xdg_wm_base : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* xdg_wm_base;
 };
 
-struct Compositor : RefCounted
+struct wroc_wl_compositor : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* wl_compositor;
 };
 
-struct Region : RefCounted
+struct wroc_wl_region : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* wl_region;
 
     pixman_region32 region;
 
-    ~Region();
+    ~wroc_wl_region();
 };
 
-struct Buffer;
+struct wroc_wl_buffer;
 
-struct Surface : RefCounted
+struct wroc_surface : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* wl_surface;
     wl_resource* xdg_surface;
@@ -94,47 +97,47 @@ struct Surface : RefCounted
     bool initial_commit = true;
 
     struct {
-        Ref<Buffer> buffer;
-        std::optional<rect<i32>> geometry;
+        wrei_ref<wroc_wl_buffer> buffer;
+        std::optional<wrei_rect<i32>> geometry;
     } pending;
 
     struct {
-        VulkanImage image;
-        std::optional<rect<i32>> geometry;
+        wren_image image;
+        std::optional<wrei_rect<i32>> geometry;
     } current;
 
-    ~Surface();
+    ~wroc_surface();
 };
 
 // -----------------------------------------------------------------------------
 
-enum class BufferType
+enum class wroc_wl_buffer_type
 {
     shm,
     dma,
 };
 
-struct Buffer : RefCounted
+struct wroc_wl_buffer : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
-    BufferType type;
+    wroc_wl_buffer_type type;
 
     wl_resource* wl_buffer;
 };
 
 // -----------------------------------------------------------------------------
 
-struct Shm : RefCounted
+struct wroc_wl_shm : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* wl_shm;
 };
 
-struct ShmPool : RefCounted
+struct wroc_wl_shm_pool : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* wl_shm_pool;
 
@@ -142,12 +145,12 @@ struct ShmPool : RefCounted
     int fd;
     void* data;
 
-    ~ShmPool();
+    ~wroc_wl_shm_pool();
 };
 
-struct ShmBuffer : Buffer
+struct wroc_wl_shm_buffer : wroc_wl_buffer
 {
-    Ref<ShmPool> pool;
+    wrei_ref<wroc_wl_shm_pool> pool;
 
     i32 offset;
     i32 width;
@@ -158,30 +161,30 @@ struct ShmBuffer : Buffer
 
 // -----------------------------------------------------------------------------
 
-struct ZwpBufferParams : RefCounted
+struct wroc_zwp_buffer_params : wrei_ref_counted
 {
-    Server* server;
+    wroc_server* server;
 
     wl_resource* zwp_linux_buffer_params_v1;
 
-    DmaParams params;
+    wren_dma_params params;
 };
 
-struct DmaBuffer : Buffer
+struct wroc_zwp_buffer : wroc_wl_buffer
 {
-    DmaParams params;
+    wren_dma_params params;
 
-    VulkanImage image;
+    wren_image image;
 };
 
 // -----------------------------------------------------------------------------
 
-struct Seat
+struct wroc_seat
 {
-    Server* server;
+    wroc_server* server;
 
-    struct Keyboard* keyboard;
-    struct Pointer*  pointer;
+    struct wroc_keyboard* keyboard;
+    struct wroc_pointer*  pointer;
 
     std::string name;
 
@@ -190,9 +193,9 @@ struct Seat
 
 // -----------------------------------------------------------------------------
 
-struct Keyboard
+struct wroc_keyboard
 {
-    Server* server;
+    wroc_server* server;
 
     std::vector<wl_resource*> wl_keyboard;
     wl_resource* focused;
@@ -208,41 +211,53 @@ struct Keyboard
     i32 delay;
 };
 
-void keyboard_added(Keyboard*);
-void keyboard_keymap_update(Keyboard*);
-void keyboard_key(  Keyboard*, u32 keycode, bool pressed);
-void keyboard_modifiers(Keyboard*, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group);
+void wroc_keyboard_added(wroc_keyboard*);
+void wroc_keyboard_keymap_update(wroc_keyboard*);
+void wroc_keyboard_key(  wroc_keyboard*, u32 keycode, bool pressed);
+void wroc_keyboard_modifiers(wroc_keyboard*, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group);
 
 // -----------------------------------------------------------------------------
 
-struct Pointer
+struct wroc_pointer
 {
-    Server* server;
+    wroc_server* server;
 
     std::vector<wl_resource*> wl_pointer;
     wl_resource* focused;
 };
 
-void pointer_added(   Pointer*);
-void pointer_button(  Pointer*, u32 button, bool pressed);
-void pointer_absolute(Pointer*, Output*, vec2 pos);
-void pointer_relative(Pointer*, vec2 rel);
-void pointer_axis(    Pointer*, vec2 rel);
+void wroc_pointer_added(   wroc_pointer*);
+void wroc_pointer_button(  wroc_pointer*, u32 button, bool pressed);
+void wroc_pointer_absolute(wroc_pointer*, wroc_output*, wrei_vec2f64 pos);
+void wroc_pointer_relative(wroc_pointer*, wrei_vec2f64 rel);
+void wroc_pointer_axis(    wroc_pointer*, wrei_vec2f64 rel);
 
 // -----------------------------------------------------------------------------
 
-struct Server
+struct wroc_renderer
 {
-    Backend*  backend;
-    Renderer* renderer;
-    Seat*     seat;
+    wroc_server* server;
+
+    wren_context* wren;
+
+    wren_image image;
+};
+
+void wroc_renderer_create( wroc_server*);
+void wroc_renderer_destroy(wroc_server*);
+
+struct wroc_server
+{
+    wroc_backend*  backend;
+    wroc_renderer* renderer;
+    wroc_seat*     seat;
 
     std::chrono::steady_clock::time_point epoch;
 
     wl_display* display;
     wl_event_loop* event_loop;
 
-    std::vector<Surface*> surfaces;
+    std::vector<wroc_surface*> surfaces;
 };
 
-u32 server_get_elapsed_milliseconds(Server*);
+u32 wroc_server_get_elapsed_milliseconds(wroc_server*);

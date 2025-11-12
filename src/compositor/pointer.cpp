@@ -1,30 +1,30 @@
 #include "server.hpp"
 
-void pointer_added(Pointer* pointer)
+void wroc_pointer_added(wroc_pointer* pointer)
 {
     (void)pointer;
 }
 
-void pointer_button(Pointer* pointer, u32 button, bool pressed)
+void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
 {
     (void)pointer;
     (void)button;
     (void)pressed;
 }
 
-void pointer_absolute(Pointer* pointer, Output*, vec2 pos)
+void wroc_pointer_absolute(wroc_pointer* pointer, wroc_output*, wrei_vec2f64 pos)
 {
     (void)pointer;
     (void)pos;
 }
 
-void pointer_relative(Pointer* pointer, vec2 rel)
+void wroc_pointer_relative(wroc_pointer* pointer, wrei_vec2f64 rel)
 {
     (void)pointer;
     (void)rel;
 }
 
-void pointer_axis(Pointer* pointer, vec2 rel)
+void wroc_pointer_axis(wroc_pointer* pointer, wrei_vec2f64 rel)
 {
     (void)pointer;
     (void)rel;

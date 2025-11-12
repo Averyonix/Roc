@@ -26,14 +26,14 @@ using f64 = double;
 
 // -----------------------------------------------------------------------------
 
-using fvec4 = glm:: vec4;
-using  vec2 = glm::dvec2;
-using ivec2 = glm::ivec2;
+using wrei_vec4f32 = glm:: vec4;
+using wrei_vec2f64 = glm::dvec2;
+using wrei_vec2i32 = glm::ivec2;
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct rect
+struct wrei_rect
 {
     glm::vec<2, T> origin;
     glm::vec<2, T> extent;

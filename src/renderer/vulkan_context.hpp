@@ -3,12 +3,14 @@
 #include "common/types.hpp"
 #include "vulkan_functions.hpp"
 
-struct VulkanContext
+struct wren_context
 {
-    VULKAN_DECLARE_FUNCTION(GetInstanceProcAddr)
-    VULKAN_DECLARE_FUNCTION(CreateInstance)
-    VULKAN_INSTANCE_FUNCTIONS(VULKAN_DECLARE_FUNCTION)
-    VULKAN_DEVICE_FUNCTIONS(  VULKAN_DECLARE_FUNCTION)
+    struct {
+        WREN_DECLARE_FUNCTION(GetInstanceProcAddr)
+        WREN_DECLARE_FUNCTION(CreateInstance)
+        WREN_INSTANCE_FUNCTIONS(WREN_DECLARE_FUNCTION)
+        WREN_DEVICE_FUNCTIONS(  WREN_DECLARE_FUNCTION)
+    } vk;
 
     void* vulkan1;
 
@@ -25,8 +27,8 @@ struct VulkanContext
     VkCommandBuffer cmd;
 };
 
-VulkanContext* vulkan_context_create(struct Backend*);
-void           vulkan_context_destroy(VulkanContext* vk);
+wren_context* wren_create();
+void          wren_destroy(wren_context*);
 
-VkCommandBuffer vulkan_context_begin_commands( VulkanContext*);
-void            vulkan_context_submit_commands(VulkanContext*, VkCommandBuffer);
+VkCommandBuffer wren_begin_commands( wren_context*);
+void            wren_submit_commands(wren_context*, VkCommandBuffer);

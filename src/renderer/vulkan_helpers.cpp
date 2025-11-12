@@ -1,23 +1,32 @@
 #include "vulkan_helpers.hpp"
-
 #include "vulkan_context.hpp"
 
 #include "common/util.hpp"
 
-const char* vk_result_to_string(VkResult res)
+const char* wren_result_to_string(VkResult res)
 {
     return string_VkResult(res);
 }
 
-void vk_transition(VulkanContext* vk, VkCommandBuffer cmd, VkImage image,
+void wren_wait_for_timeline_value(wren_context* ctx, const VkSemaphoreSubmitInfo& info)
+{
+    wren_check(ctx->vk.WaitSemaphores(ctx->device, wrei_ptr_to(VkSemaphoreWaitInfo {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .semaphoreCount = 1,
+        .pSemaphores = &info.semaphore,
+        .pValues = &info.value,
+    }), UINT64_MAX));
+}
+
+void wren_transition(wren_context* ctx, VkCommandBuffer cmd, VkImage image,
     VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
     VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
     VkImageLayout old_layout, VkImageLayout new_layout)
 {
-    vk->CmdPipelineBarrier2(cmd, ptr_to(VkDependencyInfo {
+    ctx->vk.CmdPipelineBarrier2(cmd, wrei_ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = ptr_to(VkImageMemoryBarrier2 {
+        .pImageMemoryBarriers = wrei_ptr_to(VkImageMemoryBarrier2 {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = src,
             .srcAccessMask = src_access,
@@ -33,10 +42,10 @@ void vk_transition(VulkanContext* vk, VkCommandBuffer cmd, VkImage image,
     }));
 }
 
-u32 vk_find_memory_type(VulkanContext* vk, u32 type_filter, VkMemoryPropertyFlags properties)
+u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties props;
-    vk->GetPhysicalDeviceMemoryProperties(vk->physical_device, &props);
+    ctx->vk.GetPhysicalDeviceMemoryProperties(ctx->physical_device, &props);
 
     for (u32 i = 0; i < props.memoryTypeCount; ++i) {
         std::string flags;
@@ -50,11 +59,11 @@ u32 vk_find_memory_type(VulkanContext* vk, u32 type_filter, VkMemoryPropertyFlag
     return 0xFF;
 }
 
-VulkanBuffer vk_buffer_create(VulkanContext* vk, usz size)
+wren_buffer wren_buffer_create(wren_context* ctx, usz size)
 {
-    VulkanBuffer buffer {};
+    wren_buffer buffer {};
 
-    vk_check(vk->CreateBuffer(vk->device, ptr_to(VkBufferCreateInfo {
+    wren_check(ctx->vk.CreateBuffer(ctx->device, wrei_ptr_to(VkBufferCreateInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
         .usage = VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT
@@ -64,28 +73,28 @@ VulkanBuffer vk_buffer_create(VulkanContext* vk, usz size)
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         // .sharingMode = VK_SHARING_MODE_CONCURRENT,
         // .queueFamilyIndexCount = 1,
-        // .pQueueFamilyIndices = &vk->queue_family,
+        // .pQueueFamilyIndices = &ctx->queue_family,
     }), nullptr, &buffer.buffer));
 
     VkMemoryRequirements mem_reqs;
-    vk->GetBufferMemoryRequirements(vk->device, buffer.buffer, &mem_reqs);
+    ctx->vk.GetBufferMemoryRequirements(ctx->device, buffer.buffer, &mem_reqs);
 
-    vk_check(vk->AllocateMemory(vk->device, ptr_to(VkMemoryAllocateInfo {
+    wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = ptr_to(VkMemoryAllocateFlagsInfo {
+        .pNext = wrei_ptr_to(VkMemoryAllocateFlagsInfo {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
             .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
         }),
         .allocationSize = mem_reqs.size,
-        .memoryTypeIndex = vk_find_memory_type(vk, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        .memoryTypeIndex = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
             | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
     }), nullptr, &buffer.memory));
 
-    vk_check(vk->BindBufferMemory(vk->device, buffer.buffer, buffer.memory, 0));
+    wren_check(ctx->vk.BindBufferMemory(ctx->device, buffer.buffer, buffer.memory, 0));
 
-    vk_check(vk->MapMemory(vk->device, buffer.memory, 0, size, 0, &buffer.host_address));
+    wren_check(ctx->vk.MapMemory(ctx->device, buffer.memory, 0, size, 0, &buffer.host_address));
 
-    buffer.device_address = vk->GetBufferDeviceAddress(vk->device, ptr_to(VkBufferDeviceAddressInfo {
+    buffer.device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, wrei_ptr_to(VkBufferDeviceAddressInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = buffer.buffer,
     }));
@@ -93,24 +102,24 @@ VulkanBuffer vk_buffer_create(VulkanContext* vk, usz size)
     return buffer;
 }
 
-void vk_buffer_destroy(VulkanContext* vk, const VulkanBuffer& buffer)
+void vk_buffer_destroy(wren_context* ctx, const wren_buffer& buffer)
 {
-    vk->DestroyBuffer(vk->device, buffer.buffer, nullptr);
-    vk->FreeMemory(vk->device, buffer.memory, nullptr);
+    ctx->vk.DestroyBuffer(ctx->device, buffer.buffer, nullptr);
+    ctx->vk.FreeMemory(ctx->device, buffer.memory, nullptr);
 }
 
 // -----------------------------------------------------------------------------
 
-VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* data)
+wren_image wren_image_create(wren_context* ctx, VkExtent2D extent, const void* data)
 {
-    VulkanImage image = {};
+    wren_image image = {};
 
     image.extent = { extent.width, extent.height, 1 };
 
     auto format = VK_FORMAT_R8G8B8A8_UNORM;
     // auto format = VK_FORMAT_R8G8B8A8_SRGB;
 
-    vk_check(vk->CreateImage(vk->device, ptr_to(VkImageCreateInfo {
+    wren_check(ctx->vk.CreateImage(ctx->device, wrei_ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
@@ -125,35 +134,35 @@ VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* da
     }), nullptr, &image.image));
 
     VkMemoryRequirements mem_reqs;
-    vk->GetImageMemoryRequirements(vk->device, image.image, &mem_reqs);
+    ctx->vk.GetImageMemoryRequirements(ctx->device, image.image, &mem_reqs);
 
-    vk_check(vk->AllocateMemory(vk->device, ptr_to(VkMemoryAllocateInfo {
+    wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize = mem_reqs.size,
-        .memoryTypeIndex = vk_find_memory_type(vk, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+        .memoryTypeIndex = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
     }), nullptr, &image.memory));
 
-    vk_check(vk->BindImageMemory(vk->device, image.image, image.memory, 0));
+    wren_check(ctx->vk.BindImageMemory(ctx->device, image.image, image.memory, 0));
 
     {
-        auto cmd = vulkan_context_begin_commands(vk);
+        auto cmd = wren_begin_commands(ctx);
 
         constexpr auto pixel_size = 4;
         auto row_length = extent.width;
         auto image_height = row_length * extent.height;
         auto image_size = image_height * pixel_size;
 
-        auto buffer = vk_buffer_create(vk, image_size);
-        defer { vk_buffer_destroy(vk, buffer); };
+        auto buffer = wren_buffer_create(ctx, image_size);
+        defer { vk_buffer_destroy(ctx, buffer); };
 
         std::memcpy(buffer.host_address, data, image_size);
 
-        vk_transition(vk, cmd, image.image,
+        wren_transition(ctx, cmd, image.image,
             0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        vk->CmdCopyBufferToImage(cmd, buffer.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, ptr_to(VkBufferImageCopy {
+        ctx->vk.CmdCopyBufferToImage(cmd, buffer.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, wrei_ptr_to(VkBufferImageCopy {
             .bufferOffset = 0,
             .bufferRowLength = row_length,
             .bufferImageHeight = image_size,
@@ -162,15 +171,15 @@ VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* da
             .imageExtent = { extent.width, extent.height, 1 },
         }));
 
-        vk_transition(vk, cmd, image.image,
+        wren_transition(ctx, cmd, image.image,
             0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
-        vulkan_context_submit_commands(vk, cmd);
+        wren_submit_commands(ctx, cmd);
     }
 
-    vk_check(vk->CreateImageView(vk->device, ptr_to(VkImageViewCreateInfo {
+    wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image.image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -181,19 +190,19 @@ VulkanImage vk_image_create(VulkanContext* vk, VkExtent2D extent, const void* da
     return image;
 }
 
-void vk_image_destroy(VulkanContext* vk, const VulkanImage& image)
+void wren_image_destroy(wren_context* ctx, const wren_image& image)
 {
-    vk->DestroyImageView(vk->device, image.view, nullptr);
-    vk->DestroyImage(vk->device, image.image, nullptr);
-    vk->FreeMemory(vk->device, image.memory, nullptr);
+    ctx->vk.DestroyImageView(ctx->device, image.view, nullptr);
+    ctx->vk.DestroyImage(ctx->device, image.image, nullptr);
+    ctx->vk.FreeMemory(ctx->device, image.memory, nullptr);
 }
 
 // -----------------------------------------------------------------------------
 
-VkSampler vk_sampler_create(VulkanContext* vk)
+VkSampler wren_sampler_create(wren_context* ctx)
 {
     VkSampler sampler;
-    vk_check(vk->CreateSampler(vk->device, ptr_to(VkSamplerCreateInfo {
+    wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         // .magFilter = VK_FILTER_LINEAR,
         // .minFilter = VK_FILTER_LINEAR,
@@ -211,7 +220,7 @@ VkSampler vk_sampler_create(VulkanContext* vk)
     return sampler;
 }
 
-void vk_sampler_destroy(VulkanContext* vk, VkSampler sampler)
+void wren_sampler_destroy(wren_context* ctx, VkSampler sampler)
 {
-    vk->DestroySampler(vk->device, sampler, nullptr);
+    ctx->vk.DestroySampler(ctx->device, sampler, nullptr);
 }

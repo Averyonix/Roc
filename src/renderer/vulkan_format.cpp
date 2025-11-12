@@ -3,7 +3,7 @@
 
 #include "common/util.hpp"
 
-static constexpr VulkanFormat formats[] {
+static constexpr wren_format formats[] {
 	{
 		.drm = DRM_FORMAT_XRGB8888,
 		.vk = VK_FORMAT_B8G8R8A8_UNORM,
@@ -19,12 +19,12 @@ static constexpr VulkanFormat formats[] {
 
 };
 
-std::span<const VulkanFormat> vk_get_formats()
+std::span<const wren_format> wren_get_formats()
 {
     return formats;
 }
 
-std::optional<VulkanFormat> vk_find_format_from_vulkan(VkFormat vk_format)
+std::optional<wren_format> wren_find_format_from_vulkan(VkFormat vk_format)
 {
     for (auto& format : formats) {
         if (format.vk == vk_format || format.vk_srgb == vk_format) {
@@ -35,7 +35,7 @@ std::optional<VulkanFormat> vk_find_format_from_vulkan(VkFormat vk_format)
     return std::nullopt;
 }
 
-std::optional<VulkanFormat> vk_find_format_from_drm(u32 drm_format)
+std::optional<wren_format> wren_find_format_from_drm(u32 drm_format)
 {
     for (auto& format : formats) {
         if (format.drm == drm_format) {
@@ -46,7 +46,7 @@ std::optional<VulkanFormat> vk_find_format_from_drm(u32 drm_format)
     return std::nullopt;
 }
 
-void vk_enumerate_drm_modifiers(VulkanContext* vk, const VulkanFormat& format, std::vector<VkDrmFormatModifierProperties2EXT>& modifiers)
+void wren_enumerate_drm_modifiers(wren_context* ctx, const wren_format& format, std::vector<VkDrmFormatModifierProperties2EXT>& modifiers)
 {
     VkDrmFormatModifierPropertiesList2EXT mod_list = {
         .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
@@ -55,19 +55,19 @@ void vk_enumerate_drm_modifiers(VulkanContext* vk, const VulkanFormat& format, s
         .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
         .pNext = &mod_list,
     };
-    vk->GetPhysicalDeviceFormatProperties2(vk->physical_device, format.vk, &props);
+    ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format.vk, &props);
 
     log_info("Modifier count: {}", mod_list.drmFormatModifierCount);
     modifiers.resize(mod_list.drmFormatModifierCount);
 
     mod_list.pDrmFormatModifierProperties = modifiers.data();
 
-    vk->GetPhysicalDeviceFormatProperties2(vk->physical_device, format.vk, &props);
+    ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format.vk, &props);
 }
 
-VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
+wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
 {
-    VulkanImage image = {};
+    wren_image image = {};
 
     image.extent = { params.extent.width, params.extent.height, 1 };
 
@@ -92,7 +92,7 @@ VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
     };
     img_info.pNext = &eimg;
 
-    VkSubresourceLayout plane_layouts[dma_max_planes] = {};
+    VkSubresourceLayout plane_layouts[wren_dma_max_planes] = {};
 
     img_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
     for (u32 i = 0; i < params.planes.size(); ++i) {
@@ -108,7 +108,7 @@ VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
     };
     eimg.pNext = &mod_info;
 
-    vk_check(vk->CreateImage(vk->device, &img_info, nullptr, &image.image));
+    wren_check(ctx->vk.CreateImage(ctx->device, &img_info, nullptr, &image.image));
 
     VkBindImageMemoryInfo bindi = {};
 
@@ -118,8 +118,8 @@ VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
         };
         log_trace("  num_planes = {}", params.planes.size());
         log_trace("  plane[0].fd = {}", params.planes.front().fd);
-        log_trace("  vk->GetMemoryFdPropertiesKHR = {}", (void*)vk->GetMemoryFdPropertiesKHR);
-        vk_check(vk->GetMemoryFdPropertiesKHR(vk->device, htype, params.planes.front().fd, &fdp));
+        log_trace("  ctx->vk.GetMemoryFdPropertiesKHR = {}", (void*)ctx->vk.GetMemoryFdPropertiesKHR);
+        wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, htype, params.planes.front().fd, &fdp));
 
         VkImageMemoryRequirementsInfo2 memri = {
             .image = image.image,
@@ -130,9 +130,9 @@ VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
             .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
         };
 
-        vk->GetImageMemoryRequirements2(vk->device, &memri, &memr);
+        ctx->vk.GetImageMemoryRequirements2(ctx->device, &memri, &memr);
 
-        auto mem = vk_find_memory_type(vk, memr.memoryRequirements.memoryTypeBits & fdp.memoryTypeBits, 0);
+        auto mem = wren_find_vk_memory_type_index(ctx, memr.memoryRequirements.memoryTypeBits & fdp.memoryTypeBits, 0);
 
         int dfd = fcntl(params.planes.front().fd, F_DUPFD_CLOEXEC, 0);
 
@@ -155,7 +155,7 @@ VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
         };
         importi.pNext = &dedi;
 
-        vk_check(vk->AllocateMemory(vk->device, &memi, nullptr, &image.memory));
+        wren_check(ctx->vk.AllocateMemory(ctx->device, &memi, nullptr, &image.memory));
 
         bindi.image = image.image;
         bindi.memory = image.memory;
@@ -163,20 +163,20 @@ VulkanImage vk_image_import_dmabuf(VulkanContext* vk, const DmaParams& params)
         bindi.sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
     }
 
-    vk_check(vk->BindImageMemory2(vk->device, 1, &bindi));
+    wren_check(ctx->vk.BindImageMemory2(ctx->device, 1, &bindi));
 
     {
-        auto cmd = vulkan_context_begin_commands(vk);
+        auto cmd = wren_begin_commands(ctx);
 
-        vk_transition(vk, cmd, image.image,
+        wren_transition(ctx, cmd, image.image,
             0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        vulkan_context_submit_commands(vk, cmd);
+        wren_submit_commands(ctx, cmd);
     }
 
-    vk_check(vk->CreateImageView(vk->device, ptr_to(VkImageViewCreateInfo {
+    wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image.image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,

@@ -1,56 +1,54 @@
 #include "protocol.hpp"
+#include "compositor/util.hpp"
 
 #include "compositor/server.hpp"
-#include "renderer/renderer.hpp"
-
-#define INTERFACE_STUB [](auto...){}
 
 // -----------------------------------------------------------------------------
 
-const struct wl_compositor_interface impl_wl_compositor = {
+const struct wl_compositor_interface wroc_wl_compositor_impl = {
     .create_region = [](wl_client* client, wl_resource* resource, u32 id) {
-        auto* compositor = get_userdata<Compositor>(resource);
+        auto* compositor = wroc_get_userdata<wroc_wl_compositor>(resource);
         auto* new_resource = wl_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
-        auto* region = new Region {};
+        wroc_debug_track_resource(new_resource);
+        auto* region = new wroc_wl_region {};
         region->server = compositor->server;
         region->wl_region = new_resource;
         pixman_region32_init(&region->region);
-        wl_resource_set_implementation(new_resource, &impl_wl_region, region, SIMPLE_RESOURCE_UNREF(Region, wl_region));
+        wl_resource_set_implementation(new_resource, &wroc_wl_region_impl, region, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_region, wl_region));
     },
     .create_surface = [](wl_client* client, wl_resource* resource, u32 id) {
-        auto* compositor = get_userdata<Compositor>(resource);
+        auto* compositor = wroc_get_userdata<wroc_wl_compositor>(resource);
         auto* new_resource = wl_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
-        auto* surface = new Surface {};
+        wroc_debug_track_resource(new_resource);
+        auto* surface = new wroc_surface {};
         surface->server = compositor->server;
         surface->wl_surface = new_resource;
         compositor->server->surfaces.emplace_back(surface);
-        wl_resource_set_implementation(new_resource, &impl_wl_surface, surface, SIMPLE_RESOURCE_UNREF(Surface, wl_surface));
+        wl_resource_set_implementation(new_resource, &wroc_wl_surface_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface, wl_surface));
     },
 };
 
-const wl_global_bind_func_t bind_wl_compositor = [](wl_client* client, void* data, u32 version, u32 id) {
+const wl_global_bind_func_t wroc_wl_compositor_bind_global = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* new_resource = wl_resource_create(client, &wl_compositor_interface, version, id);
-    debug_track_resource(new_resource);
-    auto* compositor = new Compositor {};
-    compositor->server = static_cast<Server*>(data);
+    wroc_debug_track_resource(new_resource);
+    auto* compositor = new wroc_wl_compositor {};
+    compositor->server = static_cast<wroc_server*>(data);
     compositor->wl_compositor = new_resource;
-    wl_resource_set_implementation(new_resource, &impl_wl_compositor, compositor, SIMPLE_RESOURCE_UNREF(Compositor, wl_compositor));
+    wl_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, compositor, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_compositor, wl_compositor));
 };
 
 // -----------------------------------------------------------------------------
 
-const struct wl_region_interface impl_wl_region = {
+const struct wl_region_interface wroc_wl_region_impl = {
     .add = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height) {
-        auto* region = get_userdata<Region>(resource);
+        auto* region = wroc_get_userdata<wroc_wl_region>(resource);
         pixman_region32_union_rect(&region->region, &region->region, x, y, width, height);
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
     },
     .subtract = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height) {
-        auto* region = get_userdata<Region>(resource);
+        auto* region = wroc_get_userdata<wroc_wl_region>(resource);
 
         pixman_region32_union_rect(&region->region, &region->region, x, y, width, height);
 
@@ -61,52 +59,52 @@ const struct wl_region_interface impl_wl_region = {
     },
 };
 
-Region::~Region()
+wroc_wl_region::~wroc_wl_region()
 {
     pixman_region32_fini(&region);
 }
 
 // -----------------------------------------------------------------------------
 
-const struct wl_surface_interface impl_wl_surface = {
-    .destroy = INTERFACE_STUB,
+const struct wl_surface_interface wroc_wl_surface_impl = {
+    .destroy = WROC_STUB,
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
-        auto* surface = get_userdata<Surface>(resource);
-        auto* buffer = get_userdata<ShmBuffer>(wl_buffer);
+        auto* surface = wroc_get_userdata<wroc_surface>(resource);
+        auto* buffer = wroc_get_userdata<wroc_wl_shm_buffer>(wl_buffer);
         log_warn("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
         surface->pending.buffer = buffer;
     },
-    .damage = INTERFACE_STUB,
+    .damage = WROC_STUB,
     .frame = [](wl_client* client, wl_resource* resource, u32 callback) {
-        auto* surface = get_userdata<Surface>(resource);
+        auto* surface = wroc_get_userdata<wroc_surface>(resource);
         auto new_resource = wl_resource_create(client, &wl_callback_interface, 1, callback);
-        debug_track_resource(new_resource);
+        wroc_debug_track_resource(new_resource);
         if (surface->frame_callback) {
             wl_resource_destroy(surface->frame_callback);
         }
         log_warn("frame callback {} created", (void*)new_resource);
         surface->frame_callback = new_resource;
         wl_resource_set_implementation(new_resource, nullptr, surface, [](wl_resource* resource) {
-            auto* surface = get_userdata<Surface>(resource);
+            auto* surface = wroc_get_userdata<wroc_surface>(resource);
             log_warn("frame callback {} destroyed", (void*)resource);
             if (surface->frame_callback == resource) {
                 surface->frame_callback = nullptr;
             }
         });
     },
-    .set_opaque_region = INTERFACE_STUB,
-    .set_input_region = INTERFACE_STUB,
+    .set_opaque_region = WROC_STUB,
+    .set_input_region = WROC_STUB,
     .commit = [](wl_client* client, wl_resource* resource) {
-        auto* surface = get_userdata<Surface>(resource);
+        auto* surface = wroc_get_userdata<wroc_surface>(resource);
         if (surface->initial_commit) {
             surface->initial_commit = false;
             if (surface->xdg_toplevel) {
                 if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
                     xdg_toplevel_send_configure_bounds(surface->xdg_toplevel, 0, 0);
                 }
-                xdg_toplevel_send_configure(surface->xdg_toplevel, 0, 0, ptr_to(to_array<const xdg_toplevel_state>({ XDG_TOPLEVEL_STATE_ACTIVATED })));
+                xdg_toplevel_send_configure(surface->xdg_toplevel, 0, 0, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_state>({ XDG_TOPLEVEL_STATE_ACTIVATED })));
                 if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-                    xdg_toplevel_send_wm_capabilities(surface->xdg_toplevel, ptr_to(to_array<const xdg_toplevel_wm_capabilities>({
+                    xdg_toplevel_send_wm_capabilities(surface->xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
                         XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
                         XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
                     })));
@@ -118,19 +116,19 @@ const struct wl_surface_interface impl_wl_surface = {
         }
 
         if (surface->pending.buffer) {
-            auto* vk = surface->server->renderer->vk;
+            auto* wren = surface->server->renderer->wren;
             if (surface->current.image.image) {
-                vk_image_destroy(vk, surface->current.image);
+                wren_image_destroy(wren, surface->current.image);
             }
 
             if (surface->pending.buffer->wl_buffer) {
                 auto* buffer = surface->pending.buffer.get();
-                if (buffer->type == BufferType::shm) {
-                    auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
-                    surface->current.image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
+                if (buffer->type == wroc_wl_buffer_type::shm) {
+                    auto* shm_buffer = static_cast<wroc_wl_shm_buffer*>(buffer);
+                    surface->current.image = wren_image_create(wren, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
                     wl_buffer_send_release(surface->pending.buffer->wl_buffer);
                 } else {
-                    auto* dma_buffer = static_cast<DmaBuffer*>(buffer);
+                    auto* dma_buffer = static_cast<wroc_zwp_buffer*>(buffer);
                     surface->current.image = dma_buffer->image;
                     dma_buffer->image = {};
                     log_warn("User committed dmabuf, size = ({}, {})!", surface->current.image.extent.width, surface->current.image.extent.height);
@@ -161,92 +159,92 @@ const struct wl_surface_interface impl_wl_surface = {
                 surface->current.geometry->extent.x, surface->current.geometry->extent.y);
         }
     },
-    .set_buffer_transform = INTERFACE_STUB,
-    .set_buffer_scale = INTERFACE_STUB,
-    .damage_buffer = INTERFACE_STUB,
-    .offset = INTERFACE_STUB,
+    .set_buffer_transform = WROC_STUB,
+    .set_buffer_scale = WROC_STUB,
+    .damage_buffer = WROC_STUB,
+    .offset = WROC_STUB,
 };
 
-Surface::~Surface()
+wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
 
     if (current.image.image) {
-        vk_image_destroy(server->renderer->vk, current.image);
+        wren_image_destroy(server->renderer->wren, current.image);
     }
 }
 
 // -----------------------------------------------------------------------------
 
-const struct xdg_wm_base_interface impl_xdg_wm_base = {
-    .create_positioner = INTERFACE_STUB,
-    .destroy = INTERFACE_STUB,
+const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
+    .create_positioner = WROC_STUB,
+    .destroy = WROC_STUB,
     .get_xdg_surface = [](wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface) {
         auto* new_resource = wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
-        auto* surface = ref(get_userdata<Surface>(wl_surface));
+        wroc_debug_track_resource(new_resource);
+        auto* surface = wrei_add_ref(wroc_get_userdata<wroc_surface>(wl_surface));
         surface->xdg_surface = new_resource;
-        wl_resource_set_implementation(new_resource, &impl_xdg_surface, surface, SIMPLE_RESOURCE_UNREF(Surface, xdg_surface));
+        wl_resource_set_implementation(new_resource, &wroc_xdg_surface_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface, xdg_surface));
     },
-    .pong = INTERFACE_STUB,
+    .pong = WROC_STUB,
 };
 
-const wl_global_bind_func_t bind_xdg_wm_base = [](wl_client* client, void* data, u32 version, u32 id) {
+const wl_global_bind_func_t wroc_xdg_wm_base_bind_global = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* new_resource = wl_resource_create(client, &xdg_wm_base_interface, version, id);
-    debug_track_resource(new_resource);
-    auto* wm_base = new XdgWmBase {};
-    wm_base->server = static_cast<Server*>(data);
+    wroc_debug_track_resource(new_resource);
+    auto* wm_base = new wroc_xdg_wm_base {};
+    wm_base->server = static_cast<wroc_server*>(data);
     wm_base->xdg_wm_base = new_resource;
-    wl_resource_set_implementation(new_resource, &impl_xdg_wm_base, wm_base, SIMPLE_RESOURCE_UNREF(XdgWmBase, xdg_wm_base));
+    wl_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, wm_base, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_wm_base, xdg_wm_base));
 };
 
 // -----------------------------------------------------------------------------
 
-const struct xdg_surface_interface impl_xdg_surface = {
-    .destroy = INTERFACE_STUB,
+const struct xdg_surface_interface wroc_xdg_surface_impl = {
+    .destroy = WROC_STUB,
     .get_toplevel = [](wl_client* client, wl_resource* resource, u32 id) {
-        auto* surface = ref(get_userdata<Surface>(resource));
+        auto* surface = wrei_add_ref(wroc_get_userdata<wroc_surface>(resource));
         auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
+        wroc_debug_track_resource(new_resource);
         surface->xdg_toplevel = new_resource;
-        wl_resource_set_implementation(new_resource, &impl_xdg_toplevel, surface, SIMPLE_RESOURCE_UNREF(Surface, xdg_toplevel));
+        wl_resource_set_implementation(new_resource, &wroc_xdg_toplevel_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface, xdg_toplevel));
     },
-    .get_popup = INTERFACE_STUB,
+    .get_popup = WROC_STUB,
     .set_window_geometry = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height) {
-        auto* surface = get_userdata<Surface>(resource);
+        auto* surface = wroc_get_userdata<wroc_surface>(resource);
         surface->pending.geometry = {{x, y}, {width, height}};
     },
-    .ack_configure = INTERFACE_STUB,
+    .ack_configure = WROC_STUB,
 };
 
-const struct xdg_toplevel_interface impl_xdg_toplevel = {
-    .destroy = INTERFACE_STUB,
-    .set_parent = INTERFACE_STUB,
-    .set_title = INTERFACE_STUB,
-    .set_app_id = INTERFACE_STUB,
-    .show_window_menu = INTERFACE_STUB,
-    .move = INTERFACE_STUB,
-    .resize = INTERFACE_STUB,
-    .set_max_size = INTERFACE_STUB,
-    .set_min_size = INTERFACE_STUB,
-    .set_maximized = INTERFACE_STUB,
-    .unset_maximized = INTERFACE_STUB,
-    .set_fullscreen = INTERFACE_STUB,
-    .unset_fullscreen = INTERFACE_STUB,
+const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
+    .destroy = WROC_STUB,
+    .set_parent = WROC_STUB,
+    .set_title = WROC_STUB,
+    .set_app_id = WROC_STUB,
+    .show_window_menu = WROC_STUB,
+    .move = WROC_STUB,
+    .resize = WROC_STUB,
+    .set_max_size = WROC_STUB,
+    .set_min_size = WROC_STUB,
+    .set_maximized = WROC_STUB,
+    .unset_maximized = WROC_STUB,
+    .set_fullscreen = WROC_STUB,
+    .unset_fullscreen = WROC_STUB,
 };
 
 // -----------------------------------------------------------------------------
 
-const struct wl_shm_interface impl_wl_shm = {
+const struct wl_shm_interface wroc_wl_shm_impl = {
     .create_pool = [](wl_client* client, wl_resource* resource, u32 id, int fd, i32 size) {
         auto* new_resource = wl_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
-        auto* pool = new ShmPool {};
-        pool->server = get_userdata<Shm>(resource)->server;
+        wroc_debug_track_resource(new_resource);
+        auto* pool = new wroc_wl_shm_pool {};
+        pool->server = wroc_get_userdata<wroc_wl_shm>(resource)->server;
         pool->wl_shm_pool = new_resource;
         pool->fd = fd;
         pool->size = size;
-        wl_resource_set_implementation(new_resource, &impl_wl_shm_pool, pool, SIMPLE_RESOURCE_UNREF(ShmPool, wl_shm_pool));
+        wl_resource_set_implementation(new_resource, &wroc_wl_shm_pool_impl, pool, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm_pool, wl_shm_pool));
         pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
         if (pool->data == MAP_FAILED) {
             wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
@@ -257,19 +255,19 @@ const struct wl_shm_interface impl_wl_shm = {
     },
 };
 
-const wl_global_bind_func_t bind_wl_shm = [](wl_client* client, void* data, u32 version, u32 id) {
+const wl_global_bind_func_t wroc_wl_shm_bind_global = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* new_resource = wl_resource_create(client, &wl_shm_interface, version, id);
-    debug_track_resource(new_resource);
-    auto* shm = new Shm {};
-    shm->server = static_cast<Server*>(data);
+    wroc_debug_track_resource(new_resource);
+    auto* shm = new wroc_wl_shm {};
+    shm->server = static_cast<wroc_server*>(data);
     shm->wl_shm = new_resource;
-    wl_resource_set_implementation(new_resource, &impl_wl_shm, shm, SIMPLE_RESOURCE_UNREF(Shm, wl_shm));
+    wl_resource_set_implementation(new_resource, &wroc_wl_shm_impl, shm, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm, wl_shm));
     wl_shm_send_format(new_resource, WL_SHM_FORMAT_XRGB8888);
 };
 
-const struct wl_shm_pool_interface impl_wl_shm_pool = {
+const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
     .create_buffer = [](wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 format) {
-        auto* pool = get_userdata<ShmPool>(resource);
+        auto* pool = wroc_get_userdata<wroc_wl_shm_pool>(resource);
 
         i32 needed = stride * height + offset;
         if (needed > pool->size) {
@@ -278,23 +276,23 @@ const struct wl_shm_pool_interface impl_wl_shm_pool = {
         }
 
         auto* new_resource = wl_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
-        auto* shm_buffer = new ShmBuffer {};
-        shm_buffer->server = get_userdata<ShmPool>(resource)->server;
-        shm_buffer->type = BufferType::shm;
+        wroc_debug_track_resource(new_resource);
+        auto* shm_buffer = new wroc_wl_shm_buffer {};
+        shm_buffer->server = wroc_get_userdata<wroc_wl_shm_pool>(resource)->server;
+        shm_buffer->type = wroc_wl_buffer_type::shm;
         shm_buffer->wl_buffer = new_resource;
         shm_buffer->pool = pool;
         shm_buffer->width = width;
         shm_buffer->height = height;
         shm_buffer->stride = stride;
         shm_buffer->format = wl_shm_format(format);
-        wl_resource_set_implementation(new_resource, &impl_wl_buffer_for_shm, shm_buffer, SIMPLE_RESOURCE_UNREF(ShmBuffer, wl_buffer));
+        wl_resource_set_implementation(new_resource, &wroc_wl_buffer_for_shm_impl, shm_buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm_buffer, wl_buffer));
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
     },
     .resize = [](wl_client* client, wl_resource* resource, i32 size) {
-        auto* pool = get_userdata<ShmPool>(resource);
+        auto* pool = wroc_get_userdata<wroc_wl_shm_pool>(resource);
         munmap(pool->data, pool->size);
         pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
         pool->size = size;
@@ -304,12 +302,12 @@ const struct wl_shm_pool_interface impl_wl_shm_pool = {
     },
 };
 
-ShmPool::~ShmPool()
+wroc_wl_shm_pool::~wroc_wl_shm_pool()
 {
     if (data) munmap(data, size);
 }
 
-const struct wl_buffer_interface impl_wl_buffer_for_shm = {
+const struct wl_buffer_interface wroc_wl_buffer_for_shm_impl = {
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
     },
@@ -317,41 +315,41 @@ const struct wl_buffer_interface impl_wl_buffer_for_shm = {
 
 // -----------------------------------------------------------------------------
 
-const struct wl_seat_interface impl_wl_seat = {
+const struct wl_seat_interface wroc_wl_seat_impl = {
     .get_keyboard = [](wl_client* client, wl_resource* resource, u32 id) {
-        auto* seat = get_userdata<Seat>(resource);
+        auto* seat = wroc_get_userdata<wroc_seat>(resource);
         auto* new_resource = wl_resource_create(client, &wl_keyboard_interface, wl_resource_get_version(resource), id);
-        debug_track_resource(new_resource);
+        wroc_debug_track_resource(new_resource);
         seat->keyboard->wl_keyboard.emplace_back(new_resource);
-        wl_resource_set_implementation(new_resource, &impl_wl_keyboard, seat->keyboard, [](wl_resource* resource) {
-            auto* keyboard = get_userdata<Keyboard>(resource);
+        wl_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard, [](wl_resource* resource) {
+            auto* keyboard = wroc_get_userdata<wroc_keyboard>(resource);
             std::erase(keyboard->wl_keyboard, resource);
             if (keyboard->focused == resource) keyboard->focused = nullptr;
         });
 
         wl_keyboard_send_keymap(new_resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, seat->keyboard->keymap_fd, seat->keyboard->keymap_size);
     },
-    .get_pointer = INTERFACE_STUB,
-    .get_touch = INTERFACE_STUB,
-    .release = INTERFACE_STUB,
+    .get_pointer = WROC_STUB,
+    .get_touch = WROC_STUB,
+    .release = WROC_STUB,
 };
 
-const struct wl_keyboard_interface impl_wl_keyboard = {
-    .release = INTERFACE_STUB,
+const struct wl_keyboard_interface wroc_wl_keyboard_impl = {
+    .release = WROC_STUB,
 };
 
-const struct wl_pointer_interface impl_wl_pointer = {
-    .release = INTERFACE_STUB,
-    .set_cursor = INTERFACE_STUB,
+const struct wl_pointer_interface wroc_wl_pointer_impl = {
+    .release = WROC_STUB,
+    .set_cursor = WROC_STUB,
 };
 
-const wl_global_bind_func_t bind_wl_seat = [](wl_client* client, void* data, u32 version, u32 id) {
-    auto* seat = static_cast<Seat*>(data);
+const wl_global_bind_func_t wroc_wl_seat_bind_global = [](wl_client* client, void* data, u32 version, u32 id) {
+    auto* seat = static_cast<wroc_seat*>(data);
     auto* new_resource = wl_resource_create(client, &wl_seat_interface, version, id);
-    debug_track_resource(new_resource);
+    wroc_debug_track_resource(new_resource);
     seat->wl_seat.emplace_back(new_resource);
-    wl_resource_set_implementation(new_resource, &impl_wl_seat, seat, [](wl_resource* resource) {
-        auto* seat = get_userdata<Seat>(resource);
+    wl_resource_set_implementation(new_resource, &wroc_wl_seat_impl, seat, [](wl_resource* resource) {
+        auto* seat = wroc_get_userdata<wroc_seat>(resource);
         std::erase(seat->wl_seat, resource);
     });
     wl_seat_send_name(new_resource, seat->name.c_str());
@@ -363,34 +361,34 @@ const wl_global_bind_func_t bind_wl_seat = [](wl_client* client, void* data, u32
 
 // -----------------------------------------------------------------------------
 
-const struct zwp_linux_dmabuf_v1_interface impl_zwp_linux_dmabuf_v1 = {
+const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
     .create_params = [](wl_client* client, wl_resource* resource, u32 params_id) {
         auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
-        auto* params = new ZwpBufferParams {};
-        params->server = get_userdata<Server>(resource);
+        auto* params = new wroc_zwp_buffer_params {};
+        params->server = wroc_get_userdata<wroc_server>(resource);
         params->zwp_linux_buffer_params_v1 = new_resource;
-        wl_resource_set_implementation(new_resource, &impl_zwp_linux_buffer_params_v1, params, SIMPLE_RESOURCE_UNREF(ZwpBufferParams, zwp_linux_buffer_params_v1));
+        wl_resource_set_implementation(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_buffer_params, zwp_linux_buffer_params_v1));
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
     },
     .get_default_feedback = [](wl_client* client, wl_resource* resource, u32 id) {
         auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
-        wl_resource_set_implementation(new_resource, &impl_zwp_linux_dmabuf_feedback_v1, nullptr, nullptr);
+        wl_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr, nullptr);
     },
     .get_surface_feedback = [](wl_client* client, wl_resource* resource, u32 id, wl_resource* surface) {
         auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
-        wl_resource_set_implementation(new_resource, &impl_zwp_linux_dmabuf_feedback_v1, nullptr, nullptr);
+        wl_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr, nullptr);
     },
 };
 
-const struct zwp_linux_buffer_params_v1_interface impl_zwp_linux_buffer_params_v1 = {
+const struct zwp_linux_buffer_params_v1_interface wroc_zwp_linux_buffer_params_v1_impl = {
     .add = [](wl_client* client, wl_resource* resource, int fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo) {
-        auto* params = get_userdata<ZwpBufferParams>(resource);
+        auto* params = wroc_get_userdata<wroc_zwp_buffer_params>(resource);
         if (!params->params.planes.empty()) {
             log_error("Multiple plane formats not currently supported");
         }
-        params->params.planes.emplace_back(DmaPlane{
+        params->params.planes.emplace_back(wren_dma_plane{
             .fd = fd,
             .plane_idx = plane_idx,
             .offset = offset,
@@ -398,41 +396,41 @@ const struct zwp_linux_buffer_params_v1_interface impl_zwp_linux_buffer_params_v
             .drm_modifier = u64(modifier_hi) << 32 | modifier_lo,
         });
     },
-    .create = INTERFACE_STUB,
+    .create = WROC_STUB,
     .create_immed = [](wl_client* client, wl_resource* resource, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags) {
-        auto* params = get_userdata<ZwpBufferParams>(resource);
+        auto* params = wroc_get_userdata<wroc_zwp_buffer_params>(resource);
         auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
-        auto* buffer = new DmaBuffer {};
+        auto* buffer = new wroc_zwp_buffer {};
         buffer->server = params->server;
         buffer->wl_buffer = new_resource;
-        buffer->type = BufferType::dma;
+        buffer->type = wroc_wl_buffer_type::dma;
         buffer->params = std::move(params->params);
-        wl_resource_set_implementation(new_resource, &impl_wl_buffer_for_dmabuf, buffer, SIMPLE_RESOURCE_UNREF(DmaBuffer, wl_buffer));
+        wl_resource_set_implementation(new_resource, &wroc_wl_buffer_for_dmabuf_impl, buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_buffer, wl_buffer));
 
-        buffer->params.format = vk_find_format_from_drm(format).value();
+        buffer->params.format = wren_find_format_from_drm(format).value();
         buffer->params.extent = { u32(width), u32(height) };
         buffer->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
-        buffer->image = vk_image_import_dmabuf(buffer->server->renderer->vk, buffer->params);
+        buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren, buffer->params);
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
     },
 };
 
-const struct zwp_linux_dmabuf_feedback_v1_interface impl_zwp_linux_dmabuf_feedback_v1 = {
-    .destroy = INTERFACE_STUB,
+const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedback_v1_impl = {
+    .destroy = WROC_STUB,
 };
 
-const struct wl_buffer_interface impl_wl_buffer_for_dmabuf = {
+const struct wl_buffer_interface wroc_wl_buffer_for_dmabuf_impl = {
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
     },
 };
 
-const wl_global_bind_func_t bind_zwp_linux_dmabuf_v1 = [](wl_client* client, void* data, u32 version, u32 id) {
+const wl_global_bind_func_t wroc_zwp_linux_dmabuf_v1_bind_global = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
-    wl_resource_set_implementation(new_resource, &impl_zwp_linux_dmabuf_v1, data, nullptr);
+    wl_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_v1_impl, data, nullptr);
 
     auto send_modifier = [&](u32 format, u64 modifier) {
         zwp_linux_dmabuf_v1_send_modifier(new_resource, format, modifier >> 32, modifier & 0xFFFF'FFFF);

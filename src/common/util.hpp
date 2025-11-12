@@ -8,29 +8,29 @@
 // -----------------------------------------------------------------------------
 
 template<typename Fn>
-struct Defer
+struct wrei_defer_guard
 {
     Fn fn;
 
-    Defer(Fn&& fn): fn(std::move(fn)) {}
-    ~Defer() { fn(); };
+    wrei_defer_guard(Fn&& fn): fn(std::move(fn)) {}
+    ~wrei_defer_guard() { fn(); };
 };
 
-#define defer Defer _ = [&]
+#define defer wrei_defer_guard _ = [&]
 
 // -----------------------------------------------------------------------------
 
 template<typename... Ts>
-struct overload_set : Ts... {
+struct wrei_overload_set : Ts... {
     using Ts::operator()...;
 };
 
-template<typename... Ts> overload_set(Ts...) -> overload_set<Ts...>;
+template<typename... Ts> wrei_overload_set(Ts...) -> wrei_overload_set<Ts...>;
 
 // -----------------------------------------------------------------------------
 
 constexpr
-std::string ascii_to_upper(std::string_view in)
+std::string wrei_ascii_to_upper(std::string_view in)
 {
     std::string out(in);
     for (char& c : out) c = std::toupper(c);
@@ -39,15 +39,15 @@ std::string ascii_to_upper(std::string_view in)
 
 // -----------------------------------------------------------------------------
 
-constexpr auto ptr_to(auto&& value) { return &value; }
+constexpr auto wrei_ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
-#define FUNC_REF(func) [](void* d, auto... args) { return (*static_cast<decltype(func)*>(d))(std::forward<decltype(args)>(args)...); }, &func
+#define WREI_FUNC_REF(func) [](void* d, auto... args) { return (*static_cast<decltype(func)*>(d))(std::forward<decltype(args)>(args)...); }, &func
 
 // -----------------------------------------------------------------------------
 
-#define DECORATE_FLAG_ENUM(EnumType) \
+#define WREI_DECORATE_FLAG_ENUM(EnumType) \
     inline constexpr EnumType operator| (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) | std::to_underlying(r));                  } \
     inline constexpr EnumType operator|=(EnumType& l, EnumType r) { return l = l | r;                                                                } \
     inline constexpr bool     operator>=(EnumType  l, EnumType r) { return std::to_underlying(r) == (std::to_underlying(l) & std::to_underlying(r)); } \
@@ -58,7 +58,7 @@ constexpr auto ptr_to(auto&& value) { return &value; }
 // -----------------------------------------------------------------------------
 
 template<typename T, typename E>
-struct EnumMap
+struct wrei_enum_map
 {
     T _data[magic_enum::enum_count<E>()];
 
@@ -70,15 +70,15 @@ struct EnumMap
 
 // -----------------------------------------------------------------------------
 
-constexpr vec2 copysign(     vec2 v, vec2 s) { return vec2(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
-constexpr vec2 round_to_zero(vec2 v)         { return copysign(glm::floor(glm::abs(v)), v);                   }
+constexpr wrei_vec2f64 wrei_copysign(     wrei_vec2f64 v, wrei_vec2f64 s) { return wrei_vec2f64(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
+constexpr wrei_vec2f64 wrei_round_to_zero(wrei_vec2f64 v)         { return wrei_copysign(glm::floor(glm::abs(v)), v);                   }
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-auto iterate(std::span<T> view, bool reverse = false)
+auto wrei_iterate(std::span<T> view, bool reverse = false)
 {
-    struct Iterator
+    struct iterator
     {
         std::span<T> view;
         i64 cur, end, step;
@@ -88,26 +88,26 @@ auto iterate(std::span<T> view, bool reverse = false)
         T&   operator*()  { return view[cur]; }
     };
 
-    struct Iterable
+    struct iterable
     {
         std::span<T> view;
         bool backward;
 
-        Iterator begin() {
+        iterator begin() {
             return backward
-                ? Iterator { view, i64(view.size()) - 1, -1, -1 }
-                : Iterator { view, 0, i64(view.size()), 1 };
+                ? iterator { view, i64(view.size()) - 1, -1, -1 }
+                : iterator { view, 0, i64(view.size()), 1 };
         }
 
         std::default_sentinel_t end() { return {}; }
     };
 
-    return Iterable{view, reverse};
+    return iterable{view, reverse};
 }
 
 // -----------------------------------------------------------------------------
 
-struct CommandParser
+struct wrei_command_parser
 {
     std::span<const std::string_view> args;
     u32 index;
@@ -148,12 +148,36 @@ struct CommandParser
 
 // -----------------------------------------------------------------------------
 
-std::string duration_to_string(std::chrono::duration<f64, std::nano> dur);
+std::string wrei_duration_to_string(std::chrono::duration<f64, std::nano> dur);
 
 // -----------------------------------------------------------------------------
 
 inline
-void log_unix_error(std::string_view message, int err = 0)
+std::string wrei_escape_utf8(std::string_view in)
+{
+    std::string out;
+    for (char c : in) {
+        switch (c) {
+            break;case '\r': out += "\\r";
+            break;case '\n': out += "\\n";
+            break;case '\b': out += "\\b";
+            break;case '\t': out += "\\t";
+            break;case '\f': out += "\\f";
+            break;default:
+                if (::isalpha(c) || ::isdigit(c)) {
+                    out += c;
+                } else {
+                    out += std::format("\\{:x}", c);
+                }
+        }
+    }
+    return out;
+}
+
+// -----------------------------------------------------------------------------
+
+inline
+void wrei_log_unix_error(std::string_view message, int err = 0)
 {
     err = err ?: errno;
 
@@ -161,15 +185,15 @@ void log_unix_error(std::string_view message, int err = 0)
     else                 { log_error("{}: ({}) {}", message, err, strerror(err)); }
 }
 
-enum class UnixErrorBehaviour {
-    RetNull,
-    RetNeg1,
-    RetNegErrno,
-    CheckErrno,
+enum class wrei_unix_error_behavior {
+    ret_null,
+    ret_neg1,
+    ret_neg_errno,
+    check_errno,
 };
 
-template<UnixErrorBehaviour B>
-struct unix_check_helper
+template<wrei_unix_error_behavior B>
+struct wrei_unix_check_helper
 {
     template<typename T>
     static constexpr
@@ -178,20 +202,20 @@ struct unix_check_helper
         bool error_occured = false;
         int error_code = 0;
 
-        if constexpr (B == UnixErrorBehaviour::RetNull)     if (!res)      { error_occured = true; error_code = errno; }
-        if constexpr (B == UnixErrorBehaviour::RetNeg1)     if (res == -1) { error_occured = true; error_code = errno; }
-        if constexpr (B == UnixErrorBehaviour::RetNegErrno) if (res < 0)   { error_occured = true; error_code = -res;  }
-        if constexpr (B == UnixErrorBehaviour::CheckErrno)  if (errno)     { error_occured = true; error_code = errno; }
+        if constexpr (B == wrei_unix_error_behavior::ret_null)     if (!res)      { error_occured = true; error_code = errno; }
+        if constexpr (B == wrei_unix_error_behavior::ret_neg1)     if (res == -1) { error_occured = true; error_code = errno; }
+        if constexpr (B == wrei_unix_error_behavior::ret_neg_errno) if (res < 0)   { error_occured = true; error_code = -res;  }
+        if constexpr (B == wrei_unix_error_behavior::check_errno)  if (errno)     { error_occured = true; error_code = errno; }
 
         if (!error_occured || (... || (error_code == allowed))) return res;
 
-        log_unix_error(std::format("unix_check {}@{}", loc.file_name(), loc.line()), error_code);
+        wrei_log_unix_error(std::format("unix_check {}@{}", loc.file_name(), loc.line()), error_code);
 
         return res;
     }
 };
 
-#define unix_check_null(func, ...)                       unix_check_helper<UnixErrorBehaviour::RetNull    >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
-#define unix_check_n1(func, ...)                         unix_check_helper<UnixErrorBehaviour::RetNeg1    >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
-#define unix_check_ne(func, ...)                         unix_check_helper<UnixErrorBehaviour::RetNegErrno>::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
-#define unix_check_ce(func, ...) [&] { errno = 0; return unix_check_helper<UnixErrorBehaviour::CheckErrno >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__); }()
+#define wrei_unix_check_null(func, ...)                       wrei_unix_check_helper<wrei_unix_error_behavior::ret_null     >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
+#define wrei_unix_check_n1(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg1     >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
+#define wrei_unix_check_ne(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
+#define wrei_unix_check_ce(func, ...) [&] { errno = 0; return wrei_unix_check_helper<wrei_unix_error_behavior::check_errno  >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__); }()

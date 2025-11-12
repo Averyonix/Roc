@@ -2,5 +2,5 @@
 
 int main(int argc, char* argv[])
 {
-    server_run(argc, argv);
+    wroc_run(argc, argv);
 }

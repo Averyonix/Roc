@@ -1,12 +1,9 @@
 #include "server.hpp"
 
-#include "renderer/renderer.hpp"
 #include "renderer/vulkan_context.hpp"
 #include "renderer/vulkan_helpers.hpp"
 
-#include "protocol/protocol.hpp"
-
-u32 server_get_elapsed_milliseconds(Server* server)
+u32 wroc_server_get_elapsed_milliseconds(wroc_server* server)
 {
     // TODO: This will elapse after 46 days of runtime, should we base it on surface epoch?
 
@@ -15,12 +12,12 @@ u32 server_get_elapsed_milliseconds(Server* server)
     return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-void server_run(int /* argc */, char* /* argv */[])
+void wroc_run(int /* argc */, char* /* argv */[])
 {
-    Server server = {};
+    wroc_server server = {};
     log_warn("server = {}", (void*)&server);
 
-    Seat seat = {};
+    wroc_seat seat = {};
     seat.name = "seat-0";
     server.seat = &seat;
 
@@ -31,17 +28,17 @@ void server_run(int /* argc */, char* /* argv */[])
     unsetenv("WAYLAND_DEBUG");
     server.event_loop = wl_display_get_event_loop(server.display);
 
-    backend_init(&server);
-    renderer_init(&server);
+    wroc_backend_init(&server);
+    wroc_renderer_create(&server);
 
     const char* socket = wl_display_add_socket_auto(server.display);
 
-    wl_global_create(server.display, &wl_compositor_interface, wl_compositor_interface.version, &server, bind_wl_compositor);
-    wl_global_create(server.display, &wl_shm_interface,        wl_shm_interface.version,        &server, bind_wl_shm);
-    wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   &server, bind_xdg_wm_base);
-    wl_global_create(server.display, &wl_seat_interface,       wl_seat_interface.version,       &seat,   bind_wl_seat);
+    wl_global_create(server.display, &wl_compositor_interface, wl_compositor_interface.version, &server, wroc_wl_compositor_bind_global);
+    wl_global_create(server.display, &wl_shm_interface,        wl_shm_interface.version,        &server, wroc_wl_shm_bind_global);
+    wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   &server, wroc_xdg_wm_base_bind_global);
+    wl_global_create(server.display, &wl_seat_interface,       wl_seat_interface.version,       &seat,   wroc_wl_seat_bind_global);
 
-    wl_global_create(server.display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, &server, bind_zwp_linux_dmabuf_v1);
+    wl_global_create(server.display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, &server, wroc_zwp_linux_dmabuf_v1_bind_global);
 
     log_info("Running compositor on: {}", socket);
 
@@ -50,13 +47,13 @@ void server_run(int /* argc */, char* /* argv */[])
     log_info("Compositor shutting down");
 
     if (server.backend) {
-        backend_destroy(server.backend);
+        wroc_backend_destroy(server.backend);
     }
 
     wl_display_destroy_clients(server.display);
 
     if (server.renderer) {
-        renderer_destroy(server.renderer);
+        wroc_renderer_destroy(&server);
     }
 
     wl_display_destroy(server.display);
@@ -64,37 +61,37 @@ void server_run(int /* argc */, char* /* argv */[])
     log_info("Shutdown complete");
 }
 
-void server_terminate(Server* server)
+void wroc_terminate(wroc_server* server)
 {
     wl_display_terminate(server->display);
 }
 
-void output_frame(Output* output)
+void wroc_output_frame(wroc_output* output)
 {
-    auto* vk = output->server->renderer->vk;
-    auto cmd = vulkan_context_begin_commands(vk);
+    auto* wren = output->server->renderer->wren;
+    auto cmd = wren_begin_commands(wren);
 
-    auto current = output_acquire_image(output);
+    auto current = wroc_output_acquire_image(output);
 
-    vk_transition(vk, cmd, current.image,
+    wren_transition(wren, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
         0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-    vk->CmdClearColorImage(cmd, current.image,
+    wren->vk.CmdClearColorImage(cmd, current.image,
         VK_IMAGE_LAYOUT_GENERAL,
-        ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
-        1, ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
+        wrei_ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
+        1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
-    auto blit = [&](const VulkanImage& image) {
-        vk->CmdBlitImage2(cmd, ptr_to(VkBlitImageInfo2 {
+    auto blit = [&](const wren_image& image) {
+        wren->vk.CmdBlitImage2(cmd, wrei_ptr_to(VkBlitImageInfo2 {
             .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
             .srcImage = image.image,
             .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
             .dstImage = current.image,
             .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
             .regionCount = 1,
-            .pRegions = ptr_to(VkImageBlit2 {
+            .pRegions = wrei_ptr_to(VkImageBlit2 {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
                 .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                 .srcOffsets = {
@@ -117,24 +114,24 @@ void output_frame(Output* output)
 
     blit(output->server->renderer->image);
 
-    for (Surface* surface : output->server->surfaces) {
+    for (wroc_surface* surface : output->server->surfaces) {
         if (surface->current.image.image) {
             blit(surface->current.image);
         }
 
     }
 
-    vk_transition(vk, cmd, current.image,
+    wren_transition(wren, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    vulkan_context_submit_commands(vk, cmd);
-    vk_check(vkwsi_swapchain_present(&output->swapchain, 1, vk->queue, nullptr, 0, false));
+    wren_submit_commands(wren, cmd);
+    wren_check(vkwsi_swapchain_present(&output->swapchain, 1, wren->queue, nullptr, 0, false));
 
-    auto elapsed = server_get_elapsed_milliseconds(output->server);
+    auto elapsed = wroc_server_get_elapsed_milliseconds(output->server);
 
-    for (Surface* surface : output->server->surfaces) {
+    for (wroc_surface* surface : output->server->surfaces) {
         if (surface->frame_callback) {
             wl_callback_send_done(surface->frame_callback, elapsed);
             wl_resource_destroy(surface->frame_callback);

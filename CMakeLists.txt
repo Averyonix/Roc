@@ -87,11 +87,13 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
 
     src/common/log.cpp
+    src/common/shm.cpp
 
     src/compositor/server.cpp
     src/compositor/output.cpp
     src/compositor/keyboard.cpp
     src/compositor/pointer.cpp
+    src/compositor/renderer.cpp
 
     src/compositor/protocol/protocol.cpp
 
@@ -99,7 +101,6 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/backend/wayland/seat.cpp
     src/backend/wayland/output.cpp
 
-    src/renderer/renderer.cpp
     src/renderer/vulkan_context_init.cpp
     src/renderer/vulkan_context.cpp
     src/renderer/vulkan_functions.cpp

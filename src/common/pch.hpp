@@ -9,7 +9,6 @@
 #include <format>
 #include <string>
 #include <typeinfo>
-#include <cstring>
 #include <span>
 #include <string_view>
 #include <optional>
@@ -22,12 +21,8 @@
 #include <ranges>
 #include <random>
 
+#include <cstring>
 #include <csignal>
-
-// -----------------------------------------------------------------------------
-
-#include <xkbcommon/xkbcommon.h>
-#include <libevdev/libevdev.h>
 
 // -----------------------------------------------------------------------------
 
@@ -42,6 +37,11 @@
 #include <sys/stat.h>
 
 #include <drm/drm_fourcc.h>
+
+// -----------------------------------------------------------------------------
+
+#include <xkbcommon/xkbcommon.h>
+#include <libevdev/libevdev.h>
 
 // -----------------------------------------------------------------------------
 

@@ -3,27 +3,27 @@
 #include "common/types.hpp"
 #include "common/log.hpp"
 
-struct VulkanContext;
+struct wren_context;
 
-const char* vk_result_to_string(VkResult res);
+const char* wren_result_to_string(VkResult res);
 
-VkResult vk_check(VkResult res, auto... allowed)
+VkResult wren_check(VkResult res, auto... allowed)
 {
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
-    log_error("VULKAN ERROR: {}, ({})", vk_result_to_string(res), int(res));
+    log_error("VULKAN ERROR: {}, ({})", wren_result_to_string(res), int(res));
 
     return res;
 }
 
 template<typename Container, typename Fn, typename... Args>
-void vk_enumerate(Container& container, Fn&& fn, Args&&... args)
+void wren_vk_enumerate(Container& container, Fn&& fn, Args&&... args)
 {
     u32 count = static_cast<u32>(container.size());
     for (;;) {
         u32 old_count = count;
         if constexpr (std::same_as<VkResult, decltype(fn(args..., &count, nullptr))>) {
-            vk_check(fn(args..., &count, container.data()), VK_INCOMPLETE);
+            wren_check(fn(args..., &count, container.data()), VK_INCOMPLETE);
         } else {
             fn(args..., &count, container.data());
         }
@@ -34,7 +34,7 @@ void vk_enumerate(Container& container, Fn&& fn, Args&&... args)
 }
 
 inline
-auto vk_make_chain_in(std::span<void* const> structures)
+auto wren_vk_make_chain_in(std::span<void* const> structures)
 {
     VkBaseInStructure* last = nullptr;
     for (auto* s : structures) {
@@ -46,7 +46,9 @@ auto vk_make_chain_in(std::span<void* const> structures)
     return last;
 };
 
-struct VulkanBuffer
+void wren_wait_for_timeline_value(wren_context*, const VkSemaphoreSubmitInfo&);
+
+struct wren_buffer
 {
     VkBuffer buffer;
     VkDeviceMemory memory;
@@ -60,12 +62,12 @@ struct VulkanBuffer
     T* host() const { return reinterpret_cast<T*>(host_address); }
 };
 
-VulkanBuffer vk_buffer_create(VulkanContext*, usz size);
-void vk_buffer_destroy(VulkanContext* vk, const VulkanBuffer&);
+wren_buffer wren_buffer_create(wren_context*, usz size);
+void wren_buffer_destroy(wren_context* vk, const wren_buffer&);
 
-u32 vk_find_memory_type(VulkanContext* vk, u32 type_filter, VkMemoryPropertyFlags properties);
+u32 wren_find_vk_memory_type_index(wren_context* vk, u32 type_filter, VkMemoryPropertyFlags properties);
 
-struct VulkanImage
+struct wren_image
 {
     VkImage image;
     VkImageView view;
@@ -73,18 +75,18 @@ struct VulkanImage
     VkExtent3D extent;
 };
 
-VulkanImage vk_image_create(VulkanContext*, VkExtent2D extent, const void* data);
-void vk_image_destroy(VulkanContext* vk, const VulkanImage&);
+wren_image wren_image_create(wren_context*, VkExtent2D extent, const void* data);
+void wren_image_destroy(wren_context* vk, const wren_image&);
 
-VkSampler vk_sampler_create(VulkanContext*);
-void vk_sampler_destroy(VulkanContext*, VkSampler);
+VkSampler wren_sampler_create(wren_context*);
+void wren_sampler_destroy(wren_context*, VkSampler);
 
-void vk_transition(VulkanContext* vk, VkCommandBuffer cmd, VkImage image,
+void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,
         VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
         VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
         VkImageLayout old_layout, VkImageLayout new_layout);
 
-struct VulkanFormat
+struct wren_format
 {
     u32 drm;
     VkFormat vk;
@@ -92,14 +94,16 @@ struct VulkanFormat
 	bool is_ycbcr;
 };
 
-std::span<const VulkanFormat> vk_get_formats();
-std::optional<VulkanFormat> vk_find_format_from_vulkan(VkFormat);
-std::optional<VulkanFormat> vk_find_format_from_drm(u32 drm_format);
-void vk_enumerate_drm_modifiers(VulkanContext*, const VulkanFormat&, std::vector<VkDrmFormatModifierProperties2EXT>&);
+std::span<const wren_format> wren_get_formats();
+std::optional<wren_format> wren_find_format_from_vulkan(VkFormat);
+std::optional<wren_format> wren_find_format_from_drm(u32 drm_format);
+void wren_enumerate_drm_modifiers(wren_context*, const wren_format&, std::vector<VkDrmFormatModifierProperties2EXT>&);
 
-constexpr static u32 dma_max_planes = 4;
+// -----------------------------------------------------------------------------
 
-struct DmaPlane
+constexpr static u32 wren_dma_max_planes = 4;
+
+struct wren_dma_plane
 {
     int fd;
     u32 plane_idx;
@@ -108,12 +112,12 @@ struct DmaPlane
     u64 drm_modifier;
 };
 
-struct DmaParams
+struct wren_dma_params
 {
-    std::vector<DmaPlane> planes;
+    std::vector<wren_dma_plane> planes;
     VkExtent2D extent;
-    VulkanFormat format;
+    wren_format format;
     zwp_linux_buffer_params_v1_flags flags;
 };
 
-VulkanImage vk_image_import_dmabuf(VulkanContext*, const DmaParams& params);
+wren_image wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);

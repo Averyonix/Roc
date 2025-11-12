@@ -2,16 +2,14 @@
 
 #include "common/log.hpp"
 
-#define INTERFACE_STUB [](auto...){}
-
 template<typename T>
-T* get_userdata(wl_resource* resource)
+T* wroc_get_userdata(wl_resource* resource)
 {
     return static_cast<T*>(wl_resource_get_user_data(resource));
 }
 
 inline
-void debug_track_resource(wl_resource* resource)
+void wroc_debug_track_resource(wl_resource* resource)
 {
     static i64 count = 0;
     log_trace("wl_resource ++ {}", ++count);
@@ -25,47 +23,37 @@ void debug_track_resource(wl_resource* resource)
     wl_resource_add_destroy_listener(resource, destroy_listener);
 }
 
-#define SIMPLE_RESOURCE_UNREF(Type, Member) \
+#define WROC_SIMPLE_RESOURCE_UNREF(Type, Member) \
     [](wl_resource* resource) { \
-        if (auto* t = get_userdata<Type>(resource)) { \
+        if (auto* t = wroc_get_userdata<Type>(resource)) { \
             t->Member = nullptr; \
-            unref(t); \
+            wrei_remove_ref(t); \
         } \
     }
 
-template<typename T>
-wl_array to_array(std::span<T> span)
-{
-    return wl_array {
-        .size = span.size_bytes(),
-        .alloc = span.size_bytes(),
-        .data = const_cast<void*>(static_cast<const void*>(span.data())),
-    };
-}
+extern const struct wl_compositor_interface wroc_wl_compositor_impl;
+extern const struct wl_region_interface     wroc_wl_region_impl;
+extern const struct wl_surface_interface    wroc_wl_surface_impl;
 
-extern const struct wl_compositor_interface impl_wl_compositor;
-extern const struct wl_region_interface     impl_wl_region;
-extern const struct wl_surface_interface    impl_wl_surface;
+extern const struct xdg_wm_base_interface   wroc_xdg_wm_base_impl;
+extern const struct xdg_surface_interface   wroc_xdg_surface_impl;
+extern const struct xdg_toplevel_interface  wroc_xdg_toplevel_impl;
 
-extern const struct xdg_wm_base_interface   impl_xdg_wm_base;
-extern const struct xdg_surface_interface   impl_xdg_surface;
-extern const struct xdg_toplevel_interface  impl_xdg_toplevel;
+extern const struct wl_shm_interface        wroc_wl_shm_impl;
+extern const struct wl_shm_pool_interface   wroc_wl_shm_pool_impl;
+extern const struct wl_buffer_interface     wroc_wl_buffer_for_shm_impl;
 
-extern const struct wl_shm_interface        impl_wl_shm;
-extern const struct wl_shm_pool_interface   impl_wl_shm_pool;
-extern const struct wl_buffer_interface     impl_wl_buffer_for_shm;
+extern const struct wl_seat_interface       wroc_wl_seat_impl;
+extern const struct wl_keyboard_interface   wroc_wl_keyboard_impl;
+extern const struct wl_pointer_interface    wroc_wl_pointer_impl;
 
-extern const struct wl_seat_interface       impl_wl_seat;
-extern const struct wl_keyboard_interface   impl_wl_keyboard;
-extern const struct wl_pointer_interface    impl_wl_pointer;
+extern const struct zwp_linux_dmabuf_v1_interface          wroc_zwp_linux_dmabuf_v1_impl;
+extern const struct zwp_linux_buffer_params_v1_interface   wroc_zwp_linux_buffer_params_v1_impl;
+extern const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedback_v1_impl;
+extern const struct wl_buffer_interface                    wroc_wl_buffer_for_dmabuf_impl;
 
-extern const struct zwp_linux_dmabuf_v1_interface          impl_zwp_linux_dmabuf_v1;
-extern const struct zwp_linux_buffer_params_v1_interface   impl_zwp_linux_buffer_params_v1;
-extern const struct zwp_linux_dmabuf_feedback_v1_interface impl_zwp_linux_dmabuf_feedback_v1;
-extern const struct wl_buffer_interface                    impl_wl_buffer_for_dmabuf;
-
-extern const wl_global_bind_func_t bind_wl_compositor;
-extern const wl_global_bind_func_t bind_wl_shm;
-extern const wl_global_bind_func_t bind_xdg_wm_base;
-extern const wl_global_bind_func_t bind_wl_seat;
-extern const wl_global_bind_func_t bind_zwp_linux_dmabuf_v1;
+extern const wl_global_bind_func_t wroc_wl_compositor_bind_global;
+extern const wl_global_bind_func_t wroc_wl_shm_bind_global;
+extern const wl_global_bind_func_t wroc_xdg_wm_base_bind_global;
+extern const wl_global_bind_func_t wroc_wl_seat_bind_global;
+extern const wl_global_bind_func_t wroc_zwp_linux_dmabuf_v1_bind_global;

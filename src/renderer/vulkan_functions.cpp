@@ -3,26 +3,26 @@
 
 #include "common/log.hpp"
 
-#define VULKAN_LOAD_INSTANCE_FUNCTION(funcName, ...) \
-    vk->funcName = (PFN_vk##funcName)vk->GetInstanceProcAddr(vk->instance, "vk"#funcName); \
-    if (!vk->funcName) log_error("failed to load vk" #funcName);
-#define VULKAN_LOAD_DEVICE_FUNCTION(  funcName, ...) \
-    vk->funcName = (PFN_vk##funcName)vk->GetDeviceProcAddr(  vk->device,   "vk"#funcName); \
-    if (!vk->funcName) log_error("failed to load vk" #funcName);
+#define VULKAN_LOAD_INSTANCE_FUNCTION(FuncName, ...) \
+    ctx->vk.FuncName = (PFN_vk##FuncName)ctx->vk.GetInstanceProcAddr(ctx->instance, "vk"#FuncName); \
+    if (!ctx->vk.FuncName) log_error("failed to load vk" #FuncName);
+#define VULKAN_LOAD_DEVICE_FUNCTION(  FuncName, ...) \
+    ctx->vk.FuncName = (PFN_vk##FuncName)ctx->vk.GetDeviceProcAddr(  ctx->device,   "vk"#FuncName); \
+    if (!ctx->vk.FuncName) log_error("failed to load vk" #FuncName);
 
-void vulkan_init_functions(VulkanContext* vk, PFN_vkGetInstanceProcAddr loadFn)
+void wren_init_functions(wren_context* ctx, PFN_vkGetInstanceProcAddr loadFn)
 {
-    vk->GetInstanceProcAddr = loadFn;
+    ctx->vk.GetInstanceProcAddr = loadFn;
 
     VULKAN_LOAD_INSTANCE_FUNCTION(CreateInstance)
 }
 
-void vulkan_load_instance_functions(VulkanContext* vk)
+void wren_load_instance_functions(wren_context* ctx)
 {
-    VULKAN_INSTANCE_FUNCTIONS(VULKAN_LOAD_INSTANCE_FUNCTION)
+    WREN_INSTANCE_FUNCTIONS(VULKAN_LOAD_INSTANCE_FUNCTION)
 }
 
-void vulkan_load_device_functions(VulkanContext* vk)
+void wren_load_device_functions(wren_context* ctx)
 {
-    VULKAN_DEVICE_FUNCTIONS(VULKAN_LOAD_DEVICE_FUNCTION)
+    WREN_DEVICE_FUNCTIONS(VULKAN_LOAD_DEVICE_FUNCTION)
 }
