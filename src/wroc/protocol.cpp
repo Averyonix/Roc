@@ -1,7 +1,7 @@
 #include "protocol.hpp"
-#include "compositor/util.hpp"
+#include "wroc/util.hpp"
 
-#include "compositor/server.hpp"
+#include "wroc/server.hpp"
 
 // -----------------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 #include "server.hpp"
 #include "util.hpp"
 
-#include "common/shm.hpp"
+#include "wrei/shm.hpp"
 
 void wroc_keyboard_added(wroc_keyboard* kb)
 {

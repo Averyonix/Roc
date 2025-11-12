@@ -57,7 +57,7 @@ target_include_directories(luajit INTERFACE ${VENDOR_DIR}/luajit/src)
 # ------------------------------------------------------------------------------
 
 add_executable(            ${PROJECT_NAME})
-target_precompile_headers( ${PROJECT_NAME} PUBLIC src/common/pch.hpp)
+target_precompile_headers( ${PROJECT_NAME} PUBLIC src/wrei/pch.hpp)
 target_compile_definitions(${PROJECT_NAME} PUBLIC "PROGRAM_NAME=\"${PROJECT_NAME}\"")
 target_compile_options(    ${PROJECT_NAME} PUBLIC
     -std=c++26
@@ -86,26 +86,26 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
 
-    src/common/log.cpp
-    src/common/shm.cpp
+    src/wrei/log.cpp
+    src/wrei/shm.cpp
 
-    src/compositor/server.cpp
-    src/compositor/output.cpp
-    src/compositor/keyboard.cpp
-    src/compositor/pointer.cpp
-    src/compositor/renderer.cpp
+    src/wroc/server.cpp
+    src/wroc/output.cpp
+    src/wroc/keyboard.cpp
+    src/wroc/pointer.cpp
+    src/wroc/renderer.cpp
 
-    src/compositor/protocol/protocol.cpp
+    src/wroc/protocol.cpp
 
-    src/backend/wayland/wayland.cpp
-    src/backend/wayland/seat.cpp
-    src/backend/wayland/output.cpp
+    src/wroc/backend/wayland/wayland.cpp
+    src/wroc/backend/wayland/seat.cpp
+    src/wroc/backend/wayland/output.cpp
 
-    src/renderer/vulkan_context_init.cpp
-    src/renderer/vulkan_context.cpp
-    src/renderer/vulkan_functions.cpp
-    src/renderer/vulkan_helpers.cpp
-    src/renderer/vulkan_format.cpp
+    src/wren/wren.cpp
+    src/wren/wren_init.cpp
+    src/wren/wren_functions.cpp
+    src/wren/wren_helpers.cpp
+    src/wren/wren_format.cpp
     )
 if(USE_ASAN)
     target_link_libraries(${PROJECT_NAME} PUBLIC asan)

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common/types.hpp"
-#include "vulkan_functions.hpp"
+#include "wrei/types.hpp"
+#include "wren_functions.hpp"
 
 struct wren_context
 {

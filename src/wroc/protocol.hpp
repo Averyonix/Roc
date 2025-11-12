@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/log.hpp"
+#include "wrei/log.hpp"
 
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)

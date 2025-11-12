@@ -1,7 +1,7 @@
-#include "vulkan_helpers.hpp"
-#include "vulkan_context.hpp"
+#include "wren_helpers.hpp"
+#include "wren.hpp"
 
-#include "compositor/server.hpp"
+#include "wroc/server.hpp"
 
 wren_context* wren_create()
 {

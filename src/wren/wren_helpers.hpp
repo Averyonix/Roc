@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common/types.hpp"
-#include "common/log.hpp"
+#include "wrei/types.hpp"
+#include "wrei/log.hpp"
 
 struct wren_context;
 

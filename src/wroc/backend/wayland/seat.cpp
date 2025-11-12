@@ -1,6 +1,6 @@
 #include "backend.hpp"
 
-#include "compositor/util.hpp"
+#include "wroc/util.hpp"
 
 // -----------------------------------------------------------------------------
 

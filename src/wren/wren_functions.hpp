@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/pch.hpp"
+#include "wrei/pch.hpp"
 
 #define WREN_INSTANCE_FUNCTIONS(DO) \
     DO(EnumeratePhysicalDevices) \

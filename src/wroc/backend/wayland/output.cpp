@@ -1,8 +1,8 @@
 #include "backend.hpp"
 
-#include "compositor/util.hpp"
+#include "wroc/util.hpp"
 
-#include "renderer/vulkan_context.hpp"
+#include "wren/wren.hpp"
 
 wroc_wayland_output* wroc_backend_find_output_for_surface(wroc_backend* backend, wl_surface* surface)
 {

@@ -1,7 +1,7 @@
-#include "vulkan_context.hpp"
-#include "vulkan_helpers.hpp"
+#include "wren.hpp"
+#include "wren_helpers.hpp"
 
-#include "common/util.hpp"
+#include "wrei/util.hpp"
 
 static constexpr wren_format formats[] {
 	{

@@ -1,4 +1,4 @@
-#include "compositor/server.hpp"
+#include "wroc/server.hpp"
 
 int main(int argc, char* argv[])
 {

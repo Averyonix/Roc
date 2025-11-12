@@ -1,7 +1,7 @@
 #include "server.hpp"
 
-#include "renderer/vulkan_context.hpp"
-#include "renderer/vulkan_helpers.hpp"
+#include "wren/wren.hpp"
+#include "wren/wren_helpers.hpp"
 
 u32 wroc_server_get_elapsed_milliseconds(wroc_server* server)
 {

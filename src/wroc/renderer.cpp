@@ -1,6 +1,6 @@
 #include "server.hpp"
 
-#include "renderer/vulkan_context.hpp"
+#include "wren/wren.hpp"
 
 void wroc_renderer_create(wroc_server* server)
 {

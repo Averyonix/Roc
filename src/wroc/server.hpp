@@ -1,13 +1,13 @@
 #pragma once
 
-#include "protocol/protocol.hpp"
+#include "protocol.hpp"
 
-#include "common/pch.hpp"
-#include "common/types.hpp"
-#include "common/util.hpp"
-#include "common/log.hpp"
+#include "wrei/pch.hpp"
+#include "wrei/types.hpp"
+#include "wrei/util.hpp"
+#include "wrei/log.hpp"
 
-#include "renderer/vulkan_helpers.hpp"
+#include "wren/wren_helpers.hpp"
 
 // -----------------------------------------------------------------------------
 

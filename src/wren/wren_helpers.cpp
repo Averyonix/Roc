@@ -1,7 +1,7 @@
-#include "vulkan_helpers.hpp"
-#include "vulkan_context.hpp"
+#include "wren_helpers.hpp"
+#include "wren.hpp"
 
-#include "common/util.hpp"
+#include "wrei/util.hpp"
 
 const char* wren_result_to_string(VkResult res)
 {

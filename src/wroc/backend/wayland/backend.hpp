@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compositor/server.hpp"
+#include "wroc/server.hpp"
 
 // -----------------------------------------------------------------------------
 
