@@ -81,6 +81,9 @@ VulkanContext* vulkan_context_create(Backend* backend)
         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
         VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
         VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+        VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
     };
 
     vk_check(vk->CreateDevice(vk->physical_device, ptr_to(VkDeviceCreateInfo {

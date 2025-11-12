@@ -73,6 +73,7 @@ const struct wl_surface_interface impl_wl_surface = {
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
         auto* surface = get_userdata<Surface>(resource);
         auto* buffer = get_userdata<ShmBuffer>(wl_buffer);
+        log_warn("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
         surface->pending.buffer = buffer;
     },
     .damage = INTERFACE_STUB,
@@ -127,9 +128,17 @@ const struct wl_surface_interface impl_wl_surface = {
                 if (buffer->type == BufferType::shm) {
                     auto* shm_buffer = static_cast<ShmBuffer*>(buffer);
                     surface->current.image = vk_image_create(vk, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
+                    wl_buffer_send_release(surface->pending.buffer->wl_buffer);
+                } else {
+                    auto* dma_buffer = static_cast<DmaBuffer*>(buffer);
+                    surface->current.image = dma_buffer->image;
+                    dma_buffer->image = {};
+                    log_warn("User committed dmabuf, size = ({}, {})!", surface->current.image.extent.width, surface->current.image.extent.height);
+                    // surface->current.image = vk_image_import_dmabuf(vk, dma_buffer->params);
+                    // close(dma_buffer->params.planes.front().fd);
                 }
 
-                wl_buffer_send_release(surface->pending.buffer->wl_buffer);
+                // wl_buffer_send_release(surface->pending.buffer->wl_buffer);
             } else {
                 log_warn("pending wl_buffer was destroyed, surface contents has been cleared");
             }
@@ -248,7 +257,7 @@ const struct wl_shm_interface impl_wl_shm = {
     },
 };
 
-const wl_global_bind_func_t bind_wl_shm = [](wl_client* client, void* data, uint32_t version, uint32_t id) {
+const wl_global_bind_func_t bind_wl_shm = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* new_resource = wl_resource_create(client, &wl_shm_interface, version, id);
     debug_track_resource(new_resource);
     auto* shm = new Shm {};
@@ -336,7 +345,7 @@ const struct wl_pointer_interface impl_wl_pointer = {
     .set_cursor = INTERFACE_STUB,
 };
 
-const wl_global_bind_func_t bind_wl_seat = [](wl_client* client, void* data, uint32_t version, uint32_t id) {
+const wl_global_bind_func_t bind_wl_seat = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* seat = static_cast<Seat*>(data);
     auto* new_resource = wl_resource_create(client, &wl_seat_interface, version, id);
     debug_track_resource(new_resource);
@@ -350,4 +359,91 @@ const wl_global_bind_func_t bind_wl_seat = [](wl_client* client, void* data, uin
     if (seat->keyboard) caps |= WL_SEAT_CAPABILITY_KEYBOARD;
     if (seat->pointer)  caps |= WL_SEAT_CAPABILITY_POINTER;
     wl_seat_send_capabilities(new_resource, caps);
+};
+
+// -----------------------------------------------------------------------------
+
+const struct zwp_linux_dmabuf_v1_interface impl_zwp_linux_dmabuf_v1 = {
+    .create_params = [](wl_client* client, wl_resource* resource, u32 params_id) {
+        auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
+        auto* params = new ZwpBufferParams {};
+        params->server = get_userdata<Server>(resource);
+        params->zwp_linux_buffer_params_v1 = new_resource;
+        wl_resource_set_implementation(new_resource, &impl_zwp_linux_buffer_params_v1, params, SIMPLE_RESOURCE_UNREF(ZwpBufferParams, zwp_linux_buffer_params_v1));
+    },
+    .destroy = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
+    .get_default_feedback = [](wl_client* client, wl_resource* resource, u32 id) {
+        auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
+        wl_resource_set_implementation(new_resource, &impl_zwp_linux_dmabuf_feedback_v1, nullptr, nullptr);
+    },
+    .get_surface_feedback = [](wl_client* client, wl_resource* resource, u32 id, wl_resource* surface) {
+        auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
+        wl_resource_set_implementation(new_resource, &impl_zwp_linux_dmabuf_feedback_v1, nullptr, nullptr);
+    },
+};
+
+const struct zwp_linux_buffer_params_v1_interface impl_zwp_linux_buffer_params_v1 = {
+    .add = [](wl_client* client, wl_resource* resource, int fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo) {
+        auto* params = get_userdata<ZwpBufferParams>(resource);
+        if (!params->params.planes.empty()) {
+            log_error("Multiple plane formats not currently supported");
+        }
+        params->params.planes.emplace_back(DmaPlane{
+            .fd = fd,
+            .plane_idx = plane_idx,
+            .offset = offset,
+            .stride = stride,
+            .drm_modifier = u64(modifier_hi) << 32 | modifier_lo,
+        });
+    },
+    .create = INTERFACE_STUB,
+    .create_immed = [](wl_client* client, wl_resource* resource, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags) {
+        auto* params = get_userdata<ZwpBufferParams>(resource);
+        auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
+        auto* buffer = new DmaBuffer {};
+        buffer->server = params->server;
+        buffer->wl_buffer = new_resource;
+        buffer->type = BufferType::dma;
+        buffer->params = std::move(params->params);
+        wl_resource_set_implementation(new_resource, &impl_wl_buffer_for_dmabuf, buffer, SIMPLE_RESOURCE_UNREF(DmaBuffer, wl_buffer));
+
+        buffer->params.format = vk_find_format_from_drm(format).value();
+        buffer->params.extent = { u32(width), u32(height) };
+        buffer->params.flags = zwp_linux_buffer_params_v1_flags(flags);
+
+        buffer->image = vk_image_import_dmabuf(buffer->server->renderer->vk, buffer->params);
+    },
+    .destroy = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
+};
+
+const struct zwp_linux_dmabuf_feedback_v1_interface impl_zwp_linux_dmabuf_feedback_v1 = {
+    .destroy = INTERFACE_STUB,
+};
+
+const struct wl_buffer_interface impl_wl_buffer_for_dmabuf = {
+    .destroy = [](wl_client* client, wl_resource* resource) {
+        wl_resource_destroy(resource);
+    },
+};
+
+const wl_global_bind_func_t bind_zwp_linux_dmabuf_v1 = [](wl_client* client, void* data, u32 version, u32 id) {
+    auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
+    wl_resource_set_implementation(new_resource, &impl_zwp_linux_dmabuf_v1, data, nullptr);
+
+    auto send_modifier = [&](u32 format, u64 modifier) {
+        zwp_linux_dmabuf_v1_send_modifier(new_resource, format, modifier >> 32, modifier & 0xFFFF'FFFF);
+    };
+
+    for (auto& format : {
+        DRM_FORMAT_XRGB8888,
+        DRM_FORMAT_ARGB8888,
+    }) {
+        zwp_linux_dmabuf_v1_send_format(new_resource, format);
+        // send_modifier(format, DRM_FORMAT_MOD_INVALID);
+        send_modifier(format, DRM_FORMAT_MOD_LINEAR);
+    }
 };

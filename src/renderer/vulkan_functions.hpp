@@ -14,6 +14,7 @@
     DO(DestroyDevice) \
     DO(DestroyInstance) \
     DO(GetPhysicalDeviceMemoryProperties) \
+    DO(GetPhysicalDeviceFormatProperties2) \
     DO(CreateWaylandSurfaceKHR)
 
 #define VULKAN_DEVICE_FUNCTIONS(DO) \
@@ -77,7 +78,10 @@
     DO(UpdateDescriptorSets) \
     DO(CmdBindDescriptorSets) \
     DO(SetDebugUtilsObjectNameEXT) \
-    DO(CmdBlitImage2)
+    DO(CmdBlitImage2) \
+    DO(GetMemoryFdPropertiesKHR) \
+    DO(GetImageMemoryRequirements2) \
+    DO(BindImageMemory2)
 
 #define VULKAN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

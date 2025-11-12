@@ -104,6 +104,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/renderer/vulkan_context.cpp
     src/renderer/vulkan_functions.cpp
     src/renderer/vulkan_helpers.cpp
+    src/renderer/vulkan_format.cpp
     )
 if(USE_ASAN)
     target_link_libraries(${PROJECT_NAME} PUBLIC asan)

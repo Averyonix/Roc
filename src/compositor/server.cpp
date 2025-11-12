@@ -41,6 +41,8 @@ void server_run(int /* argc */, char* /* argv */[])
     wl_global_create(server.display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   &server, bind_xdg_wm_base);
     wl_global_create(server.display, &wl_seat_interface,       wl_seat_interface.version,       &seat,   bind_wl_seat);
 
+    wl_global_create(server.display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, &server, bind_zwp_linux_dmabuf_v1);
+
     log_info("Running compositor on: {}", socket);
 
     wl_display_run(server.display);
@@ -119,6 +121,7 @@ void output_frame(Output* output)
         if (surface->current.image.image) {
             blit(surface->current.image);
         }
+
     }
 
     vk_transition(vk, cmd, current.image,

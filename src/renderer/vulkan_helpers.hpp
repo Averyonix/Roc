@@ -83,3 +83,37 @@ void vk_transition(VulkanContext* vk, VkCommandBuffer cmd, VkImage image,
         VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
         VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
         VkImageLayout old_layout, VkImageLayout new_layout);
+
+struct VulkanFormat
+{
+    u32 drm;
+    VkFormat vk;
+    VkFormat vk_srgb;
+	bool is_ycbcr;
+};
+
+std::span<const VulkanFormat> vk_get_formats();
+std::optional<VulkanFormat> vk_find_format_from_vulkan(VkFormat);
+std::optional<VulkanFormat> vk_find_format_from_drm(u32 drm_format);
+void vk_enumerate_drm_modifiers(VulkanContext*, const VulkanFormat&, std::vector<VkDrmFormatModifierProperties2EXT>&);
+
+constexpr static u32 dma_max_planes = 4;
+
+struct DmaPlane
+{
+    int fd;
+    u32 plane_idx;
+    u32 offset;
+    u32 stride;
+    u64 drm_modifier;
+};
+
+struct DmaParams
+{
+    std::vector<DmaPlane> planes;
+    VkExtent2D extent;
+    VulkanFormat format;
+    zwp_linux_buffer_params_v1_flags flags;
+};
+
+VulkanImage vk_image_import_dmabuf(VulkanContext*, const DmaParams& params);

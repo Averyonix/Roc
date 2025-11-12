@@ -111,6 +111,7 @@ struct Surface : RefCounted
 enum class BufferType
 {
     shm,
+    dma,
 };
 
 struct Buffer : RefCounted
@@ -148,13 +149,29 @@ struct ShmBuffer : Buffer
 {
     Ref<ShmPool> pool;
 
-    using Buffer::wl_buffer;
-
     i32 offset;
     i32 width;
     i32 height;
     i32 stride;
     wl_shm_format format;
+};
+
+// -----------------------------------------------------------------------------
+
+struct ZwpBufferParams : RefCounted
+{
+    Server* server;
+
+    wl_resource* zwp_linux_buffer_params_v1;
+
+    DmaParams params;
+};
+
+struct DmaBuffer : Buffer
+{
+    DmaParams params;
+
+    VulkanImage image;
 };
 
 // -----------------------------------------------------------------------------

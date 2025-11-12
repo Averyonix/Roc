@@ -59,7 +59,13 @@ extern const struct wl_seat_interface       impl_wl_seat;
 extern const struct wl_keyboard_interface   impl_wl_keyboard;
 extern const struct wl_pointer_interface    impl_wl_pointer;
 
+extern const struct zwp_linux_dmabuf_v1_interface          impl_zwp_linux_dmabuf_v1;
+extern const struct zwp_linux_buffer_params_v1_interface   impl_zwp_linux_buffer_params_v1;
+extern const struct zwp_linux_dmabuf_feedback_v1_interface impl_zwp_linux_dmabuf_feedback_v1;
+extern const struct wl_buffer_interface                    impl_wl_buffer_for_dmabuf;
+
 extern const wl_global_bind_func_t bind_wl_compositor;
 extern const wl_global_bind_func_t bind_wl_shm;
 extern const wl_global_bind_func_t bind_xdg_wm_base;
 extern const wl_global_bind_func_t bind_wl_seat;
+extern const wl_global_bind_func_t bind_zwp_linux_dmabuf_v1;

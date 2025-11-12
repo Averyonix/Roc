@@ -41,6 +41,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#include <drm/drm_fourcc.h>
+
 // -----------------------------------------------------------------------------
 
 #include <magic_enum/magic_enum.hpp>
@@ -81,6 +83,7 @@
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
 #include <xdg-shell-protocol.h>
+#include <linux-dmabuf-v1-protocol.h>
 
 // -----------------------------------------------------------------------------
 
