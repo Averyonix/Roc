@@ -130,6 +130,7 @@ void wroc_pointer_set(wroc_backend* backend, struct wl_pointer* wl_pointer)
     pointer->server = backend->server;
 
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
+    wroc_pointer_added(pointer);
 }
 
 // -----------------------------------------------------------------------------
@@ -290,5 +291,5 @@ void wroc_listen_wl_seat_name(void* /* data */, struct wl_seat*, const char* nam
 
 const wl_seat_listener wroc_wl_seat_listener {
     .capabilities = wroc_listen_wl_seat_capabilities,
-    .name = wroc_listen_wl_seat_name,
+    .name         = wroc_listen_wl_seat_name,
 };

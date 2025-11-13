@@ -5,7 +5,7 @@
 
 void wroc_keyboard_added(wroc_keyboard* kb)
 {
-    log_error("KEYBOARD ADDED");
+    log_info("KEYBOARD ADDED");
 
     kb->server->seat->keyboard = kb;
 };

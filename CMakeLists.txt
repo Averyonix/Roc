@@ -95,7 +95,10 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/pointer.cpp
     src/wroc/renderer.cpp
     src/wroc/buffer.cpp
-    src/wroc/protocol.cpp
+    src/wroc/dmabuf.cpp
+    src/wroc/seat.cpp
+    src/wroc/shm.cpp
+    src/wroc/surface.cpp
 
     src/wroc/backend/wayland/wayland.cpp
     src/wroc/backend/wayland/seat.cpp

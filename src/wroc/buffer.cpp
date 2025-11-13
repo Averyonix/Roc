@@ -1,5 +1,9 @@
 #include "server.hpp"
 
+const struct wl_buffer_interface wroc_wl_buffer_impl = {
+    .destroy = wroc_simple_resource_destroy_callback,
+};
+
 void wroc_wl_buffer::lock()
 {
     // log_warn("LOCKING BUFFER {}", (void*)this);

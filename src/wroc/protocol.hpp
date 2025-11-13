@@ -34,6 +34,12 @@ void wroc_debug_track_resource(wl_resource* resource)
         wrei_remove_ref(t); \
     }
 
+inline
+void wroc_simple_resource_destroy_callback(wl_client* client, wl_resource* resource)
+{
+    wl_resource_destroy(resource);
+}
+
 extern const struct wl_compositor_interface wroc_wl_compositor_impl;
 extern const struct wl_region_interface     wroc_wl_region_impl;
 extern const struct wl_surface_interface    wroc_wl_surface_impl;
@@ -42,9 +48,10 @@ extern const struct xdg_wm_base_interface   wroc_xdg_wm_base_impl;
 extern const struct xdg_surface_interface   wroc_xdg_surface_impl;
 extern const struct xdg_toplevel_interface  wroc_xdg_toplevel_impl;
 
+extern const struct wl_buffer_interface     wroc_wl_buffer_impl;
+
 extern const struct wl_shm_interface        wroc_wl_shm_impl;
 extern const struct wl_shm_pool_interface   wroc_wl_shm_pool_impl;
-extern const struct wl_buffer_interface     wroc_wl_buffer_for_shm_impl;
 
 extern const struct wl_seat_interface       wroc_wl_seat_impl;
 extern const struct wl_keyboard_interface   wroc_wl_keyboard_impl;
@@ -53,10 +60,9 @@ extern const struct wl_pointer_interface    wroc_wl_pointer_impl;
 extern const struct zwp_linux_dmabuf_v1_interface          wroc_zwp_linux_dmabuf_v1_impl;
 extern const struct zwp_linux_buffer_params_v1_interface   wroc_zwp_linux_buffer_params_v1_impl;
 extern const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedback_v1_impl;
-extern const struct wl_buffer_interface                    wroc_wl_buffer_for_dmabuf_impl;
 
-extern const wl_global_bind_func_t wroc_wl_compositor_bind_global;
-extern const wl_global_bind_func_t wroc_wl_shm_bind_global;
-extern const wl_global_bind_func_t wroc_xdg_wm_base_bind_global;
-extern const wl_global_bind_func_t wroc_wl_seat_bind_global;
-extern const wl_global_bind_func_t wroc_zwp_linux_dmabuf_v1_bind_global;
+void wroc_wl_compositor_bind_global(      wl_client* client, void* data, u32 version, u32 id);
+void wroc_wl_shm_bind_global(             wl_client* client, void* data, u32 version, u32 id);
+void wroc_xdg_wm_base_bind_global(        wl_client* client, void* data, u32 version, u32 id);
+void wroc_wl_seat_bind_global(            wl_client* client, void* data, u32 version, u32 id);
+void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id);
