@@ -84,17 +84,14 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
         auto* surface = wroc_get_userdata<wroc_surface>(resource);
         auto new_resource = wl_resource_create(client, &wl_callback_interface, 1, callback);
         wroc_debug_track_resource(new_resource);
-        if (surface->frame_callback) {
-            wl_resource_destroy(surface->frame_callback);
-        }
-        // log_warn("frame callback {} created", (void*)new_resource);
-        surface->frame_callback = new_resource;
+        surface->pending.frame_callbacks.emplace_back(new_resource);
+        wrei_add_ref(surface);
         wl_resource_set_implementation(new_resource, nullptr, surface, [](wl_resource* resource) {
             auto* surface = wroc_get_userdata<wroc_surface>(resource);
             // log_warn("frame callback {} destroyed", (void*)resource);
-            if (surface->frame_callback == resource) {
-                surface->frame_callback = nullptr;
-            }
+            std::erase(surface->pending.frame_callbacks, resource);
+            std::erase(surface->current.frame_callbacks, resource);
+            wrei_remove_ref(surface);
         });
     },
     .set_opaque_region = WROC_STUB,
@@ -122,6 +119,11 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
                 xdg_surface_send_configure(surface->xdg_surface, wl_display_next_serial(surface->server->display));
             }
         }
+
+        // Update frame callbacks
+
+        surface->current.frame_callbacks.append_range(surface->pending.frame_callbacks);
+        surface->pending.frame_callbacks.clear();
 
         // Update buffer
 

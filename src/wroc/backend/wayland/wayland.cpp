@@ -84,7 +84,13 @@ void wroc_backend_init(wroc_server* server)
     auto* backend = new wroc_backend{};
     backend->server = server;
 
+    if (getenv("WAYLAND_DEBUG_BACKEND")) {
+        setenv("WAYLAND_DEBUG", "1", true);
+    } else {
+        unsetenv("WAYLAND_DEBUG");
+    }
     backend->wl_display = wl_display_connect(nullptr);
+    unsetenv("WAYLAND_DEBUG");
     backend->wl_registry = wl_display_get_registry(backend->wl_display);
 
     wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend);

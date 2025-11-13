@@ -23,7 +23,11 @@ void wroc_run(int /* argc */, char* /* argv */[])
 
     server.epoch = std::chrono::steady_clock::now();
 
-    setenv("WAYLAND_DEBUG", "1", true);
+    if (getenv("WAYLAND_DEBUG_CLIENT")) {
+        setenv("WAYLAND_DEBUG", "1", true);
+    } else {
+        unsetenv("WAYLAND_DEBUG");
+    }
     server.display = wl_display_create();
     unsetenv("WAYLAND_DEBUG");
     server.event_loop = wl_display_get_event_loop(server.display);
@@ -131,10 +135,11 @@ void wroc_output_frame(wroc_output* output)
     auto elapsed = wroc_server_get_elapsed_milliseconds(output->server);
 
     for (wroc_surface* surface : output->server->surfaces) {
-        if (surface->frame_callback) {
+        while (!surface->current.frame_callbacks.empty()) {
+            auto callback = surface->current.frame_callbacks.front();
             log_trace("Sending frame callback");
-            wl_callback_send_done(surface->frame_callback, elapsed);
-            wl_resource_destroy(surface->frame_callback);
+            wl_callback_send_done(callback, elapsed);
+            wl_resource_destroy(callback);
         }
     }
 }

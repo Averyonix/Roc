@@ -92,7 +92,6 @@ struct wroc_surface : wrei_ref_counted
     wl_resource* xdg_surface;
     wl_resource* xdg_toplevel;
 
-    wl_resource* frame_callback;
 
     bool initial_commit = true;
 
@@ -100,11 +99,13 @@ struct wroc_surface : wrei_ref_counted
         bool buffer_was_set;
         wrei_ref<wroc_wl_buffer> buffer;
         std::optional<wrei_rect<i32>> geometry;
+        std::vector<wl_resource*> frame_callbacks;
     } pending;
 
     struct {
         wrei_ref<wroc_wl_buffer> buffer;
         std::optional<wrei_rect<i32>> geometry;
+        std::vector<wl_resource*> frame_callbacks;
     } current;
 
     ~wroc_surface();
