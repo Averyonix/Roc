@@ -94,7 +94,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/keyboard.cpp
     src/wroc/pointer.cpp
     src/wroc/renderer.cpp
-
+    src/wroc/buffer.cpp
     src/wroc/protocol.cpp
 
     src/wroc/backend/wayland/wayland.cpp

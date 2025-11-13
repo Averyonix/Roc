@@ -8,9 +8,12 @@ T* wroc_get_userdata(wl_resource* resource)
     return static_cast<T*>(wl_resource_get_user_data(resource));
 }
 
+#define WROC_NOISY_WL_RESOURCE 0
+
 inline
 void wroc_debug_track_resource(wl_resource* resource)
 {
+#if WROC_NOISY_WL_RESOURCE
     static i64 count = 0;
     log_trace("wl_resource ++ {}", ++count);
 
@@ -21,14 +24,14 @@ void wroc_debug_track_resource(wl_resource* resource)
         delete listener;
     };
     wl_resource_add_destroy_listener(resource, destroy_listener);
+#endif
 }
 
 #define WROC_SIMPLE_RESOURCE_UNREF(Type, Member) \
     [](wl_resource* resource) { \
-        if (auto* t = wroc_get_userdata<Type>(resource)) { \
-            t->Member = nullptr; \
-            wrei_remove_ref(t); \
-        } \
+        auto* t = wroc_get_userdata<Type>(resource); \
+        t->Member = nullptr; \
+        wrei_remove_ref(t); \
     }
 
 extern const struct wl_compositor_interface wroc_wl_compositor_impl;

@@ -1,9 +1,11 @@
 #pragma once
 
+#include "wrei/ref.hpp"
 #include "wrei/types.hpp"
+
 #include "wren_functions.hpp"
 
-struct wren_context
+struct wren_context : wrei_ref_counted
 {
     struct {
         WREN_DECLARE_FUNCTION(GetInstanceProcAddr)
@@ -25,10 +27,11 @@ struct wren_context
 
     VkCommandPool cmd_pool;
     VkCommandBuffer cmd;
+
+    ~wren_context();
 };
 
-wren_context* wren_create();
-void          wren_destroy(wren_context*);
+wrei_ref<wren_context> wren_create();
 
 VkCommandBuffer wren_begin_commands( wren_context*);
 void            wren_submit_commands(wren_context*, VkCommandBuffer);

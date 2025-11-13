@@ -1,5 +1,7 @@
 #include "server.hpp"
 
+#include "wrei/ref.hpp"
+
 #include "wren/wren.hpp"
 
 void wroc_renderer_create(wroc_server* server)
@@ -17,13 +19,17 @@ void wroc_renderer_create(wroc_server* server)
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->image = wren_image_create(renderer->wren, { u32(w), u32(h) }, data);
+    renderer->image = wren_image_create(renderer->wren.get(), { u32(w), u32(h) });
+    wren_image_update(renderer->image.get(), data);
 }
 
 void wroc_renderer_destroy(wroc_server* server)
 {
     auto* renderer = server->renderer;
-    wren_image_destroy(renderer->wren, renderer->image);
+
+    renderer->image.reset();
     vkwsi_context_destroy(renderer->wren->vkwsi);
-    wren_destroy(renderer->wren);
+    renderer->wren.reset();
+
+    delete renderer;
 }

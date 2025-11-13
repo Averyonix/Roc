@@ -1,15 +1,12 @@
 # To Do
 
-- Basic wl_shm rendering
-   - ✅ Visible window
-   - ✅ Vulkan Validation Layers
-   - ✅ Draw image
-   - ✅ Window close
-   - ✅ Draw single client buffer
-   - Buffer lifetimes
-   - Surface geometry
-   - Damage region
+ - Separate out protocol implementations
+ - Pointer input
+ - Basic client move/resize
+ - Keyboard and pointer focus
 
-- Input
-   - ✅ Keyboard / Pointer input
-   - Client seat communications
+# Bugs
+
+- Running Roc inside of itself results in the nested instance getting stuck on `vkQueuePresentKHR` on the third present
+   - This seems to happen regardless of how many images are requested in the swapchain
+   - Haven't managed to replicate this with any other application yet

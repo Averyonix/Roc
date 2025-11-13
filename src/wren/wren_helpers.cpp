@@ -59,9 +59,10 @@ u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryP
     return 0xFF;
 }
 
-wren_buffer wren_buffer_create(wren_context* ctx, usz size)
+wrei_ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 {
-    wren_buffer buffer {};
+    auto buffer = wrei_adopt_ref(new wren_buffer {});
+    buffer->ctx = ctx;
 
     wren_check(ctx->vk.CreateBuffer(ctx->device, wrei_ptr_to(VkBufferCreateInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -74,10 +75,10 @@ wren_buffer wren_buffer_create(wren_context* ctx, usz size)
         // .sharingMode = VK_SHARING_MODE_CONCURRENT,
         // .queueFamilyIndexCount = 1,
         // .pQueueFamilyIndices = &ctx->queue_family,
-    }), nullptr, &buffer.buffer));
+    }), nullptr, &buffer->buffer));
 
     VkMemoryRequirements mem_reqs;
-    ctx->vk.GetBufferMemoryRequirements(ctx->device, buffer.buffer, &mem_reqs);
+    ctx->vk.GetBufferMemoryRequirements(ctx->device, buffer->buffer, &mem_reqs);
 
     wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -88,33 +89,34 @@ wren_buffer wren_buffer_create(wren_context* ctx, usz size)
         .allocationSize = mem_reqs.size,
         .memoryTypeIndex = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
             | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-    }), nullptr, &buffer.memory));
+    }), nullptr, &buffer->memory));
 
-    wren_check(ctx->vk.BindBufferMemory(ctx->device, buffer.buffer, buffer.memory, 0));
+    wren_check(ctx->vk.BindBufferMemory(ctx->device, buffer->buffer, buffer->memory, 0));
 
-    wren_check(ctx->vk.MapMemory(ctx->device, buffer.memory, 0, size, 0, &buffer.host_address));
+    wren_check(ctx->vk.MapMemory(ctx->device, buffer->memory, 0, size, 0, &buffer->host_address));
 
-    buffer.device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, wrei_ptr_to(VkBufferDeviceAddressInfo {
+    buffer->device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, wrei_ptr_to(VkBufferDeviceAddressInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-        .buffer = buffer.buffer,
+        .buffer = buffer->buffer,
     }));
 
     return buffer;
 }
 
-void vk_buffer_destroy(wren_context* ctx, const wren_buffer& buffer)
+wren_buffer::~wren_buffer()
 {
-    ctx->vk.DestroyBuffer(ctx->device, buffer.buffer, nullptr);
-    ctx->vk.FreeMemory(ctx->device, buffer.memory, nullptr);
+    ctx->vk.DestroyBuffer(ctx->device, buffer, nullptr);
+    ctx->vk.FreeMemory(ctx->device, memory, nullptr);
 }
 
 // -----------------------------------------------------------------------------
 
-wren_image wren_image_create(wren_context* ctx, VkExtent2D extent, const void* data)
+wrei_ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent)
 {
-    wren_image image = {};
+    auto image = wrei_adopt_ref(new wren_image {});
+    image->ctx = ctx;
 
-    image.extent = { extent.width, extent.height, 1 };
+    image->extent = { extent.width, extent.height, 1 };
 
     auto format = VK_FORMAT_R8G8B8A8_UNORM;
     // auto format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -123,7 +125,7 @@ wren_image wren_image_create(wren_context* ctx, VkExtent2D extent, const void* d
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent = image.extent,
+        .extent = image->extent,
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -131,70 +133,74 @@ wren_image wren_image_create(wren_context* ctx, VkExtent2D extent, const void* d
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    }), nullptr, &image.image));
+    }), nullptr, &image->image));
 
     VkMemoryRequirements mem_reqs;
-    ctx->vk.GetImageMemoryRequirements(ctx->device, image.image, &mem_reqs);
+    ctx->vk.GetImageMemoryRequirements(ctx->device, image->image, &mem_reqs);
 
     wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize = mem_reqs.size,
         .memoryTypeIndex = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    }), nullptr, &image.memory));
+    }), nullptr, &image->memory));
 
-    wren_check(ctx->vk.BindImageMemory(ctx->device, image.image, image.memory, 0));
-
-    {
-        auto cmd = wren_begin_commands(ctx);
-
-        constexpr auto pixel_size = 4;
-        auto row_length = extent.width;
-        auto image_height = row_length * extent.height;
-        auto image_size = image_height * pixel_size;
-
-        auto buffer = wren_buffer_create(ctx, image_size);
-        defer { vk_buffer_destroy(ctx, buffer); };
-
-        std::memcpy(buffer.host_address, data, image_size);
-
-        wren_transition(ctx, cmd, image.image,
-            0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-            0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        ctx->vk.CmdCopyBufferToImage(cmd, buffer.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, wrei_ptr_to(VkBufferImageCopy {
-            .bufferOffset = 0,
-            .bufferRowLength = row_length,
-            .bufferImageHeight = image_size,
-            .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-            .imageOffset = {},
-            .imageExtent = { extent.width, extent.height, 1 },
-        }));
-
-        wren_transition(ctx, cmd, image.image,
-            0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-            0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-
-        wren_submit_commands(ctx, cmd);
-    }
+    wren_check(ctx->vk.BindImageMemory(ctx->device, image->image, image->memory, 0));
 
     wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image.image,
+        .image = image->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .format = format,
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-    }), nullptr, &image.view));
+    }), nullptr, &image->view));
 
     return image;
 }
 
-void wren_image_destroy(wren_context* ctx, const wren_image& image)
+
+void wren_image_update(wren_image* image, const void* data)
 {
-    ctx->vk.DestroyImageView(ctx->device, image.view, nullptr);
-    ctx->vk.DestroyImage(ctx->device, image.image, nullptr);
-    ctx->vk.FreeMemory(ctx->device, image.memory, nullptr);
+    auto* ctx = image->ctx;
+    auto extent = image->extent;
+
+    auto cmd = wren_begin_commands(ctx);
+
+    constexpr auto pixel_size = 4;
+    auto row_length = extent.width;
+    auto image_height = row_length * extent.height;
+    auto image_size = image_height * pixel_size;
+
+    wrei_ref buffer = wren_buffer_create(ctx, image_size);
+
+    std::memcpy(buffer->host_address, data, image_size);
+
+    wren_transition(ctx, cmd, image->image,
+        0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    ctx->vk.CmdCopyBufferToImage(cmd, buffer->buffer, image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, wrei_ptr_to(VkBufferImageCopy {
+        .bufferOffset = 0,
+        .bufferRowLength = row_length,
+        .bufferImageHeight = image_size,
+        .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .imageOffset = {},
+        .imageExtent = { extent.width, extent.height, 1 },
+    }));
+
+    wren_transition(ctx, cmd, image->image,
+        0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+    wren_submit_commands(ctx, cmd);
+}
+
+wren_image::~wren_image()
+{
+    ctx->vk.DestroyImageView(ctx->device, view, nullptr);
+    ctx->vk.DestroyImage(ctx->device, image, nullptr);
+    ctx->vk.FreeMemory(ctx->device, memory, nullptr);
 }
 
 // -----------------------------------------------------------------------------

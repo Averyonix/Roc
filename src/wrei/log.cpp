@@ -25,7 +25,7 @@ wrei_log_level wrei_get_log_level()
 
 bool wrei_is_log_level_enabled(wrei_log_level level)
 {
-    return wrei_get_log_level() >= level;
+    return level >= wrei_get_log_level();
 }
 
 void wrei_log(wrei_log_level level, std::string_view message)

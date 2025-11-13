@@ -85,7 +85,7 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
         log_debug("Creating vulkan surface");
 
         auto* backend = output->server->backend;
-        auto* wren = output->server->renderer->wren;
+        auto* wren = output->server->renderer->wren.get();
 
         wren_check(wren->vk.CreateWaylandSurfaceKHR(wren->instance, wrei_ptr_to(VkWaylandSurfaceCreateInfoKHR {
             .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,

@@ -97,12 +97,13 @@ struct wroc_surface : wrei_ref_counted
     bool initial_commit = true;
 
     struct {
+        bool buffer_was_set;
         wrei_ref<wroc_wl_buffer> buffer;
         std::optional<wrei_rect<i32>> geometry;
     } pending;
 
     struct {
-        wren_image image;
+        wrei_ref<wroc_wl_buffer> buffer;
         std::optional<wrei_rect<i32>> geometry;
     } current;
 
@@ -124,6 +125,15 @@ struct wroc_wl_buffer : wrei_ref_counted
     wroc_wl_buffer_type type;
 
     wl_resource* wl_buffer;
+
+    wrei_ref<wren_image> image;
+
+    bool locked = false;
+
+    void lock();
+    void unlock();
+
+    virtual void on_commit() = 0;
 };
 
 // -----------------------------------------------------------------------------
@@ -148,7 +158,7 @@ struct wroc_wl_shm_pool : wrei_ref_counted
     ~wroc_wl_shm_pool();
 };
 
-struct wroc_wl_shm_buffer : wroc_wl_buffer
+struct wroc_shm_buffer : wroc_wl_buffer
 {
     wrei_ref<wroc_wl_shm_pool> pool;
 
@@ -157,11 +167,13 @@ struct wroc_wl_shm_buffer : wroc_wl_buffer
     i32 height;
     i32 stride;
     wl_shm_format format;
+
+    virtual void on_commit() final override;
 };
 
 // -----------------------------------------------------------------------------
 
-struct wroc_zwp_buffer_params : wrei_ref_counted
+struct wroc_zwp_linux_buffer_params : wrei_ref_counted
 {
     wroc_server* server;
 
@@ -170,11 +182,11 @@ struct wroc_zwp_buffer_params : wrei_ref_counted
     wren_dma_params params;
 };
 
-struct wroc_zwp_buffer : wroc_wl_buffer
+struct wroc_dma_buffer : wroc_wl_buffer
 {
     wren_dma_params params;
 
-    wren_image image;
+    virtual void on_commit() final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -213,7 +225,7 @@ struct wroc_keyboard
 
 void wroc_keyboard_added(wroc_keyboard*);
 void wroc_keyboard_keymap_update(wroc_keyboard*);
-void wroc_keyboard_key(  wroc_keyboard*, u32 keycode, bool pressed);
+void wroc_keyboard_key(wroc_keyboard*, u32 keycode, bool pressed);
 void wroc_keyboard_modifiers(wroc_keyboard*, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group);
 
 // -----------------------------------------------------------------------------
@@ -238,9 +250,9 @@ struct wroc_renderer
 {
     wroc_server* server;
 
-    wren_context* wren;
+    wrei_ref<wren_context> wren;
 
-    wren_image image;
+    wrei_ref<wren_image> image;
 };
 
 void wroc_renderer_create( wroc_server*);

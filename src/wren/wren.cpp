@@ -4,15 +4,13 @@
 #include "wrei/types.hpp"
 #include "wrei/util.hpp"
 
-void wren_destroy(wren_context* ctx)
+wren_context::~wren_context()
 {
-    if (!ctx) return;
+    log_info("Wren context destroyed");
 
-    ctx->vk.DestroyCommandPool(ctx->device, ctx->cmd_pool, nullptr);
-    ctx->vk.DestroyDevice(ctx->device, nullptr);
-    ctx->vk.DestroyInstance(ctx->instance, nullptr);
-
-    delete ctx;
+    vk.DestroyCommandPool(device, cmd_pool, nullptr);
+    vk.DestroyDevice(device, nullptr);
+    vk.DestroyInstance(instance, nullptr);
 }
 
 VkCommandBuffer wren_begin_commands(wren_context* ctx)

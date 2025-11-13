@@ -6,7 +6,7 @@
 static
 void wroc_output_init_swapchain(wroc_output* output)
 {
-    auto* wren = output->server->renderer->wren;
+    auto* wren = output->server->renderer->wren.get();
 
     log_debug("Creating vulkan swapchain");
     wren_check(vkwsi_swapchain_create(&output->swapchain, output->server->renderer->wren->vkwsi, output->vk_surface));
@@ -72,8 +72,8 @@ VkSemaphoreSubmitInfo wroc_output_get_next_submit_info(wroc_output* output)
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output* output)
 {
-    auto* wren = output->server->renderer->wren;
 
+    auto* wren = output->server->renderer->wren.get();
     vkwsi_swapchain_resize(output->swapchain, {u32(output->size.x), u32(output->size.y)});
 
     auto timeline_info = wroc_output_get_next_submit_info(output);

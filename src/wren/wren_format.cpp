@@ -65,11 +65,12 @@ void wren_enumerate_drm_modifiers(wren_context* ctx, const wren_format& format, 
     ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format.vk, &props);
 }
 
-wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
+wrei_ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
 {
-    wren_image image = {};
+    auto image = wrei_adopt_ref(new wren_image {});
+    image->ctx = ctx;
 
-    image.extent = { params.extent.width, params.extent.height, 1 };
+    image->extent = { params.extent.width, params.extent.height, 1 };
 
     VkExternalMemoryHandleTypeFlagBits htype = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
@@ -82,7 +83,7 @@ wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& pa
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .extent = image.extent,
+        .extent = image->extent,
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
     };
 
@@ -108,7 +109,7 @@ wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& pa
     };
     eimg.pNext = &mod_info;
 
-    wren_check(ctx->vk.CreateImage(ctx->device, &img_info, nullptr, &image.image));
+    wren_check(ctx->vk.CreateImage(ctx->device, &img_info, nullptr, &image->image));
 
     VkBindImageMemoryInfo bindi = {};
 
@@ -122,7 +123,7 @@ wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& pa
         wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, htype, params.planes.front().fd, &fdp));
 
         VkImageMemoryRequirementsInfo2 memri = {
-            .image = image.image,
+            .image = image->image,
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
         };
 
@@ -151,14 +152,14 @@ wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& pa
 
         VkMemoryDedicatedAllocateInfo dedi = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
-            .image = image.image,
+            .image = image->image,
         };
         importi.pNext = &dedi;
 
-        wren_check(ctx->vk.AllocateMemory(ctx->device, &memi, nullptr, &image.memory));
+        wren_check(ctx->vk.AllocateMemory(ctx->device, &memi, nullptr, &image->memory));
 
-        bindi.image = image.image;
-        bindi.memory = image.memory;
+        bindi.image = image->image;
+        bindi.memory = image->memory;
         bindi.memoryOffset = 0;
         bindi.sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
     }
@@ -168,7 +169,7 @@ wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& pa
     {
         auto cmd = wren_begin_commands(ctx);
 
-        wren_transition(ctx, cmd, image.image,
+        wren_transition(ctx, cmd, image->image,
             0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
@@ -178,11 +179,11 @@ wren_image wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& pa
 
     wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image.image,
+        .image = image->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .format = params.format.vk,
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-    }), nullptr, &image.view));
+    }), nullptr, &image->view));
 
     return image;
 }

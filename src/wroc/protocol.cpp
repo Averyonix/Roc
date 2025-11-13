@@ -70,9 +70,14 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
     .destroy = WROC_STUB,
     .attach = [](wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y) {
         auto* surface = wroc_get_userdata<wroc_surface>(resource);
-        auto* buffer = wroc_get_userdata<wroc_wl_shm_buffer>(wl_buffer);
-        log_warn("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
-        surface->pending.buffer = buffer;
+        if (wl_buffer) {
+            auto* buffer = wroc_get_userdata<wroc_shm_buffer>(wl_buffer);
+            log_trace("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
+            surface->pending.buffer = buffer;
+        } else {
+            surface->pending.buffer = nullptr;
+        }
+        surface->pending.buffer_was_set = true;
     },
     .damage = WROC_STUB,
     .frame = [](wl_client* client, wl_resource* resource, u32 callback) {
@@ -82,11 +87,11 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
         if (surface->frame_callback) {
             wl_resource_destroy(surface->frame_callback);
         }
-        log_warn("frame callback {} created", (void*)new_resource);
+        // log_warn("frame callback {} created", (void*)new_resource);
         surface->frame_callback = new_resource;
         wl_resource_set_implementation(new_resource, nullptr, surface, [](wl_resource* resource) {
             auto* surface = wroc_get_userdata<wroc_surface>(resource);
-            log_warn("frame callback {} destroyed", (void*)resource);
+            // log_warn("frame callback {} destroyed", (void*)resource);
             if (surface->frame_callback == resource) {
                 surface->frame_callback = nullptr;
             }
@@ -96,6 +101,9 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
     .set_input_region = WROC_STUB,
     .commit = [](wl_client* client, wl_resource* resource) {
         auto* surface = wroc_get_userdata<wroc_surface>(resource);
+
+        // Handle initial commit
+
         if (surface->initial_commit) {
             surface->initial_commit = false;
             if (surface->xdg_toplevel) {
@@ -115,34 +123,35 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
             }
         }
 
-        if (surface->pending.buffer) {
-            auto* wren = surface->server->renderer->wren;
-            if (surface->current.image.image) {
-                wren_image_destroy(wren, surface->current.image);
+        // Update buffer
+
+        if (surface->pending.buffer_was_set) {
+            if (surface->pending.buffer && surface->pending.buffer->locked) {
+                log_error("Client is attempting to commit buffer that is already locked!");
             }
 
-            if (surface->pending.buffer->wl_buffer) {
-                auto* buffer = surface->pending.buffer.get();
-                if (buffer->type == wroc_wl_buffer_type::shm) {
-                    auto* shm_buffer = static_cast<wroc_wl_shm_buffer*>(buffer);
-                    surface->current.image = wren_image_create(wren, {u32(shm_buffer->width), u32(shm_buffer->height)}, static_cast<char*>(shm_buffer->pool->data) + shm_buffer->offset);
-                    wl_buffer_send_release(surface->pending.buffer->wl_buffer);
-                } else {
-                    auto* dma_buffer = static_cast<wroc_zwp_buffer*>(buffer);
-                    surface->current.image = dma_buffer->image;
-                    dma_buffer->image = {};
-                    log_warn("User committed dmabuf, size = ({}, {})!", surface->current.image.extent.width, surface->current.image.extent.height);
-                    // surface->current.image = vk_image_import_dmabuf(vk, dma_buffer->params);
-                    // close(dma_buffer->params.planes.front().fd);
-                }
+            if (surface->current.buffer) {
+                surface->current.buffer->unlock();
+            }
 
-                // wl_buffer_send_release(surface->pending.buffer->wl_buffer);
-            } else {
-                log_warn("pending wl_buffer was destroyed, surface contents has been cleared");
+            if (surface->pending.buffer) {
+                if (surface->pending.buffer->wl_buffer) {
+                    surface->current.buffer = surface->pending.buffer;
+                    surface->current.buffer->on_commit();
+                } else {
+                    log_warn("Pending buffer was destroyed, surface contents will be cleared");
+                    surface->current.buffer = nullptr;
+                }
+            } else if (surface->current.buffer) {
+                log_warn("Null buffer was attached, surface contents will be cleared");
+                surface->current.buffer = nullptr;
             }
 
             surface->pending.buffer = nullptr;
+            surface->pending.buffer_was_set = false;
         }
+
+        // Update geometry
 
         if (auto& pending = surface->pending.geometry) {
             if (!pending->extent.x || !pending->extent.y) {
@@ -168,10 +177,6 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
 wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
-
-    if (current.image.image) {
-        wren_image_destroy(server->renderer->wren, current.image);
-    }
 }
 
 // -----------------------------------------------------------------------------
@@ -277,7 +282,7 @@ const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
 
         auto* new_resource = wl_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
         wroc_debug_track_resource(new_resource);
-        auto* shm_buffer = new wroc_wl_shm_buffer {};
+        auto* shm_buffer = new wroc_shm_buffer {};
         shm_buffer->server = wroc_get_userdata<wroc_wl_shm_pool>(resource)->server;
         shm_buffer->type = wroc_wl_buffer_type::shm;
         shm_buffer->wl_buffer = new_resource;
@@ -286,7 +291,11 @@ const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
         shm_buffer->height = height;
         shm_buffer->stride = stride;
         shm_buffer->format = wl_shm_format(format);
-        wl_resource_set_implementation(new_resource, &wroc_wl_buffer_for_shm_impl, shm_buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm_buffer, wl_buffer));
+        wl_resource_set_implementation(new_resource, &wroc_wl_buffer_for_shm_impl, shm_buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_shm_buffer, wl_buffer));
+
+        shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)});
+
+        log_warn("buffer created ({}, {})", width, height);
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
@@ -312,6 +321,14 @@ const struct wl_buffer_interface wroc_wl_buffer_for_shm_impl = {
         wl_resource_destroy(resource);
     },
 };
+
+void wroc_shm_buffer::on_commit()
+{
+    lock();
+    wren_image_update(image.get(), static_cast<char*>(pool->data) + offset);
+    log_debug("buffer updated ({}, {})", width, height);
+    unlock();
+}
 
 // -----------------------------------------------------------------------------
 
@@ -352,7 +369,9 @@ const wl_global_bind_func_t wroc_wl_seat_bind_global = [](wl_client* client, voi
         auto* seat = wroc_get_userdata<wroc_seat>(resource);
         std::erase(seat->wl_seat, resource);
     });
-    wl_seat_send_name(new_resource, seat->name.c_str());
+    if (version >= WL_SEAT_NAME_SINCE_VERSION) {
+        wl_seat_send_name(new_resource, seat->name.c_str());
+    }
     u32 caps = {};
     if (seat->keyboard) caps |= WL_SEAT_CAPABILITY_KEYBOARD;
     if (seat->pointer)  caps |= WL_SEAT_CAPABILITY_POINTER;
@@ -364,10 +383,10 @@ const wl_global_bind_func_t wroc_wl_seat_bind_global = [](wl_client* client, voi
 const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
     .create_params = [](wl_client* client, wl_resource* resource, u32 params_id) {
         auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
-        auto* params = new wroc_zwp_buffer_params {};
+        auto* params = new wroc_zwp_linux_buffer_params {};
         params->server = wroc_get_userdata<wroc_server>(resource);
         params->zwp_linux_buffer_params_v1 = new_resource;
-        wl_resource_set_implementation(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_buffer_params, zwp_linux_buffer_params_v1));
+        wl_resource_set_implementation(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_linux_buffer_params, zwp_linux_buffer_params_v1));
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
@@ -382,9 +401,30 @@ const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
     },
 };
 
+static
+wroc_dma_buffer* wroc_dma_buffer_create(wl_client* client, wl_resource* resource, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags)
+{
+    auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(resource);
+    auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
+    auto* buffer = new wroc_dma_buffer {};
+    buffer->server = params->server;
+    buffer->wl_buffer = new_resource;
+    buffer->type = wroc_wl_buffer_type::dma;
+    buffer->params = std::move(params->params);
+    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_for_dmabuf_impl, buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_dma_buffer, wl_buffer));
+
+    buffer->params.format = wren_find_format_from_drm(format).value();
+    buffer->params.extent = { u32(width), u32(height) };
+    buffer->params.flags = zwp_linux_buffer_params_v1_flags(flags);
+
+    buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), buffer->params);
+
+    return buffer;
+}
+
 const struct zwp_linux_buffer_params_v1_interface wroc_zwp_linux_buffer_params_v1_impl = {
     .add = [](wl_client* client, wl_resource* resource, int fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo) {
-        auto* params = wroc_get_userdata<wroc_zwp_buffer_params>(resource);
+        auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(resource);
         if (!params->params.planes.empty()) {
             log_error("Multiple plane formats not currently supported");
         }
@@ -396,22 +436,16 @@ const struct zwp_linux_buffer_params_v1_interface wroc_zwp_linux_buffer_params_v
             .drm_modifier = u64(modifier_hi) << 32 | modifier_lo,
         });
     },
-    .create = WROC_STUB,
+    .create = [](wl_client* client, wl_resource* resource, i32 width, i32 height, u32 format, u32 flags) {
+        auto buffer = wroc_dma_buffer_create(client, resource, 0, width, height, format, flags);
+        if (buffer) {
+            zwp_linux_buffer_params_v1_send_created(resource, buffer->wl_buffer);
+        } else {
+            zwp_linux_buffer_params_v1_send_failed(resource);
+        }
+    },
     .create_immed = [](wl_client* client, wl_resource* resource, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags) {
-        auto* params = wroc_get_userdata<wroc_zwp_buffer_params>(resource);
-        auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
-        auto* buffer = new wroc_zwp_buffer {};
-        buffer->server = params->server;
-        buffer->wl_buffer = new_resource;
-        buffer->type = wroc_wl_buffer_type::dma;
-        buffer->params = std::move(params->params);
-        wl_resource_set_implementation(new_resource, &wroc_wl_buffer_for_dmabuf_impl, buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_buffer, wl_buffer));
-
-        buffer->params.format = wren_find_format_from_drm(format).value();
-        buffer->params.extent = { u32(width), u32(height) };
-        buffer->params.flags = zwp_linux_buffer_params_v1_flags(flags);
-
-        buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren, buffer->params);
+        wroc_dma_buffer_create(client, resource, buffer_id, width, height, format, flags);
     },
     .destroy = [](wl_client* client, wl_resource* resource) {
         wl_resource_destroy(resource);
@@ -427,6 +461,12 @@ const struct wl_buffer_interface wroc_wl_buffer_for_dmabuf_impl = {
         wl_resource_destroy(resource);
     },
 };
+
+void wroc_dma_buffer::on_commit()
+{
+    // Updated contents will have been written to backing memory
+    lock();
+}
 
 const wl_global_bind_func_t wroc_zwp_linux_dmabuf_v1_bind_global = [](wl_client* client, void* data, u32 version, u32 id) {
     auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);

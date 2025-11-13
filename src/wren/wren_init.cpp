@@ -3,10 +3,9 @@
 
 #include "wroc/server.hpp"
 
-wren_context* wren_create()
+wrei_ref<wren_context> wren_create()
 {
-    auto ctx = new wren_context {};
-    defer { wren_destroy(ctx); };
+    auto ctx = wrei_adopt_ref(new wren_context {});
 
     ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!ctx->vulkan1) {
@@ -22,7 +21,7 @@ wren_context* wren_create()
         return nullptr;
     }
 
-    wren_init_functions(ctx, vkGetInstanceProcAddr);
+    wren_init_functions(ctx.get(), vkGetInstanceProcAddr);
 
     std::vector<const char*> instance_extensions {
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
@@ -43,7 +42,7 @@ wren_context* wren_create()
         .ppEnabledExtensionNames = instance_extensions.data(),
     }), nullptr, &ctx->instance));
 
-    wren_load_instance_functions(ctx);
+    wren_load_instance_functions(ctx.get());
 
     std::vector<VkPhysicalDevice> physical_devices;
     wren_vk_enumerate(physical_devices, ctx->vk.EnumeratePhysicalDevices, ctx->instance);
@@ -141,7 +140,7 @@ wren_context* wren_create()
         .ppEnabledExtensionNames = device_extensions.data(),
     }), nullptr, &ctx->device));
 
-    wren_load_device_functions(ctx);
+    wren_load_device_functions(ctx.get());
 
     ctx->vk.GetDeviceQueue(ctx->device, ctx->queue_family, 0, &ctx->queue);
 
@@ -168,5 +167,5 @@ wren_context* wren_create()
         .queueFamilyIndex = ctx->queue_family,
     }), nullptr, &ctx->cmd_pool));
 
-    return std::exchange(ctx, nullptr);
+    return ctx;
 }

@@ -68,7 +68,7 @@ void wroc_terminate(wroc_server* server)
 
 void wroc_output_frame(wroc_output* output)
 {
-    auto* wren = output->server->renderer->wren;
+    auto* wren = output->server->renderer->wren.get();
     auto cmd = wren_begin_commands(wren);
 
     auto current = wroc_output_acquire_image(output);
@@ -83,10 +83,10 @@ void wroc_output_frame(wroc_output* output)
         wrei_ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
         1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
-    auto blit = [&](const wren_image& image) {
+    auto blit = [&](wren_image* image) {
         wren->vk.CmdBlitImage2(cmd, wrei_ptr_to(VkBlitImageInfo2 {
             .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
-            .srcImage = image.image,
+            .srcImage = image->image,
             .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
             .dstImage = current.image,
             .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -96,14 +96,14 @@ void wroc_output_frame(wroc_output* output)
                 .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                 .srcOffsets = {
                     VkOffset3D { },
-                    VkOffset3D { i32(image.extent.width), i32(image.extent.height), 1 },
+                    VkOffset3D { i32(image->extent.width), i32(image->extent.height), 1 },
                 },
                 .dstSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                 .dstOffsets = {
                     VkOffset3D { },
                     VkOffset3D {
-                        i32(std::min(current.extent.width, image.extent.width)),
-                        i32(std::min(current.extent.height, image.extent.height)),
+                        i32(std::min(current.extent.width, image->extent.width)),
+                        i32(std::min(current.extent.height, image->extent.height)),
                         1
                     },
                 },
@@ -112,13 +112,12 @@ void wroc_output_frame(wroc_output* output)
         }));
     };
 
-    blit(output->server->renderer->image);
+    blit(output->server->renderer->image.get());
 
     for (wroc_surface* surface : output->server->surfaces) {
-        if (surface->current.image.image) {
-            blit(surface->current.image);
+        if (surface->current.buffer) {
+            blit(surface->current.buffer->image.get());
         }
-
     }
 
     wren_transition(wren, cmd, current.image,
@@ -133,6 +132,7 @@ void wroc_output_frame(wroc_output* output)
 
     for (wroc_surface* surface : output->server->surfaces) {
         if (surface->frame_callback) {
+            log_trace("Sending frame callback");
             wl_callback_send_done(surface->frame_callback, elapsed);
             wl_resource_destroy(surface->frame_callback);
         }

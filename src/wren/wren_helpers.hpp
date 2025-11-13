@@ -2,6 +2,7 @@
 
 #include "wrei/types.hpp"
 #include "wrei/log.hpp"
+#include "wrei/ref.hpp"
 
 struct wren_context;
 
@@ -48,8 +49,10 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 void wren_wait_for_timeline_value(wren_context*, const VkSemaphoreSubmitInfo&);
 
-struct wren_buffer
+struct wren_buffer : wrei_ref_counted
 {
+    wren_context* ctx;
+
     VkBuffer buffer;
     VkDeviceMemory memory;
     VkDeviceAddress device_address;
@@ -60,23 +63,28 @@ struct wren_buffer
 
     template<typename T>
     T* host() const { return reinterpret_cast<T*>(host_address); }
+
+    ~wren_buffer();
 };
 
-wren_buffer wren_buffer_create(wren_context*, usz size);
-void wren_buffer_destroy(wren_context* vk, const wren_buffer&);
+wrei_ref<wren_buffer> wren_buffer_create(wren_context*, usz size);
 
 u32 wren_find_vk_memory_type_index(wren_context* vk, u32 type_filter, VkMemoryPropertyFlags properties);
 
-struct wren_image
+struct wren_image : wrei_ref_counted
 {
+    wren_context* ctx;
+
     VkImage image;
     VkImageView view;
     VkDeviceMemory memory;
     VkExtent3D extent;
+
+    ~wren_image();
 };
 
-wren_image wren_image_create(wren_context*, VkExtent2D extent, const void* data);
-void wren_image_destroy(wren_context* vk, const wren_image&);
+wrei_ref<wren_image> wren_image_create(wren_context*, VkExtent2D extent);
+void wren_image_update(wren_image*, const void* data);
 
 VkSampler wren_sampler_create(wren_context*);
 void wren_sampler_destroy(wren_context*, VkSampler);
@@ -120,4 +128,4 @@ struct wren_dma_params
     zwp_linux_buffer_params_v1_flags flags;
 };
 
-wren_image wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);
+wrei_ref<wren_image> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);

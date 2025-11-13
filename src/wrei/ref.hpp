@@ -8,7 +8,7 @@ struct wrei_weak_state
     struct wrei_ref_counted* value;
 };
 
-#define NOISY_REF_COUNTS 1
+#define NOISY_REF_COUNTS 0
 #if NOISY_REF_COUNTS
 static i64 debug_global_ref_counted_objects;
 #endif
@@ -36,8 +36,7 @@ struct wrei_ref_counted
 template<typename T>
 T* wrei_add_ref(T* t)
 {
-    if (!t) return nullptr;
-    static_cast<wrei_ref_counted*>(t)->ref_count++;
+    if (t) static_cast<wrei_ref_counted*>(t)->ref_count++;
     return t;
 }
 
@@ -50,6 +49,8 @@ void wrei_remove_ref(T* t)
 }
 
 // -----------------------------------------------------------------------------
+
+struct wrei_ref_adopt_tag {};
 
 template<typename T>
 struct wrei_ref
@@ -69,6 +70,10 @@ struct wrei_ref
         wrei_add_ref(t);
     }
 
+    wrei_ref(T* t, wrei_ref_adopt_tag)
+        : value(t)
+    {}
+
     wrei_ref& operator=(T* t)
     {
         reset(t);
@@ -82,11 +87,11 @@ struct wrei_ref
         value = wrei_add_ref(t);
     }
 
-    wrei_ref(const T& other)
+    wrei_ref(const wrei_ref& other)
         : value(wrei_add_ref(other.value))
     {}
 
-    wrei_ref& operator=(const T& other)
+    wrei_ref& operator=(const wrei_ref& other)
     {
         if (value != other.value) {
             wrei_remove_ref(value);
@@ -95,15 +100,15 @@ struct wrei_ref
         return *this;
     }
 
-    wrei_ref(T&& other)
-        : value(std::exchange(other.value))
+    wrei_ref(wrei_ref&& other)
+        : value(std::exchange(other.value, nullptr))
     {}
 
-    wrei_ref& operator=(T&& other)
+    wrei_ref& operator=(wrei_ref&& other)
     {
         if (value != other.value) {
             wrei_remove_ref(value);
-            value = std::exchange(other.value);
+            value = std::exchange(other.value, nullptr);
         }
         return *this;
     }
@@ -117,6 +122,12 @@ struct wrei_ref
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
     operator wrei_ref<T2>() { return wrei_ref<T2>(value); }
 };
+
+template<typename T>
+wrei_ref<T> wrei_adopt_ref(T* t)
+{
+    return {t, wrei_ref_adopt_tag{}};
+}
 
 // -----------------------------------------------------------------------------
 
