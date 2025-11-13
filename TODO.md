@@ -1,6 +1,9 @@
 # To Do
 
- - Surface/Toplevel positioning and basic client move/resize
+ - Surface/Toplevel positioning
+ - set cursor
+ - basic client move/resize
  - Keyboard and pointer focus
+ - Transparency when blitting
 
 # Bugs

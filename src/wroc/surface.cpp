@@ -118,23 +118,13 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
     if (surface->initial_commit) {
         surface->initial_commit = false;
 
-        wrei_vec2i32 initial_bounds = { 1280, 720 };
+        if (surface->role_addon) {
+            surface->role_addon->on_initial_commit();
+        }
+    }
 
-        if (surface->xdg_toplevel) {
-            if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
-                xdg_toplevel_send_configure_bounds(surface->xdg_toplevel, initial_bounds.x, initial_bounds.y);
-            }
-            xdg_toplevel_send_configure(surface->xdg_toplevel, initial_bounds.x, initial_bounds.y, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_state>({ XDG_TOPLEVEL_STATE_ACTIVATED })));
-            if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-                xdg_toplevel_send_wm_capabilities(surface->xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
-                    XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
-                    XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
-                })));
-            }
-        }
-        if (surface->xdg_surface) {
-            xdg_surface_send_configure(surface->xdg_surface, wl_display_next_serial(surface->server->display));
-        }
+    if (surface->role_addon) {
+        surface->role_addon->on_commit();
     }
 
     // Update frame callbacks
@@ -169,23 +159,6 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
         surface->pending.buffer = nullptr;
         surface->pending.buffer_was_set = false;
     }
-
-    // Update geometry
-
-    if (auto& pending = surface->pending.geometry) {
-        if (!pending->extent.x || !pending->extent.y) {
-            log_warn("Zero size invalid geometry committed, treating as if geometry never set!");
-        } else {
-            surface->current.geometry = *pending;
-        }
-        surface->pending.geometry = std::nullopt;
-    }
-
-    if (surface->current.geometry) {
-        log_debug("Geometry: (({}, {}), ({}, {}))",
-            surface->current.geometry->origin.x, surface->current.geometry->origin.y,
-            surface->current.geometry->extent.x, surface->current.geometry->extent.y);
-    }
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
@@ -206,76 +179,3 @@ wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
 }
-
-// -----------------------------------------------------------------------------
-
-static
-void wroc_get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
-{
-    auto* new_resource = wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
-    auto* surface = wrei_add_ref(wroc_get_userdata<wroc_surface>(wl_surface));
-    surface->xdg_surface = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_xdg_surface_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface, xdg_surface));
-}
-
-const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
-    .create_positioner = WROC_STUB,
-    .destroy           = wroc_simple_resource_destroy_callback,
-    .get_xdg_surface   = wroc_get_xdg_surface,
-    .pong              = WROC_STUB,
-};
-
-void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u32 id)
-{
-    auto* new_resource = wl_resource_create(client, &xdg_wm_base_interface, version, id);
-    wroc_debug_track_resource(new_resource);
-    auto* wm_base = new wroc_xdg_wm_base {};
-    wm_base->server = static_cast<wroc_server*>(data);
-    wm_base->xdg_wm_base = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, wm_base, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_wm_base, xdg_wm_base));
-};
-
-// -----------------------------------------------------------------------------
-
-static
-void wroc_get_toplevel(wl_client* client, wl_resource* resource, u32 id)
-{
-    auto* surface = wrei_add_ref(wroc_get_userdata<wroc_surface>(resource));
-    auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
-    surface->xdg_toplevel = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_xdg_toplevel_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface, xdg_toplevel));
-}
-
-static
-void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
-{
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    surface->pending.geometry = {{x, y}, {width, height}};
-}
-
-const struct xdg_surface_interface wroc_xdg_surface_impl = {
-    .destroy             = wroc_simple_resource_destroy_callback,
-    .get_toplevel        = wroc_get_toplevel,
-    .get_popup           = WROC_STUB,
-    .set_window_geometry = wroc_xdg_surface_set_window_geometry,
-    .ack_configure       = WROC_STUB,
-};
-
-const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
-    .destroy          = wroc_simple_resource_destroy_callback,
-    .set_parent       = WROC_STUB,
-    .set_title        = WROC_STUB,
-    .set_app_id       = WROC_STUB,
-    .show_window_menu = WROC_STUB,
-    .move             = WROC_STUB,
-    .resize           = WROC_STUB,
-    .set_max_size     = WROC_STUB,
-    .set_min_size     = WROC_STUB,
-    .set_maximized    = WROC_STUB,
-    .unset_maximized  = WROC_STUB,
-    .set_fullscreen   = WROC_STUB,
-    .unset_fullscreen = WROC_STUB,
-    .set_minimized    = WROC_STUB,
-};

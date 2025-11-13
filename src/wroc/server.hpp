@@ -11,10 +11,6 @@
 
 // -----------------------------------------------------------------------------
 
-#define WROC_STUB [](auto...) {}
-
-// -----------------------------------------------------------------------------
-
 struct wroc_server;
 
 void wroc_run(int argc, char* argv[]);
@@ -84,31 +80,68 @@ struct wroc_wl_region : wrei_ref_counted
 
 struct wroc_wl_buffer;
 
+struct wroc_surface_addon : wrei_ref_counted
+{
+    virtual void on_initial_commit() = 0;
+    virtual void on_commit() = 0;
+};
+
 struct wroc_surface : wrei_ref_counted
 {
     wroc_server* server;
 
     wl_resource* wl_surface;
-    wl_resource* xdg_surface;
-    wl_resource* xdg_toplevel;
-
 
     bool initial_commit = true;
 
     struct {
         bool buffer_was_set;
         wrei_ref<wroc_wl_buffer> buffer;
-        std::optional<wrei_rect<i32>> geometry;
         std::vector<wl_resource*> frame_callbacks;
     } pending;
 
     struct {
         wrei_ref<wroc_wl_buffer> buffer;
-        std::optional<wrei_rect<i32>> geometry;
         std::vector<wl_resource*> frame_callbacks;
     } current;
 
+    wroc_surface_addon* role_addon;
+
     ~wroc_surface();
+};
+
+// -----------------------------------------------------------------------------
+
+struct wroc_xdg_surface : wroc_surface_addon
+{
+    wrei_ref<wroc_surface> surface;
+
+    wl_resource* xdg_surface;
+
+    wroc_surface_addon* xdg_role_addon;
+
+    struct state
+    {
+        std::optional<wrei_rect<i32>> geometry;
+    };
+
+    state pending;
+    state current;
+
+    virtual void on_initial_commit() final override;
+    virtual void on_commit() final override;
+    ~wroc_xdg_surface();
+};
+
+struct wroc_xdg_toplevel : wroc_surface_addon
+{
+    wrei_ref<wroc_xdg_surface> base;
+
+    wl_resource* xdg_toplevel;
+
+    virtual void on_initial_commit() final override;
+    virtual void on_commit() final override;
+    ~wroc_xdg_toplevel();
 };
 
 // -----------------------------------------------------------------------------

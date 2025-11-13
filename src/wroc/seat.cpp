@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "util.hpp"
 
 static
 void wroc_wl_keyboard_on_resource_destroy(wl_resource* resource)
