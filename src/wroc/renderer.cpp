@@ -4,6 +4,8 @@
 
 #include "wren/wren.hpp"
 
+#include "wroc/event.hpp"
+
 void wroc_renderer_create(wroc_server* server)
 {
     auto* renderer = (server->renderer = wrei_adopt_ref(new wroc_renderer {})).get();
@@ -16,6 +18,7 @@ void wroc_renderer_create(wroc_server* server)
     int w, h;
     int num_channels;
     stbi_uc* data = stbi_load(path.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
+    defer { stbi_image_free(data); };
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
@@ -30,7 +33,7 @@ wroc_renderer::~wroc_renderer()
     wren.reset();
 }
 
-void wroc_output_frame(wroc_output* output)
+void wroc_render_frame(wroc_output* output)
 {
     auto* wren = output->server->renderer->wren.get();
     auto cmd = wren_begin_commands(wren);

@@ -1,0 +1,37 @@
+#include "event.hpp"
+
+static
+void wroc_handle_event(wroc_server* server, const wroc_event& base_event)
+{
+    if (wroc_handle_movesize_interaction(server, base_event)) {
+        return;
+    }
+
+    switch (base_event.type) {
+        case wroc_event_type::output_added:
+        case wroc_event_type::output_removed:
+        case wroc_event_type::output_frame:
+            wroc_handle_output_event(server, static_cast<const wroc_output_event&>(base_event));
+            break;
+
+        case wroc_event_type::keyboard_added:
+        case wroc_event_type::keyboard_keymap:
+        case wroc_event_type::keyboard_key:
+        case wroc_event_type::keyboard_modifiers:
+            wroc_handle_keyboard_event(server, static_cast<const wroc_keyboard_event&>(base_event));
+            break;
+
+        case wroc_event_type::pointer_added:
+        case wroc_event_type::pointer_button:
+        case wroc_event_type::pointer_absolute:
+        case wroc_event_type::pointer_relative:
+        case wroc_event_type::pointer_axis:
+            wroc_handle_pointer_event(server, static_cast<const wroc_pointer_event&>(base_event));
+            break;
+    }
+}
+
+void wroc_post_event(wroc_server* server, const wroc_event& base_event)
+{
+    wroc_handle_event(server, base_event);
+}

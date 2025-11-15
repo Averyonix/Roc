@@ -4,6 +4,8 @@
 
 #include "wren/wren.hpp"
 
+#include "wroc/event.hpp"
+
 wroc_wayland_output* wroc_backend_find_output_for_surface(wroc_backend* backend, wl_surface* surface)
 {
     for (auto& output : backend->outputs) {
@@ -35,7 +37,10 @@ void wroc_listen_wl_callback_done(void* data, struct wl_callback*, u32 time)
     auto* output = static_cast<wroc_wayland_output*>(data);
 
     // log_trace("wl_callback::done(time = {})", time);
-    wroc_output_frame(output);
+    wroc_post_event(output->server, wroc_output_event {
+        { .type = wroc_event_type::output_frame },
+        .output = output,
+    });
 
     wl_callback_destroy(output->frame_callback);
 
@@ -54,7 +59,10 @@ void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 ser
 
     xdg_surface_ack_configure(surface, serial);
 
-    wroc_output_frame(output);
+    wroc_post_event(output->server, wroc_output_event {
+        { .type = wroc_event_type::output_frame },
+        .output = output,
+    });
 }
 
 const xdg_surface_listener wroc_xdg_surface_listener {
@@ -96,7 +104,10 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
         }), nullptr, &output->vk_surface));
     }
 
-    wroc_output_added(output);
+    wroc_post_event(output->server, wroc_output_event {
+        { .type = wroc_event_type::output_added },
+        .output = output,
+    });
 }
 
 static
@@ -106,7 +117,10 @@ void wroc_listen_toplevel_close(void* data, xdg_toplevel*)
 
     log_debug("xdg_toplevel::close");
 
-    wroc_output_removed(output);
+    wroc_post_event(output->server, wroc_output_event {
+        { .type = wroc_event_type::output_removed },
+        .output = output,
+    });
 
     auto* server = output->server;
 

@@ -2,7 +2,22 @@
 
 #include "wroc/util.hpp"
 
+#include "wroc/event.hpp"
+
 // -----------------------------------------------------------------------------
+
+static
+void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx, wl_fixed_t sy)
+{
+    wrei_vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    pointer->layout_position = pos + pointer->current_output->position;
+    wroc_post_event(pointer->server, wroc_pointer_event {
+        { .type = wroc_event_type::pointer_absolute },
+        .pointer = pointer,
+        .output = pointer->current_output,
+        .absolute { .position = pointer->layout_position },
+    });
+}
 
 static
 void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 /* serial */, wl_surface* surface, wl_fixed_t sx, wl_fixed_t sy)
@@ -11,7 +26,8 @@ void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 /* serial */, wl_
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->current_output = wroc_backend_find_output_for_surface(pointer->server->backend, surface);
-    wroc_pointer_absolute(pointer, pointer->current_output, {wl_fixed_to_double(sx), wl_fixed_to_double(sy)});
+
+    wroc_backend_pointer_absolute(pointer, sx, sy);
 }
 
 static
@@ -24,7 +40,8 @@ static
 void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 /* time */, wl_fixed_t sx, wl_fixed_t sy)
 {
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
-    wroc_pointer_absolute(pointer, pointer->current_output, {wl_fixed_to_double(sx), wl_fixed_to_double(sy)});
+
+    wroc_backend_pointer_absolute(pointer, sx, sy);
 }
 
 static
@@ -32,7 +49,12 @@ void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 /* serial */, u3
 {
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
-    wroc_pointer_button(pointer, button, state == WL_POINTER_BUTTON_STATE_PRESSED);
+    wroc_post_event(pointer->server, wroc_pointer_event {
+        { .type = wroc_event_type::pointer_button },
+        .pointer = pointer,
+        .output = pointer->current_output,
+        .button { .button = button, .pressed = state == WL_POINTER_BUTTON_STATE_PRESSED },
+    });
 }
 
 static
@@ -41,9 +63,16 @@ void wroc_listen_wl_pointer_axis(void* data, wl_pointer*, u32 /* time */, u32 ax
     log_debug("pointer_axis(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), wl_fixed_to_double(value));
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
-    wroc_pointer_axis(pointer, {
-        axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? wl_fixed_to_double(value) : 0.0,
-        axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? wl_fixed_to_double(value) : 0.0,
+    wroc_post_event(pointer->server, wroc_pointer_event {
+        { .type = wroc_event_type::pointer_axis },
+        .pointer = pointer,
+        .output = pointer->current_output,
+        .axis {
+            .delta = {
+                axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? wl_fixed_to_double(value) : 0.0,
+                axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? wl_fixed_to_double(value) : 0.0,
+            }
+        },
     });
 }
 
@@ -120,7 +149,10 @@ void wroc_pointer_set(wroc_backend* backend, struct wl_pointer* wl_pointer)
     pointer->server = backend->server;
 
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
-    wroc_pointer_added(pointer);
+    wroc_post_event(pointer->server, wroc_pointer_event {
+        { .type = wroc_event_type::pointer_added },
+        .pointer = pointer,
+    });
 }
 
 // -----------------------------------------------------------------------------
@@ -150,7 +182,10 @@ void wroc_listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 forma
     kb->xkb_keymap = keymap;
     kb->xkb_state = state;
 
-    wroc_keyboard_keymap_update(kb);
+    wroc_post_event(kb->server, wroc_keyboard_event {
+        { .type = wroc_event_type::keyboard_keymap },
+        .keyboard = kb,
+    });
 }
 
 static
@@ -161,7 +196,8 @@ void wroc_listen_wl_keyboard_enter(void* data, wl_keyboard*, u32 /* serial */, w
     log_debug("keyboard enter:");
     for (u32 keycode : wroc_to_span<u32>(key_array)) {
         kb->pressed[keycode] = true;
-        wroc_keyboard_key(kb, keycode, true);
+        // wroc_keyboard_key(kb, keycode, true);
+        // TODO: Should we send an "enter" event?
     }
 }
 
@@ -173,7 +209,11 @@ void wroc_listen_wl_keyboard_key(void* data, wl_keyboard*, u32 /* serial */, u32
     if (state != WL_KEYBOARD_KEY_STATE_REPEATED) {
         bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
         kb->pressed[keycode] = pressed;
-        wroc_keyboard_key(kb, keycode, pressed);
+        wroc_post_event(kb->server, wroc_keyboard_event {
+            { .type = wroc_event_type::keyboard_key },
+            .keyboard = kb,
+            .key { .keycode = keycode, .pressed = pressed },
+        });
     }
 }
 
@@ -185,7 +225,13 @@ void wroc_listen_wl_keyboard_leave(void* data, wl_keyboard*, u32 /* serial */, w
     log_debug("keyboard leave");
 
     for (auto[keycode, pressed] : kb->pressed | std::views::enumerate) {
-        if (pressed) wroc_keyboard_key(kb, keycode, false);
+        if (pressed) {
+            wroc_post_event(kb->server, wroc_keyboard_event {
+                { .type = wroc_event_type::keyboard_key },
+                .keyboard = kb,
+                .key { .keycode = u32(keycode), .pressed = false },
+            });
+        }
     }
     kb->pressed = {};
 }
@@ -195,7 +241,16 @@ void wroc_listen_wl_keyboard_modifiers(void* data, wl_keyboard*, u32 /* serial *
 {
     auto kb = static_cast<wroc_wayland_keyboard*>(data);
     xkb_state_update_mask(kb->xkb_state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
-    wroc_keyboard_modifiers(kb, mods_depressed, mods_latched, mods_locked, group);
+    wroc_post_event(kb->server, wroc_keyboard_event {
+        { .type = wroc_event_type::keyboard_modifiers },
+        .keyboard = kb,
+        .mods {
+            .depressed = mods_depressed,
+            .latched   = mods_latched,
+            .locked    = mods_locked,
+            .group     = group,
+        }
+    });
 }
 
 static
@@ -239,7 +294,10 @@ void wroc_keyboard_set(wroc_backend* backend, struct wl_keyboard* wl_keyboard)
     keyboard->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
     wl_keyboard_add_listener(wl_keyboard, &wroc_wl_keyboard_listener, keyboard);
-    wroc_keyboard_added(keyboard);
+    wroc_post_event(keyboard->server, wroc_keyboard_event {
+        { .type = wroc_event_type::keyboard_added },
+        .keyboard = keyboard,
+    });
 }
 
 // -----------------------------------------------------------------------------

@@ -3,6 +3,8 @@
 #include "wren/wren.hpp"
 #include "wren/wren_helpers.hpp"
 
+#include "wroc/event.hpp"
+
 static
 void wroc_output_init_swapchain(wroc_output* output)
 {
@@ -40,6 +42,7 @@ void wroc_output_init_swapchain(wroc_output* output)
     vkwsi_swapchain_set_info(output->swapchain, &sw_info);
 }
 
+static
 void wroc_output_added(wroc_output* output)
 {
     log_debug("Output added");
@@ -49,6 +52,7 @@ void wroc_output_added(wroc_output* output)
     }
 }
 
+static
 void wroc_output_removed(wroc_output* output)
 {
     log_debug("Output removed");
@@ -57,6 +61,16 @@ void wroc_output_removed(wroc_output* output)
     }
     if (output->swapchain) {
         vkwsi_swapchain_destroy(output->swapchain);
+    }
+}
+
+void wroc_handle_output_event(wroc_server* server, const wroc_output_event& event)
+{
+    switch (event.type) {
+        case wroc_event_type::output_added:   wroc_output_added(  event.output); break;
+        case wroc_event_type::output_removed: wroc_output_removed(event.output); break;
+        case wroc_event_type::output_frame:   wroc_render_frame(  event.output); break;
+        default: {}
     }
 }
 

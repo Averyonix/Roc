@@ -45,10 +45,6 @@ struct wroc_output : wrei_object
     wrei_vec2f64 position;
 };
 
-void wroc_output_added(wroc_output*);
-void wroc_output_removed(wroc_output*);
-void wroc_output_frame(wroc_output*);
-
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
 
 void wroc_backend_output_create(wroc_backend*);
@@ -380,11 +376,6 @@ struct wroc_keyboard : wrei_object
     ~wroc_keyboard();
 };
 
-void wroc_keyboard_added(wroc_keyboard*);
-void wroc_keyboard_keymap_update(wroc_keyboard*);
-void wroc_keyboard_key(wroc_keyboard*, u32 keycode, bool pressed);
-void wroc_keyboard_modifiers(wroc_keyboard*, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group);
-
 wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_keyboard*);
 
 // -----------------------------------------------------------------------------
@@ -398,18 +389,7 @@ struct wroc_pointer : wrei_object
     wrei_weak<wroc_surface> focused_surface;
 
     wrei_vec2f64 layout_position;
-
-    ~wroc_pointer()
-    {
-        log_error("POINTER DESTROYED: {}", (void*)this);
-    }
 };
-
-void wroc_pointer_added(   wroc_pointer*);
-void wroc_pointer_button(  wroc_pointer*, u32 button, bool pressed);
-void wroc_pointer_absolute(wroc_pointer*, wroc_output*, wrei_vec2f64 pos);
-void wroc_pointer_relative(wroc_pointer*, wrei_vec2f64 rel);
-void wroc_pointer_axis(    wroc_pointer*, wrei_vec2f64 rel);
 
 // -----------------------------------------------------------------------------
 
@@ -424,7 +404,8 @@ struct wroc_renderer : wrei_object
     ~wroc_renderer();
 };
 
-void wroc_renderer_create( wroc_server*);
+void wroc_renderer_create(wroc_server*);
+void wroc_render_frame(wroc_output* output);
 
 enum class wroc_interaction_mode : u32
 {

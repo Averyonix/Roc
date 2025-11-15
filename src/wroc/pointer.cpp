@@ -1,9 +1,10 @@
 #include "server.hpp"
 
+#include "wroc/event.hpp"
+
+static
 void wroc_pointer_added(wroc_pointer* pointer)
 {
-    log_info("POINTER ADDED");
-
     pointer->server->seat->pointer = pointer;
 }
 
@@ -15,44 +16,9 @@ void wroc_pointer_send_frame(wl_resource* pointer)
     }
 }
 
+static
 void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
 {
-    if (pointer->server->seat->keyboard) {
-        auto mods = wroc_get_active_modifiers(pointer->server);
-        if (mods >= wroc_modifiers::mod && pressed && button == BTN_LEFT) {
-            log_error("MOD is down while pressing left mouse button");
-            auto* toplevel = pointer->server->toplevel_under_cursor.get();
-            if (toplevel) {
-                log_info("  toplevel_under_cursor = <{}> \"{}\"", toplevel->current.app_id, toplevel->current.title);
-                log_info("  start drag");
-
-                auto* server = pointer->server;
-                server->movesize.grabbed_toplevel = wrei_weak_from(toplevel);
-                server->movesize.pointer_grab = pointer->layout_position;
-                server->movesize.surface_grab = toplevel->base->position;
-                server->interaction_mode = wroc_interaction_mode::move;
-                return;
-            }
-        }  else if (mods >= wroc_modifiers::mod && pressed && button == BTN_RIGHT) {
-            if (auto* toplevel = pointer->server->toplevel_under_cursor.get()) {
-                auto* server = pointer->server;
-                server->movesize.grabbed_toplevel = wrei_weak_from(toplevel);
-                server->movesize.pointer_grab = pointer->layout_position;
-                server->movesize.surface_grab = wroc_xdg_surface_get_geometry(toplevel->base.get()).extent;
-                server->interaction_mode = wroc_interaction_mode::size;
-                return;
-            }
-        } else if (button == BTN_LEFT && !pressed && pointer->server->interaction_mode == wroc_interaction_mode::move) {
-            log_warn("Leaving move state");
-            pointer->server->interaction_mode = wroc_interaction_mode::normal;
-        } else if (button == BTN_RIGHT && !pressed && pointer->server->interaction_mode == wroc_interaction_mode::size) {
-            log_warn("Leaving size state");
-            pointer->server->interaction_mode = wroc_interaction_mode::normal;
-        }
-    } else {
-        log_warn("no keyboard attached");
-    }
-
     if (pointer->focused) {
         wl_pointer_send_button(pointer->focused,
             wl_display_next_serial(pointer->server->display),
@@ -62,34 +28,10 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
     }
 }
 
+static
 void wroc_pointer_absolute(wroc_pointer* pointer, wroc_output* output, wrei_vec2f64 pos)
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
-
-    pointer->layout_position = pos + output->position;
-
-    if (pointer->server->interaction_mode == wroc_interaction_mode::move) {
-        auto& movesize = pointer->server->movesize;
-        if (auto* toplevel = pointer->server->movesize.grabbed_toplevel.get()) {
-            toplevel->base->position = movesize.surface_grab + (pointer->layout_position - movesize.pointer_grab);
-            // log_trace("new surface position = ({}, {})", toplevel->base->position.x, toplevel->base->position.y);
-            return;
-        } else {
-            pointer->server->interaction_mode = wroc_interaction_mode::normal;
-        }
-    }
-
-    if (pointer->server->interaction_mode == wroc_interaction_mode::size) {
-        auto& movesize = pointer->server->movesize;
-        if (auto* toplevel = pointer->server->movesize.grabbed_toplevel.get()) {
-            auto new_size = glm::max(movesize.surface_grab + (pointer->layout_position - movesize.pointer_grab), wrei_vec2f64{});
-            // log_trace("new surface size = ({}, {}) for toplevel", new_size.x, new_size.y, toplevel->current.title);
-            wroc_xdg_toplevel_set_size(toplevel, new_size);
-            wroc_xdg_toplevel_flush_configure(toplevel);
-        } else {
-            pointer->server->interaction_mode = wroc_interaction_mode::normal;
-        }
-    }
 
     if (!pointer->focused) {
         if (pointer->wl_pointers.front()) {
@@ -128,11 +70,13 @@ void wroc_pointer_absolute(wroc_pointer* pointer, wroc_output* output, wrei_vec2
     }
 }
 
+static
 void wroc_pointer_relative(wroc_pointer* pointer, wrei_vec2f64 rel)
 {
 
 }
 
+static
 void wroc_pointer_axis(wroc_pointer* pointer, wrei_vec2f64 rel)
 {
     if (pointer->focused) {
@@ -149,5 +93,28 @@ void wroc_pointer_axis(wroc_pointer* pointer, wrei_vec2f64 rel)
                 wl_fixed_from_double(rel.y));
         }
         wroc_pointer_send_frame(pointer->focused);
+    }
+}
+
+void wroc_handle_pointer_event(wroc_server* server, const wroc_pointer_event& event)
+{
+    switch (event.type) {
+        case wroc_event_type::pointer_added:
+            wroc_pointer_added(event.pointer);
+            break;
+        case wroc_event_type::pointer_button:
+            wroc_pointer_button(event.pointer, event.button.button, event.button.pressed);
+            break;
+        case wroc_event_type::pointer_absolute:
+            wroc_pointer_absolute(event.pointer, event.output, event.absolute.position);
+            break;
+        case wroc_event_type::pointer_relative:
+            wroc_pointer_relative(event.pointer, event.relative.delta);
+            break;
+        case wroc_event_type::pointer_axis:
+            wroc_pointer_axis(event.pointer, event.relative.delta);
+            break;
+        default:
+            break;
     }
 }

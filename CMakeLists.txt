@@ -85,6 +85,7 @@ target_compile_options(    ${PROJECT_NAME} PRIVATE
     -Wno-zero-length-array
     -Wno-c99-designator
     -Wno-unused-parameter
+    -Wno-nested-anon-types
     -Wimplicit-fallthrough
     -Wshadow
     )
@@ -103,6 +104,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wrei/region.cpp
 
     src/wroc/server.cpp
+    src/wroc/event.cpp
     src/wroc/output.cpp
     src/wroc/keyboard.cpp
     src/wroc/pointer.cpp
@@ -112,6 +114,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/seat.cpp
     src/wroc/shm.cpp
     src/wroc/surface.cpp
+    src/wroc/interaction.cpp
     src/wroc/xdg_shell.cpp
 
     src/wroc/backend/wayland/wayland.cpp

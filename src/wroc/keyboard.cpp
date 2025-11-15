@@ -3,6 +3,8 @@
 
 #include "wrei/shm.hpp"
 
+#include "wroc/event.hpp"
+
 wroc_keyboard::~wroc_keyboard()
 {
     xkb_keymap_unref(xkb_keymap);
@@ -43,13 +45,13 @@ wroc_modifiers wroc_get_active_modifiers(wroc_server* server)
     return mods;
 }
 
+static
 void wroc_keyboard_added(wroc_keyboard* kb)
 {
-    log_info("KEYBOARD ADDED");
-
     kb->server->seat->keyboard = kb;
 };
 
+static
 void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 {
     // Update modifier indices
@@ -99,6 +101,7 @@ void wroc_keyboard_keymap_update(wroc_keyboard* kb)
     }
 }
 
+static
 void wroc_keyboard_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
 {
     u32 xkb_keycode = libinput_keycode + 8;
@@ -145,6 +148,7 @@ void wroc_keyboard_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
     }
 }
 
+static
 void wroc_keyboard_modifiers(wroc_keyboard* kb, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group)
 {
     wroc_keyboard_update_active_modifiers(kb);
@@ -156,5 +160,25 @@ void wroc_keyboard_modifiers(wroc_keyboard* kb, u32 mods_depressed, u32 mods_lat
             mods_latched,
             mods_locked,
             group);
+    }
+}
+
+void wroc_handle_keyboard_event(wroc_server* server, const wroc_keyboard_event& event)
+{
+    switch (event.type) {
+        case wroc_event_type::keyboard_added:
+            wroc_keyboard_added(event.keyboard);
+            break;
+        case wroc_event_type::keyboard_keymap:
+            wroc_keyboard_keymap_update(event.keyboard);
+            break;
+        case wroc_event_type::keyboard_key:
+            wroc_keyboard_key(event.keyboard, event.key.keycode, event.key.pressed);
+            break;
+        case wroc_event_type::keyboard_modifiers:
+            wroc_keyboard_modifiers(event.keyboard, event.mods.depressed, event.mods.latched, event.mods.locked, event.mods.group);
+            break;
+        default:
+            break;
     }
 }
