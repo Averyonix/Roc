@@ -27,10 +27,9 @@ void wroc_debug_track_resource(wl_resource* resource)
 #endif
 }
 
-#define WROC_SIMPLE_RESOURCE_UNREF(Type, Member) \
+#define WROC_SIMPLE_RESOURCE_UNREF(Type) \
     [](wl_resource* resource) { \
         auto* t = wroc_get_userdata<Type>(resource); \
-        t->Member = nullptr; \
         wrei_remove_ref(t); \
     }
 

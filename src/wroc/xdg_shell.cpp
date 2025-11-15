@@ -10,7 +10,7 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
     xdg_surface->xdg_surface = new_resource;
     xdg_surface->surface = wroc_get_userdata<wroc_surface>(wl_surface);
     xdg_surface->surface->role_addon = xdg_surface;
-    wl_resource_set_implementation(new_resource, &wroc_xdg_surface_impl, xdg_surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_surface, xdg_surface));
+    wl_resource_set_implementation(new_resource, &wroc_xdg_surface_impl, xdg_surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_surface));
 }
 
 const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
@@ -27,7 +27,7 @@ void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u3
     auto* wm_base = new wroc_xdg_wm_base {};
     wm_base->server = static_cast<wroc_server*>(data);
     wm_base->xdg_wm_base = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, wm_base, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_wm_base, xdg_wm_base));
+    wl_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, wm_base, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_wm_base));
 };
 
 // -----------------------------------------------------------------------------
@@ -41,7 +41,7 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
     xdg_toplevel->xdg_toplevel = new_resource;
     xdg_toplevel->base = wroc_get_userdata<wroc_xdg_surface>(resource);
     xdg_toplevel->base->xdg_role_addon = xdg_toplevel;
-    wl_resource_set_implementation(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_toplevel, xdg_toplevel));
+    wl_resource_set_implementation(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel, WROC_SIMPLE_RESOURCE_UNREF(wroc_xdg_toplevel));
 }
 
 static

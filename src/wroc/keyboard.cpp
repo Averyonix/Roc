@@ -3,6 +3,13 @@
 
 #include "wrei/shm.hpp"
 
+wroc_keyboard::~wroc_keyboard()
+{
+    xkb_keymap_unref(xkb_keymap);
+    xkb_state_unref(xkb_state);
+    xkb_context_unref(xkb_context);
+}
+
 static
 void wroc_keyboard_update_active_modifiers(wroc_keyboard* kb)
 {
@@ -56,7 +63,7 @@ void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 
     // Update keymap file
 
-    const char* keymap_str = xkb_keymap_get_as_string(kb->xkb_keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
+    char* keymap_str = xkb_keymap_get_as_string(kb->xkb_keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
     if (!keymap_str) {
         log_error("Failed to get string version of keymap");
         return;
@@ -80,13 +87,14 @@ void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 
     memcpy(dst, keymap_str, keymap_size);
     munmap(dst, keymap_size);
+    free(keymap_str);
 
     kb->keymap_fd = ro_fd;
     kb->keymap_size = keymap_size;
 
     log_debug("Successfully updated keyboard keymap fd: {}", kb->keymap_fd);
 
-    for (wl_resource* resource : kb->wl_keyboard) {
+    for (wl_resource* resource : kb->wl_keyboards) {
         wl_keyboard_send_keymap(resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, kb->keymap_fd, kb->keymap_size);
     }
 }
@@ -97,9 +105,9 @@ void wroc_keyboard_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
     char name[128] = {};
     char _utf[128] = {};
 
-    if (!kb->focused && !kb->wl_keyboard.empty() && !kb->server->surfaces.empty()) {
+    if (!kb->focused && kb->wl_keyboards.front() && !kb->server->surfaces.empty()) {
         log_error("Sending keyboard enter!");
-        kb->focused = kb->wl_keyboard.front();
+        kb->focused = kb->wl_keyboards.front();
         wl_keyboard_send_enter(kb->focused, wl_display_next_serial(kb->server->display),
             kb->server->surfaces.front()->wl_surface,
             wrei_ptr_to(wroc_to_wl_array<u32>({})));

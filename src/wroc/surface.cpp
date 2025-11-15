@@ -10,7 +10,7 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
     auto* region = new wroc_wl_region {};
     region->server = compositor->server;
     region->wl_region = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_wl_region_impl, region, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_region, wl_region));
+    wl_resource_set_implementation(new_resource, &wroc_wl_region_impl, region, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_region));
 }
 
 static
@@ -23,7 +23,7 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     surface->server = compositor->server;
     surface->wl_surface = new_resource;
     compositor->server->surfaces.emplace_back(surface);
-    wl_resource_set_implementation(new_resource, &wroc_wl_surface_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface, wl_surface));
+    wl_resource_set_implementation(new_resource, &wroc_wl_surface_impl, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface));
 }
 
 const struct wl_compositor_interface wroc_wl_compositor_impl = {
@@ -38,7 +38,7 @@ void wroc_wl_compositor_bind_global(wl_client* client, void* data, u32 version, 
     auto* compositor = new wroc_wl_compositor {};
     compositor->server = static_cast<wroc_server*>(data);
     compositor->wl_compositor = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, compositor, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_compositor, wl_compositor));
+    wl_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, compositor, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_compositor));
 };
 
 // -----------------------------------------------------------------------------
@@ -97,13 +97,7 @@ void wroc_wl_surface_frame(wl_client* client, wl_resource* resource, u32 callbac
     wroc_debug_track_resource(new_resource);
     surface->pending.frame_callbacks.emplace_back(new_resource);
     wrei_add_ref(surface);
-    wl_resource_set_implementation(new_resource, nullptr, surface, [](wl_resource* resource) {
-        auto* surface = wroc_get_userdata<wroc_surface>(resource);
-        // log_warn("frame callback {} destroyed", (void*)resource);
-        std::erase(surface->pending.frame_callbacks, resource);
-        std::erase(surface->current.frame_callbacks, resource);
-        wrei_remove_ref(surface);
-    });
+    wl_resource_set_implementation(new_resource, nullptr, surface, WROC_SIMPLE_RESOURCE_UNREF(wroc_surface));
 }
 
 static
@@ -135,8 +129,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 
     // Update frame callbacks
 
-    surface->current.frame_callbacks.append_range(surface->pending.frame_callbacks);
-    surface->pending.frame_callbacks.clear();
+    surface->current.frame_callbacks.take_and_append_all(std::move(surface->pending.frame_callbacks));
 
     // Update buffer
 

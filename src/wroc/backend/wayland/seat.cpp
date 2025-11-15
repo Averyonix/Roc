@@ -99,17 +99,17 @@ const wl_pointer_listener wroc_wl_pointer_listener {
     .axis_relative_direction = wroc_listen_wl_pointer_axis_relative_direction,
 };
 
+wroc_wayland_pointer::~wroc_wayland_pointer()
+{
+    wl_pointer_release(wl_pointer);
+}
+
 static
 void wroc_pointer_destroy(wroc_backend* backend)
 {
-    if (!backend->keyboard) return;
+    if (!backend->pointer) return;
 
     log_debug("pointer_destroy({})", (void*)backend->keyboard);
-
-    wl_keyboard_release(backend->keyboard->wl_keyboard);
-    xkb_keymap_unref(backend->keyboard->xkb_keymap);
-    xkb_state_unref(backend->keyboard->xkb_state);
-    xkb_context_unref(backend->keyboard->xkb_context);
 
     delete backend->keyboard;
 }
@@ -226,17 +226,17 @@ const wl_keyboard_listener wroc_wl_keyboard_listener {
     .repeat_info = wroc_listen_wl_keyboard_repeat_info,
 };
 
+wroc_wayland_keyboard::~wroc_wayland_keyboard()
+{
+    wl_keyboard_release(wl_keyboard);
+}
+
 static
 void wroc_keyboard_destroy(wroc_backend* backend)
 {
     if (!backend->keyboard) return;
 
     log_debug("keyboard_destroy({})", (void*)backend->keyboard);
-
-    wl_keyboard_release(backend->keyboard->wl_keyboard);
-    xkb_keymap_unref(backend->keyboard->xkb_keymap);
-    xkb_state_unref(backend->keyboard->xkb_state);
-    xkb_context_unref(backend->keyboard->xkb_context);
 
     delete backend->keyboard;
 }

@@ -7,7 +7,7 @@ void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 par
     auto* params = new wroc_zwp_linux_buffer_params {};
     params->server = wroc_get_userdata<wroc_server>(resource);
     params->zwp_linux_buffer_params_v1 = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_linux_buffer_params, zwp_linux_buffer_params_v1));
+    wl_resource_set_implementation(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_linux_buffer_params));
 }
 
 wroc_zwp_linux_buffer_params::~wroc_zwp_linux_buffer_params()
@@ -66,7 +66,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->wl_buffer = new_resource;
     buffer->type = wroc_wl_buffer_type::dma;
 
-    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_dma_buffer, wl_buffer));
+    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_dma_buffer));
 
     params->params.format = wren_find_format_from_drm(format).value();
     params->params.extent = { u32(width), u32(height) };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "wrei/types.hpp"
+#include "wrei/log.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -26,3 +27,206 @@ wl_array wroc_to_wl_array(std::span<T> span)
         .data = const_cast<void*>(static_cast<const void*>(span.data())),
     };
 }
+
+// -----------------------------------------------------------------------------
+
+class wrei_wl_resource
+{
+    wl_resource* resource = {};
+    wl_listener destroy_listener {
+        .notify = on_destroy,
+    };
+
+public:
+    wrei_wl_resource()
+    {
+        wl_list_init(&destroy_listener.link);
+    }
+
+    wrei_wl_resource(wl_resource* resource)
+        : resource(resource)
+    {
+        wl_resource_add_destroy_listener(resource, &destroy_listener);
+    }
+
+    void reset(wl_resource* new_resource)
+    {
+        if (resource == new_resource) return;
+
+        resource = new_resource;
+        wl_list_remove(&destroy_listener.link);
+
+        if (resource) {
+            wl_resource_add_destroy_listener(new_resource, &destroy_listener);
+        }
+    }
+
+    wrei_wl_resource& operator=(wl_resource* other)
+    {
+        reset(other);
+        return *this;
+    }
+
+    static void on_destroy(wl_listener* listener, void* data)
+    {
+        wrei_wl_resource* self = wl_container_of(listener, self, destroy_listener);
+        self->resource = nullptr;
+        wl_list_init(&self->destroy_listener.link);
+
+        // log_debug("wrei_resource<{}>: resource destroyed, clearing..", (void*)self);
+    }
+
+    ~wrei_wl_resource()
+    {
+        wl_list_remove(&destroy_listener.link);
+    }
+
+    wrei_wl_resource(const wrei_wl_resource&) = delete;
+    wrei_wl_resource& operator=(const wrei_wl_resource&) = delete;
+    wrei_wl_resource(wrei_wl_resource&&) = delete;
+    wrei_wl_resource& operator=(wrei_wl_resource&&) = delete;
+
+    operator wl_resource*() const { return resource; }
+};
+
+class wrei_wl_resource_list
+{
+    struct list_node
+    {
+        wl_resource* resource = nullptr;
+        wl_listener destroy_listener {
+            .notify = on_destroy,
+        };
+        list_node* prev = nullptr;
+        list_node* next = nullptr;
+
+        list_node()
+        {
+            wl_list_init(&destroy_listener.link);
+        }
+
+        list_node(wl_resource* resource)
+            : resource(resource)
+        {
+            wl_resource_add_destroy_listener(resource, &destroy_listener);
+        }
+
+        static void on_destroy(wl_listener* listener, void* data)
+        {
+            list_node* self = wl_container_of(listener, self, destroy_listener);
+
+            // log_debug("cleaning up list_node: {}", (void*)self);
+            wl_list_init(&self->destroy_listener.link);
+
+            if (self->prev) self->prev->next = self->next;
+            if (self->next) self->next->prev = self->prev;
+
+            delete self;
+        }
+
+        ~list_node()
+        {
+            // log_debug("List node destroyed: {}", (void*)this);
+
+            wl_list_remove(&destroy_listener.link);
+        }
+
+        list_node(const wrei_wl_resource&) = delete;
+        list_node& operator=(const wrei_wl_resource&) = delete;
+        list_node(wrei_wl_resource&&) = delete;
+        list_node& operator=(wrei_wl_resource&&) = delete;
+    };
+
+    list_node root;
+
+    struct iterator
+    {
+        const list_node* current;
+
+        iterator& operator++()
+        {
+            current = current->next;
+            return *this;
+        }
+
+        bool operator==(const iterator& other) const
+        {
+            return current == other.current;
+        }
+
+        wl_resource* operator*() const
+        {
+            return current->resource;
+        }
+    };
+
+public:
+    wrei_wl_resource_list()
+    {
+        root.next = &root;
+        root.prev = &root;
+    }
+
+    void emplace_back(wl_resource* resource)
+    {
+        if (!resource) return;
+
+        auto* node = new list_node{resource};
+
+        node->next = &root;
+        node->prev = root.prev;
+
+        root.prev->next = node;
+        root.prev = node;
+    }
+
+    void clear()
+    {
+        list_node* next = nullptr;
+        for (auto* node = root.next; node != &root; node = next) {
+            next = node->next;
+            delete node;
+        }
+        root.next = &root;
+        root.prev = &root;
+    }
+
+    void take_and_append_all(wrei_wl_resource_list&& other)
+    {
+        if (other.root.next == &other.root) return;
+
+        other.root.next->prev = root.prev;
+        other.root.prev->next = &root;
+
+        root.prev->next = other.root.next;
+        root.prev       = other.root.prev;
+
+        other.root.next = &other.root;
+        other.root.prev = &other.root;
+    }
+
+    wl_resource* front() const
+    {
+        return root.next ? root.next->resource : nullptr;
+    }
+
+    iterator begin() const
+    {
+        return iterator{root.next};
+    }
+
+    iterator end() const
+    {
+        return iterator{&root};
+    }
+
+    ~wrei_wl_resource_list()
+    {
+        clear();
+    }
+
+    wrei_wl_resource_list(const wrei_wl_resource_list&) = delete;
+    wrei_wl_resource_list& operator=(const wrei_wl_resource_list&) = delete;
+    wrei_wl_resource_list(wrei_wl_resource_list&&) = delete;
+    wrei_wl_resource_list& operator=(wrei_wl_resource_list&&) = delete;
+};

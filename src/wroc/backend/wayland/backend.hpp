@@ -6,44 +6,50 @@
 
 struct wroc_wayland_output : wroc_output
 {
-    struct wl_surface* wl_surface;
-    struct xdg_surface* xdg_surface;
-    xdg_toplevel* toplevel;
-    zxdg_toplevel_decoration_v1* decoration;
+    struct wl_surface* wl_surface = {};
+    struct xdg_surface* xdg_surface = {};
+    xdg_toplevel* toplevel = {};
+    zxdg_toplevel_decoration_v1* decoration = {};
+
+    wl_callback* frame_callback = {};
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard
 {
-    struct wl_keyboard* wl_keyboard;
+    struct wl_keyboard* wl_keyboard = {};
 
     std::array<bool, 256> pressed = {};
+
+    ~wroc_wayland_keyboard();
 };
 
 struct wroc_wayland_pointer : wroc_pointer
 {
-    struct wl_pointer* wl_pointer;
+    struct wl_pointer* wl_pointer = {};
 
-    wroc_wayland_output* current_output;
+    wroc_wayland_output* current_output = {};
+
+    ~wroc_wayland_pointer();
 };
 
 struct wroc_backend
 {
-    wroc_server* server;
+    wroc_server* server = {};
 
-    struct wl_display* wl_display;
-    struct wl_registry* wl_registry;
+    struct wl_display* wl_display = {};
+    struct wl_registry* wl_registry = {};
     struct wl_compositor* wl_compositor;
-    struct xdg_wm_base* xdg_wm_base;
-    struct zxdg_decoration_manager_v1* decoration_manager;
+    struct xdg_wm_base* xdg_wm_base = {};
+    struct zxdg_decoration_manager_v1* decoration_manager = {};
 
-    struct wl_seat* seat;
+    struct wl_seat* seat = {};
 
     std::vector<wroc_wayland_output*> outputs;
 
-    wroc_wayland_keyboard* keyboard;
-    wroc_wayland_pointer*  pointer;
+    wroc_wayland_keyboard* keyboard = {};
+    wroc_wayland_pointer*  pointer = {};
 
-    wl_event_source* event_source;
+    wl_event_source* event_source = {};
 };
 
 wroc_wayland_output* wroc_backend_find_output_for_surface(wroc_backend*, wl_surface*);

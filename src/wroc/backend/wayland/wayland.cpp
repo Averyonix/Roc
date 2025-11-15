@@ -72,6 +72,7 @@ int wroc_listen_backend_display_read(int fd, u32 mask, void* data)
     if (res < 0) {
         log_error("  wl_display_dispatch: {}", res);
         wl_event_source_remove(backend->event_source);
+        backend->event_source = nullptr;
     }
 
     wl_display_flush(backend->wl_display);
@@ -108,5 +109,23 @@ void wroc_backend_init(wroc_server* server)
 
 void wroc_backend_destroy(wroc_backend* backend)
 {
+    wl_event_source_remove(backend->event_source);
+
+    if (backend->keyboard) delete backend->keyboard;
+    if (backend->pointer)  delete backend->pointer;
+
+    while (!backend->outputs.empty()) {
+        wroc_backend_output_destroy(backend->outputs.back());
+    }
+
+    zxdg_decoration_manager_v1_destroy(backend->decoration_manager);
+    wl_compositor_destroy(backend->wl_compositor);
+    xdg_wm_base_destroy(backend->xdg_wm_base);
+    wl_seat_destroy(backend->seat);
+
+    wl_registry_destroy(backend->wl_registry);
+
+    wl_display_disconnect(backend->wl_display);
+
     delete backend;
 }

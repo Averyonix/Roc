@@ -20,11 +20,11 @@ void wroc_listen_wl_callback_done(void*, struct wl_callback*, u32 time);
 static
 void wroc_register_frame_callback(wroc_wayland_output* output)
 {
-    auto* callback = wl_surface_frame(output->wl_surface);
+    output->frame_callback = wl_surface_frame(output->wl_surface);
     constexpr static wl_callback_listener listener {
         .done = wroc_listen_wl_callback_done,
     };
-    /* auto res = */wl_callback_add_listener(callback, &listener, output);
+    /* auto res = */wl_callback_add_listener(output->frame_callback, &listener, output);
     wl_surface_commit(output->wl_surface);
     // log_trace("registered: {}", res);
 }
@@ -36,6 +36,8 @@ void wroc_listen_wl_callback_done(void* data, struct wl_callback*, u32 time)
 
     // log_trace("wl_callback::done(time = {})", time);
     wroc_output_frame(output);
+
+    wl_callback_destroy(output->frame_callback);
 
     wroc_register_frame_callback(output);
 }
@@ -212,6 +214,8 @@ void wroc_backend_output_destroy(wroc_output* _output)
     if (output->toplevel)    xdg_toplevel_destroy(output->toplevel);
     if (output->xdg_surface) xdg_surface_destroy(output->xdg_surface);
     if (output->wl_surface)  wl_surface_destroy(output->wl_surface);
+
+    if (output->frame_callback) wl_callback_destroy(output->frame_callback);
 
     delete output;
 }

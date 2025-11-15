@@ -2,31 +2,15 @@
 #include "util.hpp"
 
 static
-void wroc_wl_keyboard_on_resource_destroy(wl_resource* resource)
-{
-    auto* keyboard = wroc_get_userdata<wroc_keyboard>(resource);
-    std::erase(keyboard->wl_keyboard, resource);
-    if (keyboard->focused == resource) keyboard->focused = nullptr;
-}
-
-static
 void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* seat = wroc_get_userdata<wroc_seat>(resource);
     auto* new_resource = wl_resource_create(client, &wl_keyboard_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
-    seat->keyboard->wl_keyboard.emplace_back(new_resource);
-    wl_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard, wroc_wl_keyboard_on_resource_destroy);
+    seat->keyboard->wl_keyboards.emplace_back(new_resource);
+    wl_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard, nullptr);
 
     wl_keyboard_send_keymap(new_resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, seat->keyboard->keymap_fd, seat->keyboard->keymap_size);
-}
-
-static
-void wroc_wl_pointer_on_resource_destroy(wl_resource* resource)
-{
-    auto* pointer = wroc_get_userdata<wroc_pointer>(resource);
-    std::erase(pointer->wl_pointer, resource);
-    if (pointer->focused == resource) pointer->focused = nullptr;
 }
 
 static
@@ -36,8 +20,8 @@ void wroc_wl_seat_get_pointer(wl_client* client, wl_resource* resource, u32 id)
     auto* seat = wroc_get_userdata<wroc_seat>(resource);
     auto* new_resource = wl_resource_create(client, &wl_pointer_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
-    seat->pointer->wl_pointer.emplace_back(new_resource);
-    wl_resource_set_implementation(new_resource, &wroc_wl_pointer_impl, seat->pointer, wroc_wl_pointer_on_resource_destroy);
+    seat->pointer->wl_pointers.emplace_back(new_resource);
+    wl_resource_set_implementation(new_resource, &wroc_wl_pointer_impl, seat->pointer, nullptr);
 }
 
 const struct wl_seat_interface wroc_wl_seat_impl = {
@@ -62,10 +46,7 @@ void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id
     auto* new_resource = wl_resource_create(client, &wl_seat_interface, version, id);
     wroc_debug_track_resource(new_resource);
     seat->wl_seat.emplace_back(new_resource);
-    wl_resource_set_implementation(new_resource, &wroc_wl_seat_impl, seat, [](wl_resource* resource) {
-        auto* seat = wroc_get_userdata<wroc_seat>(resource);
-        std::erase(seat->wl_seat, resource);
-    });
+    wl_resource_set_implementation(new_resource, &wroc_wl_seat_impl, seat, nullptr);
     if (version >= WL_SEAT_NAME_SINCE_VERSION) {
         wl_seat_send_name(new_resource, seat->name.c_str());
     }

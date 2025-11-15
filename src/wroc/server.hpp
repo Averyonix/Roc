@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol.hpp"
+#include "util.hpp"
 
 #include "wrei/pch.hpp"
 #include "wrei/types.hpp"
@@ -59,21 +60,21 @@ struct wroc_xdg_wm_base : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* xdg_wm_base;
+    wrei_wl_resource xdg_wm_base;
 };
 
 struct wroc_wl_compositor : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* wl_compositor;
+    wrei_wl_resource wl_compositor;
 };
 
 struct wroc_wl_region : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* wl_region;
+    wrei_wl_resource wl_region;
 
     wrei_region region;
 };
@@ -90,14 +91,14 @@ struct wroc_surface : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* wl_surface;
+    wrei_wl_resource wl_surface;
 
     bool initial_commit = true;
 
     struct {
         bool buffer_was_set;
         wrei_ref<wroc_wl_buffer> buffer;
-        std::vector<wl_resource*> frame_callbacks;
+        wrei_wl_resource_list frame_callbacks;
         std::optional<wrei_vec2i32> offset;
         std::optional<wrei_region> input_region;
         std::optional<double> buffer_scale; // TODO
@@ -105,7 +106,7 @@ struct wroc_surface : wrei_ref_counted
 
     struct {
         wrei_ref<wroc_wl_buffer> buffer;
-        std::vector<wl_resource*> frame_callbacks;
+        wrei_wl_resource_list frame_callbacks;
         wrei_vec2i32 offset = {};
         wrei_region input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}});
         double buffer_scale = 1.f;
@@ -124,7 +125,7 @@ struct wroc_xdg_surface : wroc_surface_addon
 {
     wrei_ref<wroc_surface> surface;
 
-    wl_resource* xdg_surface;
+    wrei_wl_resource xdg_surface;
 
     wroc_surface_addon* xdg_role_addon;
 
@@ -164,7 +165,7 @@ struct wroc_xdg_toplevel : wroc_surface_addon
 {
     wrei_ref<wroc_xdg_surface> base;
 
-    wl_resource* xdg_toplevel;
+    wrei_wl_resource xdg_toplevel;
 
     struct {
         std::optional<std::string> title;
@@ -217,7 +218,7 @@ struct wroc_wl_buffer : wrei_ref_counted
 
     wroc_wl_buffer_type type;
 
-    wl_resource* wl_buffer;
+    wrei_wl_resource wl_buffer;
 
     wrei_vec2i32 extent;
 
@@ -237,14 +238,14 @@ struct wroc_wl_shm : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* wl_shm;
+    wrei_wl_resource wl_shm;
 };
 
 struct wroc_wl_shm_pool : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* wl_shm_pool;
+    wrei_wl_resource wl_shm_pool;
 
     i32 size;
     int fd;
@@ -270,7 +271,7 @@ struct wroc_zwp_linux_buffer_params : wrei_ref_counted
 {
     wroc_server* server;
 
-    wl_resource* zwp_linux_buffer_params_v1;
+    wrei_wl_resource zwp_linux_buffer_params_v1;
 
     wren_dma_params params;
 
@@ -293,7 +294,7 @@ struct wroc_seat
 
     std::string name;
 
-    std::vector<wl_resource*> wl_seat;
+    wrei_wl_resource_list wl_seat;
 };
 
 // -----------------------------------------------------------------------------
@@ -321,8 +322,8 @@ struct wroc_keyboard
 {
     wroc_server* server;
 
-    std::vector<wl_resource*> wl_keyboard;
-    wl_resource* focused;
+    wrei_wl_resource_list wl_keyboards;
+    wrei_wl_resource focused;
 
     struct xkb_context* xkb_context;
     struct xkb_state*   xkb_state;
@@ -336,6 +337,8 @@ struct wroc_keyboard
 
     i32 rate;
     i32 delay;
+
+    ~wroc_keyboard();
 };
 
 void wroc_keyboard_added(wroc_keyboard*);
@@ -351,8 +354,8 @@ struct wroc_pointer
 {
     wroc_server* server;
 
-    std::vector<wl_resource*> wl_pointer;
-    wl_resource* focused;
+    wrei_wl_resource_list wl_pointers;
+    wrei_wl_resource focused;
     wrei_weak<wroc_surface> focused_surface;
 
     wrei_vec2f64 layout_position;

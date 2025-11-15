@@ -2,8 +2,7 @@
 
  - Replace keyboard/mouse/output callbacks with event queue
  - Use bitset to track pending commit state
- - Weak wl_resource holder
- - Weak refcount / wl_resource arrays
+ - Weak ref list
 
 # MVP Features
 

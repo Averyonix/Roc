@@ -94,8 +94,8 @@ void wroc_pointer_absolute(wroc_pointer* pointer, wroc_output* output, wrei_vec2
     if (!pointer->focused) {
         // log_trace("wl_pointer.size() = {}", pointer->wl_pointer.size());
         // log_trace("surfaces count = {}", pointer->server->surfaces.size());
-        if (!pointer->wl_pointer.empty() && !pointer->server->surfaces.empty()) {
-            pointer->focused = pointer->wl_pointer.front();
+        if (pointer->wl_pointers.front() && !pointer->server->surfaces.empty()) {
+            pointer->focused = pointer->wl_pointers.front();
             auto* surface = pointer->server->surfaces.front();
             pointer->focused_surface = wrei_weak_from(surface);
             log_debug("entering surface: {}", (void*)surface);

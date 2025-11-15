@@ -12,7 +12,7 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
     return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-void wroc_run(int /* argc */, char* /* argv */[])
+void wroc_run_internal(int argc, char* argv[])
 {
     wroc_server server = {};
     log_warn("server = {}", (void*)&server);
@@ -62,6 +62,13 @@ void wroc_run(int /* argc */, char* /* argv */[])
 
     wl_display_destroy(server.display);
 
+    log_info("Display destroyed");
+
+}
+
+void wroc_run(int argc, char* argv[])
+{
+    wroc_run_internal(argc, argv);
     log_info("Shutdown complete");
 }
 

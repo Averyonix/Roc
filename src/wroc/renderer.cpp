@@ -158,9 +158,8 @@ void wroc_output_frame(wroc_output* output)
     auto elapsed = wroc_get_elapsed_milliseconds(output->server);
 
     for (wroc_surface* surface : output->server->surfaces) {
-        while (!surface->current.frame_callbacks.empty()) {
-            auto callback = surface->current.frame_callbacks.front();
-            // log_trace("Sending frame callback");
+        while (auto* callback = surface->current.frame_callbacks.front()) {
+            // log_trace("Sending frame callback: {}", (void*)callback);
             wl_callback_send_done(callback, elapsed);
             wl_resource_destroy(callback);
         }

@@ -12,7 +12,7 @@ void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, i
     pool->wl_shm_pool = new_resource;
     pool->fd = fd;
     pool->size = size;
-    wl_resource_set_implementation(new_resource, &wroc_wl_shm_pool_impl, pool, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm_pool, wl_shm_pool));
+    wl_resource_set_implementation(new_resource, &wroc_wl_shm_pool_impl, pool, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm_pool));
     pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
     if (pool->data == MAP_FAILED) {
         wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
@@ -31,7 +31,7 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
     auto* shm = new wroc_wl_shm {};
     shm->server = static_cast<wroc_server*>(data);
     shm->wl_shm = new_resource;
-    wl_resource_set_implementation(new_resource, &wroc_wl_shm_impl, shm, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm, wl_shm));
+    wl_resource_set_implementation(new_resource, &wroc_wl_shm_impl, shm, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm));
 
     // TODO: Integrate with Wren to expose supported formats
 
@@ -61,7 +61,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
     shm_buffer->extent = {width, height};
     shm_buffer->stride = stride;
     shm_buffer->format = wl_shm_format(format);
-    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, shm_buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_shm_buffer, wl_buffer));
+    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, shm_buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_shm_buffer));
 
     shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)}, VK_FORMAT_B8G8R8A8_UNORM);
 
