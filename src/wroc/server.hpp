@@ -85,6 +85,7 @@ struct wroc_surface_addon : wrei_object
 {
     virtual void on_initial_commit() = 0;
     virtual void on_commit() = 0;
+    virtual void on_ack_configure(u32 serial) {}
 };
 
 struct wroc_surface : wrei_object
@@ -139,6 +140,9 @@ struct wroc_xdg_surface : wroc_surface_addon
 
     wrei_vec2f64 position;
 
+    u32 sent_configure_serial = {};
+    u32 acked_configure_serial = {};
+
     virtual void on_initial_commit() final override;
     virtual void on_commit() final override;
     ~wroc_xdg_surface();
@@ -151,6 +155,7 @@ struct wroc_xdg_surface : wroc_surface_addon
 };
 
 wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* surface);
+void wroc_xdg_surface_flush_configure(wroc_xdg_surface* surface);
 
 enum class wroc_xdg_toplevel_configure_state
 {
@@ -184,6 +189,8 @@ struct wroc_xdg_toplevel : wroc_surface_addon
 
     virtual void on_initial_commit() final override;
     virtual void on_commit() final override;
+    virtual void on_ack_configure(u32 serial) final override;
+
     ~wroc_xdg_toplevel();
 
     static

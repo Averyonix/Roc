@@ -91,12 +91,33 @@ wroc_xdg_surface::~wroc_xdg_surface()
     }
 }
 
+static
+void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u32 serial)
+{
+    auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
+
+    if (serial == xdg_surface->sent_configure_serial) {
+        log_info("Client acked configure: {}", serial);
+        xdg_surface->acked_configure_serial = serial;
+
+        if (xdg_surface->xdg_role_addon) {
+            xdg_surface->xdg_role_addon->on_ack_configure(serial);
+        }
+    }
+}
+
+void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
+{
+    xdg_surface->sent_configure_serial = wl_display_next_serial(xdg_surface->surface->server->display);
+    xdg_surface_send_configure(xdg_surface->xdg_surface, xdg_surface->sent_configure_serial);
+}
+
 const struct xdg_surface_interface wroc_xdg_surface_impl = {
     .destroy             = wroc_simple_resource_destroy_callback,
     .get_toplevel        = wroc_xdg_surface_get_toplevel,
     .get_popup           = WROC_STUB,
     .set_window_geometry = wroc_xdg_surface_set_window_geometry,
-    .ack_configure       = WROC_STUB,
+    .ack_configure       = wroc_xdg_surface_ack_configure,
 };
 
 wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
@@ -208,6 +229,10 @@ void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel* toplevel, xdg_toplevel_state
 void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
 {
     if (toplevel->pending_configure == wroc_xdg_toplevel_configure_state::none) return;
+    if (toplevel->base->sent_configure_serial > toplevel->base->acked_configure_serial) {
+        log_warn("Waiting for client ack before reconfiguring");
+        return;
+    }
 
     if (toplevel->pending_configure >= wroc_xdg_toplevel_configure_state::bounds) {
         xdg_toplevel_send_configure_bounds(toplevel->xdg_toplevel, toplevel->bounds.x, toplevel->bounds.y);
@@ -216,8 +241,12 @@ void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
     xdg_toplevel_send_configure(toplevel->xdg_toplevel, toplevel->size.x, toplevel->size.y,
         wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(toplevel->states)));
 
-    // TODO: This should be handled with a similar queueing mechanism!
-    xdg_surface_send_configure(toplevel->base->xdg_surface, wl_display_next_serial(toplevel->base->surface->server->display));
+    wroc_xdg_surface_flush_configure(toplevel->base.get());
 
     toplevel->pending_configure = {};
+}
+
+void wroc_xdg_toplevel::on_ack_configure(u32 serial)
+{
+    wroc_xdg_toplevel_flush_configure(this);
 }
