@@ -49,6 +49,7 @@ void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resour
 {
     auto* surface = wroc_get_userdata<wroc_xdg_surface>(resource);
     surface->pending.geometry = {{x, y}, {width, height}};
+    surface->pending.committed |= wroc_xdg_surface_committed_state::geometry;
 }
 
 void wroc_xdg_surface::on_initial_commit()
@@ -68,20 +69,18 @@ void wroc_xdg_surface::on_commit()
 
     // Update geometry
 
-    if (pending.geometry) {
-        if (!pending.geometry->extent.x || !pending.geometry->extent.y) {
+    if (pending.committed >= wroc_xdg_surface_committed_state::geometry) {
+        if (!pending.geometry.extent.x || !pending.geometry.extent.y) {
             log_warn("Zero size invalid geometry committed, treating as if geometry never set!");
+            current.committed -= wroc_xdg_surface_committed_state::geometry;
+            pending.committed -= wroc_xdg_surface_committed_state::geometry;
         } else {
-            current.geometry = *pending.geometry;
+            current.geometry = pending.geometry;
         }
-        pending.geometry = std::nullopt;
     }
 
-    // if (current.geometry) {
-    //     log_debug("Geometry: (({}, {}), ({}, {}))",
-    //         current.geometry->origin.x, current.geometry->origin.y,
-    //         current.geometry->extent.x, current.geometry->extent.y);
-    // }
+    current.committed |= pending.committed;
+    pending = {};
 }
 
 wroc_xdg_surface::~wroc_xdg_surface()
@@ -123,8 +122,8 @@ const struct xdg_surface_interface wroc_xdg_surface_impl = {
 wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
 {
     wrei_rect<i32> geom = {};
-    if (xdg_surface->current.geometry) {
-        geom = *xdg_surface->current.geometry;
+    if (xdg_surface->current.committed >= wroc_xdg_surface_committed_state::geometry) {
+        geom = xdg_surface->current.geometry;
     } else if (xdg_surface->surface->current.buffer) {
         auto* buffer = xdg_surface->surface->current.buffer.get();
         geom.extent = { buffer->extent.x, buffer->extent.y };
@@ -139,6 +138,7 @@ void wroc_xdg_toplevel_set_title(wl_client* client, wl_resource* resource, const
 {
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
     toplevel->pending.title = title ? std::string{title} : std::string{};
+    toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::title;
 }
 
 static
@@ -146,6 +146,7 @@ void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, cons
 {
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
     toplevel->pending.app_id = app_id ? std::string{app_id} : std::string{};
+    toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::app_id;
 }
 
 void wroc_xdg_toplevel::on_initial_commit()
@@ -165,14 +166,11 @@ void wroc_xdg_toplevel::on_initial_commit()
 
 void wroc_xdg_toplevel::on_commit()
 {
-    if (pending.title) {
-        current.title = *pending.title;
-        pending.title = std::nullopt;
-    }
-    if (pending.app_id) {
-        current.app_id = *pending.app_id;
-        pending.app_id = std::nullopt;
-    }
+    if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
+    if (pending.committed >= wroc_xdg_toplevel_committed_state::app_id) current.app_id = pending.app_id;
+
+    current.committed |= pending.committed;
+    pending = {};
 }
 
 wroc_xdg_toplevel::~wroc_xdg_toplevel()

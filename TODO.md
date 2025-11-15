@@ -1,7 +1,6 @@
 # Architecture
 
  - Replace keyboard/mouse/output callbacks with event queue
- - Use bitset to track pending commit state
  - Weak ref list
 
 # MVP Features

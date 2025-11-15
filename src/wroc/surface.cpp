@@ -70,14 +70,8 @@ static
 void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    if (wl_buffer) {
-        auto* buffer = wroc_get_userdata<wroc_wl_buffer>(wl_buffer);
-        // log_trace("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
-        surface->pending.buffer = buffer;
-    } else {
-        surface->pending.buffer = nullptr;
-    }
-    surface->pending.buffer_was_set = true;
+    surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_wl_buffer>(wl_buffer) : nullptr;
+    surface->pending.committed |= wroc_surface_committed_state::buffer;
 
     if (x || y) {
         if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
@@ -85,6 +79,7 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
                 "Non-zero offset not allowed in wl_surface::attach since version %u", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
             surface->pending.offset = { x, y };
+            surface->pending.committed |= wroc_surface_committed_state::offset;
         }
     }
 }
@@ -110,6 +105,15 @@ void wroc_wl_surface_set_input_region(wl_client* client, wl_resource* resource, 
     } else {
         surface->pending.input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}});
     }
+    surface->pending.committed |= wroc_surface_committed_state::input_region;
+}
+
+static
+void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
+{
+    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    surface->pending.offset = { x, y };
+    surface->pending.committed |= wroc_surface_committed_state::offset;
 }
 
 static
@@ -133,7 +137,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 
     // Update buffer
 
-    if (surface->pending.buffer_was_set) {
+    if (surface->pending.committed >= wroc_surface_committed_state::buffer) {
         if (surface->pending.buffer && surface->pending.buffer->locked) {
             log_error("Client is attempting to commit buffer that is already locked!");
         }
@@ -156,38 +160,31 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
         }
 
         surface->pending.buffer = nullptr;
-        surface->pending.buffer_was_set = false;
     }
 
     // Update input region
 
-    if (surface->pending.input_region) {
-        surface->current.input_region = std::move(*surface->pending.input_region);
-        surface->pending.input_region = std::nullopt;
+    if (surface->pending.committed >= wroc_surface_committed_state::input_region) {
+        surface->current.input_region = std::move(surface->pending.input_region);
     }
 
     // Update offset
 
-    if (surface->pending.offset) {
+    if (surface->pending.committed >= wroc_surface_committed_state::offset) {
         // NOTE: This seems to be worded as if it's accumulative...
         //       > relative to the current buffer's upper left corner
         //       ...but wlroots treats it as if it's relative to the surface origin
-        surface->current.offset = *surface->pending.offset;
-        surface->pending.offset = {};
+        surface->current.offset = surface->pending.offset;
     }
+
+    surface->current.committed |= surface->pending.committed;
+    surface->pending.committed = wroc_surface_committed_state::none;
 
     // Commit addons
 
     if (surface->role_addon) {
         surface->role_addon->on_commit();
     }
-}
-
-static
-void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
-{
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    surface->pending.offset = { x, y };
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {

@@ -81,11 +81,34 @@ struct wroc_wl_region : wrei_object
 
 struct wroc_wl_buffer;
 
+// -----------------------------------------------------------------------------
+
 struct wroc_surface_addon : wrei_object
 {
     virtual void on_initial_commit() = 0;
     virtual void on_commit() = 0;
     virtual void on_ack_configure(u32 serial) {}
+};
+
+enum class wroc_surface_committed_state : u32
+{
+    none,
+    buffer       = 1 << 0,
+    offset       = 1 << 1,
+    input_region = 1 << 2,
+    buffer_scale = 1 << 3,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
+
+struct wroc_surface_state
+{
+    wroc_surface_committed_state committed;
+
+    wrei_ref<wroc_wl_buffer> buffer;
+    wrei_wl_resource_list frame_callbacks;
+    wrei_vec2i32 offset;
+    wrei_region input_region;
+    double buffer_scale;
 };
 
 struct wroc_surface : wrei_object
@@ -96,22 +119,11 @@ struct wroc_surface : wrei_object
 
     bool initial_commit = true;
 
-    struct {
-        bool buffer_was_set;
-        wrei_ref<wroc_wl_buffer> buffer;
-        wrei_wl_resource_list frame_callbacks;
-        std::optional<wrei_vec2i32> offset;
-        std::optional<wrei_region> input_region;
-        std::optional<double> buffer_scale; // TODO
-    } pending;
-
-    struct {
-        wrei_ref<wroc_wl_buffer> buffer;
-        wrei_wl_resource_list frame_callbacks;
-        wrei_vec2i32 offset = {};
-        wrei_region input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}});
-        double buffer_scale = 1.f;
-    } current;
+    wroc_surface_state pending;
+    wroc_surface_state current = {
+        .input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}}),
+        .buffer_scale = 1.f
+    };
 
     wroc_surface_addon* role_addon;
 
@@ -122,6 +134,20 @@ bool wroc_surface_point_accepts_input(wroc_surface*, wrei_vec2f64 point);
 
 // -----------------------------------------------------------------------------
 
+enum class wroc_xdg_surface_committed_state : u32
+{
+    none,
+    geometry = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_xdg_surface_committed_state)
+
+struct wrox_xdg_surface_state
+{
+    wroc_xdg_surface_committed_state committed = wroc_xdg_surface_committed_state::none;
+
+    wrei_rect<i32> geometry;
+};
+
 struct wroc_xdg_surface : wroc_surface_addon
 {
     wrei_ref<wroc_surface> surface;
@@ -130,13 +156,8 @@ struct wroc_xdg_surface : wroc_surface_addon
 
     wroc_surface_addon* xdg_role_addon;
 
-    struct state
-    {
-        std::optional<wrei_rect<i32>> geometry;
-    };
-
-    state pending;
-    state current;
+    wrox_xdg_surface_state pending;
+    wrox_xdg_surface_state current;
 
     wrei_vec2f64 position;
 
@@ -157,7 +178,9 @@ struct wroc_xdg_surface : wroc_surface_addon
 wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* surface);
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* surface);
 
-enum class wroc_xdg_toplevel_configure_state
+// -----------------------------------------------------------------------------
+
+enum class wroc_xdg_toplevel_configure_state : u32
 {
     none,
     bounds = 1 << 0,
@@ -166,21 +189,30 @@ enum class wroc_xdg_toplevel_configure_state
 };
 WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_configure_state)
 
+enum class wroc_xdg_toplevel_committed_state : u32
+{
+    none,
+    title  = 1 << 0,
+    app_id = 1 << 1
+};
+WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_committed_state)
+
+struct wroc_xdg_toplevel_state
+{
+    wroc_xdg_toplevel_committed_state committed = wroc_xdg_toplevel_committed_state::none;
+
+    std::string title;
+    std::string app_id;
+};
+
 struct wroc_xdg_toplevel : wroc_surface_addon
 {
     wrei_ref<wroc_xdg_surface> base;
 
     wrei_wl_resource xdg_toplevel;
 
-    struct {
-        std::optional<std::string> title;
-        std::optional<std::string> app_id;
-    } pending;
-
-    struct {
-        std::string title;
-        std::string app_id;
-    } current;
+    wroc_xdg_toplevel_state pending;
+    wroc_xdg_toplevel_state current;
 
     wrei_vec2i32 bounds;
     wrei_vec2i32 size;
@@ -213,7 +245,7 @@ void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel*);
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_wl_buffer_type
+enum class wroc_wl_buffer_type : u32
 {
     shm,
     dma,
@@ -394,14 +426,14 @@ struct wroc_renderer : wrei_object
 
 void wroc_renderer_create( wroc_server*);
 
-enum class wroc_interaction_mode
+enum class wroc_interaction_mode : u32
 {
     normal,
     move,
     size,
 };
 
-enum class wroc_edges
+enum class wroc_edges : u32
 {
     left,
     top,

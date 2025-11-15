@@ -53,7 +53,8 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
     inline constexpr bool     operator>=(EnumType  l, EnumType r) { return std::to_underlying(r) == (std::to_underlying(l) & std::to_underlying(r)); } \
     inline constexpr bool     operator< (EnumType  l, EnumType r) { return !(l >= r);                                                                } \
     inline constexpr EnumType operator& (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) & std::to_underlying(r));                  } \
-    inline constexpr EnumType operator~ (EnumType  v)             { return EnumType(~std::to_underlying(v));                                         }
+    inline constexpr EnumType operator~ (EnumType  v)             { return EnumType(~std::to_underlying(v));                                         } \
+    inline constexpr EnumType operator-=(EnumType& l, EnumType r) { return l = EnumType(std::to_underlying(l) & ~std::to_underlying(r));             }
 
 // -----------------------------------------------------------------------------
 
@@ -185,7 +186,8 @@ void wrei_log_unix_error(std::string_view message, int err = 0)
     else                 { log_error("{}: ({}) {}", message, err, strerror(err)); }
 }
 
-enum class wrei_unix_error_behavior {
+enum class wrei_unix_error_behavior : u32
+{
     ret_null,
     ret_neg1,
     ret_neg_errno,
