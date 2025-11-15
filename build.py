@@ -60,6 +60,10 @@ git_fetch(vendor_dir / "glm", "https://github.com/g-truc/glm.git", "master")
 
 # -----------------------------------------------------------------------------
 
+git_fetch(vendor_dir / "unordered-dense", "https://github.com/martinus/unordered_dense.git", "main")
+
+# -----------------------------------------------------------------------------
+
 git_fetch(vendor_dir / "vulkan-headers",           "https://github.com/KhronosGroup/Vulkan-Headers.git",                    "main")
 git_fetch(vendor_dir / "vulkan-utility-libraries", "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git",          "main")
 git_fetch(vendor_dir / "vulkan-memory-allocator",  "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "master")

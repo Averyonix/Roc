@@ -23,8 +23,7 @@ void wroc_handle_event(wroc_server* server, const wroc_event& base_event)
 
         case wroc_event_type::pointer_added:
         case wroc_event_type::pointer_button:
-        case wroc_event_type::pointer_absolute:
-        case wroc_event_type::pointer_relative:
+        case wroc_event_type::pointer_motion:
         case wroc_event_type::pointer_axis:
             wroc_handle_pointer_event(server, static_cast<const wroc_pointer_event&>(base_event));
             break;

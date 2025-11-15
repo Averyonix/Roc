@@ -20,14 +20,13 @@ struct wroc_wayland_keyboard : wroc_keyboard
 {
     struct wl_keyboard* wl_keyboard = {};
 
-    std::array<bool, 256> pressed = {};
-
     ~wroc_wayland_keyboard();
 };
 
 struct wroc_wayland_pointer : wroc_pointer
 {
     struct wl_pointer* wl_pointer = {};
+    u32 last_serial = {};
 
     wroc_wayland_output* current_output = {};
 

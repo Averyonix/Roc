@@ -1,8 +1,6 @@
 #include "pch.hpp"
 #include "log.hpp"
 
-using namespace std::literals;
-
 #define WREI_VT_COLOR_BEGIN(color) "\u001B[" #color "m"
 #define WREI_VT_COLOR_RESET "\u001B[0m"
 #define WREI_VT_COLOR(color, text) WREI_VT_COLOR_BEGIN(color) text WREI_VT_COLOR_RESET

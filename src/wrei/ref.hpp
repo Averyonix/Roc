@@ -2,15 +2,16 @@
 
 #include "types.hpp"
 #include "log.hpp"
+#include "util.hpp"
 
 struct wrei_weak_state
 {
     struct wrei_object* value;
 };
 
-#define NOISY_REF_COUNTS 0
-#if NOISY_REF_COUNTS
-static i64 debug_global_ref_counted_objects;
+#define WREI_NOISY_OBJECTS 1
+#if WREI_NOISY_OBJECTS
+static i64 wrei_debug_global_alive_objects;
 #endif
 
 struct wrei_object
@@ -18,20 +19,25 @@ struct wrei_object
     u32 _ref_count = 1;
     std::shared_ptr<wrei_weak_state> _weak_state;
 
-#if NOISY_REF_COUNTS
-    wrei_ref_counted()
+#if WREI_NOISY_OBJECTS
+    wrei_object()
     {
-        log_trace("RefCounted ++ {}", debug_global_ref_counted_objects++);
+        log_trace("wrei::object ++ {}", wrei_debug_global_alive_objects++);
     }
+#else
+    wrei_object() = default;
 #endif
 
     virtual ~wrei_object()
     {
-#if NOISY_REF_COUNTS
-        log_trace("RefCounted -- {}", --debug_global_ref_counted_objects);
+#if WREI_NOISY_OBJECTS
+        log_trace("wrei::object -- {}", --wrei_debug_global_alive_objects);
 #endif
         if (_weak_state) _weak_state->value = nullptr;
     }
+
+
+    WREI_DELETE_COPY_MOVE(wrei_object)
 };
 
 template<typename T>
@@ -137,8 +143,17 @@ struct wrei_weak
 {
     std::shared_ptr<wrei_weak_state> _weak_state;
 
-    T*     get() const { return _weak_state ? static_cast<T*>(_weak_state->value) : nullptr; }
-    void reset()       { _weak_state = {}; }
+    T*        get() const { return _weak_state ? static_cast<T*>(_weak_state->value) : nullptr; }
+    T* operator->() const { return get(); }
+
+    void reset() { _weak_state = {}; }
+    wrei_weak& operator=(std::nullptr_t)
+    {
+        reset();
+        return *this;
+    }
+
+    operator bool() const { return get(); }
 
     template<typename T2>
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>

@@ -37,6 +37,11 @@ void wroc_listen_wl_callback_done(void* data, struct wl_callback*, u32 time)
     auto* output = static_cast<wroc_wayland_output*>(data);
 
     // log_trace("wl_callback::done(time = {})", time);
+
+    // if (auto* pointer = output->server->backend->pointer.get()) {
+    //     wl_pointer_set_cursor(pointer->wl_pointer, pointer->last_serial, nullptr, 0, 0);
+    // }
+
     wroc_post_event(output->server, wroc_output_event {
         { .type = wroc_event_type::output_frame },
         .output = output,

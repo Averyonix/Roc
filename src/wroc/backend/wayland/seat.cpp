@@ -12,28 +12,31 @@ void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx,
     wrei_vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
     pointer->layout_position = pos + pointer->current_output->position;
     wroc_post_event(pointer->server, wroc_pointer_event {
-        { .type = wroc_event_type::pointer_absolute },
+        { .type = wroc_event_type::pointer_motion },
         .pointer = pointer,
         .output = pointer->current_output,
-        .absolute { .position = pointer->layout_position },
     });
 }
 
 static
-void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 /* serial */, wl_surface* surface, wl_fixed_t sx, wl_fixed_t sy)
+void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surface* surface, wl_fixed_t sx, wl_fixed_t sy)
 {
     log_info("pointer_axis_enter");
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
+    pointer->last_serial = serial;
     pointer->current_output = wroc_backend_find_output_for_surface(pointer->server->backend, surface);
 
     wroc_backend_pointer_absolute(pointer, sx, sy);
 }
 
 static
-void wroc_listen_wl_pointer_leave(void* /* data */, wl_pointer*, u32 /* serial */, wl_surface*)
+void wroc_listen_wl_pointer_leave(void* data, wl_pointer*, u32 serial, wl_surface*)
 {
     log_info("pointer_axis_leave");
+
+    auto* pointer = static_cast<wroc_wayland_pointer*>(data);
+    pointer->last_serial = serial;
 }
 
 static
@@ -45,9 +48,10 @@ void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 /* time */, wl_f
 }
 
 static
-void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 /* serial */, u32 /* time */, u32 button, u32 state)
+void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 /* time */, u32 button, u32 state)
 {
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
+    pointer->last_serial = serial;
     log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
     wroc_post_event(pointer->server, wroc_pointer_event {
         { .type = wroc_event_type::pointer_button },
@@ -189,14 +193,24 @@ void wroc_listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 forma
 }
 
 static
+void update_kb_key_state(wroc_keyboard* kb, u32 keycode, bool state)
+{
+    if (!state) {
+        std::erase(kb->pressed, keycode);
+    } else if (std::ranges::find(kb->pressed, keycode) == kb->pressed.end()) {
+        kb->pressed.emplace_back(keycode);
+    }
+}
+
+static
 void wroc_listen_wl_keyboard_enter(void* data, wl_keyboard*, u32 /* serial */, wl_surface*, wl_array* key_array)
 {
     auto kb = static_cast<wroc_wayland_keyboard*>(data);
 
     log_debug("keyboard enter:");
     for (u32 keycode : wroc_to_span<u32>(key_array)) {
-        kb->pressed[keycode] = true;
-        // wroc_keyboard_key(kb, keycode, true);
+        update_kb_key_state(kb, keycode, true);
+
         // TODO: Should we send an "enter" event?
     }
 }
@@ -208,7 +222,7 @@ void wroc_listen_wl_keyboard_key(void* data, wl_keyboard*, u32 /* serial */, u32
 
     if (state != WL_KEYBOARD_KEY_STATE_REPEATED) {
         bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
-        kb->pressed[keycode] = pressed;
+        update_kb_key_state(kb, keycode, pressed);
         wroc_post_event(kb->server, wroc_keyboard_event {
             { .type = wroc_event_type::keyboard_key },
             .keyboard = kb,
@@ -224,16 +238,14 @@ void wroc_listen_wl_keyboard_leave(void* data, wl_keyboard*, u32 /* serial */, w
 
     log_debug("keyboard leave");
 
-    for (auto[keycode, pressed] : kb->pressed | std::views::enumerate) {
-        if (pressed) {
-            wroc_post_event(kb->server, wroc_keyboard_event {
-                { .type = wroc_event_type::keyboard_key },
-                .keyboard = kb,
-                .key { .keycode = u32(keycode), .pressed = false },
-            });
-        }
+    for (auto keycode : kb->pressed) {
+        wroc_post_event(kb->server, wroc_keyboard_event {
+            { .type = wroc_event_type::keyboard_key },
+            .keyboard = kb,
+            .key { .keycode = u32(keycode), .pressed = false },
+        });
     }
-    kb->pressed = {};
+    kb->pressed.clear();
 }
 
 static

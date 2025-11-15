@@ -359,6 +359,7 @@ struct wroc_keyboard : wrei_object
 
     wrei_wl_resource_list wl_keyboards;
     wrei_wl_resource focused;
+    wrei_weak<wroc_surface> focused_surface;
 
     struct xkb_context* xkb_context;
     struct xkb_state*   xkb_state;
@@ -370,6 +371,8 @@ struct wroc_keyboard : wrei_object
     int keymap_fd = -1;
     i32 keymap_size;
 
+    std::vector<u32> pressed = {};
+
     i32 rate;
     i32 delay;
 
@@ -377,6 +380,9 @@ struct wroc_keyboard : wrei_object
 };
 
 wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_keyboard*);
+
+void wroc_keyboard_clear_focus(wroc_keyboard*);
+void wroc_keyboard_enter(wroc_keyboard*, wroc_surface*);
 
 // -----------------------------------------------------------------------------
 

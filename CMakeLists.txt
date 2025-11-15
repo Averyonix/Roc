@@ -38,6 +38,10 @@ add_subdirectory(${VENDOR_DIR}/glm EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
+add_subdirectory(${VENDOR_DIR}/unordered-dense EXCLUDE_FROM_ALL)
+
+# ------------------------------------------------------------------------------
+
 add_subdirectory(${VENDOR_DIR}/vulkan-headers           EXCLUDE_FROM_ALL)
 add_subdirectory(${VENDOR_DIR}/vulkan-utility-libraries EXCLUDE_FROM_ALL)
 
@@ -149,6 +153,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     vma-object
     vk-wsi::vk-wsi
     stb-image
+    unordered_dense::unordered_dense
     )
 
 add_subdirectory(test)

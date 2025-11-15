@@ -27,7 +27,7 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
         }
     }
 
-    if (base_event.type == wroc_event_type::pointer_absolute
+    if (base_event.type == wroc_event_type::pointer_motion
             && (server->interaction_mode == wroc_interaction_mode::move
             ||  server->interaction_mode == wroc_interaction_mode::size)) {
         auto& event = static_cast<const wroc_pointer_event&>(base_event);

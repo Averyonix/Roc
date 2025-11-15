@@ -4,16 +4,16 @@
 
 # MVP Features
 
- - Z-ordering
- - Keyboard and pointer focus
- - Popups
+ - Cursor rendering
  - Output globals
+ - Popups
  - Subsurfaces
  - Data manager
 
 # Extra
 
- - Set cursor
  - Transparency when blitting
 
 # Bugs
+
+ - Gwenview crashes when cycling through images trying to release a null proxy in `zwp_pointer_gestures_v1_release`

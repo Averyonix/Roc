@@ -19,6 +19,15 @@ void wroc_pointer_send_frame(wl_resource* pointer)
 static
 void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
 {
+    if (pointer->server->seat->keyboard) {
+        if (pointer->server->toplevel_under_cursor.get()) {
+            log_debug("trying to enter keyboard...");
+            wroc_keyboard_enter(pointer->server->seat->keyboard, pointer->server->toplevel_under_cursor.get()->base->surface.get());
+        } else {
+            wroc_keyboard_clear_focus(pointer->server->seat->keyboard);
+        }
+    }
+
     if (pointer->focused) {
         wl_pointer_send_button(pointer->focused,
             wl_display_next_serial(pointer->server->display),
@@ -29,51 +38,54 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
 }
 
 static
-void wroc_pointer_absolute(wroc_pointer* pointer, wroc_output* output, wrei_vec2f64 pos)
+void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, wrei_vec2f64 delta)
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
-    if (!pointer->focused) {
-        if (pointer->wl_pointers.front()) {
-            wroc_surface* surface = nullptr;
-            for (auto* s : pointer->server->surfaces) {
-                if (wroc_xdg_surface::try_from(s)) {
-                    surface = s;
-                }
-            }
+    auto pos = pointer->layout_position;
 
-            if (surface) {
-                pointer->focused = pointer->wl_pointers.front();
-                // auto* surface = pointer->server->surfaces.front();
-                pointer->focused_surface = wrei_weak_from(surface);
-                log_debug("entering surface: {}", (void*)surface);
-                wl_pointer_send_enter(pointer->focused,
-                    wl_display_next_serial(pointer->server->display),
-                    surface->wl_surface,
-                    wl_fixed_from_double(pos.x),
-                    wl_fixed_from_double(pos.y));
-            } else {
-                log_debug("Failed to find xdg_surface to pair with wl_pointer");
-            }
-        }
-    }
-
-    if (pointer->focused) {
-        if (auto* surface = wroc_xdg_surface::try_from(pointer->focused_surface.get())) {
-            // log_trace("sending motion ({:.3f}, {:.3f}) - ({}, {})", pos.x, pos.y, surface->position.x, surface->position.y);
-            wl_pointer_send_motion(pointer->focused,
-                wroc_get_elapsed_milliseconds(pointer->server),
-                wl_fixed_from_double(pos.x - surface->position.x),
-                wl_fixed_from_double(pos.y - surface->position.y));
+    auto* server = pointer->server;
+    auto* under_cursor = server->toplevel_under_cursor.get();
+    auto* surface_under_cursor = under_cursor ? under_cursor->base->surface.get() : nullptr;
+    if (surface_under_cursor != pointer->focused_surface.get()) {
+        if (auto* old_surface = pointer->focused_surface.get(); old_surface && old_surface->wl_surface) {
+            wl_pointer_send_leave(pointer->focused, wl_display_next_serial(server->display), old_surface->wl_surface);
             wroc_pointer_send_frame(pointer->focused);
         }
+        log_info("Leaving surface: {}", (void*)pointer->focused_surface.get());
+        pointer->focused_surface = nullptr;
+        pointer->focused = nullptr;
+
+        if (surface_under_cursor) {
+            log_info("Entering surface: {}", (void*)surface_under_cursor);
+            auto* client = wl_resource_get_client(surface_under_cursor->wl_surface);
+            for (auto* p : pointer->wl_pointers) {
+                if (wl_resource_get_client(p) != client) continue;
+
+                pointer->focused = p;
+                pointer->focused_surface = wrei_weak_from(surface_under_cursor);
+
+                wl_pointer_send_enter(pointer->focused,
+                    wl_display_next_serial(pointer->server->display),
+                    surface_under_cursor->wl_surface,
+                    wl_fixed_from_double(pos.x),
+                    wl_fixed_from_double(pos.y));
+
+                wroc_pointer_send_frame(pointer->focused);
+
+                break;
+            }
+        }
+    } else if (auto* xdg_surface = wroc_xdg_surface::try_from(pointer->focused_surface.get());
+            pointer->focused && xdg_surface && xdg_surface->surface->wl_surface) {
+        // log_trace("sending motion to surface: {}", (void*)surface);
+        auto geom = wroc_xdg_surface_get_geometry(xdg_surface);
+        wl_pointer_send_motion(pointer->focused,
+            wroc_get_elapsed_milliseconds(server),
+            wl_fixed_from_double(pos.x - xdg_surface->position.x + geom.origin.x),
+            wl_fixed_from_double(pos.y - xdg_surface->position.y + geom.origin.y));
+        wroc_pointer_send_frame(pointer->focused);
     }
-}
-
-static
-void wroc_pointer_relative(wroc_pointer* pointer, wrei_vec2f64 rel)
-{
-
 }
 
 static
@@ -105,14 +117,11 @@ void wroc_handle_pointer_event(wroc_server* server, const wroc_pointer_event& ev
         case wroc_event_type::pointer_button:
             wroc_pointer_button(event.pointer, event.button.button, event.button.pressed);
             break;
-        case wroc_event_type::pointer_absolute:
-            wroc_pointer_absolute(event.pointer, event.output, event.absolute.position);
-            break;
-        case wroc_event_type::pointer_relative:
-            wroc_pointer_relative(event.pointer, event.relative.delta);
+        case wroc_event_type::pointer_motion:
+            wroc_pointer_motion(event.pointer, event.output, event.motion.delta);
             break;
         case wroc_event_type::pointer_axis:
-            wroc_pointer_axis(event.pointer, event.relative.delta);
+            wroc_pointer_axis(event.pointer, event.axis.delta);
             break;
         default:
             break;

@@ -3,7 +3,6 @@
 #include "pch.hpp"
 #include "log.hpp"
 #include "types.hpp"
-#include "ref.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -55,6 +54,14 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
     inline constexpr EnumType operator& (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) & std::to_underlying(r));                  } \
     inline constexpr EnumType operator~ (EnumType  v)             { return EnumType(~std::to_underlying(v));                                         } \
     inline constexpr EnumType operator-=(EnumType& l, EnumType r) { return l = EnumType(std::to_underlying(l) & ~std::to_underlying(r));             }
+
+// -----------------------------------------------------------------------------
+
+#define WREI_DELETE_COPY_MOVE(Type)         \
+               Type(const Type& ) = delete; \
+    Type& operator=(const Type& ) = delete; \
+               Type(      Type&&) = delete; \
+    Type& operator=(      Type&&) = delete;
 
 // -----------------------------------------------------------------------------
 

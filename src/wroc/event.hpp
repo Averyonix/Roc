@@ -13,8 +13,7 @@ enum class wroc_event_type
 
     pointer_added,
     pointer_button,
-    pointer_absolute, // Pointer absolute and relative should be pre-processed into a single "motion" type
-    pointer_relative,
+    pointer_motion,
     pointer_axis,
 };
 
@@ -57,11 +56,8 @@ struct wroc_pointer_event : wroc_event
             bool pressed;
         } button;
         struct {
-            wrei_vec2f64 position;
-        } absolute;
-        struct {
             wrei_vec2f64 delta;
-        } relative;
+        } motion;
         struct {
             wrei_vec2f64 delta;
         } axis;

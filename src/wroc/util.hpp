@@ -2,6 +2,7 @@
 
 #include "wrei/types.hpp"
 #include "wrei/log.hpp"
+#include "wrei/util.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -55,6 +56,7 @@ public:
 
         resource = new_resource;
         wl_list_remove(&destroy_listener.link);
+        wl_list_init(&destroy_listener.link);
 
         if (resource) {
             wl_resource_add_destroy_listener(new_resource, &destroy_listener);
@@ -81,10 +83,7 @@ public:
         wl_list_remove(&destroy_listener.link);
     }
 
-    wrei_wl_resource(const wrei_wl_resource&) = delete;
-    wrei_wl_resource& operator=(const wrei_wl_resource&) = delete;
-    wrei_wl_resource(wrei_wl_resource&&) = delete;
-    wrei_wl_resource& operator=(wrei_wl_resource&&) = delete;
+    WREI_DELETE_COPY_MOVE(wrei_wl_resource)
 
     operator wl_resource*() const { return resource; }
 };
@@ -131,10 +130,7 @@ class wrei_wl_resource_list
             wl_list_remove(&destroy_listener.link);
         }
 
-        list_node(const wrei_wl_resource&) = delete;
-        list_node& operator=(const wrei_wl_resource&) = delete;
-        list_node(wrei_wl_resource&&) = delete;
-        list_node& operator=(wrei_wl_resource&&) = delete;
+        WREI_DELETE_COPY_MOVE(list_node)
     };
 
     list_node root;
@@ -225,8 +221,5 @@ public:
         clear();
     }
 
-    wrei_wl_resource_list(const wrei_wl_resource_list&) = delete;
-    wrei_wl_resource_list& operator=(const wrei_wl_resource_list&) = delete;
-    wrei_wl_resource_list(wrei_wl_resource_list&&) = delete;
-    wrei_wl_resource_list& operator=(wrei_wl_resource_list&&) = delete;
+    WREI_DELETE_COPY_MOVE(wrei_wl_resource_list)
 };
