@@ -50,7 +50,7 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 void wren_wait_for_timeline_value(wren_context*, const VkSemaphoreSubmitInfo&);
 
-struct wren_buffer : wrei_ref_counted
+struct wren_buffer : wrei_object
 {
     wren_context* ctx;
 
@@ -72,7 +72,7 @@ wrei_ref<wren_buffer> wren_buffer_create(wren_context*, usz size);
 
 u32 wren_find_vk_memory_type_index(wren_context* vk, u32 type_filter, VkMemoryPropertyFlags properties);
 
-struct wren_image : wrei_ref_counted
+struct wren_image : wrei_object
 {
     wren_context* ctx;
 

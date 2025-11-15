@@ -6,8 +6,8 @@
 
 wroc_wayland_output* wroc_backend_find_output_for_surface(wroc_backend* backend, wl_surface* surface)
 {
-    for (auto* output : backend->outputs) {
-        if (output->wl_surface == surface) return output;
+    for (auto& output : backend->outputs) {
+        if (output->wl_surface == surface) return output.get();
     }
     return nullptr;
 }
@@ -202,20 +202,20 @@ void wroc_backend_output_create(wroc_backend* backend)
     wroc_register_frame_callback(output);
 }
 
-void wroc_backend_output_destroy(wroc_output* _output)
+wroc_wayland_output::~wroc_wayland_output()
 {
-    wroc_wayland_output* output = static_cast<wroc_wayland_output*>(_output);
+    if (vk_surface) server->renderer->wren->vk.DestroySurfaceKHR(server->renderer->wren->instance, vk_surface, nullptr);
 
-    std::erase(output->server->backend->outputs, output);
+    if (decoration)  zxdg_toplevel_decoration_v1_destroy(decoration);
+    if (toplevel)    xdg_toplevel_destroy(toplevel);
+    if (xdg_surface) xdg_surface_destroy(xdg_surface);
+    if (wl_surface)  wl_surface_destroy(wl_surface);
 
-    if (output->vk_surface) output->server->renderer->wren->vk.DestroySurfaceKHR(output->server->renderer->wren->instance, output->vk_surface, nullptr);
+    if (frame_callback) wl_callback_destroy(frame_callback);
+}
 
-    if (output->decoration)  zxdg_toplevel_decoration_v1_destroy(output->decoration);
-    if (output->toplevel)    xdg_toplevel_destroy(output->toplevel);
-    if (output->xdg_surface) xdg_surface_destroy(output->xdg_surface);
-    if (output->wl_surface)  wl_surface_destroy(output->wl_surface);
-
-    if (output->frame_callback) wl_callback_destroy(output->frame_callback);
-
-    delete output;
+void wroc_backend_output_destroy(wroc_output* output)
+{
+    std::erase_if(output->server->backend->outputs, [&](auto& o) { return o.get() == output; });
+    wrei_remove_ref(output);
 }

@@ -105,27 +105,17 @@ wroc_wayland_pointer::~wroc_wayland_pointer()
 }
 
 static
-void wroc_pointer_destroy(wroc_backend* backend)
-{
-    if (!backend->pointer) return;
-
-    log_debug("pointer_destroy({})", (void*)backend->keyboard);
-
-    delete backend->keyboard;
-}
-
-static
 void wroc_pointer_set(wroc_backend* backend, struct wl_pointer* wl_pointer)
 {
     if (!backend->pointer || backend->pointer->wl_pointer != wl_pointer) {
         log_debug("pointer_set({}, old = {})", (void*)wl_pointer, (void*)(backend->pointer ? backend->pointer->wl_pointer : nullptr));
     }
 
-    if (backend->pointer && backend->pointer->wl_pointer != wl_pointer) {
-        wroc_pointer_destroy(backend);
+    if (backend->pointer && backend->pointer->wl_pointer == wl_pointer) {
+        return;
     }
 
-    auto* pointer = backend->pointer = new wroc_wayland_pointer {};
+    auto* pointer = (backend->pointer = wrei_adopt_ref(new wroc_wayland_pointer {})).get();
     pointer->wl_pointer = wl_pointer;
     pointer->server = backend->server;
 
@@ -232,27 +222,17 @@ wroc_wayland_keyboard::~wroc_wayland_keyboard()
 }
 
 static
-void wroc_keyboard_destroy(wroc_backend* backend)
-{
-    if (!backend->keyboard) return;
-
-    log_debug("keyboard_destroy({})", (void*)backend->keyboard);
-
-    delete backend->keyboard;
-}
-
-static
 void wroc_keyboard_set(wroc_backend* backend, struct wl_keyboard* wl_keyboard)
 {
     if (!backend->keyboard || backend->keyboard->wl_keyboard != wl_keyboard) {
         log_debug("keyboard_set({}, old = {})", (void*)wl_keyboard, (void*)(backend->keyboard ? backend->keyboard->wl_keyboard : nullptr));
     }
 
-    if (backend->keyboard && backend->keyboard->wl_keyboard != wl_keyboard) {
-        wroc_keyboard_destroy(backend);
+    if (backend->keyboard && backend->keyboard->wl_keyboard == wl_keyboard) {
+        return;
     }
 
-    auto* keyboard = backend->keyboard = new wroc_wayland_keyboard {};
+    auto* keyboard = (backend->keyboard = wrei_adopt_ref(new wroc_wayland_keyboard {})).get();
     keyboard->wl_keyboard = wl_keyboard;
     keyboard->server = backend->server;
 
@@ -273,13 +253,13 @@ void wroc_listen_wl_seat_capabilities(void* data, wl_seat* seat, u32 capabilitie
     if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD) {
         wroc_keyboard_set(backend, wl_seat_get_keyboard(seat));
     } else if (backend->keyboard) {
-        wroc_keyboard_destroy(backend);
+        backend->keyboard = nullptr;
     }
 
     if (capabilities & WL_SEAT_CAPABILITY_POINTER) {
         wroc_pointer_set(backend, wl_seat_get_pointer(seat));
     } else if (backend->pointer) {
-        wroc_pointer_destroy(backend);
+        backend->pointer = nullptr;
     }
 }
 

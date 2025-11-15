@@ -6,7 +6,7 @@
 
 void wroc_renderer_create(wroc_server* server)
 {
-    auto* renderer = server->renderer = new wroc_renderer {};
+    auto* renderer = (server->renderer = wrei_adopt_ref(new wroc_renderer {})).get();
     renderer->server = server;
 
     renderer->wren = wren_create();
@@ -23,15 +23,11 @@ void wroc_renderer_create(wroc_server* server)
     wren_image_update(renderer->image.get(), data);
 }
 
-void wroc_renderer_destroy(wroc_server* server)
+wroc_renderer::~wroc_renderer()
 {
-    auto* renderer = server->renderer;
-
-    renderer->image.reset();
-    vkwsi_context_destroy(renderer->wren->vkwsi);
-    renderer->wren.reset();
-
-    delete renderer;
+    image.reset();
+    vkwsi_context_destroy(wren->vkwsi);
+    wren.reset();
 }
 
 void wroc_output_frame(wroc_output* output)

@@ -5,7 +5,7 @@
 
 struct wrei_weak_state
 {
-    struct wrei_ref_counted* value;
+    struct wrei_object* value;
 };
 
 #define NOISY_REF_COUNTS 0
@@ -13,10 +13,10 @@ struct wrei_weak_state
 static i64 debug_global_ref_counted_objects;
 #endif
 
-struct wrei_ref_counted
+struct wrei_object
 {
-    u32 ref_count = 1;
-    std::shared_ptr<wrei_weak_state> weak_state;
+    u32 _ref_count = 1;
+    std::shared_ptr<wrei_weak_state> _weak_state;
 
 #if NOISY_REF_COUNTS
     wrei_ref_counted()
@@ -25,26 +25,26 @@ struct wrei_ref_counted
     }
 #endif
 
-    virtual ~wrei_ref_counted()
+    virtual ~wrei_object()
     {
 #if NOISY_REF_COUNTS
         log_trace("RefCounted -- {}", --debug_global_ref_counted_objects);
 #endif
-        if (weak_state) weak_state->value = nullptr;
+        if (_weak_state) _weak_state->value = nullptr;
     }
 };
 
 template<typename T>
 T* wrei_add_ref(T* t)
 {
-    if (t) static_cast<wrei_ref_counted*>(t)->ref_count++;
+    if (t) static_cast<wrei_object*>(t)->_ref_count++;
     return t;
 }
 
 template<typename T>
 void wrei_remove_ref(T* t)
 {
-    if (t && !--static_cast<wrei_ref_counted*>(t)->ref_count) {
+    if (t && !--static_cast<wrei_object*>(t)->_ref_count) {
         delete t;
     }
 }
@@ -135,21 +135,21 @@ wrei_ref<T> wrei_adopt_ref(T* t)
 template<typename T>
 struct wrei_weak
 {
-    std::shared_ptr<wrei_weak_state> weak_state;
+    std::shared_ptr<wrei_weak_state> _weak_state;
 
-    T*     get() const { return weak_state ? static_cast<T*>(weak_state->value) : nullptr; }
-    void reset()       { weak_state = {}; }
+    T*     get() const { return _weak_state ? static_cast<T*>(_weak_state->value) : nullptr; }
+    void reset()       { _weak_state = {}; }
 
     template<typename T2>
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
-    operator wrei_weak<T2>() { return wrei_weak<T2>{weak_state}; }
+    operator wrei_weak<T2>() { return wrei_weak<T2>{_weak_state}; }
 };
 
 template<typename T>
-requires std::derived_from<std::remove_cvref_t<T>, wrei_ref_counted>
+requires std::derived_from<std::remove_cvref_t<T>, wrei_object>
 wrei_weak<T> wrei_weak_from(T* t)
 {
     if (!t) return {};
-    if (!t->weak_state) t->weak_state.reset(new wrei_weak_state{t});
-    return wrei_weak<T>{t->weak_state};
+    if (!t->_weak_state) t->_weak_state.reset(new wrei_weak_state{t});
+    return wrei_weak<T>{t->_weak_state};
 }

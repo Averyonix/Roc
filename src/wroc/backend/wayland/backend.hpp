@@ -12,6 +12,8 @@ struct wroc_wayland_output : wroc_output
     zxdg_toplevel_decoration_v1* decoration = {};
 
     wl_callback* frame_callback = {};
+
+    ~wroc_wayland_output();
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard
@@ -44,10 +46,10 @@ struct wroc_backend
 
     struct wl_seat* seat = {};
 
-    std::vector<wroc_wayland_output*> outputs;
+    std::vector<wrei_ref<wroc_wayland_output>> outputs;
 
-    wroc_wayland_keyboard* keyboard = {};
-    wroc_wayland_pointer*  pointer = {};
+    wrei_ref<wroc_wayland_keyboard> keyboard = {};
+    wrei_ref<wroc_wayland_pointer>  pointer = {};
 
     wl_event_source* event_source = {};
 };

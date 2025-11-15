@@ -85,7 +85,7 @@ void wroc_backend_init(wroc_server* server)
     auto* backend = new wroc_backend{};
     backend->server = server;
 
-    if (getenv("WAYLAND_DEBUG_BACKEND")) {
+    if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
         setenv("WAYLAND_DEBUG", "1", true);
     } else {
         unsetenv("WAYLAND_DEBUG");
@@ -111,12 +111,10 @@ void wroc_backend_destroy(wroc_backend* backend)
 {
     wl_event_source_remove(backend->event_source);
 
-    if (backend->keyboard) delete backend->keyboard;
-    if (backend->pointer)  delete backend->pointer;
+    if (backend->keyboard) backend->keyboard = nullptr;
+    if (backend->pointer)  backend->pointer = nullptr;
 
-    while (!backend->outputs.empty()) {
-        wroc_backend_output_destroy(backend->outputs.back());
-    }
+    backend->outputs.clear();
 
     zxdg_decoration_manager_v1_destroy(backend->decoration_manager);
     wl_compositor_destroy(backend->wl_compositor);

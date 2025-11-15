@@ -1,11 +1,12 @@
 #pragma once
 
 #include "wrei/log.hpp"
+#include "wrei/ref.hpp"
 
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)
 {
-    return static_cast<T*>(wl_resource_get_user_data(resource));
+    return dynamic_cast<T*>(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
 }
 
 #define WROC_NOISY_WL_RESOURCE 0
@@ -27,11 +28,23 @@ void wroc_debug_track_resource(wl_resource* resource)
 #endif
 }
 
-#define WROC_SIMPLE_RESOURCE_UNREF(Type) \
-    [](wl_resource* resource) { \
-        auto* t = wroc_get_userdata<Type>(resource); \
-        wrei_remove_ref(t); \
-    }
+inline
+void wroc_resource_simple_unref(wl_resource* resource)
+{
+    wrei_remove_ref(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
+}
+
+inline
+void wroc_resource_set_implementation_refcounted(wl_resource* resource, const void* implementation, wrei_object* base)
+{
+    wl_resource_set_implementation(resource, implementation, base, wroc_resource_simple_unref);
+}
+
+inline
+void wroc_resource_set_implementation(wl_resource* resource, const void* implementation, wrei_object* base)
+{
+    wl_resource_set_implementation(resource, implementation, base, nullptr);
+}
 
 inline
 void wroc_simple_resource_destroy_callback(wl_client* client, wl_resource* resource)

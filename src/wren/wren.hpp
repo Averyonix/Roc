@@ -5,7 +5,7 @@
 
 #include "wren_functions.hpp"
 
-struct wren_context : wrei_ref_counted
+struct wren_context : wrei_object
 {
     struct {
         WREN_DECLARE_FUNCTION(GetInstanceProcAddr)

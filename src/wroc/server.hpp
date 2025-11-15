@@ -30,7 +30,7 @@ void wroc_backend_destroy(wroc_backend*);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_output
+struct wroc_output : wrei_object
 {
     wroc_server* server;
 
@@ -56,21 +56,21 @@ void wroc_backend_output_destroy(wroc_output*);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_xdg_wm_base : wrei_ref_counted
+struct wroc_xdg_wm_base : wrei_object
 {
     wroc_server* server;
 
     wrei_wl_resource xdg_wm_base;
 };
 
-struct wroc_wl_compositor : wrei_ref_counted
+struct wroc_wl_compositor : wrei_object
 {
     wroc_server* server;
 
     wrei_wl_resource wl_compositor;
 };
 
-struct wroc_wl_region : wrei_ref_counted
+struct wroc_wl_region : wrei_object
 {
     wroc_server* server;
 
@@ -81,13 +81,13 @@ struct wroc_wl_region : wrei_ref_counted
 
 struct wroc_wl_buffer;
 
-struct wroc_surface_addon : wrei_ref_counted
+struct wroc_surface_addon : wrei_object
 {
     virtual void on_initial_commit() = 0;
     virtual void on_commit() = 0;
 };
 
-struct wroc_surface : wrei_ref_counted
+struct wroc_surface : wrei_object
 {
     wroc_server* server;
 
@@ -212,7 +212,7 @@ enum class wroc_wl_buffer_type
     dma,
 };
 
-struct wroc_wl_buffer : wrei_ref_counted
+struct wroc_wl_buffer : wrei_object
 {
     wroc_server* server;
 
@@ -234,14 +234,14 @@ struct wroc_wl_buffer : wrei_ref_counted
 
 // -----------------------------------------------------------------------------
 
-struct wroc_wl_shm : wrei_ref_counted
+struct wroc_wl_shm : wrei_object
 {
     wroc_server* server;
 
     wrei_wl_resource wl_shm;
 };
 
-struct wroc_wl_shm_pool : wrei_ref_counted
+struct wroc_wl_shm_pool : wrei_object
 {
     wroc_server* server;
 
@@ -267,7 +267,7 @@ struct wroc_shm_buffer : wroc_wl_buffer
 
 // -----------------------------------------------------------------------------
 
-struct wroc_zwp_linux_buffer_params : wrei_ref_counted
+struct wroc_zwp_linux_buffer_params : wrei_object
 {
     wroc_server* server;
 
@@ -285,7 +285,7 @@ struct wroc_dma_buffer : wroc_wl_buffer
 
 // -----------------------------------------------------------------------------
 
-struct wroc_seat
+struct wroc_seat : wrei_object
 {
     wroc_server* server;
 
@@ -318,7 +318,7 @@ static constexpr std::pair<wroc_modifiers, const char*> wroc_modifier_xkb_names[
     { wroc_modifiers::num,   XKB_MOD_NAME_NUM },
 };
 
-struct wroc_keyboard
+struct wroc_keyboard : wrei_object
 {
     wroc_server* server;
 
@@ -350,7 +350,7 @@ wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_keyboard*);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_pointer
+struct wroc_pointer : wrei_object
 {
     wroc_server* server;
 
@@ -374,17 +374,18 @@ void wroc_pointer_axis(    wroc_pointer*, wrei_vec2f64 rel);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_renderer
+struct wroc_renderer : wrei_object
 {
     wroc_server* server;
 
     wrei_ref<wren_context> wren;
 
     wrei_ref<wren_image> image;
+
+    ~wroc_renderer();
 };
 
 void wroc_renderer_create( wroc_server*);
-void wroc_renderer_destroy(wroc_server*);
 
 enum class wroc_interaction_mode
 {
@@ -402,11 +403,11 @@ enum class wroc_edges
 };
 WREI_DECORATE_FLAG_ENUM(wroc_edges)
 
-struct wroc_server
+struct wroc_server : wrei_object
 {
     wroc_backend*  backend;
-    wroc_renderer* renderer;
-    wroc_seat*     seat;
+    wrei_ref<wroc_renderer> renderer;
+    wrei_ref<wroc_seat>     seat;
 
     wroc_modifiers main_mod = wroc_modifiers::alt;
 
