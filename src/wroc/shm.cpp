@@ -1,7 +1,10 @@
 #include "server.hpp"
 
 static
-void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, int fd, i32 size) {
+void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, int fd, i32 size)
+{
+    // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
+
     auto* new_resource = wl_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* pool = new wroc_wl_shm_pool {};
@@ -29,13 +32,17 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
     shm->server = static_cast<wroc_server*>(data);
     shm->wl_shm = new_resource;
     wl_resource_set_implementation(new_resource, &wroc_wl_shm_impl, shm, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_shm, wl_shm));
+
+    // TODO: Integrate with Wren to expose supported formats
+
     wl_shm_send_format(new_resource, WL_SHM_FORMAT_XRGB8888);
 };
 
 // -----------------------------------------------------------------------------
 
 static
-void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 format) {
+void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 format)
+{
     auto* pool = wroc_get_userdata<wroc_wl_shm_pool>(resource);
 
     i32 needed = stride * height + offset;
@@ -51,19 +58,19 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
     shm_buffer->type = wroc_wl_buffer_type::shm;
     shm_buffer->wl_buffer = new_resource;
     shm_buffer->pool = pool;
-    shm_buffer->width = width;
-    shm_buffer->height = height;
+    shm_buffer->extent = {width, height};
     shm_buffer->stride = stride;
     shm_buffer->format = wl_shm_format(format);
     wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, shm_buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_shm_buffer, wl_buffer));
 
-    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)});
+    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)}, VK_FORMAT_B8G8R8A8_UNORM);
 
     log_warn("buffer created ({}, {})", width, height);
 }
 
 static
-void wroc_wl_shm_pool_resize(wl_client* client, wl_resource* resource, i32 size) {
+void wroc_wl_shm_pool_resize(wl_client* client, wl_resource* resource, i32 size)
+{
     auto* pool = wroc_get_userdata<wroc_wl_shm_pool>(resource);
     munmap(pool->data, pool->size);
     pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
@@ -82,12 +89,13 @@ const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
 wroc_wl_shm_pool::~wroc_wl_shm_pool()
 {
     if (data) munmap(data, size);
+    close(fd);
 }
 
 void wroc_shm_buffer::on_commit()
 {
     lock();
     wren_image_update(image.get(), static_cast<char*>(pool->data) + offset);
-    log_debug("buffer updated ({}, {})", width, height);
+    log_debug("buffer updated ({}, {})", extent.x, extent.y);
     unlock();
 }

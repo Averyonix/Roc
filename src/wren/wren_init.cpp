@@ -161,6 +161,18 @@ wrei_ref<wren_context> wren_create()
         },
     })));
 
+    wren_check(vmaCreateAllocator(wrei_ptr_to(VmaAllocatorCreateInfo {
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+        .physicalDevice = ctx->physical_device,
+        .device = ctx->device,
+        .pVulkanFunctions = wrei_ptr_to(VmaVulkanFunctions {
+            .vkGetInstanceProcAddr = ctx->vk.GetInstanceProcAddr,
+            .vkGetDeviceProcAddr = ctx->vk.GetDeviceProcAddr,
+        }),
+        .instance = ctx->instance,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+    }), &ctx->vma));
+
     wren_check(ctx->vk.CreateCommandPool(ctx->device, wrei_ptr_to(VkCommandPoolCreateInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,

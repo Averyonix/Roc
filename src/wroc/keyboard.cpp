@@ -3,6 +3,39 @@
 
 #include "wrei/shm.hpp"
 
+static
+void wroc_keyboard_update_active_modifiers(wroc_keyboard* kb)
+{
+    wroc_modifiers down = {};
+
+    auto xkb_mods = xkb_state_serialize_mods(kb->xkb_state, XKB_STATE_MODS_EFFECTIVE);
+    for (auto[mod, mask] : kb->xkb_mod_masks) {
+        if (xkb_mods & mask) down |= mod;
+    }
+
+    kb->active_modifiers = down;
+}
+
+wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_keyboard* kb)
+{
+    auto down = kb->active_modifiers;
+
+    if (down >= kb->server->main_mod) {
+        down |= wroc_modifiers::mod;
+    }
+
+    return down;
+}
+
+wroc_modifiers wroc_get_active_modifiers(wroc_server* server)
+{
+    wroc_modifiers mods = {};
+    if (server->seat->keyboard) {
+        mods |= wroc_keyboard_get_active_modifiers(server->seat->keyboard);
+    }
+    return mods;
+}
+
 void wroc_keyboard_added(wroc_keyboard* kb)
 {
     log_info("KEYBOARD ADDED");
@@ -12,6 +45,17 @@ void wroc_keyboard_added(wroc_keyboard* kb)
 
 void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 {
+    // Update modifier indices
+
+    for (auto[i, mod_name] : wroc_modifier_xkb_names | std::views::enumerate) {
+        auto[mod, xkb_name] = mod_name;
+        kb->xkb_mod_masks[i] = { mod, xkb_keymap_mod_get_mask(kb->xkb_keymap, xkb_name) };
+    }
+
+    wroc_keyboard_update_active_modifiers(kb);
+
+    // Update keymap file
+
     const char* keymap_str = xkb_keymap_get_as_string(kb->xkb_keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
     if (!keymap_str) {
         log_error("Failed to get string version of keymap");
@@ -79,13 +123,15 @@ void wroc_keyboard_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
     if (kb->focused) {
         wl_keyboard_send_key(kb->focused,
             wl_display_next_serial(kb->server->display),
-            wroc_server_get_elapsed_milliseconds(kb->server),
+            wroc_get_elapsed_milliseconds(kb->server),
             libinput_keycode, pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
     }
 }
 
 void wroc_keyboard_modifiers(wroc_keyboard* kb, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group)
 {
+    wroc_keyboard_update_active_modifiers(kb);
+
     if (kb->focused) {
         wl_keyboard_send_modifiers(kb->focused,
             wl_display_next_serial(kb->server->display),

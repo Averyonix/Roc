@@ -40,9 +40,21 @@ add_subdirectory(${VENDOR_DIR}/glm EXCLUDE_FROM_ALL)
 
 add_subdirectory(${VENDOR_DIR}/vulkan-headers           EXCLUDE_FROM_ALL)
 add_subdirectory(${VENDOR_DIR}/vulkan-utility-libraries EXCLUDE_FROM_ALL)
-add_subdirectory(${VENDOR_DIR}/vulkan-memory-allocator  EXCLUDE_FROM_ALL)
 
 add_subdirectory(${VENDOR_DIR}/vkwsi EXCLUDE_FROM_ALL)
+
+# ------------------------------------------------------------------------------
+
+add_subdirectory(${VENDOR_DIR}/vulkan-memory-allocator  EXCLUDE_FROM_ALL)
+
+add_library(vma-object)
+file(GENERATE
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_mem_alloc.cpp
+    CONTENT "#define VMA_IMPLEMENTATION\n#include <vk_mem_alloc.h>")
+target_sources(       vma-object PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/vk_mem_alloc.cpp)
+target_link_libraries(vma-object PUBLIC GPUOpen::VulkanMemoryAllocator)
+target_compile_options(vma-object PRIVATE -w)
+target_compile_definitions(vma-object PUBLIC "VMA_STATIC_VULKAN_FUNCTIONS=0" "VMA_DYNAMIC_VULKAN_FUNCTIONS=1")
 
 # ------------------------------------------------------------------------------
 
@@ -59,7 +71,7 @@ target_include_directories(luajit INTERFACE ${VENDOR_DIR}/luajit/src)
 add_executable(            ${PROJECT_NAME})
 target_precompile_headers( ${PROJECT_NAME} PUBLIC src/wrei/pch.hpp)
 target_compile_definitions(${PROJECT_NAME} PUBLIC "PROGRAM_NAME=\"${PROJECT_NAME}\"")
-target_compile_options(    ${PROJECT_NAME} PUBLIC
+target_compile_options(    ${PROJECT_NAME} PRIVATE
     -std=c++26
     -Wall
     -Wextra
@@ -72,7 +84,7 @@ target_compile_options(    ${PROJECT_NAME} PUBLIC
     -Wno-gnu-conditional-omitted-operand
     -Wno-zero-length-array
     -Wno-c99-designator
-    -Wno-unused-parameter # ...
+    -Wno-unused-parameter
     -Wimplicit-fallthrough
     -Wshadow
     )
@@ -88,6 +100,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
 
     src/wrei/log.cpp
     src/wrei/shm.cpp
+    src/wrei/region.cpp
 
     src/wroc/server.cpp
     src/wroc/output.cpp
@@ -130,6 +143,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     luajit
     Vulkan::Headers
     Vulkan::UtilityHeaders
+    vma-object
     vk-wsi::vk-wsi
     stb-image
     )

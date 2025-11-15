@@ -3,7 +3,7 @@
 #include "wren/wren.hpp"
 #include "wren/wren_helpers.hpp"
 
-u32 wroc_server_get_elapsed_milliseconds(wroc_server* server)
+u32 wroc_get_elapsed_milliseconds(wroc_server* server)
 {
     // TODO: This will elapse after 46 days of runtime, should we base it on surface epoch?
 
@@ -68,78 +68,4 @@ void wroc_run(int /* argc */, char* /* argv */[])
 void wroc_terminate(wroc_server* server)
 {
     wl_display_terminate(server->display);
-}
-
-void wroc_output_frame(wroc_output* output)
-{
-    auto* wren = output->server->renderer->wren.get();
-    auto cmd = wren_begin_commands(wren);
-
-    auto current = wroc_output_acquire_image(output);
-
-    wren_transition(wren, cmd, current.image,
-        VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-
-    wren->vk.CmdClearColorImage(cmd, current.image,
-        VK_IMAGE_LAYOUT_GENERAL,
-        wrei_ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
-        1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
-
-    auto blit = [&](wren_image* image) {
-        wren->vk.CmdBlitImage2(cmd, wrei_ptr_to(VkBlitImageInfo2 {
-            .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
-            .srcImage = image->image,
-            .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .dstImage = current.image,
-            .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .regionCount = 1,
-            .pRegions = wrei_ptr_to(VkImageBlit2 {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
-                .srcSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                .srcOffsets = {
-                    VkOffset3D { },
-                    VkOffset3D { i32(image->extent.width), i32(image->extent.height), 1 },
-                },
-                .dstSubresource = VkImageSubresourceLayers{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                .dstOffsets = {
-                    VkOffset3D { },
-                    VkOffset3D {
-                        i32(std::min(current.extent.width, image->extent.width)),
-                        i32(std::min(current.extent.height, image->extent.height)),
-                        1
-                    },
-                },
-            }),
-            .filter = VK_FILTER_NEAREST,
-        }));
-    };
-
-    blit(output->server->renderer->image.get());
-
-    for (wroc_surface* surface : output->server->surfaces) {
-        if (surface->current.buffer) {
-            blit(surface->current.buffer->image.get());
-        }
-    }
-
-    wren_transition(wren, cmd, current.image,
-        VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
-        VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
-        VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-    wren_submit_commands(wren, cmd);
-    wren_check(vkwsi_swapchain_present(&output->swapchain, 1, wren->queue, nullptr, 0, false));
-
-    auto elapsed = wroc_server_get_elapsed_milliseconds(output->server);
-
-    for (wroc_surface* surface : output->server->surfaces) {
-        while (!surface->current.frame_callbacks.empty()) {
-            auto callback = surface->current.frame_callbacks.front();
-            log_trace("Sending frame callback");
-            wl_callback_send_done(callback, elapsed);
-            wl_resource_destroy(callback);
-        }
-    }
 }

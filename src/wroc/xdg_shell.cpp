@@ -77,11 +77,11 @@ void wroc_xdg_surface::on_commit()
         pending.geometry = std::nullopt;
     }
 
-    if (current.geometry) {
-        log_debug("Geometry: (({}, {}), ({}, {}))",
-            current.geometry->origin.x, current.geometry->origin.y,
-            current.geometry->extent.x, current.geometry->extent.y);
-    }
+    // if (current.geometry) {
+    //     log_debug("Geometry: (({}, {}), ({}, {}))",
+    //         current.geometry->origin.x, current.geometry->origin.y,
+    //         current.geometry->extent.x, current.geometry->extent.y);
+    // }
 }
 
 wroc_xdg_surface::~wroc_xdg_surface()
@@ -99,18 +99,40 @@ const struct xdg_surface_interface wroc_xdg_surface_impl = {
     .ack_configure       = WROC_STUB,
 };
 
+wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
+{
+    wrei_rect<i32> geom = {};
+    if (xdg_surface->current.geometry) {
+        geom = *xdg_surface->current.geometry;
+    } else if (xdg_surface->surface->current.buffer) {
+        auto* buffer = xdg_surface->surface->current.buffer.get();
+        geom.extent = { buffer->extent.x, buffer->extent.y };
+    }
+    return geom;
+}
+
 // -----------------------------------------------------------------------------
+
+static
+void wroc_xdg_toplevel_set_title(wl_client* client, wl_resource* resource, const char* title)
+{
+    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    toplevel->pending.title = title ? std::string{title} : std::string{};
+}
+
+static
+void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, const char* app_id)
+{
+    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    toplevel->pending.app_id = app_id ? std::string{app_id} : std::string{};
+}
 
 void wroc_xdg_toplevel::on_initial_commit()
 {
-    wrei_vec2i32 initial_bounds = { 1280, 720 };
+    wroc_xdg_toplevel_set_size(this, {0, 0});
+    wroc_xdg_toplevel_set_state(this, XDG_TOPLEVEL_STATE_ACTIVATED, true);
 
-    if (wl_resource_get_version(xdg_toplevel) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
-        xdg_toplevel_send_configure_bounds(xdg_toplevel, initial_bounds.x, initial_bounds.y);
-    }
-
-    xdg_toplevel_send_configure(xdg_toplevel, initial_bounds.x, initial_bounds.y,
-        wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_state>({ XDG_TOPLEVEL_STATE_ACTIVATED })));
+    wroc_xdg_toplevel_flush_configure(this);
 
     if (wl_resource_get_version(xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
         xdg_toplevel_send_wm_capabilities(xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
@@ -122,6 +144,14 @@ void wroc_xdg_toplevel::on_initial_commit()
 
 void wroc_xdg_toplevel::on_commit()
 {
+    if (pending.title) {
+        current.title = *pending.title;
+        pending.title = std::nullopt;
+    }
+    if (pending.app_id) {
+        current.app_id = *pending.app_id;
+        pending.app_id = std::nullopt;
+    }
 }
 
 wroc_xdg_toplevel::~wroc_xdg_toplevel()
@@ -134,8 +164,8 @@ wroc_xdg_toplevel::~wroc_xdg_toplevel()
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .destroy          = wroc_simple_resource_destroy_callback,
     .set_parent       = WROC_STUB,
-    .set_title        = WROC_STUB,
-    .set_app_id       = WROC_STUB,
+    .set_title        = wroc_xdg_toplevel_set_title,
+    .set_app_id       = wroc_xdg_toplevel_set_app_id,
     .show_window_menu = WROC_STUB,
     .move             = WROC_STUB,
     .resize           = WROC_STUB,
@@ -147,3 +177,47 @@ const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .unset_fullscreen = WROC_STUB,
     .set_minimized    = WROC_STUB,
 };
+
+void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel* toplevel, wrei_vec2i32 size)
+{
+    if (toplevel->size == size) return;
+    toplevel->size = size;
+    toplevel->pending_configure = wroc_xdg_toplevel_configure_state::size;
+}
+
+void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel* toplevel, wrei_vec2i32 bounds)
+{
+    if (wl_resource_get_version(toplevel->xdg_toplevel) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
+        toplevel->bounds = bounds;
+        toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::bounds;
+    }
+}
+
+void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel* toplevel, xdg_toplevel_state state, bool enabled)
+{
+    if (enabled) {
+        if (std::ranges::find(toplevel->states, state) == toplevel->states.end()) {
+            toplevel->states.emplace_back(state);
+            toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::states;
+        }
+    } else if (std::erase(toplevel->states, state)) {
+        toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::states;
+    }
+}
+
+void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
+{
+    if (toplevel->pending_configure == wroc_xdg_toplevel_configure_state::none) return;
+
+    if (toplevel->pending_configure >= wroc_xdg_toplevel_configure_state::bounds) {
+        xdg_toplevel_send_configure_bounds(toplevel->xdg_toplevel, toplevel->bounds.x, toplevel->bounds.y);
+    }
+
+    xdg_toplevel_send_configure(toplevel->xdg_toplevel, toplevel->size.x, toplevel->size.y,
+        wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(toplevel->states)));
+
+    // TODO: This should be handled with a similar queueing mechanism!
+    xdg_surface_send_configure(toplevel->base->xdg_surface, wl_display_next_serial(toplevel->base->surface->server->display));
+
+    toplevel->pending_configure = {};
+}

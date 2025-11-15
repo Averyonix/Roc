@@ -20,6 +20,7 @@
 #include <list>
 #include <ranges>
 #include <random>
+#include <stacktrace>
 
 #include <cstring>
 #include <csignal>
@@ -73,6 +74,8 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 #include <vk-wsi.h>
+
+#include <vk_mem_alloc.h>
 
 // -----------------------------------------------------------------------------
 

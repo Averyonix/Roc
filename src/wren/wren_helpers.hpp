@@ -13,6 +13,7 @@ VkResult wren_check(VkResult res, auto... allowed)
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
     log_error("VULKAN ERROR: {}, ({})", wren_result_to_string(res), int(res));
+    std::cout << std::stacktrace::current();
 
     return res;
 }
@@ -54,7 +55,7 @@ struct wren_buffer : wrei_ref_counted
     wren_context* ctx;
 
     VkBuffer buffer;
-    VkDeviceMemory memory;
+    VmaAllocation vma_allocation;
     VkDeviceAddress device_address;
     void* host_address;
 
@@ -78,12 +79,13 @@ struct wren_image : wrei_ref_counted
     VkImage image;
     VkImageView view;
     VkDeviceMemory memory;
+    VmaAllocation vma_allocation;
     VkExtent3D extent;
 
     ~wren_image();
 };
 
-wrei_ref<wren_image> wren_image_create(wren_context*, VkExtent2D extent);
+wrei_ref<wren_image> wren_image_create(wren_context*, VkExtent2D extent, VkFormat format);
 void wren_image_update(wren_image*, const void* data);
 
 VkSampler wren_sampler_create(wren_context*);

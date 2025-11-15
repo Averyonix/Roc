@@ -219,3 +219,27 @@ struct wrei_unix_check_helper
 #define wrei_unix_check_n1(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg1     >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
 #define wrei_unix_check_ne(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
 #define wrei_unix_check_ce(func, ...) [&] { errno = 0; return wrei_unix_check_helper<wrei_unix_error_behavior::check_errno  >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__); }()
+
+
+// -----------------------------------------------------------------------------
+
+struct wrei_region
+{
+    pixman_region32 region;
+
+    wrei_region();
+    wrei_region(wrei_rect<i32>);
+
+    wrei_region(const wrei_region&);
+    wrei_region& operator=(const wrei_region&);
+
+    wrei_region(wrei_region&&);
+    wrei_region& operator=(wrei_region&&);
+
+    ~wrei_region();
+
+    void add(wrei_rect<i32>);
+    void subtract(wrei_rect<i32>);
+
+    bool contains(wrei_vec2i32 point);
+};

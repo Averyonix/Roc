@@ -10,7 +10,6 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
     auto* region = new wroc_wl_region {};
     region->server = compositor->server;
     region->wl_region = new_resource;
-    pixman_region32_init(&region->region);
     wl_resource_set_implementation(new_resource, &wroc_wl_region_impl, region, WROC_SIMPLE_RESOURCE_UNREF(wroc_wl_region, wl_region));
 }
 
@@ -48,7 +47,7 @@ static
 void wroc_wl_region_add(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
     auto* region = wroc_get_userdata<wroc_wl_region>(resource);
-    pixman_region32_union_rect(&region->region, &region->region, x, y, width, height);
+    region->region.add({{x, y}, {width, height}});
 }
 
 static
@@ -56,12 +55,7 @@ void wroc_wl_region_subtract(wl_client* client, wl_resource* resource, i32 x, i3
 {
     auto* region = wroc_get_userdata<wroc_wl_region>(resource);
 
-    pixman_region32_union_rect(&region->region, &region->region, x, y, width, height);
-
-    pixman_region32_t rect;
-    pixman_region32_init_rect(&rect, x, y, width, height);
-    pixman_region32_subtract(&region->region, &region->region, &rect);
-    pixman_region32_fini(&rect);
+    region->region.subtract({{x, y}, {width, height}});
 }
 
 const struct wl_region_interface wroc_wl_region_impl = {
@@ -69,11 +63,6 @@ const struct wl_region_interface wroc_wl_region_impl = {
     .destroy  = wroc_simple_resource_destroy_callback,
     .subtract = wroc_wl_region_subtract,
 };
-
-wroc_wl_region::~wroc_wl_region()
-{
-    pixman_region32_fini(&region);
-}
 
 // -----------------------------------------------------------------------------
 
@@ -83,12 +72,21 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
     if (wl_buffer) {
         auto* buffer = wroc_get_userdata<wroc_shm_buffer>(wl_buffer);
-        log_trace("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
+        // log_trace("Attaching buffer, type = {}", magic_enum::enum_name(buffer->type));
         surface->pending.buffer = buffer;
     } else {
         surface->pending.buffer = nullptr;
     }
     surface->pending.buffer_was_set = true;
+
+    if (x || y) {
+        if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
+            wl_resource_post_error(resource, WL_SURFACE_ERROR_INVALID_OFFSET,
+                "Non-zero offset not allowed in wl_surface::attach since version %u", WL_SURFACE_OFFSET_SINCE_VERSION);
+        } else {
+            surface->pending.offset = { x, y };
+        }
+    }
 }
 
 static
@@ -109,6 +107,18 @@ void wroc_wl_surface_frame(wl_client* client, wl_resource* resource, u32 callbac
 }
 
 static
+void wroc_wl_surface_set_input_region(wl_client* client, wl_resource* resource, wl_resource* input_region)
+{
+    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    auto* region = wroc_get_userdata<wroc_wl_region>(input_region);
+    if (region) {
+        surface->pending.input_region = region->region;
+    } else {
+        surface->pending.input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}});
+    }
+}
+
+static
 void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
@@ -121,10 +131,6 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
         if (surface->role_addon) {
             surface->role_addon->on_initial_commit();
         }
-    }
-
-    if (surface->role_addon) {
-        surface->role_addon->on_commit();
     }
 
     // Update frame callbacks
@@ -159,6 +165,36 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
         surface->pending.buffer = nullptr;
         surface->pending.buffer_was_set = false;
     }
+
+    // Update input region
+
+    if (surface->pending.input_region) {
+        surface->current.input_region = std::move(*surface->pending.input_region);
+        surface->pending.input_region = std::nullopt;
+    }
+
+    // Update offset
+
+    if (surface->pending.offset) {
+        // NOTE: This seems to be worded as if it's accumulative...
+        //       > relative to the current buffer's upper left corner
+        //       ...but wlroots treats it as if it's relative to the surface origin
+        surface->current.offset = *surface->pending.offset;
+        surface->pending.offset = {};
+    }
+
+    // Commit addons
+
+    if (surface->role_addon) {
+        surface->role_addon->on_commit();
+    }
+}
+
+static
+void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
+{
+    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    surface->pending.offset = { x, y };
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
@@ -167,15 +203,31 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
     .damage               = WROC_STUB,
     .frame                = wroc_wl_surface_frame,
     .set_opaque_region    = WROC_STUB,
-    .set_input_region     = WROC_STUB,
+    .set_input_region     = wroc_wl_surface_set_input_region,
     .commit               = wroc_wl_surface_commit,
     .set_buffer_transform = WROC_STUB,
     .set_buffer_scale     = WROC_STUB,
     .damage_buffer        = WROC_STUB,
-    .offset               = WROC_STUB,
+    .offset               = wroc_wl_surface_offset,
 };
 
 wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
+
+    log_warn("wroc_surface DESTROY, this = {}", (void*)this);
+}
+
+bool wroc_surface_point_accepts_input(wroc_surface* surface, wrei_vec2f64 point)
+{
+    wrei_rect<f64> buffer_rect = {};
+    buffer_rect.origin = surface->current.offset;
+    if (surface->current.buffer) {
+        buffer_rect.extent = wrei_vec2f64{surface->current.buffer->extent} / surface->current.buffer_scale;
+    }
+
+    // log_debug("buffer_rect = (({}, {}), ({}, {}))", buffer_rect.origin.x, buffer_rect.origin.y, buffer_rect.extent.x, buffer_rect.extent.y);
+
+    if (!buffer_rect.contains(point)) return false;
+    return surface->current.input_region.contains(point);
 }

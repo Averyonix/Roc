@@ -10,6 +10,13 @@ void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 par
     wl_resource_set_implementation(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params, WROC_SIMPLE_RESOURCE_UNREF(wroc_zwp_linux_buffer_params, zwp_linux_buffer_params_v1));
 }
 
+wroc_zwp_linux_buffer_params::~wroc_zwp_linux_buffer_params()
+{
+    for (auto& plane : params.planes) {
+        close(plane.fd);
+    }
+}
+
 static
 void wroc_dmabuf_get_default_feedback(wl_client* client, wl_resource* resource, u32 id)
 {
@@ -34,6 +41,8 @@ const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
 static
 void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo)
 {
+    // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
+
     auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(resource);
     if (!params->params.planes.empty()) {
         log_error("Multiple plane formats not currently supported");
@@ -56,14 +65,15 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->server = params->server;
     buffer->wl_buffer = new_resource;
     buffer->type = wroc_wl_buffer_type::dma;
-    buffer->params = std::move(params->params);
+
     wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, WROC_SIMPLE_RESOURCE_UNREF(wroc_dma_buffer, wl_buffer));
 
-    buffer->params.format = wren_find_format_from_drm(format).value();
-    buffer->params.extent = { u32(width), u32(height) };
-    buffer->params.flags = zwp_linux_buffer_params_v1_flags(flags);
+    params->params.format = wren_find_format_from_drm(format).value();
+    params->params.extent = { u32(width), u32(height) };
+    params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
-    buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), buffer->params);
+    buffer->extent = {width, height};
+    buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), params->params);
 
     return buffer;
 }

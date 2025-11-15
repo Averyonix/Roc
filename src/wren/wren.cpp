@@ -8,6 +8,8 @@ wren_context::~wren_context()
 {
     log_info("Wren context destroyed");
 
+    vmaDestroyAllocator(vma);
+
     vk.DestroyCommandPool(device, cmd_pool, nullptr);
     vk.DestroyDevice(device, nullptr);
     vk.DestroyInstance(instance, nullptr);

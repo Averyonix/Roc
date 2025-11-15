@@ -22,6 +22,8 @@ struct wren_context : wrei_ref_counted
 
     vkwsi_context* vkwsi;
 
+    VmaAllocator vma;
+
     u32 queue_family;
     VkQueue queue;
 

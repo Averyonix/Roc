@@ -30,6 +30,7 @@ struct wrei_ref_counted
 #if NOISY_REF_COUNTS
         log_trace("RefCounted -- {}", --debug_global_ref_counted_objects);
 #endif
+        if (weak_state) weak_state->value = nullptr;
     }
 };
 

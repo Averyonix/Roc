@@ -37,4 +37,10 @@ struct wrei_rect
 {
     glm::vec<2, T> origin;
     glm::vec<2, T> extent;
+
+    bool contains(glm::vec<2, T> point)
+    {
+        return point.x >= origin.x && point.x <= origin.x + extent.x
+            && point.y >= origin.y && point.y <= origin.y + extent.y;
+    }
 };
