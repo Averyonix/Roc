@@ -96,6 +96,6 @@ void wroc_shm_buffer::on_commit()
 {
     lock();
     wren_image_update(image.get(), static_cast<char*>(pool->data) + offset);
-    log_debug("buffer updated ({}, {})", extent.x, extent.y);
+    // log_debug("buffer updated ({}, {})", extent.x, extent.y);
     unlock();
 }

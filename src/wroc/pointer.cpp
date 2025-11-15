@@ -92,18 +92,27 @@ void wroc_pointer_absolute(wroc_pointer* pointer, wroc_output* output, wrei_vec2
     }
 
     if (!pointer->focused) {
-        // log_trace("wl_pointer.size() = {}", pointer->wl_pointer.size());
-        // log_trace("surfaces count = {}", pointer->server->surfaces.size());
-        if (pointer->wl_pointers.front() && !pointer->server->surfaces.empty()) {
-            pointer->focused = pointer->wl_pointers.front();
-            auto* surface = pointer->server->surfaces.front();
-            pointer->focused_surface = wrei_weak_from(surface);
-            log_debug("entering surface: {}", (void*)surface);
-            wl_pointer_send_enter(pointer->focused,
-                wl_display_next_serial(pointer->server->display),
-                surface->wl_surface,
-                wl_fixed_from_double(pos.x),
-                wl_fixed_from_double(pos.y));
+        if (pointer->wl_pointers.front()) {
+            wroc_surface* surface = nullptr;
+            for (auto* s : pointer->server->surfaces) {
+                if (wroc_xdg_surface::try_from(s)) {
+                    surface = s;
+                }
+            }
+
+            if (surface) {
+                pointer->focused = pointer->wl_pointers.front();
+                // auto* surface = pointer->server->surfaces.front();
+                pointer->focused_surface = wrei_weak_from(surface);
+                log_debug("entering surface: {}", (void*)surface);
+                wl_pointer_send_enter(pointer->focused,
+                    wl_display_next_serial(pointer->server->display),
+                    surface->wl_surface,
+                    wl_fixed_from_double(pos.x),
+                    wl_fixed_from_double(pos.y));
+            } else {
+                log_debug("Failed to find xdg_surface to pair with wl_pointer");
+            }
         }
     }
 

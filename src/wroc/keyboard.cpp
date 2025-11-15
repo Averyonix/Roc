@@ -105,13 +105,22 @@ void wroc_keyboard_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
     char name[128] = {};
     char _utf[128] = {};
 
-    if (!kb->focused && kb->wl_keyboards.front() && !kb->server->surfaces.empty()) {
-        log_error("Sending keyboard enter!");
-        kb->focused = kb->wl_keyboards.front();
-        wl_keyboard_send_enter(kb->focused, wl_display_next_serial(kb->server->display),
-            kb->server->surfaces.front()->wl_surface,
-            wrei_ptr_to(wroc_to_wl_array<u32>({})));
-        wl_keyboard_send_modifiers(kb->focused, wl_display_get_serial(kb->server->display), 0, 0, 0, 0);
+    if (!kb->focused && kb->wl_keyboards.front()) {
+        wroc_surface* surface = nullptr;
+        for (auto* s : kb->server->surfaces) {
+            if (wroc_xdg_surface::try_from(s)) {
+                surface = s;
+            }
+        }
+
+        if (surface) {
+            log_error("Sending keyboard enter!");
+            kb->focused = kb->wl_keyboards.front();
+            wl_keyboard_send_enter(kb->focused, wl_display_next_serial(kb->server->display),
+                surface->wl_surface,
+                wrei_ptr_to(wroc_to_wl_array<u32>({})));
+            wl_keyboard_send_modifiers(kb->focused, wl_display_get_serial(kb->server->display), 0, 0, 0, 0);
+        }
     }
 
     auto sym = xkb_state_key_get_one_sym(kb->xkb_state, xkb_keycode);
