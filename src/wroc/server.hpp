@@ -34,7 +34,7 @@ struct wroc_output : wrei_object
 {
     wroc_server* server;
 
-    wrei_vec2i32 size;
+    vec2i32 size;
 
     VkSurfaceKHR vk_surface;
     VkSemaphore timeline;
@@ -42,7 +42,7 @@ struct wroc_output : wrei_object
     VkSurfaceFormatKHR format;
     vkwsi_swapchain* swapchain;
 
-    wrei_vec2i32 position;
+    vec2i32 position;
 };
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
@@ -102,7 +102,7 @@ struct wroc_surface_state
 
     wrei_ref<wroc_wl_buffer> buffer;
     wrei_wl_resource_list frame_callbacks;
-    wrei_vec2i32 offset;
+    vec2i32 offset;
     wrei_region input_region;
     double buffer_scale;
 };
@@ -126,7 +126,7 @@ struct wroc_surface : wrei_object
     ~wroc_surface();
 };
 
-bool wroc_surface_point_accepts_input(wroc_surface*, wrei_vec2f64 point);
+bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 
 // -----------------------------------------------------------------------------
 
@@ -141,7 +141,7 @@ struct wrox_xdg_surface_state
 {
     wroc_xdg_surface_committed_state committed = wroc_xdg_surface_committed_state::none;
 
-    wrei_rect<i32> geometry;
+    rect2i32 geometry;
 };
 
 struct wroc_xdg_surface : wroc_surface_addon
@@ -155,7 +155,7 @@ struct wroc_xdg_surface : wroc_surface_addon
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
 
-    wrei_vec2i32 position;
+    vec2i32 position;
 
     u32 sent_configure_serial = {};
     u32 acked_configure_serial = {};
@@ -171,7 +171,7 @@ struct wroc_xdg_surface : wroc_surface_addon
     }
 };
 
-wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* surface);
+rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* surface);
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* surface);
 
 // -----------------------------------------------------------------------------
@@ -210,8 +210,8 @@ struct wroc_xdg_toplevel : wroc_surface_addon
     wroc_xdg_toplevel_state pending;
     wroc_xdg_toplevel_state current;
 
-    wrei_vec2i32 bounds;
-    wrei_vec2i32 size;
+    vec2i32 bounds;
+    vec2i32 size;
     std::vector<xdg_toplevel_state> states;
     wroc_xdg_toplevel_configure_state pending_configure = {};
 
@@ -234,8 +234,8 @@ struct wroc_xdg_toplevel : wroc_surface_addon
     }
 };
 
-void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel*, wrei_vec2i32 bounds);
-void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel*, wrei_vec2i32 size);
+void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel*, vec2i32 bounds);
+void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel*, vec2i32 size);
 void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel*, xdg_toplevel_state, bool enabled);
 void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel*);
 
@@ -255,7 +255,7 @@ struct wroc_wl_buffer : wrei_object
 
     wrei_wl_resource wl_buffer;
 
-    wrei_vec2i32 extent;
+    vec2i32 extent;
 
     wrei_ref<wren_image> image;
 
@@ -394,7 +394,7 @@ struct wroc_pointer : wrei_object
     wrei_wl_resource focused;
     wrei_weak<wroc_surface> focused_surface;
 
-    wrei_vec2f64 layout_position;
+    vec2f64 layout_position;
 };
 
 // -----------------------------------------------------------------------------
@@ -454,8 +454,8 @@ struct wroc_server : wrei_object
 
     struct {
         wrei_weak<wroc_xdg_toplevel> grabbed_toplevel;
-        wrei_vec2f64 pointer_grab;
-        wrei_vec2i32 surface_grab;
+        vec2f64 pointer_grab;
+        vec2i32 surface_grab;
         wroc_edges edges;
     } movesize;
 };

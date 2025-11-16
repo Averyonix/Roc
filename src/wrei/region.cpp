@@ -5,7 +5,7 @@ wrei_region::wrei_region()
     pixman_region32_init(&region);
 }
 
-wrei_region::wrei_region(wrei_rect<i32> rect)
+wrei_region::wrei_region(rect2i32 rect)
 {
     pixman_region32_init_rect(&region, rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
 }
@@ -48,12 +48,12 @@ wrei_region::~wrei_region()
     pixman_region32_fini(&region);
 }
 
-void wrei_region::add(wrei_rect<i32> rect)
+void wrei_region::add(rect2i32 rect)
 {
     pixman_region32_union_rect(&region, &region, rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
 }
 
-void wrei_region::subtract(wrei_rect<i32> rect)
+void wrei_region::subtract(rect2i32 rect)
 {
     auto x = rect.origin.x;
     auto y = rect.origin.y;
@@ -67,7 +67,7 @@ void wrei_region::subtract(wrei_rect<i32> rect)
     pixman_region32_fini(&subtrahend);
 }
 
-bool wrei_region::contains(wrei_vec2i32 point)
+bool wrei_region::contains(vec2i32 point)
 {
     pixman_box32_t box;
     return pixman_region32_contains_point(&region, point.x, point.y, &box);

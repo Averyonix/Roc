@@ -119,9 +119,9 @@ const struct xdg_surface_interface wroc_xdg_surface_impl = {
     .ack_configure       = wroc_xdg_surface_ack_configure,
 };
 
-wrei_rect<i32> wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
+rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
 {
-    wrei_rect<i32> geom = {};
+    rect2i32 geom = {};
     if (xdg_surface->current.committed >= wroc_xdg_surface_committed_state::geometry) {
         geom = xdg_surface->current.geometry;
     } else if (xdg_surface->surface->current.buffer) {
@@ -197,14 +197,14 @@ const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .set_minimized    = WROC_STUB,
 };
 
-void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel* toplevel, wrei_vec2i32 size)
+void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel* toplevel, vec2i32 size)
 {
     if (toplevel->size == size) return;
     toplevel->size = size;
     toplevel->pending_configure = wroc_xdg_toplevel_configure_state::size;
 }
 
-void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel* toplevel, wrei_vec2i32 bounds)
+void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel* toplevel, vec2i32 bounds)
 {
     if (wl_resource_get_version(toplevel->xdg_toplevel) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
         toplevel->bounds = bounds;

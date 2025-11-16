@@ -77,7 +77,7 @@ const xdg_surface_listener wroc_xdg_surface_listener {
 
 // -----------------------------------------------------------------------------
 
-static constexpr wrei_vec2i32 wroc_backend_default_output_size = { 1920, 1080 };
+static constexpr vec2i32 wroc_backend_default_output_size = { 1920, 1080 };
 
 static
 void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 height, wl_array* states)

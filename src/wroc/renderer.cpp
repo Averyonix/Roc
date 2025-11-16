@@ -179,19 +179,19 @@ void wroc_render_frame(wroc_output* output)
 
     wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
-    auto output_extent = wrei_vec2f64(current.extent.width, current.extent.height);
-    auto draw = [&](wren_image* image, wrei_vec2f64 offset, wrei_vec2f64 extent) {
+    auto output_extent = vec2f64(current.extent.width, current.extent.height);
+    auto draw = [&](wren_image* image, vec2f64 offset, vec2f64 extent) {
         wren_shader_surface_in si {
-            .image = wren_image_handle<wrei_vec4f32>{image->id, renderer->sampler->id},
+            .image = wren_image_handle<vec4f32>{image->id, renderer->sampler->id},
             .src_extent = { 1, 1 },
-            .dst_origin = (offset * wrei_vec2f64(2)) / output_extent - wrei_vec2f64(1),
-            .dst_extent = (extent * wrei_vec2f64(2)) / output_extent,
+            .dst_origin = (offset * vec2f64(2)) / output_extent - vec2f64(1),
+            .dst_extent = (extent * vec2f64(2)) / output_extent,
         };
         wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
         wren->vk.CmdDraw(cmd, 6, 1, 0, 0);
     };
 
-    draw(output->server->renderer->image.get(), {}, wrei_vec2f64(current.extent.width, current.extent.height));
+    draw(output->server->renderer->image.get(), {}, vec2f64(current.extent.width, current.extent.height));
 
     for (wroc_surface* surface : output->server->surfaces) {
         if (auto* xdg_surface = wroc_xdg_surface::try_from(surface)) {
@@ -200,7 +200,7 @@ void wroc_render_frame(wroc_output* output)
 
                 draw(surface->current.buffer->image.get(),
                     xdg_surface->position - geom.origin,
-                    wrei_vec2f64(surface->current.buffer->extent));
+                    vec2f64(surface->current.buffer->extent));
             }
         }
     }
@@ -213,7 +213,7 @@ void wroc_render_frame(wroc_output* output)
             if (!surface->current.buffer) continue;
             if (auto* toplevel = wroc_xdg_toplevel::try_from(surface)) {
                 auto geom = wroc_xdg_surface_get_geometry(toplevel->base.get());
-                auto surface_position = pointer->layout_position - wrei_vec2f64(toplevel->base->position + geom.origin);
+                auto surface_position = pointer->layout_position - vec2f64(toplevel->base->position + geom.origin);
                 if (wroc_surface_point_accepts_input(surface, surface_position)) {
                     output->server->toplevel_under_cursor = wrei_weak_from(toplevel);
                 }

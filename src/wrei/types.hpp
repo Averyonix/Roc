@@ -24,23 +24,24 @@ using f64 = double;
 
 // -----------------------------------------------------------------------------
 
-using wrei_vec4f32 = glm:: vec4;
-using wrei_vec2f64 = glm::dvec2;
-using wrei_vec3f32 = glm:: vec3;
-using wrei_vec2i32 = glm::ivec2;
-using wrei_vec2f32 = glm:: vec2;
+template<glm::length_t L, typename T>
+using wrei_vec = glm::vec<L, T>;
+
+using vec2i32 = wrei_vec<2, i32>;
+using vec2f32 = wrei_vec<2, f32>;
+using vec2f64 = wrei_vec<2, f64>;
+
+using vec3f32 = wrei_vec<3, f32>;
+
+using vec4f32 = wrei_vec<4, f32>;
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
 struct wrei_rect
 {
-    glm::vec<2, T> origin;
-    glm::vec<2, T> extent;
-
-    bool contains(glm::vec<2, T> point)
-    {
-        return point.x >= origin.x && point.x <= origin.x + extent.x
-            && point.y >= origin.y && point.y <= origin.y + extent.y;
-    }
+    wrei_vec<2, T> origin, extent;
 };
+
+using rect2i32 = wrei_rect<i32>;
+using rect2f64 = wrei_rect<f64>;

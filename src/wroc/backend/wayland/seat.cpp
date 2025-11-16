@@ -9,8 +9,8 @@
 static
 void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx, wl_fixed_t sy)
 {
-    wrei_vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
-    pointer->layout_position = pos + wrei_vec2f64(pointer->current_output->position);
+    vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    pointer->layout_position = pos + vec2f64(pointer->current_output->position);
     wroc_post_event(pointer->server, wroc_pointer_event {
         { .type = wroc_event_type::pointer_motion },
         .pointer = pointer,

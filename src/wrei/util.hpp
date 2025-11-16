@@ -78,8 +78,8 @@ struct wrei_enum_map
 
 // -----------------------------------------------------------------------------
 
-constexpr wrei_vec2f64 wrei_copysign(     wrei_vec2f64 v, wrei_vec2f64 s) { return wrei_vec2f64(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
-constexpr wrei_vec2f64 wrei_round_to_zero(wrei_vec2f64 v)         { return wrei_copysign(glm::floor(glm::abs(v)), v);                   }
+constexpr vec2f64 wrei_copysign(     vec2f64 v, vec2f64 s) { return vec2f64(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
+constexpr vec2f64 wrei_round_to_zero(vec2f64 v)         { return wrei_copysign(glm::floor(glm::abs(v)), v);                   }
 
 // -----------------------------------------------------------------------------
 
@@ -229,6 +229,14 @@ struct wrei_unix_check_helper
 #define wrei_unix_check_ne(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
 #define wrei_unix_check_ce(func, ...) [&] { errno = 0; return wrei_unix_check_helper<wrei_unix_error_behavior::check_errno  >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__); }()
 
+// -----------------------------------------------------------------------------
+
+template<typename T>
+bool wrei_rect_contains(const wrei_rect<T>& rect, wrei_vec<2, T> point)
+{
+    return point.x >= rect.origin.x && point.x <= rect.origin.x + rect.extent.x
+        && point.y >= rect.origin.y && point.y <= rect.origin.y + rect.extent.y;
+}
 
 // -----------------------------------------------------------------------------
 
@@ -237,7 +245,7 @@ struct wrei_region
     pixman_region32 region;
 
     wrei_region();
-    wrei_region(wrei_rect<i32>);
+    wrei_region(rect2i32);
 
     wrei_region(const wrei_region&);
     wrei_region& operator=(const wrei_region&);
@@ -247,8 +255,8 @@ struct wrei_region
 
     ~wrei_region();
 
-    void add(wrei_rect<i32>);
-    void subtract(wrei_rect<i32>);
+    void add(rect2i32);
+    void subtract(rect2i32);
 
-    bool contains(wrei_vec2i32 point);
+    bool contains(vec2i32 point);
 };

@@ -14,6 +14,7 @@ parser.add_argument("-B", "--build", action="store_true", help="Build")
 parser.add_argument("-R", "--release", action="store_true", help="Release")
 parser.add_argument("-I", "--install", action="store_true", help="Install")
 parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
+parser.add_argument("--git-slangc", action="store_true", help="Use git shader-slang")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -140,7 +141,10 @@ def build_slang() -> Path:
     cmake_build(source_dir, build_dir, install_dir, [])
     return install_dir / "bin/slangc"
 
-slangc = build_slang()
+if args.git_slangc:
+    slangc = build_slang()
+else:
+    slangc = None
 
 # -----------------------------------------------------------------------------
 

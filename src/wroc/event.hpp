@@ -56,10 +56,10 @@ struct wroc_pointer_event : wroc_event
             bool pressed;
         } button;
         struct {
-            wrei_vec2f64 delta;
+            vec2f64 delta;
         } motion;
         struct {
-            wrei_vec2f64 delta;
+            vec2f64 delta;
         } axis;
     };
 };

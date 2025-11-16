@@ -208,16 +208,16 @@ wroc_surface::~wroc_surface()
     log_warn("wroc_surface DESTROY, this = {}", (void*)this);
 }
 
-bool wroc_surface_point_accepts_input(wroc_surface* surface, wrei_vec2f64 point)
+bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 point)
 {
-    wrei_rect<f64> buffer_rect = {};
+    rect2f64 buffer_rect = {};
     buffer_rect.origin = surface->current.offset;
     if (surface->current.buffer) {
-        buffer_rect.extent = wrei_vec2f64{surface->current.buffer->extent} / surface->current.buffer_scale;
+        buffer_rect.extent = vec2f64{surface->current.buffer->extent} / surface->current.buffer_scale;
     }
 
     // log_debug("buffer_rect = (({}, {}), ({}, {}))", buffer_rect.origin.x, buffer_rect.origin.y, buffer_rect.extent.x, buffer_rect.extent.y);
 
-    if (!buffer_rect.contains(point)) return false;
+    if (!wrei_rect_contains(buffer_rect, point)) return false;
     return surface->current.input_region.contains(point);
 }

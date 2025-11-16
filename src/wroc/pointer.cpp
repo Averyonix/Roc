@@ -38,7 +38,7 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
 }
 
 static
-void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, wrei_vec2f64 delta)
+void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, vec2f64 delta)
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
@@ -89,7 +89,7 @@ void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, wrei_vec2f6
 }
 
 static
-void wroc_pointer_axis(wroc_pointer* pointer, wrei_vec2f64 rel)
+void wroc_pointer_axis(wroc_pointer* pointer, vec2f64 rel)
 {
     if (pointer->focused) {
         if (rel.x) {
