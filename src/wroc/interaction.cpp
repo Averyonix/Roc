@@ -34,9 +34,9 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
         auto& movesize = server->movesize;
         if (auto* toplevel = movesize.grabbed_toplevel.get()) {
             if (server->interaction_mode == wroc_interaction_mode::move) {
-                toplevel->base->position = movesize.surface_grab + (event.pointer->layout_position - movesize.pointer_grab);
+                toplevel->base->position = movesize.surface_grab + wrei_vec2i32(glm::round(event.pointer->layout_position - movesize.pointer_grab));
             } else if (server->interaction_mode == wroc_interaction_mode::size) {
-                auto new_size = glm::max(movesize.surface_grab + (event.pointer->layout_position - movesize.pointer_grab), wrei_vec2f64{});
+                auto new_size = glm::max(movesize.surface_grab + wrei_vec2i32(glm::round(event.pointer->layout_position - movesize.pointer_grab)), wrei_vec2i32{});
                 wroc_xdg_toplevel_set_size(toplevel, new_size);
                 wroc_xdg_toplevel_flush_configure(toplevel);
             }

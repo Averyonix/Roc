@@ -1,7 +1,7 @@
 #include "server.hpp"
 
 #include "wren/wren.hpp"
-#include "wren/wren_helpers.hpp"
+#include "wren/wren_internal.hpp"
 
 #include "wroc/event.hpp"
 
@@ -24,12 +24,20 @@ void wroc_output_init_swapchain(wroc_output* output)
 
     std::vector<VkSurfaceFormatKHR> surface_formats;
     wren_vk_enumerate(surface_formats, wren->vk.GetPhysicalDeviceSurfaceFormatsKHR, wren->physical_device, output->vk_surface);
+    bool found = false;
     for (auto& f : surface_formats) {
+        // TODO: We need to handle selection of format between outputs and render pipelines
         // if (f.format == VK_FORMAT_R8G8B8A8_SRGB || f.format == VK_FORMAT_B8G8R8A8_SRGB) {
-        if (f.format == VK_FORMAT_R8G8B8A8_UNORM || f.format == VK_FORMAT_B8G8R8A8_UNORM) {
+        // if (f.format == VK_FORMAT_R8G8B8A8_UNORM || f.format == VK_FORMAT_B8G8R8A8_UNORM) {
+        if (f.format == output->server->renderer->output_format) {
             output->format = f;
+            found = true;
             break;
         }
+    }
+    if (!found) {
+        log_error("Could not find appropriate swapchain format");
+        return;
     }
 
     auto sw_info = vkwsi_swapchain_info_default();

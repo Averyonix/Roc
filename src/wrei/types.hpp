@@ -26,7 +26,9 @@ using f64 = double;
 
 using wrei_vec4f32 = glm:: vec4;
 using wrei_vec2f64 = glm::dvec2;
+using wrei_vec3f32 = glm:: vec3;
 using wrei_vec2i32 = glm::ivec2;
+using wrei_vec2f32 = glm:: vec2;
 
 // -----------------------------------------------------------------------------
 

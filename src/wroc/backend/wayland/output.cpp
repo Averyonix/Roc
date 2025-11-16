@@ -3,6 +3,7 @@
 #include "wroc/util.hpp"
 
 #include "wren/wren.hpp"
+#include "wren/wren_internal.hpp"
 
 #include "wroc/event.hpp"
 

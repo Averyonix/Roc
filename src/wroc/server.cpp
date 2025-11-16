@@ -1,8 +1,5 @@
 #include "server.hpp"
 
-#include "wren/wren.hpp"
-#include "wren/wren_helpers.hpp"
-
 u32 wroc_get_elapsed_milliseconds(wroc_server* server)
 {
     // TODO: This will elapse after 46 days of runtime, should we base it on surface epoch?

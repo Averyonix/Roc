@@ -171,11 +171,11 @@ void wroc_debug_print_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
     auto utf = wrei_escape_utf8(_utf);
 
     if (strcmp(name, _utf) == 0) {
-        log_debug("key '{}' ({}) = {}", utf, sym, pressed ? "press" : "release");
+        log_debug("key '{}' ({}) (({})) = {}", utf, sym, libinput_keycode, pressed ? "press" : "release");
     } else if (!utf.empty()) {
-        log_debug("key <{}> '{}' ({}) = {}", name, utf, sym, pressed ? "press" : "release");
+        log_debug("key <{}> '{}' ({}) (({})) = {}", name, utf, sym, libinput_keycode, pressed ? "press" : "release");
     } else {
-        log_debug("key <{}> ({}) = {}", name, sym, pressed ? "press" : "release");
+        log_debug("key <{}> ({}) (({})) = {}", name, sym, libinput_keycode, pressed ? "press" : "release");
     }
 }
 

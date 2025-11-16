@@ -8,7 +8,7 @@
 #include "wrei/util.hpp"
 #include "wrei/log.hpp"
 
-#include "wren/wren_helpers.hpp"
+#include "wren/wren.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -42,7 +42,7 @@ struct wroc_output : wrei_object
     VkSurfaceFormatKHR format;
     vkwsi_swapchain* swapchain;
 
-    wrei_vec2f64 position;
+    wrei_vec2i32 position;
 };
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
@@ -155,7 +155,7 @@ struct wroc_xdg_surface : wroc_surface_addon
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
 
-    wrei_vec2f64 position;
+    wrei_vec2i32 position;
 
     u32 sent_configure_serial = {};
     u32 acked_configure_serial = {};
@@ -405,7 +405,12 @@ struct wroc_renderer : wrei_object
 
     wrei_ref<wren_context> wren;
 
+    VkFormat output_format = VK_FORMAT_B8G8R8A8_UNORM;
+
+    VkPipeline pipeline;
+
     wrei_ref<wren_image> image;
+    wrei_ref<wren_sampler> sampler;
 
     ~wroc_renderer();
 };
@@ -450,7 +455,7 @@ struct wroc_server : wrei_object
     struct {
         wrei_weak<wroc_xdg_toplevel> grabbed_toplevel;
         wrei_vec2f64 pointer_grab;
-        wrei_vec2f64 surface_grab;
+        wrei_vec2i32 surface_grab;
         wroc_edges edges;
     } movesize;
 };

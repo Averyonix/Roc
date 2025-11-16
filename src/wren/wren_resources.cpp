@@ -1,5 +1,4 @@
-#include "wren_helpers.hpp"
-#include "wren.hpp"
+#include "wren_internal.hpp"
 
 #include "wrei/util.hpp"
 
@@ -73,9 +72,6 @@ wrei_ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
             | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        // .sharingMode = VK_SHARING_MODE_CONCURRENT,
-        // .queueFamilyIndexCount = 1,
-        // .pQueueFamilyIndices = &ctx->queue_family,
     }), wrei_ptr_to(VmaAllocationCreateInfo {
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
@@ -129,6 +125,8 @@ wrei_ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent, VkF
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
 
+    wren_allocate_image_descriptor(image.get());
+
     return image;
 }
 
@@ -174,6 +172,8 @@ void wren_image_update(wren_image* image, const void* data)
 
 wren_image::~wren_image()
 {
+    ctx->image_descriptor_allocator.free(id);
+
     ctx->vk.DestroyImageView(ctx->device, view, nullptr);
 
     if (vma_allocation) {
@@ -186,13 +186,13 @@ wren_image::~wren_image()
 
 // -----------------------------------------------------------------------------
 
-VkSampler wren_sampler_create(wren_context* ctx)
+wrei_ref<wren_sampler> wren_sampler_create(wren_context* ctx)
 {
-    VkSampler sampler;
+    wrei_ref sampler = wrei_adopt_ref(new wren_sampler {});
+    sampler->ctx = ctx;
+
     wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        // .magFilter = VK_FILTER_LINEAR,
-        // .minFilter = VK_FILTER_LINEAR,
         .magFilter = VK_FILTER_NEAREST,
         .minFilter = VK_FILTER_NEAREST,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
@@ -202,12 +202,16 @@ VkSampler wren_sampler_create(wren_context* ctx)
         .anisotropyEnable = false,
         .maxLod = VK_LOD_CLAMP_NONE,
         .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-    }), nullptr, &sampler));
+    }), nullptr, &sampler->sampler));
+
+    wren_allocate_sampler_descriptor(sampler.get());
 
     return sampler;
 }
 
-void wren_sampler_destroy(wren_context* ctx, VkSampler sampler)
+wren_sampler::~wren_sampler()
 {
+    ctx->sampler_descriptor_allocator.free(id);
+
     ctx->vk.DestroySampler(ctx->device, sampler, nullptr);
 }

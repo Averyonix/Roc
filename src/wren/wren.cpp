@@ -1,5 +1,4 @@
-#include "wren.hpp"
-#include "wren_helpers.hpp"
+#include "wren_internal.hpp"
 
 #include "wrei/types.hpp"
 #include "wrei/util.hpp"
@@ -9,6 +8,10 @@ wren_context::~wren_context()
     log_info("Wren context destroyed");
 
     vmaDestroyAllocator(vma);
+
+    vk.DestroyPipelineLayout(device, pipeline_layout, nullptr);
+    vk.DestroyDescriptorSetLayout(device, set_layout, nullptr);
+    vk.DestroyDescriptorPool(device, pool, nullptr);
 
     vk.DestroyCommandPool(device, cmd_pool, nullptr);
     vk.DestroyDevice(device, nullptr);

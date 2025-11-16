@@ -9,7 +9,7 @@ struct wrei_weak_state
     struct wrei_object* value;
 };
 
-#define WREI_NOISY_OBJECTS 1
+#define WREI_NOISY_OBJECTS 0
 #if WREI_NOISY_OBJECTS
 static i64 wrei_debug_global_alive_objects;
 #endif

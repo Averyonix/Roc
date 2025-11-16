@@ -22,7 +22,7 @@ program_name = "wroc"
 
 # -----------------------------------------------------------------------------
 
-def ensure_dir(path):
+def ensure_dir(path: Path) -> Path:
     os.makedirs(path, exist_ok=True)
     return Path(path)
 
@@ -31,16 +31,58 @@ vendor_dir = ensure_dir(build_dir / "3rdparty")
 
 # -----------------------------------------------------------------------------
 
-def git_fetch(dir, repo, branch, dumb=False):
+def write_file_lazy(path: Path, data: str | bytes):
+    try:
+        if type(data) is str:
+            existing = path.read_text()
+        else:
+            existing = path.read_bytes()
+        if existing == data:
+            return
+    except FileNotFoundError:
+        pass
+
+    if type(data) is str:
+        path.write_text(data)
+    else:
+        path.write_bytes(data)
+
+# -----------------------------------------------------------------------------
+
+def git_fetch(dir: Path, repo: str, branch: str, dumb: bool = False) -> Path:
     if not dir.exists():
-        cmd = ["git", "clone", repo, "--branch", branch, dir]
+        cmd = ["git", "clone", repo, "--branch", branch]
+        if not dumb:
+            cmd += ["--depth", "1", "--recursive"]
+        cmd += [dir]
         print(cmd)
         subprocess.run(cmd)
     elif args.update:
         cmd = ["git", "pull"]
         print(f"{cmd} @ {dir}")
         subprocess.run(cmd, cwd = dir)
+
+        cmd = ["git", "submodule", "update", "--init", "--recursive"]
+        print(f"{cmd} @ {dir}")
+        subprocess.run(cmd, cwd = dir)
+
     return dir
+
+# -----------------------------------------------------------------------------
+
+def cmake_build(src_dir: Path, build_dir: Path, install_dir, opts: list[str]):
+    if not build_dir.exists() or args.update:
+        cmd  = ["cmake", "-B", build_dir.absolute(), "-G", "Ninja"]
+        cmd += [f"-DCMAKE_INSTALL_PREFIX={install_dir.absolute()}"]
+        cmd += ["-DCMAKE_INSTALL_MESSAGE=LAZY"]
+        cmd += opts
+        print(cmd)
+        subprocess.run(cmd, cwd=src_dir)
+
+    if not install_dir.exists() or args.update:
+        cmd = ["cmake", "--build", build_dir.absolute(), "--target", "install"]
+        print(cmd)
+        subprocess.run(cmd, cwd=src_dir)
 
 # -----------------------------------------------------------------------------
 
@@ -87,6 +129,18 @@ build_luajit()
 # -----------------------------------------------------------------------------
 
 git_fetch(vendor_dir / "wayland-protocol", "https://gitlab.freedesktop.org/wayland/wayland.git", "main")
+
+# -----------------------------------------------------------------------------
+
+def build_slang() -> Path:
+    source_dir  = git_fetch(vendor_dir / "slang", "https://github.com/shader-slang/slang.git", "master")
+    build_dir   =           vendor_dir / "slang-build"
+    install_dir =           vendor_dir / "slang-install"
+
+    cmake_build(source_dir, build_dir, install_dir, [])
+    return install_dir / "bin/slangc"
+
+slangc = build_slang()
 
 # -----------------------------------------------------------------------------
 
@@ -161,6 +215,68 @@ def generate_wayland_protocols():
         cmakelists.write(f"target_include_directories({cmake_target_name} PUBLIC include)\n")
 
 generate_wayland_protocols()
+
+# -----------------------------------------------------------------------------
+
+def build_shaders():
+    shaders = [
+        ("src/wroc/shaders/blit.slang",  "wroc_shader_blit")
+    ]
+
+    shader_include_dirs = [
+        "src"
+    ]
+
+    shader_gen_dir = ensure_dir(build_dir / "shaders")
+    shader_gen_spv_dir     = ensure_dir(shader_gen_dir / "spv")
+    shader_gen_include_dir = ensure_dir(shader_gen_dir / "include")
+    shader_gen_source_dir  = ensure_dir(shader_gen_dir / "src")
+
+    header_path = shader_gen_include_dir / "wroc_shaders.hpp"
+    source_path = shader_gen_source_dir  / "wroc_shaders.cpp"
+
+    header_out = ""
+    source_out = ""
+
+    header_out += "#include <span>\n"
+    header_out += "#include <cstdint>\n"
+
+    source_out += f"#include \"{header_path.name}\"\n"
+
+    for shader_src, prefix in shaders:
+        tmp_path    = shader_gen_spv_dir / f"{prefix}.spv.tmp"
+        spv_path    = shader_gen_spv_dir / f"{prefix}.spv"
+
+        cmd  = ["slangc"]
+        cmd += ["-o", tmp_path]
+        cmd += ["-target", "spirv"]
+        cmd += ["-fvk-use-entrypoint-name"]
+        cmd += ["-emit-spirv-directly"]
+        cmd += ["-matrix-layout-column-major"]
+        cmd += ["-force-glsl-scalar-layout"]
+        for i in shader_include_dirs:
+            cmd += [f"-I{i}"]
+
+        cmd += [shader_src]
+
+        subprocess.run(cmd, executable=slangc)
+
+        write_file_lazy(spv_path, tmp_path.read_bytes())
+        tmp_path.unlink()
+
+        source_out += "\n"
+        source_out += f"alignas(uint32_t) static constexpr char {prefix}_data[] {{\n"
+        source_out += f"#embed \"../spv/{prefix}.spv\"\n"
+        source_out +=  "};\n"
+        source_out += f"const std::span<const uint32_t> {prefix}(reinterpret_cast<const uint32_t*>({prefix}_data), sizeof({prefix}_data) / 4);\n"
+
+        header_out += "\n"
+        header_out += f"extern const std::span<const uint32_t> {prefix};\n"
+
+    write_file_lazy(header_path, header_out)
+    write_file_lazy(source_path, source_out)
+
+build_shaders()
 
 # -----------------------------------------------------------------------------
 

@@ -1,5 +1,4 @@
-#include "wren.hpp"
-#include "wren_helpers.hpp"
+#include "wren/wren_internal.hpp"
 
 #include "wrei/util.hpp"
 
@@ -184,6 +183,8 @@ wrei_ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_
         .format = params.format.vk,
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
+
+    wren_allocate_image_descriptor(image.get());
 
     return image;
 }

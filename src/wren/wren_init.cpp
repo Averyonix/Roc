@@ -1,5 +1,4 @@
-#include "wren_helpers.hpp"
-#include "wren.hpp"
+#include "wren_internal.hpp"
 
 #include "wroc/server.hpp"
 
@@ -178,6 +177,8 @@ wrei_ref<wren_context> wren_create()
         .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
         .queueFamilyIndex = ctx->queue_family,
     }), nullptr, &ctx->cmd_pool));
+
+    wren_init_descriptors(ctx.get());
 
     return ctx;
 }

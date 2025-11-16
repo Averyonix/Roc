@@ -90,6 +90,7 @@ target_compile_options(    ${PROJECT_NAME} PRIVATE
     -Wno-c99-designator
     -Wno-unused-parameter
     -Wno-nested-anon-types
+    -Wno-c23-extensions
     -Wimplicit-fallthrough
     -Wshadow
     )
@@ -98,7 +99,7 @@ if(USE_ASAN)
 endif()
 target_include_directories(${PROJECT_NAME} PUBLIC
     src
-    .build/generated/include
+    .build/shaders/include
     )
 target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
@@ -121,6 +122,8 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/interaction.cpp
     src/wroc/xdg_shell.cpp
 
+    .build/shaders/src/wroc_shaders.cpp
+
     src/wroc/backend/wayland/wayland.cpp
     src/wroc/backend/wayland/seat.cpp
     src/wroc/backend/wayland/output.cpp
@@ -128,7 +131,8 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wren/wren.cpp
     src/wren/wren_init.cpp
     src/wren/wren_functions.cpp
-    src/wren/wren_helpers.cpp
+    src/wren/wren_resources.cpp
+    src/wren/wren_descriptors.cpp
     src/wren/wren_format.cpp
     )
 if(USE_ASAN)
