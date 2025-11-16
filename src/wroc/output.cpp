@@ -5,6 +5,10 @@
 
 #include "wroc/event.hpp"
 
+const struct wl_output_interface wroc_wl_output_impl = {
+    .release = wroc_simple_resource_destroy_callback,
+};
+
 static
 void wroc_output_init_swapchain(wroc_output* output)
 {
@@ -51,33 +55,128 @@ void wroc_output_init_swapchain(wroc_output* output)
 }
 
 static
+void wroc_output_send_configuration(wroc_output* output, wl_resource* client_resource)
+{
+    log_debug("Output sending configuration to: {}", (void*)client_resource);
+
+    wl_output_send_geometry(client_resource,
+        output->position.x, output->position.y,
+        output->physical_size_mm.x, output->physical_size_mm.y,
+        i32(output->subpixel_layout),
+        output->make.c_str(),
+        output->model.c_str(),
+        WL_OUTPUT_TRANSFORM_NORMAL);
+
+    wl_output_send_mode(client_resource,
+        output->mode.flags,
+        output->mode.size.x, output->mode.size.y,
+        output->mode.refresh * 1000);
+
+    auto version = wl_resource_get_version(client_resource);
+
+    if (version >= WL_OUTPUT_SCALE_SINCE_VERSION) {
+        wl_output_send_scale(client_resource, output->scale);
+    }
+
+    if (version >= WL_OUTPUT_NAME_SINCE_VERSION) {
+        wl_output_send_name(client_resource, output->name.c_str());
+    }
+
+    if (version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION) {
+        wl_output_send_description(client_resource, output->description.c_str());
+    }
+
+    if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
+        wl_output_send_done(client_resource);
+    }
+}
+
+void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 id)
+{
+    auto output = static_cast<wroc_output*>(data);
+    auto* new_resource = wl_resource_create(client, &wl_output_interface, version, id);
+    log_warn("OUTPUT BIND: {}", (void*)new_resource);
+    output->bound_clients.emplace_back(new_resource);
+    wl_resource_set_implementation(new_resource, &wroc_wl_output_impl, output, nullptr);
+    wroc_output_send_configuration(output, new_resource);
+}
+
+void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
+{
+    if (surface->output.get() == output) return;
+
+    auto* client = wl_resource_get_client(surface->wl_surface);
+
+    if (surface->output) {
+        for (auto res : surface->output->bound_clients) {
+            if (wl_resource_get_client(res) == client) {
+                log_warn("Surface leave output: {}", (void*)res);
+                wl_surface_send_leave(surface->wl_surface, res);
+            }
+        }
+    }
+
+    surface->output = wrei_weak_from(output);
+
+    if (!output) return;
+
+    for (auto res : output->bound_clients) {
+        if (wl_resource_get_client(res) == client) {
+            log_warn("Surface enter output: {}", (void*)res);
+            wl_surface_send_enter(surface->wl_surface, res);
+        }
+    }
+}
+
+static
 void wroc_output_added(wroc_output* output)
 {
-    log_debug("Output added");
-
     if (!output->swapchain) {
         wroc_output_init_swapchain(output);
+    }
+
+    if (std::ranges::contains(output->server->outputs, output)) {
+        log_debug("Output reconfigured");
+        for (auto* client_resource : output->bound_clients) {
+            wroc_output_send_configuration(output, client_resource);
+        }
+    } else {
+        log_debug("Output added");
+        output->server->outputs.emplace_back(output);
+        output->global = wl_global_create(output->server->display, &wl_output_interface, wl_output_interface.version, output, wroc_wl_output_bind_global);
     }
 }
 
 static
 void wroc_output_removed(wroc_output* output)
 {
-    log_debug("Output removed");
     if (output->timeline) {
         output->server->renderer->wren->vk.DestroySemaphore(output->server->renderer->wren->device, output->timeline, nullptr);
     }
     if (output->swapchain) {
         vkwsi_swapchain_destroy(output->swapchain);
     }
+
+    std::erase(output->server->outputs, output);
+
+    if (output->global) {
+        log_debug("Output removed");
+        wl_global_remove(output->global);
+    }
+
+    for (auto* surface : output->server->surfaces) {
+        if (surface->output.get() == output) {
+            wroc_surface_set_output(surface, nullptr);
+        }
+    }
 }
 
 void wroc_handle_output_event(wroc_server* server, const wroc_output_event& event)
 {
     switch (event.type) {
-        case wroc_event_type::output_added:   wroc_output_added(  event.output); break;
-        case wroc_event_type::output_removed: wroc_output_removed(event.output); break;
-        case wroc_event_type::output_frame:   wroc_render_frame(  event.output); break;
+        case wroc_event_type::output_added:     wroc_output_added(    event.output); break;
+        case wroc_event_type::output_removed:   wroc_output_removed(  event.output); break;
+        case wroc_event_type::output_frame:     wroc_render_frame(    event.output); break;
         default: {}
     }
 }

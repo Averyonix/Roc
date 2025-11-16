@@ -56,6 +56,8 @@ extern const struct wl_compositor_interface wroc_wl_compositor_impl;
 extern const struct wl_region_interface     wroc_wl_region_impl;
 extern const struct wl_surface_interface    wroc_wl_surface_impl;
 
+extern const struct wl_output_interface     wroc_wl_output_impl;
+
 extern const struct xdg_wm_base_interface   wroc_xdg_wm_base_impl;
 extern const struct xdg_surface_interface   wroc_xdg_surface_impl;
 extern const struct xdg_toplevel_interface  wroc_xdg_toplevel_impl;
@@ -77,4 +79,5 @@ void wroc_wl_compositor_bind_global(      wl_client* client, void* data, u32 ver
 void wroc_wl_shm_bind_global(             wl_client* client, void* data, u32 version, u32 id);
 void wroc_xdg_wm_base_bind_global(        wl_client* client, void* data, u32 version, u32 id);
 void wroc_wl_seat_bind_global(            wl_client* client, void* data, u32 version, u32 id);
+void wroc_wl_output_bind_global(          wl_client* client, void* data, u32 version, u32 id);
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id);

@@ -30,9 +30,19 @@ void wroc_backend_destroy(wroc_backend*);
 
 // -----------------------------------------------------------------------------
 
+struct wroc_output_mode
+{
+    wl_output_mode flags;
+    vec2i32 size;
+    f32 refresh;
+};
+
 struct wroc_output : wrei_object
 {
     wroc_server* server;
+
+    wl_global* global;
+    wrei_wl_resource_list bound_clients;
 
     vec2i32 size;
 
@@ -43,6 +53,15 @@ struct wroc_output : wrei_object
     vkwsi_swapchain* swapchain;
 
     vec2i32 position;
+    i32 scale = 1;
+
+    vec2i32 physical_size_mm;
+    wl_output_subpixel subpixel_layout = WL_OUTPUT_SUBPIXEL_UNKNOWN;
+    std::string make;
+    std::string model;
+    std::string name;
+    std::string description;
+    wroc_output_mode mode;
 };
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
@@ -123,10 +142,13 @@ struct wroc_surface : wrei_object
 
     wroc_surface_addon* role_addon;
 
+    wrei_weak<wroc_output> output;
+
     ~wroc_surface();
 };
 
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
+void wroc_surface_set_output(wroc_surface*, wroc_output*);
 
 // -----------------------------------------------------------------------------
 
@@ -447,6 +469,7 @@ struct wroc_server : wrei_object
     wl_display* display;
     wl_event_loop* event_loop;
 
+    std::vector<wroc_output*> outputs;
     std::vector<wroc_surface*> surfaces;
     wrei_weak<wroc_xdg_toplevel> toplevel_under_cursor;
 

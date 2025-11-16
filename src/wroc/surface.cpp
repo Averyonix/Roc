@@ -185,6 +185,20 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
     if (surface->role_addon) {
         surface->role_addon->on_commit();
     }
+
+    // Set output
+
+    if (surface->current.buffer) {
+        if (!surface->output) {
+            // TODO: Proper selection of output to bind to
+            for (auto* output : surface->server->outputs) {
+                wroc_surface_set_output(surface, output);
+                break;
+            }
+        }
+    } else if (surface->output) {
+        wroc_surface_set_output(surface, nullptr);
+    }
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
