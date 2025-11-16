@@ -121,16 +121,6 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    // Handle initial commit
-
-    if (surface->initial_commit) {
-        surface->initial_commit = false;
-
-        if (surface->role_addon) {
-            surface->role_addon->on_initial_commit();
-        }
-    }
-
     // Update frame callbacks
 
     surface->current.frame_callbacks.take_and_append_all(std::move(surface->pending.frame_callbacks));

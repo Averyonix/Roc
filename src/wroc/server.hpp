@@ -100,7 +100,6 @@ struct wroc_wl_buffer;
 
 struct wroc_surface_addon : wrei_object
 {
-    virtual void on_initial_commit() = 0;
     virtual void on_commit() = 0;
     virtual void on_ack_configure(u32 serial) {}
 };
@@ -131,8 +130,6 @@ struct wroc_surface : wrei_object
     wroc_server* server;
 
     wrei_wl_resource wl_surface;
-
-    bool initial_commit = true;
 
     wroc_surface_state pending;
     wroc_surface_state current = {
@@ -182,7 +179,6 @@ struct wroc_xdg_surface : wroc_surface_addon
     u32 sent_configure_serial = {};
     u32 acked_configure_serial = {};
 
-    virtual void on_initial_commit() final override;
     virtual void on_commit() final override;
     ~wroc_xdg_surface();
 
@@ -232,12 +228,13 @@ struct wroc_xdg_toplevel : wroc_surface_addon
     wroc_xdg_toplevel_state pending;
     wroc_xdg_toplevel_state current;
 
+    bool initial_commit = true;
+
     vec2i32 bounds;
     vec2i32 size;
     std::vector<xdg_toplevel_state> states;
     wroc_xdg_toplevel_configure_state pending_configure = {};
 
-    virtual void on_initial_commit() final override;
     virtual void on_commit() final override;
     virtual void on_ack_configure(u32 serial) final override;
 

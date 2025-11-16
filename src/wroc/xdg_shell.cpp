@@ -52,15 +52,6 @@ void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resour
     surface->pending.committed |= wroc_xdg_surface_committed_state::geometry;
 }
 
-void wroc_xdg_surface::on_initial_commit()
-{
-    if (xdg_role_addon) {
-        xdg_role_addon->on_initial_commit();
-    }
-
-    xdg_surface_send_configure(xdg_surface, wl_display_next_serial(surface->server->display));
-}
-
 void wroc_xdg_surface::on_commit()
 {
     if (xdg_role_addon) {
@@ -149,23 +140,31 @@ void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, cons
     toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::app_id;
 }
 
-void wroc_xdg_toplevel::on_initial_commit()
+static
+void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
 {
-    wroc_xdg_toplevel_set_size(this, {0, 0});
-    wroc_xdg_toplevel_set_state(this, XDG_TOPLEVEL_STATE_ACTIVATED, true);
+    wroc_xdg_toplevel_set_size(toplevel, {0, 0});
+    wroc_xdg_toplevel_set_state(toplevel, XDG_TOPLEVEL_STATE_ACTIVATED, true);
 
-    wroc_xdg_toplevel_flush_configure(this);
+    wroc_xdg_toplevel_flush_configure(toplevel);
 
-    if (wl_resource_get_version(xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        xdg_toplevel_send_wm_capabilities(xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
+    if (wl_resource_get_version(toplevel->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
+        xdg_toplevel_send_wm_capabilities(toplevel->xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
             XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
         })));
     }
+
+    xdg_surface_send_configure(toplevel->base->xdg_surface, wl_display_next_serial(toplevel->base->surface->server->display));
 }
 
 void wroc_xdg_toplevel::on_commit()
 {
+    if (initial_commit) {
+        initial_commit = false;
+        wroc_xdg_toplevel_on_initial_commit(this);
+    }
+
     if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
     if (pending.committed >= wroc_xdg_toplevel_committed_state::app_id) current.app_id = pending.app_id;
 
