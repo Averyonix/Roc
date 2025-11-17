@@ -122,6 +122,15 @@ rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
     return geom;
 }
 
+vec2i32 wroc_xdg_surface_get_position(wroc_xdg_surface* xdg_surface, rect2i32* p_geom)
+{
+    auto geom = wroc_xdg_surface_get_geometry(xdg_surface);
+    if (p_geom) *p_geom = geom;
+
+    auto geom_origin_pos = xdg_surface->anchor.position - (geom.extent * xdg_surface->anchor.relative);
+    return geom_origin_pos - geom.origin;
+}
+
 // -----------------------------------------------------------------------------
 
 static
@@ -138,6 +147,39 @@ void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, cons
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
     toplevel->pending.app_id = app_id ? std::string{app_id} : std::string{};
     toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::app_id;
+}
+
+static
+void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial)
+{
+    // TODO: Check serial
+    // TODO: Use seat to select pointer
+    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    wroc_begin_move_interaction(toplevel, toplevel->base->surface->server->seat->pointer, wroc_directions::horizontal | wroc_directions::vertical);
+}
+
+static
+void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial, u32 edges)
+{
+    // TODO: Check serial
+    // TODO: Use seat to select pointer
+    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+
+    vec2i32 anchor_rel = toplevel->base->anchor.relative;
+    wroc_directions dirs = {};
+    switch (edges) {
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_NONE: return;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP:          ; anchor_rel.y = 1;    dirs = wroc_directions::vertical;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:       ; anchor_rel.y = 0;    dirs = wroc_directions::vertical;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:         ; anchor_rel.x = 1;    dirs = wroc_directions::horizontal;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:        ; anchor_rel.x = 0;    dirs = wroc_directions::horizontal;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:     ; anchor_rel = {1, 1}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:    ; anchor_rel = {0, 1}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:  ; anchor_rel = {1, 0}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: ; anchor_rel = {0, 0}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
+    }
+
+    wroc_begin_resize_interaction(toplevel, toplevel->base->surface->server->seat->pointer, anchor_rel, dirs);
 }
 
 static
@@ -185,8 +227,8 @@ const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .set_title        = wroc_xdg_toplevel_set_title,
     .set_app_id       = wroc_xdg_toplevel_set_app_id,
     .show_window_menu = WROC_STUB,
-    .move             = WROC_STUB,
-    .resize           = WROC_STUB,
+    .move             = wroc_xdg_toplevel_move,
+    .resize           = wroc_xdg_toplevel_resize,
     .set_max_size     = WROC_STUB,
     .set_min_size     = WROC_STUB,
     .set_maximized    = WROC_STUB,

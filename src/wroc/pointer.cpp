@@ -79,11 +79,11 @@ void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, vec2f64 del
     } else if (auto* xdg_surface = wroc_xdg_surface::try_from(pointer->focused_surface.get());
             pointer->focused && xdg_surface && xdg_surface->surface->wl_surface) {
         // log_trace("sending motion to surface: {}", (void*)surface);
-        auto geom = wroc_xdg_surface_get_geometry(xdg_surface);
+        auto surface_pos = pos - vec2f64(wroc_xdg_surface_get_position(xdg_surface));
         wl_pointer_send_motion(pointer->focused,
             wroc_get_elapsed_milliseconds(server),
-            wl_fixed_from_double(pos.x - xdg_surface->position.x + geom.origin.x),
-            wl_fixed_from_double(pos.y - xdg_surface->position.y + geom.origin.y));
+            wl_fixed_from_double(surface_pos.x),
+            wl_fixed_from_double(surface_pos.y));
         wroc_pointer_send_frame(pointer->focused);
     }
 }

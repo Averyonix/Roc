@@ -174,7 +174,10 @@ struct wroc_xdg_surface : wroc_surface_addon
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
 
-    vec2i32 position;
+    struct {
+        vec2i32 position;
+        vec2i32 relative;
+    } anchor;
 
     u32 sent_configure_serial = {};
     u32 acked_configure_serial = {};
@@ -190,6 +193,7 @@ struct wroc_xdg_surface : wroc_surface_addon
 };
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* surface);
+vec2i32  wroc_xdg_surface_get_position(wroc_xdg_surface* surface, rect2i32* p_geom = nullptr);
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* surface);
 
 // -----------------------------------------------------------------------------
@@ -444,14 +448,12 @@ enum class wroc_interaction_mode : u32
     size,
 };
 
-enum class wroc_edges : u32
+enum class wroc_directions : u32
 {
-    left,
-    top,
-    right,
-    bottom,
+    horizontal = 1 << 0,
+    vertical   = 1 << 1,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_edges)
+WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
 struct wroc_server : wrei_object
 {
@@ -480,9 +482,12 @@ struct wroc_server : wrei_object
         wrei_weak<wroc_xdg_toplevel> grabbed_toplevel;
         vec2f64 pointer_grab;
         vec2i32 surface_grab;
-        wroc_edges edges;
+        wroc_directions directions;
     } movesize;
 };
 
 u32 wroc_get_elapsed_milliseconds(wroc_server*);
 wroc_modifiers wroc_get_active_modifiers(wroc_server*);
+
+void wroc_begin_move_interaction(wroc_xdg_toplevel*, wroc_pointer*, wroc_directions);
+void wroc_begin_resize_interaction(wroc_xdg_toplevel*, wroc_pointer*, vec2i32 anchor_rel, wroc_directions);
