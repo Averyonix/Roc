@@ -42,7 +42,7 @@ struct wroc_output : wrei_object
     wroc_server* server;
 
     wl_global* global;
-    wrei_wl_resource_list bound_clients;
+    wroc_wl_resource_list bound_clients;
 
     vec2i32 size;
 
@@ -75,21 +75,21 @@ struct wroc_xdg_wm_base : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource xdg_wm_base;
+    wroc_wl_resource xdg_wm_base;
 };
 
 struct wroc_wl_compositor : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource wl_compositor;
+    wroc_wl_resource wl_compositor;
 };
 
 struct wroc_wl_region : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource wl_region;
+    wroc_wl_resource wl_region;
 
     wrei_region region;
 };
@@ -119,7 +119,7 @@ struct wroc_surface_state
     wroc_surface_committed_state committed;
 
     wrei_ref<wroc_wl_buffer> buffer;
-    wrei_wl_resource_list frame_callbacks;
+    wroc_wl_resource_list frame_callbacks;
     vec2i32 offset;
     wrei_region input_region;
     double buffer_scale;
@@ -129,7 +129,7 @@ struct wroc_surface : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource wl_surface;
+    wroc_wl_resource wl_surface;
 
     wroc_surface_state pending;
     wroc_surface_state current = {
@@ -167,7 +167,7 @@ struct wroc_xdg_surface : wroc_surface_addon
 {
     wrei_ref<wroc_surface> surface;
 
-    wrei_wl_resource xdg_surface;
+    wroc_wl_resource xdg_surface;
 
     wroc_surface_addon* xdg_role_addon;
 
@@ -227,7 +227,7 @@ struct wroc_xdg_toplevel : wroc_surface_addon
 {
     wrei_ref<wroc_xdg_surface> base;
 
-    wrei_wl_resource xdg_toplevel;
+    wroc_wl_resource xdg_toplevel;
 
     wroc_xdg_toplevel_state pending;
     wroc_xdg_toplevel_state current;
@@ -276,7 +276,7 @@ struct wroc_wl_buffer : wrei_object
 
     wroc_wl_buffer_type type;
 
-    wrei_wl_resource wl_buffer;
+    wroc_wl_resource wl_buffer;
 
     vec2i32 extent;
 
@@ -296,14 +296,14 @@ struct wroc_wl_shm : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource wl_shm;
+    wroc_wl_resource wl_shm;
 };
 
 struct wroc_wl_shm_pool : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource wl_shm_pool;
+    wroc_wl_resource wl_shm_pool;
 
     i32 size;
     int fd;
@@ -329,7 +329,7 @@ struct wroc_zwp_linux_buffer_params : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource zwp_linux_buffer_params_v1;
+    wroc_wl_resource zwp_linux_buffer_params_v1;
 
     wren_dma_params params;
 
@@ -352,7 +352,7 @@ struct wroc_seat : wrei_object
 
     std::string name;
 
-    wrei_wl_resource_list wl_seat;
+    wroc_wl_resource_list wl_seat;
 };
 
 // -----------------------------------------------------------------------------
@@ -380,8 +380,8 @@ struct wroc_keyboard : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource_list wl_keyboards;
-    wrei_wl_resource focused;
+    wroc_wl_resource_list wl_keyboards;
+    wroc_wl_resource focused;
     wrei_weak<wroc_surface> focused_surface;
 
     struct xkb_context* xkb_context;
@@ -413,8 +413,8 @@ struct wroc_pointer : wrei_object
 {
     wroc_server* server;
 
-    wrei_wl_resource_list wl_pointers;
-    wrei_wl_resource focused;
+    wroc_wl_resource_list wl_pointers;
+    wroc_wl_resource focused;
     wrei_weak<wroc_surface> focused_surface;
 
     vec2f64 layout_position;
