@@ -55,7 +55,7 @@ void wroc_output_init_swapchain(wroc_output* output)
 }
 
 static
-void wroc_output_send_configuration(wroc_output* output, wl_resource* client_resource)
+void wroc_output_send_configuration(wroc_output* output, wl_resource* client_resource, bool initial)
 {
     log_debug("Output sending configuration to: {}", (void*)client_resource);
 
@@ -78,7 +78,7 @@ void wroc_output_send_configuration(wroc_output* output, wl_resource* client_res
         wl_output_send_scale(client_resource, output->scale);
     }
 
-    if (version >= WL_OUTPUT_NAME_SINCE_VERSION) {
+    if (initial && version >= WL_OUTPUT_NAME_SINCE_VERSION) {
         wl_output_send_name(client_resource, output->name.c_str());
     }
 
@@ -98,7 +98,7 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
     log_warn("OUTPUT BIND: {}", (void*)new_resource);
     output->bound_clients.emplace_back(new_resource);
     wl_resource_set_implementation(new_resource, &wroc_wl_output_impl, output, nullptr);
-    wroc_output_send_configuration(output, new_resource);
+    wroc_output_send_configuration(output, new_resource, true);
 }
 
 void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
@@ -138,7 +138,7 @@ void wroc_output_added(wroc_output* output)
     if (std::ranges::contains(output->server->outputs, output)) {
         log_debug("Output reconfigured");
         for (auto* client_resource : output->bound_clients) {
-            wroc_output_send_configuration(output, client_resource);
+            wroc_output_send_configuration(output, client_resource, false);
         }
     } else {
         log_debug("Output added");
