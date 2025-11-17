@@ -33,10 +33,11 @@ void wroc_run(int argc, char* argv[])
 
     const char* socket = wl_display_add_socket_auto(server->display);
 
-    wl_global_create(server->display, &wl_compositor_interface, wl_compositor_interface.version, server.get(), wroc_wl_compositor_bind_global);
-    wl_global_create(server->display, &wl_shm_interface,        wl_shm_interface.version,        server.get(), wroc_wl_shm_bind_global);
-    wl_global_create(server->display, &xdg_wm_base_interface,   xdg_wm_base_interface.version,   server.get(), wroc_xdg_wm_base_bind_global);
-    wl_global_create(server->display, &wl_seat_interface,       wl_seat_interface.version,       server->seat.get(),   wroc_wl_seat_bind_global);
+    wl_global_create(server->display, &wl_shm_interface,           wl_shm_interface.version,           server.get(),       wroc_wl_shm_bind_global);
+    wl_global_create(server->display, &wl_compositor_interface,    wl_compositor_interface.version,    server.get(),       wroc_wl_compositor_bind_global);
+    wl_global_create(server->display, &wl_subcompositor_interface, wl_subcompositor_interface.version, server.get(),       wroc_wl_subcompositor_bind_global);
+    wl_global_create(server->display, &xdg_wm_base_interface,      xdg_wm_base_interface.version,      server.get(),       wroc_xdg_wm_base_bind_global);
+    wl_global_create(server->display, &wl_seat_interface,          wl_seat_interface.version,          server->seat.get(), wroc_wl_seat_bind_global);
 
     wl_global_create(server->display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, server.get(), wroc_zwp_linux_dmabuf_v1_bind_global);
 

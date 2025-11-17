@@ -35,6 +35,7 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
 
     // TODO: Integrate with Wren to expose supported formats
 
+    wl_shm_send_format(new_resource, WL_SHM_FORMAT_ARGB8888);
     wl_shm_send_format(new_resource, WL_SHM_FORMAT_XRGB8888);
 };
 

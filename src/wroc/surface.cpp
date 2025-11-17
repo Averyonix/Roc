@@ -4,11 +4,10 @@
 static
 void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* compositor = wroc_get_userdata<wroc_wl_compositor>(resource);
     auto* new_resource = wl_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* region = new wroc_wl_region {};
-    region->server = compositor->server;
+    region->server = wroc_get_userdata<wroc_server>(resource);
     region->wl_region = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_region_impl, region);
 }
@@ -16,13 +15,13 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
 static
 void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* compositor = wroc_get_userdata<wroc_wl_compositor>(resource);
+    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* new_resource = wl_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* surface = new wroc_surface {};
-    surface->server = compositor->server;
+    surface->server = server;
     surface->wl_surface = new_resource;
-    compositor->server->surfaces.emplace_back(surface);
+    server->surfaces.emplace_back(surface);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_surface_impl, surface);
 }
 
@@ -35,10 +34,7 @@ void wroc_wl_compositor_bind_global(wl_client* client, void* data, u32 version, 
 {
     auto* new_resource = wl_resource_create(client, &wl_compositor_interface, version, id);
     wroc_debug_track_resource(new_resource);
-    auto* compositor = new wroc_wl_compositor {};
-    compositor->server = static_cast<wroc_server*>(data);
-    compositor->wl_compositor = new_resource;
-    wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_compositor_impl, compositor);
+    wroc_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, static_cast<wroc_server*>(data));
 };
 
 // -----------------------------------------------------------------------------
@@ -116,11 +112,8 @@ void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32
     surface->pending.committed |= wroc_surface_committed_state::offset;
 }
 
-static
-void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
+void wroc_surface_commit(wroc_surface* surface)
 {
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
-
     // Update frame callbacks
 
     surface->current.frame_callbacks.take_and_append_all(std::move(surface->pending.frame_callbacks));
@@ -189,6 +182,24 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
     } else if (surface->output) {
         wroc_surface_set_output(surface, nullptr);
     }
+
+    // Update subsurfaces
+
+    for (auto* subsurface : surface->subsurfaces) {
+        subsurface->on_parent_commit();
+    }
+}
+
+static
+void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
+{
+    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+
+    if (surface->role_addon && surface->role_addon->is_synchronized()) {
+        return;
+    }
+
+    wroc_surface_commit(surface);
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {

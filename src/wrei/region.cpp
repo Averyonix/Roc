@@ -13,13 +13,14 @@ wrei_region::wrei_region(rect2i32 rect)
 
 wrei_region::wrei_region(const wrei_region& other)
 {
+    pixman_region32_init(&region);
     pixman_region32_copy(&region, &other.region);
 }
 
 wrei_region& wrei_region::operator=(const wrei_region& other)
 {
     if (this != &other) {
-        pixman_region32_fini(&region);
+        pixman_region32_clear(&region);
         pixman_region32_copy(&region, &other.region);
     }
     return *this;

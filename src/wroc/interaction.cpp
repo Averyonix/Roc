@@ -47,6 +47,7 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
                     if (nine_slice.y != 1 || nine_slice.x == 1) dirs |= wroc_directions::vertical;
 
                     if (event.button.button == BTN_LEFT) {
+                        if (nine_slice.y == 0) dirs |= wroc_directions::horizontal;
                         wroc_begin_move_interaction(toplevel, event.pointer, dirs);
 
                     } else if (event.button.button == BTN_RIGHT) {

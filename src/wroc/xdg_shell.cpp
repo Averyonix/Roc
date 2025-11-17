@@ -24,10 +24,7 @@ void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u3
 {
     auto* new_resource = wl_resource_create(client, &xdg_wm_base_interface, version, id);
     wroc_debug_track_resource(new_resource);
-    auto* wm_base = new wroc_xdg_wm_base {};
-    wm_base->server = static_cast<wroc_server*>(data);
-    wm_base->xdg_wm_base = new_resource;
-    wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_wm_base_impl, wm_base);
+    wroc_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, static_cast<wroc_server*>(data));
 };
 
 // -----------------------------------------------------------------------------

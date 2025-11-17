@@ -10,6 +10,7 @@ void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
     seat->keyboard->wl_keyboards.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard);
 
+    // TODO: This should be handled in keyboard.cpp
     wl_keyboard_send_keymap(new_resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, seat->keyboard->keymap_fd, seat->keyboard->keymap_size);
 }
 
@@ -52,10 +53,8 @@ void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 se
     if (wl_surface) {
         pointer->server->cursor_surface = wrei_weak_from(wroc_get_userdata<wroc_surface>(wl_surface));
         pointer->server->cursor_hotspot = {x, y};
-        log_warn("Setting cursor surface to: {} ({}, {})", (void*)pointer->server->cursor_surface.get(), x, y);
     } else {
         pointer->server->cursor_surface = nullptr;
-        log_warn("Hiding cursor surface");
     }
 }
 

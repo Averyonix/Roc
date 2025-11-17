@@ -71,20 +71,6 @@ void wroc_backend_output_destroy(wroc_output*);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_xdg_wm_base : wrei_object
-{
-    wroc_server* server;
-
-    wroc_wl_resource xdg_wm_base;
-};
-
-struct wroc_wl_compositor : wrei_object
-{
-    wroc_server* server;
-
-    wroc_wl_resource wl_compositor;
-};
-
 struct wroc_wl_region : wrei_object
 {
     wroc_server* server;
@@ -98,10 +84,11 @@ struct wroc_wl_buffer;
 
 // -----------------------------------------------------------------------------
 
-struct wroc_surface_addon : wrei_object
+struct wroc_surface_role_addon : wrei_object
 {
     virtual void on_commit() = 0;
     virtual void on_ack_configure(u32 serial) {}
+    virtual bool is_synchronized() { return false; }
 };
 
 enum class wroc_surface_committed_state : u32
@@ -125,6 +112,8 @@ struct wroc_surface_state
     double buffer_scale;
 };
 
+struct wroc_subsurface;
+
 struct wroc_surface : wrei_object
 {
     wroc_server* server;
@@ -137,15 +126,44 @@ struct wroc_surface : wrei_object
         .buffer_scale = 1.f
     };
 
-    wroc_surface_addon* role_addon;
+    wroc_surface_role_addon* role_addon;
 
     wrei_weak<wroc_output> output;
+
+    std::vector<wroc_subsurface*> subsurfaces;
 
     ~wroc_surface();
 };
 
+void wroc_surface_commit(wroc_surface*);
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 void wroc_surface_set_output(wroc_surface*, wroc_output*);
+
+// -----------------------------------------------------------------------------
+
+struct wroc_subsurface : wroc_surface_role_addon
+{
+    wrei_ref<wroc_surface> surface;
+    wrei_weak<wroc_surface> parent;
+
+    wroc_wl_resource wl_subsurface;
+
+    vec2i32 position;
+
+    bool synchronized = true;
+
+    void on_parent_commit();
+    virtual void on_commit() final override;
+    virtual bool is_synchronized() final override;
+
+    ~wroc_subsurface();
+
+    static
+    wroc_subsurface* try_from(wroc_surface* surface)
+    {
+        return surface ? dynamic_cast<wroc_subsurface*>(surface->role_addon) : nullptr;
+    }
+};
 
 // -----------------------------------------------------------------------------
 
@@ -163,13 +181,13 @@ struct wrox_xdg_surface_state
     rect2i32 geometry;
 };
 
-struct wroc_xdg_surface : wroc_surface_addon
+struct wroc_xdg_surface : wroc_surface_role_addon
 {
     wrei_ref<wroc_surface> surface;
 
     wroc_wl_resource xdg_surface;
 
-    wroc_surface_addon* xdg_role_addon;
+    wroc_surface_role_addon* xdg_role_addon;
 
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
@@ -223,7 +241,7 @@ struct wroc_xdg_toplevel_state
     std::string app_id;
 };
 
-struct wroc_xdg_toplevel : wroc_surface_addon
+struct wroc_xdg_toplevel : wroc_surface_role_addon
 {
     wrei_ref<wroc_xdg_surface> base;
 

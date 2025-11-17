@@ -119,6 +119,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/seat.cpp
     src/wroc/shm.cpp
     src/wroc/surface.cpp
+    src/wroc/subsurface.cpp
     src/wroc/interaction.cpp
     src/wroc/xdg_shell.cpp
 
