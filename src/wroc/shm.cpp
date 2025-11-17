@@ -53,14 +53,18 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     auto* new_resource = wl_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
+
     auto* shm_buffer = new wroc_shm_buffer {};
     shm_buffer->server = wroc_get_userdata<wroc_wl_shm_pool>(resource)->server;
     shm_buffer->type = wroc_wl_buffer_type::shm;
     shm_buffer->wl_buffer = new_resource;
-    shm_buffer->pool = pool;
     shm_buffer->extent = {width, height};
+
+    shm_buffer->pool = pool;
     shm_buffer->stride = stride;
     shm_buffer->format = wl_shm_format(format);
+    shm_buffer->offset = offset;
+
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
     shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)}, VK_FORMAT_B8G8R8A8_UNORM);

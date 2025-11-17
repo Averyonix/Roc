@@ -472,6 +472,10 @@ struct wroc_server : wrei_object
 
     wroc_interaction_mode interaction_mode;
 
+    // TODO: We should track these per client-pointer
+    wrei_weak<wroc_surface> cursor_surface;
+    vec2i32                 cursor_hotspot;
+
     struct {
         wrei_weak<wroc_xdg_toplevel> grabbed_toplevel;
         vec2f64 pointer_grab;

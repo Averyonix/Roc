@@ -34,9 +34,34 @@ const struct wl_keyboard_interface wroc_wl_keyboard_impl = {
     .release = wroc_simple_resource_destroy_callback,
 };
 
+static
+void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 serial, wl_resource* wl_surface, i32 x, i32 y)
+{
+    // TODO: Check serial
+
+    auto* pointer = wroc_get_userdata<wroc_pointer>(resource);
+    if (!pointer->focused_surface) {
+        log_warn("set_cursor failed, no focused surface");
+        return;
+    }
+    if (wl_resource_get_client(pointer->focused_surface->wl_surface) != client) {
+        log_warn("set_cursor failed, client does not own currently focused surface");
+        return;
+    }
+
+    if (wl_surface) {
+        pointer->server->cursor_surface = wrei_weak_from(wroc_get_userdata<wroc_surface>(wl_surface));
+        pointer->server->cursor_hotspot = {x, y};
+        log_warn("Setting cursor surface to: {} ({}, {})", (void*)pointer->server->cursor_surface.get(), x, y);
+    } else {
+        pointer->server->cursor_surface = nullptr;
+        log_warn("Hiding cursor surface");
+    }
+}
+
 const struct wl_pointer_interface wroc_wl_pointer_impl = {
     .release    = wroc_simple_resource_destroy_callback,
-    .set_cursor = WROC_STUB,
+    .set_cursor = wroc_wl_pointer_set_cursor,
 };
 
 void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id)

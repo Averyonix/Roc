@@ -205,6 +205,20 @@ void wroc_render_frame(wroc_output* output)
         }
     }
 
+    if (auto* pointer = renderer->server->seat->pointer) {
+        if (pointer->focused_surface) {
+            if (auto* cursor_surface = renderer->server->cursor_surface.get()) {
+                if (auto* buffer = cursor_surface->current.buffer.get()) {
+                    auto pos = vec2i32(pointer->layout_position) - renderer->server->cursor_hotspot;
+                    // log_trace("Drawing cursor surface at: ({}, {})", pos.x, pos.y);
+                    draw(buffer->image.get(),
+                        pos,
+                        buffer->extent);
+                }
+            }
+        }
+    }
+
     wren->vk.CmdEndRendering(cmd);
 
     output->server->toplevel_under_cursor.reset();
