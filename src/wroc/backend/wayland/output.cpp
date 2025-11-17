@@ -65,10 +65,14 @@ void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 ser
 
     xdg_surface_ack_configure(surface, serial);
 
-    wroc_post_event(output->server, wroc_output_event {
-        { .type = wroc_event_type::output_frame },
-        .output = output,
-    });
+    if (!output->frame_callback) {
+        log_warn("  initial configure, registering frame callbacks");
+        wroc_register_frame_callback(output);
+        wroc_post_event(output->server, wroc_output_event {
+            { .type = wroc_event_type::output_frame },
+            .output = output,
+        });
+    }
 }
 
 const xdg_surface_listener wroc_xdg_surface_listener {
@@ -230,8 +234,7 @@ void wroc_backend_output_create(wroc_backend* backend)
         log_warn("Server side decorations are not supported, backend outputs will remain undecorated");
     }
 
-    // This will call `wl_surface_commit`
-    wroc_register_frame_callback(output);
+    wl_surface_commit(output->wl_surface);
 }
 
 wroc_wayland_output::~wroc_wayland_output()
