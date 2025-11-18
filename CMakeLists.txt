@@ -108,6 +108,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wrei/shm.cpp
     src/wrei/region.cpp
 
+    src/wroc/client.cpp
     src/wroc/server.cpp
     src/wroc/event.cpp
     src/wroc/output.cpp

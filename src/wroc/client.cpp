@@ -1,0 +1,9 @@
+#include "util.hpp"
+
+bool wroc_is_client_behind(wl_client* client)
+{
+    return poll(wrei_ptr_to(pollfd {
+        .fd = wl_client_get_fd(client),
+        .events = POLLOUT,
+    }), 1, 0) != 1;
+}

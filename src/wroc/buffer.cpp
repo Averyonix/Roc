@@ -14,7 +14,7 @@ void wroc_wl_buffer::unlock()
 {
     if (locked) {
         // log_warn("RELEASING BUFFER {}", (void*)this);
-        if (wl_buffer) wl_buffer_send_release(wl_buffer);
+        if (resource) wl_buffer_send_release(resource);
     }
     locked = false;
 }

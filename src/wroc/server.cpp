@@ -28,6 +28,8 @@ void wroc_run(int argc, char* argv[])
     unsetenv("WAYLAND_DEBUG");
     server->event_loop = wl_display_get_event_loop(server->display);
 
+    wl_display_set_default_max_buffer_size(server->display, 65536);
+
     wroc_backend_init(server.get());
     wroc_renderer_create(server.get());
 

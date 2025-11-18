@@ -6,7 +6,7 @@ void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 par
     auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
     auto* params = new wroc_zwp_linux_buffer_params {};
     params->server = wroc_get_userdata<wroc_server>(resource);
-    params->zwp_linux_buffer_params_v1 = new_resource;
+    params->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params);
 }
 
@@ -64,7 +64,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = new wroc_dma_buffer {};
     buffer->server = params->server;
-    buffer->wl_buffer = new_resource;
+    buffer->resource = new_resource;
     buffer->type = wroc_wl_buffer_type::dma;
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, buffer);
@@ -85,7 +85,7 @@ void wroc_dmabuf_params_create_buffer(wl_client* client, wl_resource* params, i3
 {
     auto buffer = wroc_dmabuf_create_buffer(client, params, 0, width, height, format, flags);
     if (buffer) {
-        zwp_linux_buffer_params_v1_send_created(params, buffer->wl_buffer);
+        zwp_linux_buffer_params_v1_send_created(params, buffer->resource);
     } else {
         zwp_linux_buffer_params_v1_send_failed(params);
     }

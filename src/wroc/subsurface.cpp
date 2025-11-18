@@ -9,9 +9,13 @@ void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resour
     auto* subsurface = new wroc_subsurface {};
     subsurface->surface = wroc_get_userdata<wroc_surface>(surface);
     subsurface->surface->role_addon = subsurface;
-    subsurface->wl_subsurface = new_resource;
+    subsurface->resource = new_resource;
     subsurface->parent = wrei_weak_from(wroc_get_userdata<wroc_surface>(parent));
-    subsurface->parent->subsurfaces.emplace_back(subsurface);
+
+    // Add subsurface to top of its parent's surface stack
+    subsurface->parent->pending.surface_stack.emplace_back(wrei_weak_from(subsurface->surface.get()));
+    subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
+
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_subsurface_impl, subsurface);
 }
 
@@ -32,10 +36,73 @@ void wroc_wl_subcompositor_bind_global(wl_client* client, void* data, u32 versio
 static
 void wroc_wl_subsurface_set_position(wl_client* client, wl_resource* resource, i32 x, i32 y)
 {
-    log_warn("Subsurface position set: ({}, {})", x, y);
-
     auto* subsurface = wroc_get_userdata<wroc_subsurface>(resource);
-    subsurface->position = {x, y};
+    subsurface->pending.position = {x, y};
+    subsurface->pending.committed |= wroc_subsurface_committed_state::position;
+}
+
+static
+void wroc_wl_subsurface_place(wl_resource* resource, wl_resource* _sibling, bool above)
+{
+    auto subsurface = wroc_get_userdata<wroc_subsurface>(resource);
+    auto sibling = wroc_get_userdata<wroc_surface>(_sibling);
+
+    auto& surface_stack = subsurface->parent->pending.surface_stack;
+
+    if (sibling == subsurface->parent.get()) {
+        wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "sibling must not be own surface");
+        return;
+    }
+
+    auto debug_print = [&]{
+        auto i = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; });
+        auto c = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == subsurface->surface.get(); });
+        log_debug("  size = {}, self = {}, sibling = {}", surface_stack.size(), std::distance(surface_stack.begin(), c), std::distance(surface_stack.begin(), i));
+    };
+
+    log_debug("SUBSURFACE PLACE {}", above ? "ABOVE" : "BELOW");
+    debug_print();
+
+    if (std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; }) == surface_stack.end()) {
+        wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "sibling is not a sibling surface");
+        return;
+    }
+
+    std::erase_if(surface_stack, [&](auto& w) { return w.get() == subsurface->surface.get(); });
+
+    auto i = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; });
+    if (above) i = std::next(i);
+
+    subsurface->parent->pending.surface_stack.insert(i, wrei_weak_from(subsurface->surface.get()));
+    subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
+
+    debug_print();
+}
+
+static
+void wroc_wl_subsurface_place_above(wl_client* client, wl_resource* resource, wl_resource* sibling)
+{
+    wroc_wl_subsurface_place(resource, sibling, true);
+}
+
+static
+void wroc_wl_subsurface_place_below(wl_client* client, wl_resource* resource, wl_resource* sibling)
+{
+    wroc_wl_subsurface_place(resource, sibling, false);
+}
+
+static
+void wroc_wl_subsurface_set_sync(wl_client* client, wl_resource* resource)
+{
+    log_warn("Subsurface mode set to: synchronized");
+    wroc_get_userdata<wroc_subsurface>(resource)->synchronized = true;
+}
+
+static
+void wroc_wl_subsurface_set_desync(wl_client* client, wl_resource* resource)
+{
+    log_warn("Subsurface mode set to: desynchronized");
+    wroc_get_userdata<wroc_subsurface>(resource)->synchronized = false;
 }
 
 void wroc_subsurface::on_parent_commit()
@@ -47,6 +114,12 @@ void wroc_subsurface::on_parent_commit()
 
 void wroc_subsurface::on_commit()
 {
+    if (pending.committed >= wroc_subsurface_committed_state::position) {
+        current.position = pending.position;
+    }
+
+    current.committed |= pending.committed;
+    pending = {};
 }
 
 bool wroc_subsurface::is_synchronized()
@@ -55,18 +128,11 @@ bool wroc_subsurface::is_synchronized()
     return parent && parent->role_addon && parent->role_addon->is_synchronized();
 }
 
-wroc_subsurface::~wroc_subsurface()
-{
-    if (parent) {
-        std::erase(parent->subsurfaces, this);
-    }
-}
-
 const struct wl_subsurface_interface wroc_wl_subsurface_impl = {
     .destroy      = wroc_simple_resource_destroy_callback,
     .set_position = wroc_wl_subsurface_set_position,
-    .place_above  = WROC_STUB,
-    .place_below  = WROC_STUB,
-    .set_sync     = WROC_STUB,
-    .set_desync   = WROC_STUB,
+    .place_above  = wroc_wl_subsurface_place_above,
+    .place_below  = wroc_wl_subsurface_place_below,
+    .set_sync     = wroc_wl_subsurface_set_sync,
+    .set_desync   = wroc_wl_subsurface_set_desync,
 };

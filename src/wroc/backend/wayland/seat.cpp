@@ -21,7 +21,7 @@ void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx,
 static
 void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surface* surface, wl_fixed_t sx, wl_fixed_t sy)
 {
-    log_info("pointer_axis_enter");
+    log_info("pointer_enter");
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
@@ -33,10 +33,20 @@ void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surfac
 static
 void wroc_listen_wl_pointer_leave(void* data, wl_pointer*, u32 serial, wl_surface*)
 {
-    log_info("pointer_axis_leave");
+    log_info("pointer_leave");
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
+
+    // NOTE: In theory no mouse buttons should every be left pressed at this point anyway?
+    for (auto button : pointer->pressed) {
+        wroc_post_event(pointer->server, wroc_pointer_event {
+            { .type = wroc_event_type::pointer_button },
+            .pointer = pointer,
+            .button { .button = button, .pressed = false },
+        });
+    }
+    pointer->pressed.clear();
 }
 
 static
@@ -48,11 +58,22 @@ void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 /* time */, wl_f
 }
 
 static
+void update_pointer_button_state(wroc_wayland_pointer* pointer, u32 button, bool state)
+{
+    if (!state) {
+        std::erase(pointer->pressed, button);
+    } else if (std::ranges::find(pointer->pressed, button) == pointer->pressed.end()) {
+        pointer->pressed.emplace_back(button);
+    }
+}
+
+static
 void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 /* time */, u32 button, u32 state)
 {
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
     log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
+    update_pointer_button_state(pointer, button, state == WL_POINTER_BUTTON_STATE_PRESSED);
     wroc_post_event(pointer->server, wroc_pointer_event {
         { .type = wroc_event_type::pointer_button },
         .pointer = pointer,

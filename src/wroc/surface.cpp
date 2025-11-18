@@ -8,7 +8,7 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
     wroc_debug_track_resource(new_resource);
     auto* region = new wroc_wl_region {};
     region->server = wroc_get_userdata<wroc_server>(resource);
-    region->wl_region = new_resource;
+    region->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_region_impl, region);
 }
 
@@ -20,8 +20,13 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     wroc_debug_track_resource(new_resource);
     auto* surface = new wroc_surface {};
     surface->server = server;
-    surface->wl_surface = new_resource;
+    surface->resource = new_resource;
     server->surfaces.emplace_back(surface);
+
+    // Add surface to its own surface stack
+    surface->pending.surface_stack.emplace_back(wrei_weak_from(surface));
+    surface->pending.committed |= wroc_surface_committed_state::surface_stack;
+
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_surface_impl, surface);
 }
 
@@ -66,6 +71,21 @@ static
 void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
+
+    if (surface->pending.buffer) {
+        // If a surface is synchronized, it's possible that multiple buffers will be attached before a final commit
+        // We can either resolve this by adding an additional step where commits still occur, but go in to a "cached" state
+        // OR we can simply leave the surface state uncomitted and handle the few cases where problems occur on multiply committed state
+        // We've chosen the latter for now. Noting also that you want to handle the multiply committed state even
+        //   for desynchronized surfaces to handle potentially badly behaving clients in the most graceful way possible.
+        //
+        // TODO: If this causes a previously locked buffer to become unlocked we need to ensure that it is not being
+        //       actively drawn in the compositor
+
+        surface->pending.buffer->lock();
+        surface->pending.buffer->unlock();
+    }
+
     surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_wl_buffer>(wl_buffer) : nullptr;
     surface->pending.committed |= wroc_surface_committed_state::buffer;
 
@@ -87,8 +107,7 @@ void wroc_wl_surface_frame(wl_client* client, wl_resource* resource, u32 callbac
     auto new_resource = wl_resource_create(client, &wl_callback_interface, 1, callback);
     wroc_debug_track_resource(new_resource);
     surface->pending.frame_callbacks.emplace_back(new_resource);
-    wrei_add_ref(surface);
-    wroc_resource_set_implementation_refcounted(new_resource, nullptr, surface);
+    wroc_resource_set_implementation(new_resource, nullptr, surface);
 }
 
 static
@@ -130,7 +149,7 @@ void wroc_surface_commit(wroc_surface* surface)
         }
 
         if (surface->pending.buffer) {
-            if (surface->pending.buffer->wl_buffer) {
+            if (surface->pending.buffer->resource) {
                 surface->current.buffer = surface->pending.buffer;
                 surface->current.buffer->on_commit();
             } else {
@@ -160,6 +179,18 @@ void wroc_surface_commit(wroc_surface* surface)
         surface->current.offset = surface->pending.offset;
     }
 
+    // Update surface stack
+
+    if (std::erase_if(surface->pending.surface_stack, [](auto& w) { return !w; })) {
+        // Clean out tombstones
+        surface->pending.committed |= wroc_surface_committed_state::surface_stack;
+    }
+
+    if (surface->pending.committed >= wroc_surface_committed_state::surface_stack) {
+        surface->current.surface_stack.clear();
+        surface->current.surface_stack.append_range(surface->pending.surface_stack);
+    }
+
     surface->current.committed |= surface->pending.committed;
     surface->pending.committed = wroc_surface_committed_state::none;
 
@@ -185,8 +216,14 @@ void wroc_surface_commit(wroc_surface* surface)
 
     // Update subsurfaces
 
-    for (auto* subsurface : surface->subsurfaces) {
-        subsurface->on_parent_commit();
+    for (auto& s : surface->current.surface_stack) {
+
+        // Skip self
+        if (s.get() == surface) continue;
+
+        if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
+            subsurface->on_parent_commit();
+        }
     }
 }
 
@@ -220,6 +257,14 @@ wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
 
+    // TODO: Should we send a done instead?
+    while (auto* callback = pending.frame_callbacks.front()) {
+        wl_resource_destroy(callback);
+    }
+    while (auto* callback = current.frame_callbacks.front()) {
+        wl_resource_destroy(callback);
+    }
+
     log_warn("wroc_surface DESTROY, this = {}", (void*)this);
 }
 
@@ -234,5 +279,10 @@ bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 point)
     // log_debug("buffer_rect = (({}, {}), ({}, {}))", buffer_rect.origin.x, buffer_rect.origin.y, buffer_rect.extent.x, buffer_rect.extent.y);
 
     if (!wrei_rect_contains(buffer_rect, point)) return false;
-    return surface->current.input_region.contains(point);
+
+    auto accepts_input = surface->current.input_region.contains(point);
+
+    // log_trace("input_region.contains({}, {}) = {}", point.x, point.y, accepts_input);
+
+    return accepts_input;
 }

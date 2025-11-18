@@ -45,20 +45,32 @@ wroc_modifiers wroc_get_active_modifiers(wroc_server* server)
     return mods;
 }
 
+static
+bool wroc_keyboard_resource_matches_focus_client(wroc_keyboard* kb, wl_resource* resource)
+{
+    if (!kb->focused_surface) return false;
+    if (!kb->focused_surface->resource) return false;
+    return wl_resource_get_client(resource) == wl_resource_get_client(kb->focused_surface->resource);
+}
+
 void wroc_keyboard_clear_focus(wroc_keyboard* kb)
 {
-    if (auto* surface = kb->focused_surface.get(); surface && kb->focused && surface->wl_surface) {
+    if (auto* surface = kb->focused_surface.get(); surface && surface->resource) {
         auto serial = wl_display_next_serial(kb->server->display);
-        for (auto keycode : kb->pressed) {
-            wl_keyboard_send_key(kb->focused,
-                serial,
-                wroc_get_elapsed_milliseconds(kb->server),
-                u32(keycode), WL_KEYBOARD_KEY_STATE_RELEASED);
+
+        for (auto* resource : kb->resources) {
+            if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
+            for (auto keycode : kb->pressed) {
+                wl_keyboard_send_key(resource,
+                    serial,
+                    wroc_get_elapsed_milliseconds(kb->server),
+                    u32(keycode), WL_KEYBOARD_KEY_STATE_RELEASED);
+            }
+            wl_keyboard_send_modifiers(resource, serial, 0, 0, 0, 0);
+            wl_keyboard_send_leave(resource, serial, surface->resource);
         }
-        wl_keyboard_send_modifiers(kb->focused, serial, 0, 0, 0, 0);
-        wl_keyboard_send_leave(kb->focused, serial, surface->wl_surface);
+
         kb->focused_surface = nullptr;
-        kb->focused = nullptr;
     }
 }
 
@@ -68,26 +80,24 @@ void wroc_keyboard_enter(wroc_keyboard* kb, wroc_surface* surface)
 
     wroc_keyboard_clear_focus(kb);
 
-    if (!surface->wl_surface) return;
+    if (!surface->resource) return;
 
     // TODO: Consolidate "client seat" into a with client's wl_keyboard/wl_pointer handles
     //       To deduplicate code between this and `wroc_pointer`
 
-    auto* client = wl_resource_get_client(surface->wl_surface);
-    for (auto* k : kb->wl_keyboards) {
-        if (wl_resource_get_client(k) != client) continue;
+    log_warn("KEYBOARD ENTERED");
+    kb->focused_surface = wrei_weak_from(surface);
 
-        auto serial = wl_display_next_serial(kb->server->display);
+    auto serial = wl_display_next_serial(kb->server->display);
 
-        log_warn("KEYBOARD ENTERED");
-        kb->focused = k;
-        kb->focused_surface = wrei_weak_from(surface);
+    for (auto* resource : kb->resources) {
+        if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
 
-        wl_keyboard_send_enter(kb->focused,
+        wl_keyboard_send_enter(resource,
             serial,
-            surface->wl_surface, wrei_ptr_to(wroc_to_wl_array<u32>(kb->pressed)));
+            surface->resource, wrei_ptr_to(wroc_to_wl_array<u32>(kb->pressed)));
 
-        wl_keyboard_send_modifiers(kb->focused,
+        wl_keyboard_send_modifiers(resource,
             serial,
             xkb_state_serialize_mods(kb->xkb_state, XKB_STATE_MODS_DEPRESSED),
             xkb_state_serialize_mods(kb->xkb_state, XKB_STATE_MODS_LATCHED),
@@ -152,7 +162,7 @@ void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 
     log_debug("Successfully updated keyboard keymap fd: {}", kb->keymap_fd);
 
-    for (wl_resource* resource : kb->wl_keyboards) {
+    for (wl_resource* resource : kb->resources) {
         wl_keyboard_send_keymap(resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, kb->keymap_fd, kb->keymap_size);
     }
 }
@@ -184,8 +194,9 @@ void wroc_keyboard_key(wroc_keyboard* kb, u32 keycode, bool pressed)
 {
     wroc_debug_print_key(kb, keycode, pressed);
 
-    if (kb->focused) {
-        wl_keyboard_send_key(kb->focused,
+    for (auto* resource : kb->resources) {
+        if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
+        wl_keyboard_send_key(resource,
             wl_display_next_serial(kb->server->display),
             wroc_get_elapsed_milliseconds(kb->server),
             keycode, pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
@@ -197,8 +208,9 @@ void wroc_keyboard_modifiers(wroc_keyboard* kb, u32 mods_depressed, u32 mods_lat
 {
     wroc_keyboard_update_active_modifiers(kb);
 
-    if (kb->focused) {
-        wl_keyboard_send_modifiers(kb->focused,
+    for (auto* resource : kb->resources) {
+        if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
+        wl_keyboard_send_modifiers(resource,
             wl_display_next_serial(kb->server->display),
             mods_depressed,
             mods_latched,

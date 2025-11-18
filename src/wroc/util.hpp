@@ -223,3 +223,7 @@ public:
 
     WREI_DELETE_COPY_MOVE(wroc_wl_resource_list)
 };
+
+// -----------------------------------------------------------------------------
+
+bool wroc_is_client_behind(wl_client* client);

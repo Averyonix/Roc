@@ -42,7 +42,7 @@ struct wroc_output : wrei_object
     wroc_server* server;
 
     wl_global* global;
-    wroc_wl_resource_list bound_clients;
+    wroc_wl_resource_list resources;
 
     vec2i32 size;
 
@@ -75,7 +75,7 @@ struct wroc_wl_region : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource wl_region;
+    wroc_wl_resource resource;
 
     wrei_region region;
 };
@@ -94,12 +94,15 @@ struct wroc_surface_role_addon : wrei_object
 enum class wroc_surface_committed_state : u32
 {
     none,
-    buffer       = 1 << 0,
-    offset       = 1 << 1,
-    input_region = 1 << 2,
-    buffer_scale = 1 << 3,
+    buffer        = 1 << 0,
+    offset        = 1 << 1,
+    input_region  = 1 << 2,
+    buffer_scale  = 1 << 3,
+    surface_stack = 1 << 4,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
+
+struct wroc_surface;
 
 struct wroc_surface_state
 {
@@ -110,15 +113,14 @@ struct wroc_surface_state
     vec2i32 offset;
     wrei_region input_region;
     double buffer_scale;
+    std::vector<wrei_weak<wroc_surface>> surface_stack;
 };
-
-struct wroc_subsurface;
 
 struct wroc_surface : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource wl_surface;
+    wroc_wl_resource resource;
 
     wroc_surface_state pending;
     wroc_surface_state current = {
@@ -130,8 +132,6 @@ struct wroc_surface : wrei_object
 
     wrei_weak<wroc_output> output;
 
-    std::vector<wroc_subsurface*> subsurfaces;
-
     ~wroc_surface();
 };
 
@@ -141,22 +141,34 @@ void wroc_surface_set_output(wroc_surface*, wroc_output*);
 
 // -----------------------------------------------------------------------------
 
+enum class wroc_subsurface_committed_state : u32
+{
+    none,
+    position,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_subsurface_committed_state)
+
+struct wroc_subsurface_state
+{
+    wroc_subsurface_committed_state committed;
+    vec2i32 position;
+};
+
 struct wroc_subsurface : wroc_surface_role_addon
 {
     wrei_ref<wroc_surface> surface;
     wrei_weak<wroc_surface> parent;
 
-    wroc_wl_resource wl_subsurface;
+    wroc_wl_resource resource;
 
-    vec2i32 position;
+    wroc_subsurface_state pending;
+    wroc_subsurface_state current;
 
     bool synchronized = true;
 
     void on_parent_commit();
     virtual void on_commit() final override;
     virtual bool is_synchronized() final override;
-
-    ~wroc_subsurface();
 
     static
     wroc_subsurface* try_from(wroc_surface* surface)
@@ -185,7 +197,7 @@ struct wroc_xdg_surface : wroc_surface_role_addon
 {
     wrei_ref<wroc_surface> surface;
 
-    wroc_wl_resource xdg_surface;
+    wroc_wl_resource resource;
 
     wroc_surface_role_addon* xdg_role_addon;
 
@@ -245,7 +257,7 @@ struct wroc_xdg_toplevel : wroc_surface_role_addon
 {
     wrei_ref<wroc_xdg_surface> base;
 
-    wroc_wl_resource xdg_toplevel;
+    wroc_wl_resource resource;
 
     wroc_xdg_toplevel_state pending;
     wroc_xdg_toplevel_state current;
@@ -294,7 +306,7 @@ struct wroc_wl_buffer : wrei_object
 
     wroc_wl_buffer_type type;
 
-    wroc_wl_resource wl_buffer;
+    wroc_wl_resource resource;
 
     vec2i32 extent;
 
@@ -314,14 +326,14 @@ struct wroc_wl_shm : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource wl_shm;
+    wroc_wl_resource resource;
 };
 
 struct wroc_wl_shm_pool : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource wl_shm_pool;
+    wroc_wl_resource resource;
 
     i32 size;
     int fd;
@@ -347,7 +359,7 @@ struct wroc_zwp_linux_buffer_params : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource zwp_linux_buffer_params_v1;
+    wroc_wl_resource resource;
 
     wren_dma_params params;
 
@@ -370,7 +382,7 @@ struct wroc_seat : wrei_object
 
     std::string name;
 
-    wroc_wl_resource_list wl_seat;
+    wroc_wl_resource_list resources;
 };
 
 // -----------------------------------------------------------------------------
@@ -398,8 +410,7 @@ struct wroc_keyboard : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource_list wl_keyboards;
-    wroc_wl_resource focused;
+    wroc_wl_resource_list resources;
     wrei_weak<wroc_surface> focused_surface;
 
     struct xkb_context* xkb_context;
@@ -431,9 +442,10 @@ struct wroc_pointer : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource_list wl_pointers;
-    wroc_wl_resource focused;
+    wroc_wl_resource_list resources;
     wrei_weak<wroc_surface> focused_surface;
+
+    std::vector<u32> pressed = {};
 
     vec2f64 layout_position;
 };
@@ -473,6 +485,14 @@ enum class wroc_directions : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
+struct wroc_surface_at_position
+{
+    wrei_weak<wroc_surface> surface;
+    vec2i32                 position;
+
+    operator bool() const { return surface; };
+};
+
 struct wroc_server : wrei_object
 {
     wroc_backend*  backend;
@@ -488,7 +508,8 @@ struct wroc_server : wrei_object
 
     std::vector<wroc_output*> outputs;
     std::vector<wroc_surface*> surfaces;
-    wrei_weak<wroc_xdg_toplevel> toplevel_under_cursor;
+    wroc_surface_at_position toplevel_under_cursor;
+    wroc_surface_at_position surface_under_cursor;
 
     wroc_interaction_mode interaction_mode;
 

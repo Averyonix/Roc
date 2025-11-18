@@ -7,7 +7,7 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
     auto* new_resource = wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* xdg_surface = new wroc_xdg_surface {};
-    xdg_surface->xdg_surface = new_resource;
+    xdg_surface->resource = new_resource;
     xdg_surface->surface = wroc_get_userdata<wroc_surface>(wl_surface);
     xdg_surface->surface->role_addon = xdg_surface;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_surface_impl, xdg_surface);
@@ -35,7 +35,7 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
     auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* xdg_toplevel = new wroc_xdg_toplevel {};
-    xdg_toplevel->xdg_toplevel = new_resource;
+    xdg_toplevel->resource = new_resource;
     xdg_toplevel->base = wroc_get_userdata<wroc_xdg_surface>(resource);
     xdg_toplevel->base->xdg_role_addon = xdg_toplevel;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel);
@@ -96,7 +96,7 @@ void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u3
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
 {
     xdg_surface->sent_configure_serial = wl_display_next_serial(xdg_surface->surface->server->display);
-    xdg_surface_send_configure(xdg_surface->xdg_surface, xdg_surface->sent_configure_serial);
+    xdg_surface_send_configure(xdg_surface->resource, xdg_surface->sent_configure_serial);
 }
 
 const struct xdg_surface_interface wroc_xdg_surface_impl = {
@@ -150,17 +150,32 @@ static
 void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial)
 {
     // TODO: Check serial
-    // TODO: Use seat to select pointer
+
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
-    wroc_begin_move_interaction(toplevel, toplevel->base->surface->server->seat->pointer, wroc_directions::horizontal | wroc_directions::vertical);
+
+    // TODO: Use seat to select pointer
+    auto* pointer = toplevel->base->surface->server->seat->pointer;
+    if (!std::ranges::contains(pointer->pressed, BTN_LEFT)) {
+        log_warn("toplevel attempted to initiate move but left button was not pressed");
+        return;
+    }
+
+    wroc_begin_move_interaction(toplevel, pointer, wroc_directions::horizontal | wroc_directions::vertical);
 }
 
 static
 void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial, u32 edges)
 {
     // TODO: Check serial
-    // TODO: Use seat to select pointer
+
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+
+    // TODO: Use seat to select pointer
+    auto* pointer = toplevel->base->surface->server->seat->pointer;
+    if (!std::ranges::contains(pointer->pressed, BTN_LEFT)) {
+        log_warn("toplevel attempted to initiate resize but left button was not pressed");
+        return;
+    }
 
     vec2i32 anchor_rel = toplevel->base->anchor.relative;
     wroc_directions dirs = {};
@@ -176,7 +191,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
         break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: ; anchor_rel = {0, 0}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
     }
 
-    wroc_begin_resize_interaction(toplevel, toplevel->base->surface->server->seat->pointer, anchor_rel, dirs);
+    wroc_begin_resize_interaction(toplevel, pointer, anchor_rel, dirs);
 }
 
 static
@@ -187,14 +202,14 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
 
     wroc_xdg_toplevel_flush_configure(toplevel);
 
-    if (wl_resource_get_version(toplevel->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        xdg_toplevel_send_wm_capabilities(toplevel->xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
+    if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
+        xdg_toplevel_send_wm_capabilities(toplevel->resource, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
             XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
         })));
     }
 
-    xdg_surface_send_configure(toplevel->base->xdg_surface, wl_display_next_serial(toplevel->base->surface->server->display));
+    xdg_surface_send_configure(toplevel->base->resource, wl_display_next_serial(toplevel->base->surface->server->display));
 }
 
 void wroc_xdg_toplevel::on_commit()
@@ -244,7 +259,7 @@ void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel* toplevel, vec2i32 size)
 
 void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel* toplevel, vec2i32 bounds)
 {
-    if (wl_resource_get_version(toplevel->xdg_toplevel) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
+    if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
         toplevel->bounds = bounds;
         toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::bounds;
     }
@@ -271,10 +286,10 @@ void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
     }
 
     if (toplevel->pending_configure >= wroc_xdg_toplevel_configure_state::bounds) {
-        xdg_toplevel_send_configure_bounds(toplevel->xdg_toplevel, toplevel->bounds.x, toplevel->bounds.y);
+        xdg_toplevel_send_configure_bounds(toplevel->resource, toplevel->bounds.x, toplevel->bounds.y);
     }
 
-    xdg_toplevel_send_configure(toplevel->xdg_toplevel, toplevel->size.x, toplevel->size.y,
+    xdg_toplevel_send_configure(toplevel->resource, toplevel->size.x, toplevel->size.y,
         wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(toplevel->states)));
 
     wroc_xdg_surface_flush_configure(toplevel->base.get());

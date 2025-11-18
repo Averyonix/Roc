@@ -7,7 +7,7 @@ void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
     auto* seat = wroc_get_userdata<wroc_seat>(resource);
     auto* new_resource = wl_resource_create(client, &wl_keyboard_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
-    seat->keyboard->wl_keyboards.emplace_back(new_resource);
+    seat->keyboard->resources.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard);
 
     // TODO: This should be handled in keyboard.cpp
@@ -20,7 +20,7 @@ void wroc_wl_seat_get_pointer(wl_client* client, wl_resource* resource, u32 id)
     auto* seat = wroc_get_userdata<wroc_seat>(resource);
     auto* new_resource = wl_resource_create(client, &wl_pointer_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
-    seat->pointer->wl_pointers.emplace_back(new_resource);
+    seat->pointer->resources.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_pointer_impl, seat->pointer);
 }
 
@@ -45,7 +45,7 @@ void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 se
         log_warn("set_cursor failed, no focused surface");
         return;
     }
-    if (wl_resource_get_client(pointer->focused_surface->wl_surface) != client) {
+    if (wl_resource_get_client(pointer->focused_surface->resource) != client) {
         log_warn("set_cursor failed, client does not own currently focused surface");
         return;
     }
@@ -68,7 +68,7 @@ void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id
     auto* seat = static_cast<wroc_seat*>(data);
     auto* new_resource = wl_resource_create(client, &wl_seat_interface, version, id);
     wroc_debug_track_resource(new_resource);
-    seat->wl_seat.emplace_back(new_resource);
+    seat->resources.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_seat_impl, seat);
     if (version >= WL_SEAT_NAME_SINCE_VERSION) {
         wl_seat_send_name(new_resource, seat->name.c_str());

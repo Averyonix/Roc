@@ -172,6 +172,8 @@ void wren_image_update(wren_image* image, const void* data)
 
 wren_image::~wren_image()
 {
+    log_debug("wren_image::destroyed");
+
     ctx->image_descriptor_allocator.free(id);
 
     ctx->vk.DestroyImageView(ctx->device, view, nullptr);

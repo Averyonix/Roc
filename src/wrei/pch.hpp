@@ -36,6 +36,7 @@
 #include <sys/un.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/poll.h>
 
 #include <drm/drm_fourcc.h>
 

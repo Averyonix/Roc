@@ -96,7 +96,7 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
     auto output = static_cast<wroc_output*>(data);
     auto* new_resource = wl_resource_create(client, &wl_output_interface, version, id);
     log_warn("OUTPUT BIND: {}", (void*)new_resource);
-    output->bound_clients.emplace_back(new_resource);
+    output->resources.emplace_back(new_resource);
     wl_resource_set_implementation(new_resource, &wroc_wl_output_impl, output, nullptr);
     wroc_output_send_configuration(output, new_resource, true);
 }
@@ -105,13 +105,13 @@ void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
 {
     if (surface->output.get() == output) return;
 
-    auto* client = wl_resource_get_client(surface->wl_surface);
+    auto* client = wl_resource_get_client(surface->resource);
 
     if (surface->output) {
-        for (auto res : surface->output->bound_clients) {
+        for (auto res : surface->output->resources) {
             if (wl_resource_get_client(res) == client) {
                 log_warn("Surface leave output: {}", (void*)res);
-                wl_surface_send_leave(surface->wl_surface, res);
+                wl_surface_send_leave(surface->resource, res);
             }
         }
     }
@@ -120,10 +120,10 @@ void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
 
     if (!output) return;
 
-    for (auto res : output->bound_clients) {
+    for (auto res : output->resources) {
         if (wl_resource_get_client(res) == client) {
             log_warn("Surface enter output: {}", (void*)res);
-            wl_surface_send_enter(surface->wl_surface, res);
+            wl_surface_send_enter(surface->resource, res);
         }
     }
 }
@@ -137,7 +137,7 @@ void wroc_output_added(wroc_output* output)
 
     if (std::ranges::contains(output->server->outputs, output)) {
         log_debug("Output reconfigured");
-        for (auto* client_resource : output->bound_clients) {
+        for (auto* client_resource : output->resources) {
             wroc_output_send_configuration(output, client_resource, false);
         }
     } else {
