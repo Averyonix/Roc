@@ -10,6 +10,8 @@ void wroc_stub(auto...) {}
 
 #define WROC_STUB wroc_stub
 
+#define WROC_NOISY_STUB(Member) [](auto...) { log_warn("STUBBED " #Member); }
+
 // -----------------------------------------------------------------------------
 
 template<typename T>

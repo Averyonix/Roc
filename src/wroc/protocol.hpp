@@ -74,6 +74,11 @@ extern const struct wl_seat_interface       wroc_wl_seat_impl;
 extern const struct wl_keyboard_interface   wroc_wl_keyboard_impl;
 extern const struct wl_pointer_interface    wroc_wl_pointer_impl;
 
+extern const struct wl_data_device_manager_interface wroc_wl_data_device_manager_impl;
+extern const struct wl_data_offer_interface          wroc_wl_data_offer_impl;
+extern const struct wl_data_source_interface         wroc_wl_data_source_impl;
+extern const struct wl_data_device_interface         wroc_wl_data_device_impl;
+
 extern const struct zwp_linux_dmabuf_v1_interface          wroc_zwp_linux_dmabuf_v1_impl;
 extern const struct zwp_linux_buffer_params_v1_interface   wroc_zwp_linux_buffer_params_v1_impl;
 extern const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedback_v1_impl;
@@ -89,5 +94,6 @@ void wroc_wl_shm_bind_global(                 wl_client*, void*, u32 version, u3
 void wroc_xdg_wm_base_bind_global(            wl_client*, void*, u32 version, u32 id);
 void wroc_wl_seat_bind_global(                wl_client*, void*, u32 version, u32 id);
 void wroc_wl_output_bind_global(              wl_client*, void*, u32 version, u32 id);
+void wroc_wl_data_device_manager_bind_global( wl_client*, void*, u32 version, u32 id);
 void wroc_zwp_linux_dmabuf_v1_bind_global(    wl_client*, void*, u32 version, u32 id);
 void wroc_zwp_pointer_gestures_v1_bind_global(wl_client*, void*, u32 version, u32 id);

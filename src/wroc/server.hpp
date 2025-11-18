@@ -451,6 +451,38 @@ struct wroc_pointer : wrei_object
 
 // -----------------------------------------------------------------------------
 
+WREI_DECORATE_FLAG_ENUM(wl_data_device_manager_dnd_action)
+
+struct wroc_data_source : wrei_object
+{
+    wroc_server* server;
+
+    std::vector<std::string> mime_types;
+    wl_data_device_manager_dnd_action dnd_actions;
+    bool cancelled = false;
+
+    wroc_wl_resource_list offers;
+
+    wroc_wl_resource resource;
+
+    ~wroc_data_source();
+};
+
+struct wroc_data_device : wrei_object
+{
+    wroc_server* server;
+
+    wroc_seat* seat;
+
+    wroc_wl_resource resource;
+
+    ~wroc_data_device();
+};
+
+void wroc_data_manager_offer_selection(wroc_server*, wl_client*);
+
+// -----------------------------------------------------------------------------
+
 struct wroc_renderer : wrei_object
 {
     wroc_server* server;
@@ -522,6 +554,12 @@ struct wroc_server : wrei_object
         vec2i32 surface_grab;
         wroc_directions directions;
     } movesize;
+
+    struct {
+        std::vector<wroc_data_device*> devices;
+        std::vector<wroc_data_source*> sources;
+        wrei_weak<wroc_data_source> selection;
+    } data_manager;
 };
 
 u32 wroc_get_elapsed_milliseconds(wroc_server*);

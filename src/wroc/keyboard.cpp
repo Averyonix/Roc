@@ -93,6 +93,8 @@ void wroc_keyboard_enter(wroc_keyboard* kb, wroc_surface* surface)
     for (auto* resource : kb->resources) {
         if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
 
+        wroc_data_manager_offer_selection(kb->server, wl_resource_get_client(resource));
+
         wl_keyboard_send_enter(resource,
             serial,
             surface->resource, wrei_ptr_to(wroc_to_wl_array<u32>(kb->pressed)));
