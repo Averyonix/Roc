@@ -8,7 +8,7 @@ void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resour
     wroc_debug_track_resource(new_resource);
     auto* subsurface = new wroc_subsurface {};
     subsurface->surface = wroc_get_userdata<wroc_surface>(surface);
-    subsurface->surface->role_addon = subsurface;
+    subsurface->surface->role_addon = wrei_weak_from(subsurface);
     subsurface->resource = new_resource;
     subsurface->parent = wrei_weak_from(wroc_get_userdata<wroc_surface>(parent));
 

@@ -43,6 +43,8 @@ void wroc_run(int argc, char* argv[])
 
     wl_global_create(server->display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, server.get(), wroc_zwp_linux_dmabuf_v1_bind_global);
 
+    wl_global_create(server->display, &zwp_pointer_gestures_v1_interface, zwp_pointer_gestures_v1_interface.version, nullptr, wroc_zwp_pointer_gestures_v1_bind_global);
+
     log_info("Running compositor on: {}", socket);
 
     wl_display_run(server->display);

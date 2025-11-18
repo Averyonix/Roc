@@ -122,6 +122,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/surface.cpp
     src/wroc/subsurface.cpp
     src/wroc/interaction.cpp
+    src/wroc/gestures.cpp
     src/wroc/xdg_shell.cpp
 
     .build/shaders/src/wroc_shaders.cpp

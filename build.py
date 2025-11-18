@@ -165,8 +165,9 @@ def list_wayland_protocols():
     system_protocol_dir = Path("/usr/share/wayland-protocols")
 
     wayland_protocols.append((system_protocol_dir / "stable/xdg-shell/xdg-shell.xml", "xdg-shell"))
-    wayland_protocols.append((system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "xdg-decoration-unstable-v1"))
     wayland_protocols.append((system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml", "linux-dmabuf-v1"))
+    wayland_protocols.append((system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "xdg-decoration-unstable-v1"))
+    wayland_protocols.append((system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml", "pointer-gestures-unstable-v1"))
 
     return wayland_protocols
 

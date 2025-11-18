@@ -6,7 +6,7 @@
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)
 {
-    return dynamic_cast<T*>(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
+    return resource ? dynamic_cast<T*>(static_cast<wrei_object*>(wl_resource_get_user_data(resource))) : nullptr;
 }
 
 #define WROC_NOISY_WL_RESOURCE 0
@@ -78,10 +78,16 @@ extern const struct zwp_linux_dmabuf_v1_interface          wroc_zwp_linux_dmabuf
 extern const struct zwp_linux_buffer_params_v1_interface   wroc_zwp_linux_buffer_params_v1_impl;
 extern const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedback_v1_impl;
 
-void wroc_wl_compositor_bind_global(      wl_client* client, void* data, u32 version, u32 id);
-void wroc_wl_subcompositor_bind_global(   wl_client* client, void* data, u32 version, u32 id);
-void wroc_wl_shm_bind_global(             wl_client* client, void* data, u32 version, u32 id);
-void wroc_xdg_wm_base_bind_global(        wl_client* client, void* data, u32 version, u32 id);
-void wroc_wl_seat_bind_global(            wl_client* client, void* data, u32 version, u32 id);
-void wroc_wl_output_bind_global(          wl_client* client, void* data, u32 version, u32 id);
-void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id);
+extern const struct zwp_pointer_gestures_v1_interface      wroc_zwp_pointer_gestures_v1_impl;
+extern const struct zwp_pointer_gesture_swipe_v1_interface wroc_zwp_pointer_gesture_swipe_v1_impl;
+extern const struct zwp_pointer_gesture_pinch_v1_interface wroc_zwp_pointer_gesture_pinch_v1_impl;
+extern const struct zwp_pointer_gesture_hold_v1_interface  wroc_zwp_pointer_gesture_hold_v1_impl;
+
+void wroc_wl_compositor_bind_global(          wl_client*, void*, u32 version, u32 id);
+void wroc_wl_subcompositor_bind_global(       wl_client*, void*, u32 version, u32 id);
+void wroc_wl_shm_bind_global(                 wl_client*, void*, u32 version, u32 id);
+void wroc_xdg_wm_base_bind_global(            wl_client*, void*, u32 version, u32 id);
+void wroc_wl_seat_bind_global(                wl_client*, void*, u32 version, u32 id);
+void wroc_wl_output_bind_global(              wl_client*, void*, u32 version, u32 id);
+void wroc_zwp_linux_dmabuf_v1_bind_global(    wl_client*, void*, u32 version, u32 id);
+void wroc_zwp_pointer_gestures_v1_bind_global(wl_client*, void*, u32 version, u32 id);

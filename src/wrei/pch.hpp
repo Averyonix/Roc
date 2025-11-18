@@ -92,6 +92,7 @@
 #include <wayland-server-protocol.h>
 #include <xdg-shell-protocol.h>
 #include <linux-dmabuf-v1-protocol.h>
+#include <pointer-gestures-unstable-v1-protocol.h>
 
 // -----------------------------------------------------------------------------
 

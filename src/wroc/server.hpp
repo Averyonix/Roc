@@ -118,7 +118,7 @@ struct wroc_surface_state
 
 struct wroc_surface : wrei_object
 {
-    wroc_server* server;
+    wroc_server* server = {};
 
     wroc_wl_resource resource;
 
@@ -128,7 +128,7 @@ struct wroc_surface : wrei_object
         .buffer_scale = 1.f
     };
 
-    wroc_surface_role_addon* role_addon;
+    wrei_weak<wroc_surface_role_addon> role_addon;
 
     wrei_weak<wroc_output> output;
 
@@ -173,7 +173,7 @@ struct wroc_subsurface : wroc_surface_role_addon
     static
     wroc_subsurface* try_from(wroc_surface* surface)
     {
-        return surface ? dynamic_cast<wroc_subsurface*>(surface->role_addon) : nullptr;
+        return surface ? dynamic_cast<wroc_subsurface*>(surface->role_addon.get()) : nullptr;
     }
 };
 
@@ -213,12 +213,11 @@ struct wroc_xdg_surface : wroc_surface_role_addon
     u32 acked_configure_serial = {};
 
     virtual void on_commit() final override;
-    ~wroc_xdg_surface();
 
     static
     wroc_xdg_surface* try_from(wroc_surface* surface)
     {
-        return surface ? dynamic_cast<wroc_xdg_surface*>(surface->role_addon) : nullptr;
+        return surface ? dynamic_cast<wroc_xdg_surface*>(surface->role_addon.get()) : nullptr;
     }
 };
 
