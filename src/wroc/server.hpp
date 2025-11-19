@@ -108,12 +108,12 @@ struct wroc_surface_state
 {
     wroc_surface_committed_state committed;
 
-    wrei_ref<wroc_wl_buffer> buffer;
+    ref<wroc_wl_buffer> buffer;
     wroc_wl_resource_list frame_callbacks;
     vec2i32 offset;
     wrei_region input_region;
-    double buffer_scale;
-    std::vector<wrei_weak<wroc_surface>> surface_stack;
+    f64 buffer_scale;
+    std::vector<weak<wroc_surface>> surface_stack;
 };
 
 struct wroc_surface : wrei_object
@@ -128,9 +128,9 @@ struct wroc_surface : wrei_object
         .buffer_scale = 1.f
     };
 
-    wrei_weak<wroc_surface_role_addon> role_addon;
+    weak<wroc_surface_role_addon> role_addon;
 
-    wrei_weak<wroc_output> output;
+    weak<wroc_output> output;
 
     ~wroc_surface();
 };
@@ -141,8 +141,8 @@ void wroc_surface_set_output(wroc_surface*, wroc_output*);
 
 struct wroc_surface_at_position
 {
-    wrei_weak<wroc_surface> surface;
-    vec2i32                 position;
+    weak<wroc_surface> surface;
+    vec2i32            position;
 
     operator bool() const { return surface; };
 };
@@ -164,8 +164,8 @@ struct wroc_subsurface_state
 
 struct wroc_subsurface : wroc_surface_role_addon
 {
-    wrei_ref<wroc_surface> surface;
-    wrei_weak<wroc_surface> parent;
+    ref<wroc_surface> surface;
+    weak<wroc_surface> parent;
 
     wroc_wl_resource resource;
 
@@ -203,7 +203,7 @@ struct wrox_xdg_surface_state
 
 struct wroc_xdg_surface : wroc_surface_role_addon
 {
-    wrei_ref<wroc_surface> surface;
+    ref<wroc_surface> surface;
 
     wroc_wl_resource resource;
 
@@ -262,7 +262,7 @@ struct wroc_xdg_toplevel_state
 
 struct wroc_xdg_toplevel : wroc_surface_role_addon
 {
-    wrei_ref<wroc_xdg_surface> base;
+    ref<wroc_xdg_surface> base;
 
     wroc_wl_resource resource;
 
@@ -317,7 +317,7 @@ struct wroc_wl_buffer : wrei_object
 
     vec2i32 extent;
 
-    wrei_ref<wren_image> image;
+    ref<wren_image> image;
 
     bool locked = false;
 
@@ -351,7 +351,7 @@ struct wroc_wl_shm_pool : wrei_object
 
 struct wroc_shm_buffer : wroc_wl_buffer
 {
-    wrei_ref<wroc_wl_shm_pool> pool;
+    ref<wroc_wl_shm_pool> pool;
 
     i32 offset;
     i32 stride;
@@ -418,7 +418,7 @@ struct wroc_keyboard : wrei_object
     wroc_server* server;
 
     wroc_wl_resource_list resources;
-    wrei_weak<wroc_surface> focused_surface;
+    weak<wroc_surface> focused_surface;
 
     struct xkb_context* xkb_context;
     struct xkb_state*   xkb_state;
@@ -450,7 +450,7 @@ struct wroc_pointer : wrei_object
     wroc_server* server;
 
     wroc_wl_resource_list resources;
-    wrei_weak<wroc_surface> focused_surface;
+    weak<wroc_surface> focused_surface;
 
     std::vector<u32> pressed = {};
 
@@ -472,8 +472,6 @@ struct wroc_data_source : wrei_object
     wl_data_device_manager_dnd_action dnd_actions;
     bool cancelled = false;
 
-    // std::vector<wroc_data_offer*> offers;
-
     wroc_wl_resource resource;
 
     ~wroc_data_source();
@@ -485,8 +483,8 @@ struct wroc_data_offer : wrei_object
 
     wroc_wl_resource resource;
 
-    wrei_weak<wroc_data_source> source;
-    wrei_weak<wroc_data_device> device;
+    weak<wroc_data_source> source;
+    weak<wroc_data_device> device;
 
     wl_data_device_manager_dnd_action action = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
     std::string mime_type;
@@ -497,7 +495,7 @@ struct wroc_data_offer : wrei_object
 struct wroc_data_device : wrei_object
 {
     wroc_server* server;
-    wroc_seat*   seat;
+    wroc_seat* seat;
 
     wroc_wl_resource resource;
 
@@ -514,14 +512,14 @@ struct wroc_renderer : wrei_object
 {
     wroc_server* server;
 
-    wrei_ref<wren_context> wren;
+    ref<wren_context> wren;
 
     VkFormat output_format = VK_FORMAT_B8G8R8A8_UNORM;
 
     VkPipeline pipeline;
 
-    wrei_ref<wren_image> image;
-    wrei_ref<wren_sampler> sampler;
+    ref<wren_image> image;
+    ref<wren_sampler> sampler;
 
     ~wroc_renderer();
 };
@@ -545,19 +543,20 @@ WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
 struct wroc_server : wrei_object
 {
-    wroc_backend*  backend;
-    wrei_ref<wroc_renderer> renderer;
-    wrei_ref<wroc_seat>     seat;
+    wroc_backend*      backend;
+    ref<wroc_renderer> renderer;
+    ref<wroc_seat>     seat;
 
     wroc_modifiers main_mod = wroc_modifiers::alt;
 
     std::chrono::steady_clock::time_point epoch;
 
-    wl_display* display;
+    wl_display*    display;
     wl_event_loop* event_loop;
 
-    std::vector<wroc_output*> outputs;
+    std::vector<wroc_output*>  outputs;
     std::vector<wroc_surface*> surfaces;
+
     wroc_surface_at_position toplevel_under_cursor;
     wroc_surface_at_position surface_under_cursor;
     wroc_surface_at_position implicit_grab_surface;
@@ -565,11 +564,11 @@ struct wroc_server : wrei_object
     wroc_interaction_mode interaction_mode;
 
     // TODO: We should track these per client-pointer
-    wrei_weak<wroc_surface> cursor_surface;
-    vec2i32                 cursor_hotspot;
+    weak<wroc_surface> cursor_surface;
+    vec2i32            cursor_hotspot;
 
     struct {
-        wrei_weak<wroc_xdg_toplevel> grabbed_toplevel;
+        weak<wroc_xdg_toplevel> grabbed_toplevel;
         vec2f64 pointer_grab;
         vec2i32 surface_grab;
         wroc_directions directions;
@@ -578,14 +577,14 @@ struct wroc_server : wrei_object
     struct {
         std::vector<wroc_data_device*> devices;
         std::vector<wroc_data_source*> sources;
-        wrei_weak<wroc_data_source> selection;
+        weak<wroc_data_source> selection;
 
         struct {
-            wrei_weak<wroc_data_device> device;
-            wrei_weak<wroc_data_source> source;
-            wrei_weak<wroc_surface> icon;
-            wrei_weak<wroc_surface> offered_surface;
-            wrei_weak<wroc_data_offer> offer;
+            weak<wroc_data_device> device;
+            weak<wroc_data_source> source;
+            weak<wroc_surface>     icon;
+            weak<wroc_surface>     offered_surface;
+            weak<wroc_data_offer>  offer;
         } drag;
     } data_manager;
 };

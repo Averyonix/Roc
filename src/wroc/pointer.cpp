@@ -76,7 +76,7 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
 
     if (pointer->server->surface_under_cursor) {
         if (pressed && pointer->pressed.size() == 1) {
-            log_error("Starting implicit grab");
+            log_info("Starting implicit grab");
             pointer->server->implicit_grab_surface = pointer->server->surface_under_cursor;
         }
     }
@@ -93,7 +93,7 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
     }
 
     if (!pressed && pointer->pressed.empty() && pointer->server->implicit_grab_surface.surface) {
-        log_error("Ending implicit grab");
+        log_info("Ending implicit grab");
         wroc_data_manager_finish_drag(pointer->server);
         pointer->server->implicit_grab_surface = {};
         wroc_pointer_update_focus(pointer, pointer->server->surface_under_cursor);

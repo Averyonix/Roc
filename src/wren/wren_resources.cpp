@@ -58,7 +58,7 @@ u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryP
     return 0xFF;
 }
 
-wrei_ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
+ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 {
     auto buffer = wrei_adopt_ref(new wren_buffer {});
     buffer->ctx = ctx;
@@ -94,7 +94,7 @@ wren_buffer::~wren_buffer()
 
 // -----------------------------------------------------------------------------
 
-wrei_ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent, VkFormat format)
+ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent, VkFormat format)
 {
     auto image = wrei_adopt_ref(new wren_image {});
     image->ctx = ctx;
@@ -144,7 +144,7 @@ void wren_image_update(wren_image* image, const void* data)
     auto image_size = image_height * pixel_size;
 
     // TODO: This should be stored persistently for transfers
-    wrei_ref buffer = wren_buffer_create(ctx, image_size);
+    ref buffer = wren_buffer_create(ctx, image_size);
 
     std::memcpy(buffer->host_address, data, image_size);
 
@@ -188,9 +188,9 @@ wren_image::~wren_image()
 
 // -----------------------------------------------------------------------------
 
-wrei_ref<wren_sampler> wren_sampler_create(wren_context* ctx)
+ref<wren_sampler> wren_sampler_create(wren_context* ctx)
 {
-    wrei_ref sampler = wrei_adopt_ref(new wren_sampler {});
+    ref sampler = wrei_adopt_ref(new wren_sampler {});
     sampler->ctx = ctx;
 
     wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {

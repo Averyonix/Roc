@@ -64,7 +64,7 @@ void wren_enumerate_drm_modifiers(wren_context* ctx, const wren_format& format, 
     ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format.vk, &props);
 }
 
-wrei_ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
+ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
 {
     auto image = wrei_adopt_ref(new wren_image {});
     image->ctx = ctx;

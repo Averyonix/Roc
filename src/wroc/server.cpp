@@ -11,7 +11,7 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
 
 void wroc_run(int argc, char* argv[])
 {
-    wrei_ref server = wrei_adopt_ref(new wroc_server {});
+    ref server = wrei_adopt_ref(new wroc_server {});
     log_warn("server = {}", (void*)server.get());
 
     server->seat = wrei_adopt_ref(new wroc_seat{});

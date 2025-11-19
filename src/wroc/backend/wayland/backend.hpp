@@ -45,10 +45,10 @@ struct wroc_backend
 
     struct wl_seat* seat = {};
 
-    std::vector<wrei_ref<wroc_wayland_output>> outputs;
+    std::vector<ref<wroc_wayland_output>> outputs;
 
-    wrei_ref<wroc_wayland_keyboard> keyboard = {};
-    wrei_ref<wroc_wayland_pointer>  pointer = {};
+    ref<wroc_wayland_keyboard> keyboard = {};
+    ref<wroc_wayland_pointer>  pointer = {};
 
     wl_event_source* event_source = {};
 };

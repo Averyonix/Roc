@@ -2,7 +2,7 @@
 
 #include "wroc/server.hpp"
 
-wrei_ref<wren_context> wren_create()
+ref<wren_context> wren_create()
 {
     auto ctx = wrei_adopt_ref(new wren_context {});
 

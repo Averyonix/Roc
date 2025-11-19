@@ -197,3 +197,11 @@ struct wrei_weak
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
     operator wrei_weak<T2>() { return wrei_weak<T2>{state}; }
 };
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+using ref = wrei_ref<T>;
+
+template<typename T>
+using weak = wrei_weak<T>;

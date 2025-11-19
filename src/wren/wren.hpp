@@ -58,7 +58,7 @@ struct wren_context : wrei_object
     ~wren_context();
 };
 
-wrei_ref<wren_context> wren_create();
+ref<wren_context> wren_create();
 
 VkCommandBuffer wren_begin_commands( wren_context*);
 void            wren_submit_commands(wren_context*, VkCommandBuffer);
@@ -87,7 +87,7 @@ struct wren_buffer : wrei_object
     ~wren_buffer();
 };
 
-wrei_ref<wren_buffer> wren_buffer_create(wren_context*, usz size);
+ref<wren_buffer> wren_buffer_create(wren_context*, usz size);
 
 // -----------------------------------------------------------------------------
 
@@ -106,7 +106,7 @@ struct wren_image : wrei_object
     ~wren_image();
 };
 
-wrei_ref<wren_image> wren_image_create(wren_context*, VkExtent2D extent, VkFormat format);
+ref<wren_image> wren_image_create(wren_context*, VkExtent2D extent, VkFormat format);
 void wren_image_update(wren_image*, const void* data);
 
 void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,
@@ -127,7 +127,7 @@ struct wren_sampler : wrei_object
     ~wren_sampler();
 };
 
-wrei_ref<wren_sampler> wren_sampler_create(wren_context*);
+ref<wren_sampler> wren_sampler_create(wren_context*);
 
 // -----------------------------------------------------------------------------
 
@@ -165,4 +165,4 @@ struct wren_dma_params
     zwp_linux_buffer_params_v1_flags flags;
 };
 
-wrei_ref<wren_image> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);
+ref<wren_image> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);
