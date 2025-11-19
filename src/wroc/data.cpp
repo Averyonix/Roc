@@ -115,7 +115,7 @@ void wroc_wl_data_offer_accept(wl_client* client, wl_resource* resource, u32 ser
 
     if (matches) {
         log_warn("Offer added to drag");
-        drag.offer = wrei_weak_from(offer);
+        drag.offer = offer;
         offer->mime_type = mime_type;
         if (drag.source && drag.source->resource) {
             wl_data_source_send_target(drag.source->resource, mime_type);
@@ -231,8 +231,8 @@ wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* 
     auto* data_offer = new wroc_data_offer {};
     data_offer->resource = offer_resource;
     data_offer->server = device->server;
-    data_offer->source = wrei_weak_from(source);
-    data_offer->device = wrei_weak_from(device);
+    data_offer->source = source;
+    data_offer->device = device;
     wroc_resource_set_implementation_refcounted(offer_resource, &wroc_wl_data_offer_impl, data_offer);
 
     wl_data_device_send_data_offer(device->resource, offer_resource);
@@ -275,7 +275,7 @@ void wroc_wl_data_device_set_selection(wl_client* client, wl_resource* resource,
         wroc_data_source_cancel(old_source);
     }
 
-    data_source->server->data_manager.selection = wrei_weak_from(data_source);
+    data_source->server->data_manager.selection = data_source;
 
     log_warn("wl_data_device::set_selection({})", (void*)data_source);
 
@@ -324,7 +324,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
         }
     }
 
-    drag.offered_surface = wrei_weak_from(target_surface);
+    drag.offered_surface = target_surface;
     drag.offer = nullptr;
     if (target_surface) {
         for (auto* device : server->data_manager.devices) {
@@ -386,9 +386,9 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
 
     log_warn("Drag started (device = {}, source = {}, icon = {})", (void*)data_device, (void*)data_source, (void*)drag_icon);
 
-    server->data_manager.drag.device = wrei_weak_from(data_device);
-    server->data_manager.drag.source = wrei_weak_from(data_source);
-    server->data_manager.drag.icon = wrei_weak_from(drag_icon);
+    server->data_manager.drag.device = data_device;
+    server->data_manager.drag.source = data_source;
+    server->data_manager.drag.icon = drag_icon;
     server->data_manager.drag.offered_surface = nullptr;
     server->data_manager.drag.offer = nullptr;
 

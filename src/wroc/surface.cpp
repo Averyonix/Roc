@@ -24,7 +24,7 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     server->surfaces.emplace_back(surface);
 
     // Add surface to its own surface stack
-    surface->pending.surface_stack.emplace_back(wrei_weak_from(surface));
+    surface->pending.surface_stack.emplace_back(surface);
     surface->pending.committed |= wroc_surface_committed_state::surface_stack;
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_surface_impl, surface);

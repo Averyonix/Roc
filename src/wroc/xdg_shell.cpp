@@ -9,7 +9,7 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
     auto* xdg_surface = new wroc_xdg_surface {};
     xdg_surface->resource = new_resource;
     xdg_surface->surface = wroc_get_userdata<wroc_surface>(wl_surface);
-    xdg_surface->surface->role_addon = wrei_weak_from(xdg_surface);
+    xdg_surface->surface->role_addon = xdg_surface;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_surface_impl, xdg_surface);
 }
 

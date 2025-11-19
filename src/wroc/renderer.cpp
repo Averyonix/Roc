@@ -272,7 +272,7 @@ void wroc_render_frame(wroc_output* output)
         for (auto& s : surface->current.surface_stack | std::views::reverse) {
             if (s.get() == surface) {
                 if (wroc_surface_point_accepts_input(s.get(), cursor_pos - vec2f64(surface_pos))) {
-                    return {wrei_weak_from(s.get()), surface_pos};
+                    return {s.get(), surface_pos};
                 }
             } else if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
                 if (auto under = surface_accepts_input(s.get(), surface_pos + subsurface->current.position, cursor_pos)) {
@@ -290,7 +290,7 @@ void wroc_render_frame(wroc_output* output)
             if (auto* toplevel = wroc_xdg_toplevel::try_from(surface)) {
                 auto surface_pos = wroc_xdg_surface_get_position(toplevel->base.get());
                 if (auto surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
-                    output->server->toplevel_under_cursor = {wrei_weak_from(toplevel->base->surface.get()), surface_pos};
+                    output->server->toplevel_under_cursor = {toplevel->base->surface.get(), surface_pos};
                     output->server->surface_under_cursor = std::move(surface_under_cursor);
                     break;
                 }

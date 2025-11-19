@@ -141,30 +141,59 @@ wrei_ref<T> wrei_adopt_ref(T* t)
 template<typename T>
 struct wrei_weak
 {
-    std::shared_ptr<wrei_weak_state> _weak_state;
+    std::shared_ptr<wrei_weak_state> state;
 
-    T*        get() const { return _weak_state ? static_cast<T*>(_weak_state->value) : nullptr; }
-    T* operator->() const { return get(); }
+    wrei_weak() = default;
 
-    void reset() { _weak_state = {}; }
-    wrei_weak& operator=(std::nullptr_t)
+    wrei_weak(T* t)
     {
-        reset();
+        reset(t);
+    }
+
+    wrei_weak(const wrei_weak& other)
+        : state(other.state)
+    {}
+
+    wrei_weak& operator=(const wrei_weak& other)
+    {
+        if (state != other.state) {
+            state = other.state;
+        }
         return *this;
     }
+
+    wrei_weak(wrei_weak&& other)
+        : state(std::move(other.state))
+    {}
+
+    wrei_weak& operator=(wrei_weak&& other)
+    {
+        if (state != other.state) {
+            state = std::move(other.state);
+        }
+        return *this;
+    }
+
+    void reset(T* t = nullptr)
+    {
+        state = {};
+        if (!t) return;
+        if (!t->_weak_state) t->_weak_state.reset(new wrei_weak_state{t});
+        state = t->_weak_state;
+    }
+
+    wrei_weak& operator=(T* t)
+    {
+        reset(t);
+        return *this;
+    }
+
+    T*        get() const { return state ? static_cast<T*>(state->value) : nullptr; }
+    T* operator->() const { return get(); }
 
     operator bool() const { return get(); }
 
     template<typename T2>
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
-    operator wrei_weak<T2>() { return wrei_weak<T2>{_weak_state}; }
+    operator wrei_weak<T2>() { return wrei_weak<T2>{state}; }
 };
-
-template<typename T>
-requires std::derived_from<std::remove_cvref_t<T>, wrei_object>
-wrei_weak<T> wrei_weak_from(T* t)
-{
-    if (!t) return {};
-    if (!t->_weak_state) t->_weak_state.reset(new wrei_weak_state{t});
-    return wrei_weak<T>{t->_weak_state};
-}

@@ -51,7 +51,7 @@ void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 se
     }
 
     if (wl_surface) {
-        pointer->server->cursor_surface = wrei_weak_from(wroc_get_userdata<wroc_surface>(wl_surface));
+        pointer->server->cursor_surface = wroc_get_userdata<wroc_surface>(wl_surface);
         pointer->server->cursor_hotspot = {x, y};
     } else {
         pointer->server->cursor_surface = nullptr;

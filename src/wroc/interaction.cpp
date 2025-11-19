@@ -3,7 +3,7 @@
 void wroc_begin_move_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* pointer, wroc_directions directions)
 {
     auto* server = toplevel->base->surface->server;
-    server->movesize.grabbed_toplevel = wrei_weak_from(toplevel);
+    server->movesize.grabbed_toplevel = toplevel;
     server->movesize.pointer_grab = pointer->layout_position;
     server->movesize.surface_grab = toplevel->base->anchor.position;
     server->movesize.directions = directions;
@@ -13,7 +13,7 @@ void wroc_begin_move_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* poin
 void wroc_begin_resize_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* pointer, vec2i32 new_anchor_rel, wroc_directions directions)
 {
     auto* server = toplevel->base->surface->server;
-    server->movesize.grabbed_toplevel = wrei_weak_from(toplevel);
+    server->movesize.grabbed_toplevel = toplevel;
     server->movesize.pointer_grab = pointer->layout_position;
     server->movesize.surface_grab = wroc_xdg_surface_get_geometry(toplevel->base.get()).extent;
     server->movesize.directions = directions;

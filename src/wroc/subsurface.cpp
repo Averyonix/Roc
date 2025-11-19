@@ -8,12 +8,12 @@ void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resour
     wroc_debug_track_resource(new_resource);
     auto* subsurface = new wroc_subsurface {};
     subsurface->surface = wroc_get_userdata<wroc_surface>(surface);
-    subsurface->surface->role_addon = wrei_weak_from(subsurface);
+    subsurface->surface->role_addon = subsurface;
     subsurface->resource = new_resource;
-    subsurface->parent = wrei_weak_from(wroc_get_userdata<wroc_surface>(parent));
+    subsurface->parent = wroc_get_userdata<wroc_surface>(parent);
 
     // Add subsurface to top of its parent's surface stack
-    subsurface->parent->pending.surface_stack.emplace_back(wrei_weak_from(subsurface->surface.get()));
+    subsurface->parent->pending.surface_stack.emplace_back(subsurface->surface.get());
     subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_subsurface_impl, subsurface);
@@ -73,7 +73,7 @@ void wroc_wl_subsurface_place(wl_resource* resource, wl_resource* _sibling, bool
     auto i = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; });
     if (above) i = std::next(i);
 
-    subsurface->parent->pending.surface_stack.insert(i, wrei_weak_from(subsurface->surface.get()));
+    subsurface->parent->pending.surface_stack.insert(i, subsurface->surface.get());
     subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
 
     debug_print();

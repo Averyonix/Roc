@@ -116,7 +116,7 @@ void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
         }
     }
 
-    surface->output = wrei_weak_from(output);
+    surface->output = output;
 
     if (!output) return;
 

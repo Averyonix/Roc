@@ -43,7 +43,7 @@ void wroc_pointer_update_focus(wroc_pointer* pointer, wroc_surface_at_position& 
         if (focused_surface) {
             log_info("Entering surface: {}", (void*)focused_surface.surface.get());
 
-            pointer->focused_surface = wrei_weak_from(focused_surface.surface.get());
+            pointer->focused_surface = focused_surface.surface.get();
 
             auto pos = pointer->layout_position - vec2f64(focused_surface.position);
             auto serial = wl_display_next_serial(pointer->server->display);

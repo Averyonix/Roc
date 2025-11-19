@@ -86,7 +86,7 @@ void wroc_keyboard_enter(wroc_keyboard* kb, wroc_surface* surface)
     //       To deduplicate code between this and `wroc_pointer`
 
     log_warn("KEYBOARD ENTERED");
-    kb->focused_surface = wrei_weak_from(surface);
+    kb->focused_surface = surface;
 
     auto serial = wl_display_next_serial(kb->server->display);
 
