@@ -50,7 +50,7 @@ bool wroc_keyboard_resource_matches_focus_client(wroc_keyboard* kb, wl_resource*
 {
     if (!kb->focused_surface) return false;
     if (!kb->focused_surface->resource) return false;
-    return wl_resource_get_client(resource) == wl_resource_get_client(kb->focused_surface->resource);
+    return wroc_resource_get_client(resource) == wroc_resource_get_client(kb->focused_surface->resource);
 }
 
 void wroc_keyboard_clear_focus(wroc_keyboard* kb)
@@ -93,7 +93,7 @@ void wroc_keyboard_enter(wroc_keyboard* kb, wroc_surface* surface)
     for (auto* resource : kb->resources) {
         if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
 
-        wroc_data_manager_offer_selection(kb->server, wl_resource_get_client(resource));
+        wroc_data_manager_offer_selection(kb->server, wroc_resource_get_client(resource));
 
         wl_keyboard_send_enter(resource,
             serial,

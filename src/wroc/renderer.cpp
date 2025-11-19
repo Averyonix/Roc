@@ -203,6 +203,11 @@ void wroc_render_frame(wroc_output* output)
 
         for (auto& s : surface->current.surface_stack) {
             if (s.get() == surface) {
+                if (s.get() == renderer->server->implicit_grab_surface.surface.get()) {
+                    // Update implicit grab surface position
+                    renderer->server->implicit_grab_surface.position = pos;
+                }
+
                 // Draw self
                 // log_trace(" - ({}, {}) ({}, {})", pos.x, pos.y,buffer->extent.x, buffer->extent.y);
                 draw(buffer->image.get(),
@@ -238,6 +243,18 @@ void wroc_render_frame(wroc_output* output)
                     // log_trace("Drawing cursor surface at: ({}, {})", pos.x, pos.y);
                     draw(buffer->image.get(),
                         pos,
+                        buffer->extent);
+                }
+            }
+        }
+    }
+
+    if (renderer->server->data_manager.drag.source) {
+        if (auto* icon = renderer->server->data_manager.drag.icon.get()) {
+            if (auto* buffer = icon->current.buffer.get()) {
+                if (buffer->image) {
+                    draw(buffer->image.get(),
+                        renderer->server->seat->pointer->layout_position,
                         buffer->extent);
                 }
             }

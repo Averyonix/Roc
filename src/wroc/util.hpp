@@ -33,6 +33,14 @@ wl_array wroc_to_wl_array(std::span<T> span)
 
 // -----------------------------------------------------------------------------
 
+inline
+wl_client* wroc_resource_get_client(wl_resource* resource)
+{
+    return resource ? wl_resource_get_client(resource) : nullptr;
+}
+
+// -----------------------------------------------------------------------------
+
 class wroc_wl_resource
 {
     wl_resource* resource = {};

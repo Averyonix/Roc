@@ -105,11 +105,11 @@ void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
 {
     if (surface->output.get() == output) return;
 
-    auto* client = wl_resource_get_client(surface->resource);
+    auto* client = wroc_resource_get_client(surface->resource);
 
     if (surface->output) {
         for (auto res : surface->output->resources) {
-            if (wl_resource_get_client(res) == client) {
+            if (wroc_resource_get_client(res) == client) {
                 log_warn("Surface leave output: {}", (void*)res);
                 wl_surface_send_leave(surface->resource, res);
             }
@@ -121,7 +121,7 @@ void wroc_surface_set_output(wroc_surface* surface, wroc_output* output)
     if (!output) return;
 
     for (auto res : output->resources) {
-        if (wl_resource_get_client(res) == client) {
+        if (wroc_resource_get_client(res) == client) {
             log_warn("Surface enter output: {}", (void*)res);
             wl_surface_send_enter(surface->resource, res);
         }

@@ -139,6 +139,14 @@ void wroc_surface_commit(wroc_surface*);
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 void wroc_surface_set_output(wroc_surface*, wroc_output*);
 
+struct wroc_surface_at_position
+{
+    wrei_weak<wroc_surface> surface;
+    vec2i32                 position;
+
+    operator bool() const { return surface; };
+};
+
 // -----------------------------------------------------------------------------
 
 enum class wroc_subsurface_committed_state : u32
@@ -453,6 +461,9 @@ struct wroc_pointer : wrei_object
 
 WREI_DECORATE_FLAG_ENUM(wl_data_device_manager_dnd_action)
 
+struct wroc_data_offer;
+struct wroc_data_device;
+
 struct wroc_data_source : wrei_object
 {
     wroc_server* server;
@@ -461,18 +472,32 @@ struct wroc_data_source : wrei_object
     wl_data_device_manager_dnd_action dnd_actions;
     bool cancelled = false;
 
-    wroc_wl_resource_list offers;
+    // std::vector<wroc_data_offer*> offers;
 
     wroc_wl_resource resource;
 
     ~wroc_data_source();
 };
 
-struct wroc_data_device : wrei_object
+struct wroc_data_offer : wrei_object
 {
     wroc_server* server;
 
-    wroc_seat* seat;
+    wroc_wl_resource resource;
+
+    wrei_weak<wroc_data_source> source;
+    wrei_weak<wroc_data_device> device;
+
+    wl_data_device_manager_dnd_action action = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
+    std::string mime_type;
+
+    ~wroc_data_offer();
+};
+
+struct wroc_data_device : wrei_object
+{
+    wroc_server* server;
+    wroc_seat*   seat;
 
     wroc_wl_resource resource;
 
@@ -480,6 +505,8 @@ struct wroc_data_device : wrei_object
 };
 
 void wroc_data_manager_offer_selection(wroc_server*, wl_client*);
+void wroc_data_manager_update_drag(wroc_server*, wroc_surface*, vec2i32 surface_pos);
+void wroc_data_manager_finish_drag(wroc_server*);
 
 // -----------------------------------------------------------------------------
 
@@ -516,14 +543,6 @@ enum class wroc_directions : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
-struct wroc_surface_at_position
-{
-    wrei_weak<wroc_surface> surface;
-    vec2i32                 position;
-
-    operator bool() const { return surface; };
-};
-
 struct wroc_server : wrei_object
 {
     wroc_backend*  backend;
@@ -541,6 +560,7 @@ struct wroc_server : wrei_object
     std::vector<wroc_surface*> surfaces;
     wroc_surface_at_position toplevel_under_cursor;
     wroc_surface_at_position surface_under_cursor;
+    wroc_surface_at_position implicit_grab_surface;
 
     wroc_interaction_mode interaction_mode;
 
@@ -559,6 +579,14 @@ struct wroc_server : wrei_object
         std::vector<wroc_data_device*> devices;
         std::vector<wroc_data_source*> sources;
         wrei_weak<wroc_data_source> selection;
+
+        struct {
+            wrei_weak<wroc_data_device> device;
+            wrei_weak<wroc_data_source> source;
+            wrei_weak<wroc_surface> icon;
+            wrei_weak<wroc_surface> offered_surface;
+            wrei_weak<wroc_data_offer> offer;
+        } drag;
     } data_manager;
 };
 

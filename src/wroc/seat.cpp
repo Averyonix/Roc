@@ -45,7 +45,7 @@ void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 se
         log_warn("set_cursor failed, no focused surface");
         return;
     }
-    if (wl_resource_get_client(pointer->focused_surface->resource) != client) {
+    if (wroc_resource_get_client(pointer->focused_surface->resource) != client) {
         log_warn("set_cursor failed, client does not own currently focused surface");
         return;
     }
