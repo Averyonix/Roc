@@ -62,7 +62,7 @@ void wroc_output_send_configuration(wroc_output* output, wl_resource* client_res
     wl_output_send_geometry(client_resource,
         output->position.x, output->position.y,
         output->physical_size_mm.x, output->physical_size_mm.y,
-        i32(output->subpixel_layout),
+        output->subpixel_layout,
         output->make.c_str(),
         output->model.c_str(),
         WL_OUTPUT_TRANSFORM_NORMAL);

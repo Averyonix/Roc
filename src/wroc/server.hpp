@@ -132,20 +132,14 @@ struct wroc_surface : wrei_object
 
     weak<wroc_output> output;
 
+    vec2i32 position;
+
     ~wroc_surface();
 };
 
 void wroc_surface_commit(wroc_surface*);
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 void wroc_surface_set_output(wroc_surface*, wroc_output*);
-
-struct wroc_surface_at_position
-{
-    weak<wroc_surface> surface;
-    vec2i32            position;
-
-    operator bool() const { return surface; };
-};
 
 // -----------------------------------------------------------------------------
 
@@ -207,7 +201,7 @@ struct wroc_xdg_surface : wroc_surface_role_addon
 
     wroc_wl_resource resource;
 
-    wroc_surface_role_addon* xdg_role_addon;
+    weak<wroc_surface_role_addon> xdg_role_addon;
 
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
@@ -269,7 +263,7 @@ struct wroc_xdg_toplevel : wroc_surface_role_addon
     wroc_xdg_toplevel_state pending;
     wroc_xdg_toplevel_state current;
 
-    bool initial_commit = true;
+    bool initial_configure_complete;
 
     vec2i32 bounds;
     vec2i32 size;
@@ -279,12 +273,10 @@ struct wroc_xdg_toplevel : wroc_surface_role_addon
     virtual void on_commit() final override;
     virtual void on_ack_configure(u32 serial) final override;
 
-    ~wroc_xdg_toplevel();
-
     static
     wroc_xdg_toplevel* try_from(wroc_xdg_surface* xdg_surface)
     {
-        return xdg_surface ? dynamic_cast<wroc_xdg_toplevel*>(xdg_surface->xdg_role_addon) : nullptr;
+        return xdg_surface ? dynamic_cast<wroc_xdg_toplevel*>(xdg_surface->xdg_role_addon.get()) : nullptr;
     }
 
     static
@@ -298,6 +290,70 @@ void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel*, vec2i32 bounds);
 void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel*, vec2i32 size);
 void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel*, xdg_toplevel_state, bool enabled);
 void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel*);
+
+// -----------------------------------------------------------------------------
+
+struct wroc_axis_region
+{
+    i32 pos;
+    i32 size;
+};
+
+struct wroc_axis_overlaps
+{
+    i32 start;
+    i32 end;
+};
+
+struct wroc_xdg_positioner_rules
+{
+    vec2i32 size;
+    rect2i32 anchor_rect;
+    xdg_positioner_anchor anchor;
+    xdg_positioner_gravity gravity;
+    xdg_positioner_constraint_adjustment constraint_adjustment;
+    vec2i32 offset;
+    bool reactive = false;
+    vec2i32 parent_size;
+    u32 parent_configure;
+};
+
+struct wroc_xdg_positioner : wrei_object
+{
+    wroc_server* server;
+
+    wroc_wl_resource resource;
+
+    wroc_xdg_positioner_rules rules;
+};
+
+// -----------------------------------------------------------------------------
+
+struct wroc_xdg_popup : wroc_surface_role_addon
+{
+    ref<wroc_xdg_surface> base;
+
+    wroc_wl_resource resource;
+
+    ref<wroc_xdg_positioner> positioner;
+    weak<wroc_xdg_surface> parent;
+    weak<wroc_xdg_toplevel> root_toplevel;
+    bool initial_configure_complete;
+
+    virtual void on_commit() final override;
+
+    static
+    wroc_xdg_popup* try_from(wroc_xdg_surface* xdg_surface)
+    {
+        return xdg_surface ? dynamic_cast<wroc_xdg_popup*>(xdg_surface->xdg_role_addon.get()) : nullptr;
+    }
+
+    static
+    wroc_xdg_popup* try_from(wroc_surface* surface)
+    {
+        return try_from(wroc_xdg_surface::try_from(surface));
+    }
+};
 
 // -----------------------------------------------------------------------------
 
@@ -503,7 +559,7 @@ struct wroc_data_device : wrei_object
 };
 
 void wroc_data_manager_offer_selection(wroc_server*, wl_client*);
-void wroc_data_manager_update_drag(wroc_server*, wroc_surface*, vec2i32 surface_pos);
+void wroc_data_manager_update_drag(wroc_server*, wroc_surface*);
 void wroc_data_manager_finish_drag(wroc_server*);
 
 // -----------------------------------------------------------------------------
@@ -557,9 +613,9 @@ struct wroc_server : wrei_object
     std::vector<wroc_output*>  outputs;
     std::vector<wroc_surface*> surfaces;
 
-    wroc_surface_at_position toplevel_under_cursor;
-    wroc_surface_at_position surface_under_cursor;
-    wroc_surface_at_position implicit_grab_surface;
+    weak<wroc_xdg_toplevel> toplevel_under_cursor;
+    weak<wroc_surface>      surface_under_cursor;
+    weak<wroc_surface>      implicit_grab_surface;
 
     wroc_interaction_mode interaction_mode;
 

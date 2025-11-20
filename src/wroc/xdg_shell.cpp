@@ -1,6 +1,10 @@
 #include "server.hpp"
 #include "util.hpp"
 
+
+static
+void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id);
+
 static
 void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
 {
@@ -14,7 +18,7 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
 }
 
 const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
-    .create_positioner = WROC_STUB,
+    .create_positioner = wroc_xdg_wm_base_create_positioner,
     .destroy           = wroc_simple_resource_destroy_callback,
     .get_xdg_surface   = wroc_xdg_wm_base_get_xdg_surface,
     .pong              = WROC_STUB,
@@ -92,10 +96,13 @@ void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
     xdg_surface_send_configure(xdg_surface->resource, xdg_surface->sent_configure_serial);
 }
 
+static
+void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* parent, wl_resource* positioner);
+
 const struct xdg_surface_interface wroc_xdg_surface_impl = {
     .destroy             = wroc_simple_resource_destroy_callback,
     .get_toplevel        = wroc_xdg_surface_get_toplevel,
-    .get_popup           = WROC_STUB,
+    .get_popup           = wroc_xdg_surface_get_popup,
     .set_window_geometry = wroc_xdg_surface_set_window_geometry,
     .ack_configure       = wroc_xdg_surface_ack_configure,
 };
@@ -207,8 +214,8 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
 
 void wroc_xdg_toplevel::on_commit()
 {
-    if (initial_commit) {
-        initial_commit = false;
+    if (!initial_configure_complete) {
+        initial_configure_complete = true;
         wroc_xdg_toplevel_on_initial_commit(this);
     }
 
@@ -217,13 +224,6 @@ void wroc_xdg_toplevel::on_commit()
 
     current.committed |= pending.committed;
     pending = {};
-}
-
-wroc_xdg_toplevel::~wroc_xdg_toplevel()
-{
-    if (base->xdg_role_addon == this) {
-        base->xdg_role_addon = nullptr;
-    }
 }
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
@@ -294,3 +294,346 @@ void wroc_xdg_toplevel::on_ack_configure(u32 serial)
 {
     wroc_xdg_toplevel_flush_configure(this);
 }
+
+// -----------------------------------------------------------------------------
+
+void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id)
+{
+    auto* new_resource = wl_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
+    wroc_debug_track_resource(new_resource);
+    auto* positioner = new wroc_xdg_positioner {};
+    positioner->resource = new_resource;
+    positioner->server = wroc_get_userdata<wroc_server>(resource);
+    wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_positioner_impl, positioner);
+}
+
+static
+void wroc_xdg_positioner_set_size(wl_client* client, wl_resource* resource, i32 width, i32 height)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.size = {width, height};
+}
+
+static
+void wroc_xdg_positioner_set_anchor_rect(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.anchor_rect = {{x, y}, {width, height}};
+}
+
+static
+void wroc_xdg_positioner_set_anchor(wl_client* client, wl_resource* resource, u32 anchor)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.anchor = xdg_positioner_anchor(anchor);
+}
+
+static
+void wroc_xdg_positioner_set_gravity(wl_client* client, wl_resource* resource, u32 gravity)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.gravity = xdg_positioner_gravity(gravity);
+}
+
+static
+void wroc_xdg_positioner_set_constraint_adjustment(wl_client* client, wl_resource* resource, u32 constraint_adjustment)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.constraint_adjustment = xdg_positioner_constraint_adjustment(constraint_adjustment);
+}
+
+static
+void wroc_xdg_positioner_set_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.offset = {x, y};
+}
+
+static
+void wroc_xdg_positioner_set_reactive(wl_client* client, wl_resource* resource)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.reactive = true;
+}
+
+static
+void wroc_xdg_positioner_set_parent_size(wl_client* client, wl_resource* resource, i32 width, i32 height)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.parent_size = {width, height};
+}
+
+static
+void wroc_xdg_positioner_set_parent_configure(wl_client* client, wl_resource* resource, u32 serial)
+{
+    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.parent_configure = serial;
+}
+
+const struct xdg_positioner_interface wroc_xdg_positioner_impl = {
+    .destroy                   = wroc_simple_resource_destroy_callback,
+    .set_size                  = wroc_xdg_positioner_set_size,
+    .set_anchor_rect           = wroc_xdg_positioner_set_anchor_rect,
+    .set_anchor                = wroc_xdg_positioner_set_anchor,
+    .set_gravity               = wroc_xdg_positioner_set_gravity,
+    .set_constraint_adjustment = wroc_xdg_positioner_set_constraint_adjustment,
+    .set_offset                = wroc_xdg_positioner_set_offset,
+    .set_reactive              = wroc_xdg_positioner_set_reactive,
+    .set_parent_size           = wroc_xdg_positioner_set_parent_size,
+    .set_parent_configure      = wroc_xdg_positioner_set_parent_configure,
+};
+
+struct wroc_xdg_positioner_axis_rules
+{
+    wroc_axis_region anchor;
+    i32 size;
+    i32 gravity;
+    bool flip;
+    bool slide;
+    bool resize;
+};
+
+static
+wroc_axis_region wroc_xdg_positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rules, wroc_axis_region constraint)
+{
+    log_debug("wroc_xdg_position_apply_axis");
+    log_debug("  constraint = ({}, {})", constraint.pos, constraint.size);
+    log_debug("  anchor = ({}, {})", rules.anchor.pos, rules.anchor.size);
+    log_debug("  size, gravity  = {}, {}", rules.size, rules.gravity);
+    log_debug("  flip   = {}", rules.flip);
+    log_debug("  slide  = {}", rules.slide);
+    log_debug("  resize = {}", rules.resize);
+
+    auto get_position = [](auto& rules) -> wroc_axis_region {
+        return {rules.anchor.pos + rules.gravity - rules.size, rules.size};
+    };
+
+    auto get_overlaps = [&](wroc_axis_region region) -> wroc_axis_overlaps {
+        return {constraint.pos - region.pos, region.pos + region.size - (constraint.pos + constraint.size)};
+    };
+
+    auto is_unconstrained = [&](wroc_axis_region region) {
+        auto overlaps = get_overlaps(region);
+        return overlaps.start <= 0 && overlaps.end <= 0;
+    };
+
+    auto region = get_position(rules);
+    log_debug("  position = ({}, {})", region.pos, region.size);
+
+    if (is_unconstrained(region)) {
+        log_debug("  already unconstrained!");
+        return region;
+    }
+
+#define WROC_XDG_POSITIONER_IGNORE_FLIP 0
+#if    !WROC_XDG_POSITIONER_IGNORE_FLIP
+    if (rules.flip) {
+        auto flipped_rules = rules;
+        flipped_rules.anchor.pos = rules.anchor.size - rules.anchor.pos;
+        flipped_rules.gravity = rules.size - rules.gravity;
+        auto flipped = get_position(flipped_rules);
+        log_debug("  flipped = ({}, {})", flipped.pos, flipped.size);
+        if (is_unconstrained(flipped)) {
+            log_debug("  unconstrained by flip!");
+            return flipped;
+        }
+    }
+#endif
+
+#define WROC_XDG_POSITIONER_ALWAYS_SLIDE 0
+#if    !WROC_XDG_POSITIONER_ALWAYS_SLIDE
+    if (rules.slide)
+#endif
+    {
+        auto overlap = get_overlaps(region);
+        log_debug("  attempting slide, overlaps: ({}, {})", overlap.start, overlap.end);
+        if (overlap.start > 0 && overlap.end > 0) {
+            log_debug("    overlaps both");
+            // Overlaps both at start and end, move in direction of gravity until opposite edge is unconstrained
+            if (rules.gravity == rules.size) {
+                log_debug("    slide forward");
+                region.pos += overlap.start;
+            } else if (rules.gravity == 0) {
+                log_debug("    slide back");
+                region.pos -= overlap.end;
+            } else {
+                log_debug("    no gravity, can't slide");
+            }
+        } else if (overlap.start > 0) {
+            // Overlaps at start, move forward
+            region.pos += std::min(overlap.start, -overlap.end);
+            log_debug("    overlaps start, move forward: {}", region.pos);
+            return region;
+        } else if (overlap.end > 0) {
+            // Overlaps at end, move backward
+            region.pos -= std::min(overlap.end, -overlap.start);
+            log_debug("    overlaps start, move back: {}", region.pos);
+            return region;
+        }
+    }
+
+    if (rules.resize) {
+        auto overlap = get_overlaps(region);
+        log_debug("  attempting resize, overlaps: ({}, {})", overlap.start, overlap.end);
+        if (overlap.start > 0 && overlap.end > 0) {
+            log_debug("    overlaps both sides, constraint to fit exactly");
+            // Overlaps both, fit constraint exactly
+            region = constraint;
+        } else if (overlap.start > 0 && overlap.start < region.size) {
+            // Overlaps start by less than size, clip start
+            region.pos  += overlap.start;
+            region.size -= overlap.start;
+            log_debug("    overlaps start, clipping ({}, {})", region.pos, region.size);
+        } else if (overlap.end > 0 && overlap.end < region.size) {
+            // Overlaps end by less than size, clip end
+            region.size -= overlap.end;
+            log_debug("    overlaps end, clipping ({}, {})", region.pos, region.size);
+        } else {
+            log_debug("    outside of region entirely");
+        }
+    }
+
+    // Return best effort
+
+    return region;
+}
+
+#define WROC_WAYLAND_EDGES_TO_REL_CASES(Prefix) \
+    case Prefix##_NONE:         return {rel.x / 2, rel.y / 2}; \
+    case Prefix##_TOP:          return {rel.x / 2, 0        }; \
+    case Prefix##_BOTTOM:       return {rel.x / 2, rel.y    }; \
+    case Prefix##_LEFT:         return {0,         rel.y / 2}; \
+    case Prefix##_RIGHT:        return {rel.x,     rel.y / 2}; \
+    case Prefix##_TOP_LEFT:     return {0,         0        }; \
+    case Prefix##_TOP_RIGHT:    return {rel.x,     0        }; \
+    case Prefix##_BOTTOM_LEFT:  return {0,         rel.y    }; \
+    case Prefix##_BOTTOM_RIGHT: return {rel.x,     rel.y    };
+
+template<typename T>
+wrei_vec<2, T> wroc_xdg_positioner_anchor_to_rel(xdg_positioner_anchor anchor, wrei_vec<2, T> rel)
+{
+    switch (anchor) {
+        WROC_WAYLAND_EDGES_TO_REL_CASES(XDG_POSITIONER_ANCHOR)
+    }
+}
+
+template<typename T>
+wrei_vec<2, T> wroc_xdg_positioner_gravity_to_rel(xdg_positioner_gravity gravity, wrei_vec<2, T> rel)
+{
+    switch (gravity) {
+        WROC_WAYLAND_EDGES_TO_REL_CASES(XDG_POSITIONER_GRAVITY)
+    }
+}
+
+static
+void wroc_xdg_positioner_apply_axis_from_rules(const wroc_xdg_positioner_rules& rules, rect2i32 constraint, rect2i32& target, u32 axis)
+{
+    auto anchor = wroc_xdg_positioner_anchor_to_rel(rules.anchor, rules.anchor_rect.extent);
+    auto gravity = wroc_xdg_positioner_gravity_to_rel(rules.gravity, rules.size);
+    static constexpr std::array flip_adjustments   = { XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X,   XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y   };
+    static constexpr std::array slide_adjustments  = { XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X,  XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y  };
+    static constexpr std::array resize_adjustments = { XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_X, XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_Y };
+    wroc_xdg_positioner_axis_rules axis_rules {
+        .anchor = {
+            .pos = anchor[axis],
+            .size = rules.anchor_rect.extent[axis],
+        },
+        .size = rules.size[axis],
+        .gravity = gravity[axis],
+        .flip   = bool(rules.constraint_adjustment & flip_adjustments[axis]),
+        .slide  = bool(rules.constraint_adjustment & slide_adjustments[axis]),
+        .resize = bool(rules.constraint_adjustment & resize_adjustments[axis]),
+    };
+    auto offset = rules.anchor_rect.origin[axis] + rules.offset[axis];
+    wroc_axis_region constraint_region {
+        .pos = constraint.origin[axis] - offset,
+        .size = constraint.extent[axis],
+    };
+    auto region = wroc_xdg_positioner_apply_axis(axis_rules, constraint_region);
+    log_debug("  final position: ({}, {}), offset = {}", region.pos, region.size, offset);
+    target.origin[axis] = region.pos + offset;
+    target.extent[axis] = region.size;
+}
+
+static
+rect2i32 wroc_xdg_positioner_apply(const wroc_xdg_positioner_rules& rules, rect2i32 constraint)
+{
+    rect2i32 target;
+    wroc_xdg_positioner_apply_axis_from_rules(rules, constraint, target, 0);
+    wroc_xdg_positioner_apply_axis_from_rules(rules, constraint, target, 1);
+    return target;
+}
+
+// -----------------------------------------------------------------------------
+
+void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _parent, wl_resource* positioner)
+{
+    auto* new_resource = wl_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
+    wroc_debug_track_resource(new_resource);
+    auto* popup = new wroc_xdg_popup {};
+    popup->resource = new_resource;
+    popup->base = wroc_get_userdata<wroc_xdg_surface>(resource);
+    popup->base->xdg_role_addon = popup;
+
+    auto* xdg_positioner = wroc_get_userdata<wroc_xdg_positioner>(positioner);
+
+    popup->positioner = xdg_positioner;
+    popup->parent = wroc_get_userdata<wroc_xdg_surface>(_parent);
+    if (wroc_xdg_toplevel* toplevel = wroc_xdg_toplevel::try_from(popup->parent.get())) {
+        popup->root_toplevel = toplevel;
+    } else if (wroc_xdg_popup* parent_popup = wroc_xdg_popup::try_from(popup->parent.get())) {
+        popup->root_toplevel = parent_popup->root_toplevel;
+    }
+
+    auto& rules = xdg_positioner->rules;
+    log_error("xdg_popup<{}> created:", (void*)popup);
+    log_error("  size = ({}, {})", rules.size.x, rules.size.y);
+    log_error("  anchor_rect = ({}, {}) ({}, {})",
+        rules.anchor_rect.origin.x, rules.anchor_rect.origin.y,
+        rules.anchor_rect.extent.x, rules.anchor_rect.extent.y);
+    log_error("  anchor = {}", magic_enum::enum_name(rules.anchor));
+    log_error("  gravity = {}", magic_enum::enum_name(rules.gravity));
+    u32 adjustment = rules.constraint_adjustment;
+    while (adjustment) {
+        u32 lsb = 1u << std::countr_zero(adjustment);
+        log_error("  adjustment |= {}", magic_enum::enum_name(xdg_positioner_constraint_adjustment(lsb)));
+        adjustment &= ~lsb;
+    }
+    log_error("  offset = ({}, {})", rules.offset.x, rules.offset.y);
+    log_error("  reactive = {}", rules.reactive);
+    log_error("  parent_size = ({}, {})", rules.parent_size.x, rules.parent_size.y);
+    log_error("  parent_configure = {}", rules.parent_configure);
+
+    wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_popup_impl, popup);
+}
+
+static
+void wroc_xdg_popup_position(wroc_xdg_popup* popup)
+{
+    auto parent_origin = popup->parent->surface->position + wroc_xdg_surface_get_geometry(popup->parent.get()).origin;
+
+    rect2i32 constraint {
+        .origin = -parent_origin,
+    };
+    for (auto* output : popup->base->surface->server->outputs) {
+        constraint.extent = output->size;
+        break;
+    }
+    auto geometry = wroc_xdg_positioner_apply(popup->positioner->rules, constraint);
+
+    popup->base->anchor.relative = {};
+    popup->base->anchor.position = parent_origin + geometry.origin;
+
+    xdg_popup_send_configure(popup->resource, geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
+    xdg_surface_send_configure(popup->base->resource, wl_display_next_serial(popup->base->surface->server->display));
+}
+
+void wroc_xdg_popup::on_commit()
+{
+    if (!initial_configure_complete) {
+        initial_configure_complete = true;
+
+        if (parent) {
+            wroc_xdg_popup_position(this);
+        } else {
+            log_error("xdg_popup has no parent set at commit time, can't configure");
+        }
+    }
+}
+
+const struct xdg_popup_interface wroc_xdg_popup_impl = {
+    .destroy    = wroc_simple_resource_destroy_callback,
+    .grab       = WROC_NOISY_STUB(grab),
+    .reposition = WROC_NOISY_STUB(reposition),
+};

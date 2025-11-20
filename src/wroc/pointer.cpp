@@ -25,10 +25,10 @@ bool wroc_pointer_resource_matches_focus_client(wroc_pointer* pointer, wl_resour
 }
 
 static
-void wroc_pointer_update_focus(wroc_pointer* pointer, wroc_surface_at_position& focused_surface)
+void wroc_pointer_update_focus(wroc_pointer* pointer, wroc_surface* focused_surface)
 {
     auto* server = pointer->server;
-    if (focused_surface.surface.get() != pointer->focused_surface.get()) {
+    if (focused_surface != pointer->focused_surface.get()) {
         if (auto* old_surface = pointer->focused_surface.get(); old_surface && old_surface->resource) {
             auto serial = wl_display_next_serial(server->display);
             for (auto* resource : pointer->resources) {
@@ -41,18 +41,18 @@ void wroc_pointer_update_focus(wroc_pointer* pointer, wroc_surface_at_position& 
         pointer->focused_surface = nullptr;
 
         if (focused_surface) {
-            log_info("Entering surface: {}", (void*)focused_surface.surface.get());
+            log_info("Entering surface: {}", (void*)focused_surface);
 
-            pointer->focused_surface = focused_surface.surface.get();
+            pointer->focused_surface = focused_surface;
 
-            auto pos = pointer->layout_position - vec2f64(focused_surface.position);
+            auto pos = pointer->layout_position - vec2f64(focused_surface->position);
             auto serial = wl_display_next_serial(pointer->server->display);
 
             for (auto* resource : pointer->resources) {
                 if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
                 wl_pointer_send_enter(resource,
                     serial,
-                    focused_surface.surface->resource,
+                    focused_surface->resource,
                     wl_fixed_from_double(pos.x),
                     wl_fixed_from_double(pos.y));
 
@@ -68,7 +68,7 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
     if (pointer->server->seat->keyboard && pressed) {
         if (pointer->server->toplevel_under_cursor) {
             log_debug("trying to enter keyboard...");
-            wroc_keyboard_enter(pointer->server->seat->keyboard, pointer->server->toplevel_under_cursor.surface.get());
+            wroc_keyboard_enter(pointer->server->seat->keyboard, pointer->server->toplevel_under_cursor->base->surface.get());
         } else {
             wroc_keyboard_clear_focus(pointer->server->seat->keyboard);
         }
@@ -92,11 +92,11 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
         wroc_pointer_send_frame(resources);
     }
 
-    if (!pressed && pointer->pressed.empty() && pointer->server->implicit_grab_surface.surface) {
+    if (!pressed && pointer->pressed.empty() && pointer->server->implicit_grab_surface) {
         log_info("Ending implicit grab");
         wroc_data_manager_finish_drag(pointer->server);
         pointer->server->implicit_grab_surface = {};
-        wroc_pointer_update_focus(pointer, pointer->server->surface_under_cursor);
+        wroc_pointer_update_focus(pointer, pointer->server->surface_under_cursor.get());
     }
 }
 
@@ -106,18 +106,19 @@ void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, vec2f64 del
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
     auto* server = pointer->server;
-    auto& focused_surface = server->implicit_grab_surface.surface ? server->implicit_grab_surface : server->surface_under_cursor;
+    auto* focused_surface = server->implicit_grab_surface ? server->implicit_grab_surface.get() : server->surface_under_cursor.get();
 
-    wroc_data_manager_update_drag(server, server->surface_under_cursor.surface.get(),  server->surface_under_cursor.position);
+    wroc_data_manager_update_drag(server, server->surface_under_cursor.get());
 
     // log_trace("motion, grab = {}", (void*)server->implicit_grab_surface.surface.get());
     wroc_pointer_update_focus(pointer, focused_surface);
 
-    if (focused_surface && focused_surface.surface->resource) {
-        // log_trace("sending motion to surface: {}", (void*)surface);
+    if (focused_surface && focused_surface->resource) {
 
         auto time = wroc_get_elapsed_milliseconds(server);
-        auto pos = pointer->layout_position - vec2f64(focused_surface.position);
+        auto pos = pointer->layout_position - vec2f64(focused_surface->position);
+
+        // log_trace("sending motion to surface: {} ({:.2f}, {:.2f}) [{}]", (void*)focused_surface, pos.x, pos.y, time);
 
         for (auto* resource : pointer->resources) {
             if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;

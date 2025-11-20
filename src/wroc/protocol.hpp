@@ -6,7 +6,15 @@
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)
 {
-    return resource ? dynamic_cast<T*>(static_cast<wrei_object*>(wl_resource_get_user_data(resource))) : nullptr;
+    if (!resource) return nullptr;
+    auto* base = static_cast<wrei_object*>(wl_resource_get_user_data(resource));
+    if (!base) return nullptr;
+    auto* cast = dynamic_cast<T*>(base);
+    if (!cast) {
+        log_error("Fatal error casting wl_resource userdata: expected {} got {}", typeid(T).name(), typeid(*base).name());
+        raise(SIGTRAP);
+    }
+    return cast;
 }
 
 #define WROC_NOISY_WL_RESOURCE 0
@@ -61,9 +69,11 @@ extern const struct wl_subsurface_interface    wroc_wl_subsurface_impl;
 
 extern const struct wl_output_interface     wroc_wl_output_impl;
 
-extern const struct xdg_wm_base_interface   wroc_xdg_wm_base_impl;
-extern const struct xdg_surface_interface   wroc_xdg_surface_impl;
-extern const struct xdg_toplevel_interface  wroc_xdg_toplevel_impl;
+extern const struct xdg_wm_base_interface    wroc_xdg_wm_base_impl;
+extern const struct xdg_surface_interface    wroc_xdg_surface_impl;
+extern const struct xdg_toplevel_interface   wroc_xdg_toplevel_impl;
+extern const struct xdg_positioner_interface wroc_xdg_positioner_impl;
+extern const struct xdg_popup_interface      wroc_xdg_popup_impl;
 
 extern const struct wl_buffer_interface     wroc_wl_buffer_impl;
 

@@ -35,7 +35,7 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
         if (event.button.pressed) {
             if (wroc_get_active_modifiers(server) >= wroc_modifiers::mod) {
 
-                if (auto* toplevel = wroc_xdg_toplevel::try_from(server->toplevel_under_cursor.surface.get())) {
+                if (auto* toplevel = server->toplevel_under_cursor.get()) {
 
                     rect2i32 geom;
                     vec2i32 surface_pos = wroc_xdg_surface_get_position(toplevel->base.get(), &geom);
