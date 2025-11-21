@@ -204,7 +204,7 @@ void wroc_backend_output_create(wroc_backend* backend)
         return;
     }
 
-    auto* output = new wroc_wayland_output{};
+    auto* output = wrei_get_registry(backend)->create<wroc_wayland_output>();
 
     output->physical_size_mm = {};
     output->model = "Unknown";

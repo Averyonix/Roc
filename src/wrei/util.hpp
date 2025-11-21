@@ -260,3 +260,27 @@ struct wrei_region
 
     bool contains(vec2i32 point);
 };
+
+// -----------------------------------------------------------------------------
+
+constexpr usz wrei_round_up_power2(usz v) noexcept
+{
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v |= v >> 32;
+    v++;
+
+    return v;
+}
+
+// -----------------------------------------------------------------------------
+
+inline
+void wrei_debugbreak()
+{
+    raise(SIGTRAP);
+}

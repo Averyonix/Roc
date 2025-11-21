@@ -66,7 +66,7 @@ void wren_enumerate_drm_modifiers(wren_context* ctx, const wren_format& format, 
 
 ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
 {
-    auto image = wrei_adopt_ref(new wren_image {});
+    auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
     image->ctx = ctx;
 
     image->extent = { params.extent.width, params.extent.height, 1 };

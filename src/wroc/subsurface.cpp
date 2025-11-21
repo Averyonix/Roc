@@ -2,12 +2,13 @@
 #include "util.hpp"
 
 static
-void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resource, u32 id, wl_resource* surface, wl_resource* parent)
+void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resource, u32 id, wl_resource* _surface, wl_resource* parent)
 {
     auto* new_resource = wl_resource_create(client, &wl_subsurface_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
-    auto* subsurface = new wroc_subsurface {};
-    subsurface->surface = wroc_get_userdata<wroc_surface>(surface);
+    auto* surface = wroc_get_userdata<wroc_surface>(_surface);
+    auto* subsurface = wrei_get_registry(surface)->create<wroc_subsurface>();
+    subsurface->surface = surface;
     subsurface->surface->role_addon = subsurface;
     subsurface->resource = new_resource;
     subsurface->parent = wroc_get_userdata<wroc_surface>(parent);

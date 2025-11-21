@@ -60,7 +60,7 @@ u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryP
 
 ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 {
-    auto buffer = wrei_adopt_ref(new wren_buffer {});
+    auto buffer = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_buffer>());
     buffer->ctx = ctx;
 
     VmaAllocationInfo vma_alloc_info;
@@ -96,7 +96,7 @@ wren_buffer::~wren_buffer()
 
 ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent, VkFormat format)
 {
-    auto image = wrei_adopt_ref(new wren_image {});
+    auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
     image->ctx = ctx;
 
     image->extent = { extent.width, extent.height, 1 };
@@ -190,7 +190,7 @@ wren_image::~wren_image()
 
 ref<wren_sampler> wren_sampler_create(wren_context* ctx)
 {
-    ref sampler = wrei_adopt_ref(new wren_sampler {});
+    ref sampler = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_sampler>());
     sampler->ctx = ctx;
 
     wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {

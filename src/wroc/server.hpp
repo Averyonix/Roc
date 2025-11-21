@@ -385,13 +385,6 @@ struct wroc_wl_buffer : wrei_object
 
 // -----------------------------------------------------------------------------
 
-struct wroc_wl_shm : wrei_object
-{
-    wroc_server* server;
-
-    wroc_wl_resource resource;
-};
-
 struct wroc_wl_shm_pool : wrei_object
 {
     wroc_server* server;

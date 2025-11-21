@@ -11,10 +11,11 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
 
 void wroc_run(int argc, char* argv[])
 {
-    ref server = wrei_adopt_ref(new wroc_server {});
+    wrei_registry registry;
+    ref server = wrei_adopt_ref(registry.create<wroc_server>());
     log_warn("server = {}", (void*)server.get());
 
-    server->seat = wrei_adopt_ref(new wroc_seat {});
+    server->seat = wrei_adopt_ref(registry.create<wroc_seat>());
     server->seat->name = "seat-0";
 
     server->epoch = std::chrono::steady_clock::now();

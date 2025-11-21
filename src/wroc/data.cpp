@@ -4,9 +4,10 @@ static
 void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wl_resource_create(client, &wl_data_source_interface, wl_resource_get_version(resource), id);
-    auto* data_source = new wroc_data_source {};
+    auto* server = wroc_get_userdata<wroc_server>(resource);
+    auto* data_source = wrei_get_registry(server)->create<wroc_data_source>();
     data_source->resource = new_resource;
-    data_source->server = wroc_get_userdata<wroc_server>(resource);
+    data_source->server = server;
     data_source->server->data_manager.sources.emplace_back(data_source);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_data_source_impl, data_source);
 }
@@ -15,9 +16,10 @@ static
 void wroc_wl_data_device_manager_get_data_device(wl_client* client, wl_resource* resource, u32 id, wl_resource* seat)
 {
     auto* new_resource = wl_resource_create(client, &wl_data_device_interface, wl_resource_get_version(resource), id);
-    auto* data_device = new wroc_data_device {};
+    auto* server = wroc_get_userdata<wroc_server>(resource);
+    auto* data_device = wrei_get_registry(server)->create<wroc_data_device>();
     data_device->resource = new_resource;
-    data_device->server = wroc_get_userdata<wroc_server>(resource);
+    data_device->server = server;
     data_device->seat = wroc_get_userdata<wroc_seat>(seat);
     data_device->server->data_manager.devices.emplace_back(data_device);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_data_device_impl, data_device);
@@ -228,7 +230,7 @@ static
 wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* source)
 {
     auto* offer_resource = wl_resource_create(wroc_resource_get_client(device->resource), &wl_data_offer_interface, wl_resource_get_version(device->resource), 0);
-    auto* data_offer = new wroc_data_offer {};
+    auto* data_offer = wrei_get_registry(device)->create<wroc_data_offer>();
     data_offer->resource = offer_resource;
     data_offer->server = device->server;
     data_offer->source = source;

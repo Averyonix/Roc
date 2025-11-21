@@ -58,7 +58,7 @@ struct wren_context : wrei_object
     ~wren_context();
 };
 
-ref<wren_context> wren_create();
+ref<wren_context> wren_create(wrei_registry*);
 
 VkCommandBuffer wren_begin_commands( wren_context*);
 void            wren_submit_commands(wren_context*, VkCommandBuffer);

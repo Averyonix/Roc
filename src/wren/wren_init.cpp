@@ -2,9 +2,9 @@
 
 #include "wroc/server.hpp"
 
-ref<wren_context> wren_create()
+ref<wren_context> wren_create(wrei_registry* registry)
 {
-    auto ctx = wrei_adopt_ref(new wren_context {});
+    auto ctx = wrei_adopt_ref(registry->create<wren_context>());
 
     ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!ctx->vulkan1) {

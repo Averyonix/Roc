@@ -82,7 +82,7 @@ int wroc_listen_backend_display_read(int fd, u32 mask, void* data)
 
 void wroc_backend_init(wroc_server* server)
 {
-    auto* backend = new wroc_backend{};
+    auto* backend = wrei_get_registry(server)->create<wroc_backend>();
     backend->server = server;
 
     if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
@@ -125,5 +125,5 @@ void wroc_backend_destroy(wroc_backend* backend)
 
     wl_display_disconnect(backend->wl_display);
 
-    delete backend;
+    wrei_get_registry(backend)->destroy(backend, backend->wrei.version);
 }

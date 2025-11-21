@@ -12,7 +12,7 @@ T* wroc_get_userdata(wl_resource* resource)
     auto* cast = dynamic_cast<T*>(base);
     if (!cast) {
         log_error("Fatal error casting wl_resource userdata: expected {} got {}", typeid(T).name(), typeid(*base).name());
-        raise(SIGTRAP);
+        wrei_debugbreak();
     }
     return cast;
 }

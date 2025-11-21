@@ -103,10 +103,10 @@ VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<cons
 
 void wroc_renderer_create(wroc_server* server)
 {
-    auto* renderer = (server->renderer = wrei_adopt_ref(new wroc_renderer {})).get();
+    auto* renderer = (server->renderer = wrei_adopt_ref(wrei_get_registry(server)->create<wroc_renderer>())).get();
     renderer->server = server;
 
-    renderer->wren = wren_create();
+    renderer->wren = wren_create(wrei_get_registry(server));
 
     std::filesystem::path path = getenv("WALLPAPER");
 

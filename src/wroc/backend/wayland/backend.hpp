@@ -33,7 +33,7 @@ struct wroc_wayland_pointer : wroc_pointer
     ~wroc_wayland_pointer();
 };
 
-struct wroc_backend
+struct wroc_backend : wrei_object
 {
     wroc_server* server = {};
 
