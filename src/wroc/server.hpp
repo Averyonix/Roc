@@ -264,6 +264,7 @@ struct wroc_xdg_toplevel : wroc_surface_role_addon
     wroc_xdg_toplevel_state current;
 
     bool initial_configure_complete;
+    bool initial_size_receieved;
 
     vec2i32 bounds;
     vec2i32 size;

@@ -6,6 +6,7 @@
     DO(EnumeratePhysicalDevices) \
     DO(GetPhysicalDeviceProperties2) \
     DO(GetPhysicalDeviceQueueFamilyProperties) \
+    DO(EnumerateDeviceExtensionProperties) \
     DO(CreateDevice) \
     DO(GetDeviceProcAddr) \
     DO(GetPhysicalDeviceSurfaceFormatsKHR) \

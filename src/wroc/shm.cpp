@@ -64,6 +64,11 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
     shm_buffer->format = wl_shm_format(format);
     shm_buffer->offset = offset;
 
+    if (shm_buffer->format != WL_SHM_FORMAT_ARGB8888 && shm_buffer->format != WL_SHM_FORMAT_XRGB8888) {
+        log_error("Unsupported format: {}", magic_enum::enum_name(shm_buffer->format));
+        wrei_debugbreak();
+    }
+
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
     shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)}, VK_FORMAT_B8G8R8A8_UNORM);

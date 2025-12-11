@@ -12,6 +12,9 @@ void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
 
     // TODO: This should be handled in keyboard.cpp
     wl_keyboard_send_keymap(new_resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, seat->keyboard->keymap_fd, seat->keyboard->keymap_size);
+    if (wl_resource_get_version(new_resource) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION) {
+        wl_keyboard_send_repeat_info(new_resource, 25, 600);
+    }
 }
 
 static

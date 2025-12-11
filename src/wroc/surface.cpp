@@ -73,20 +73,6 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    if (surface->pending.buffer) {
-        // If a surface is synchronized, it's possible that multiple buffers will be attached before a final commit
-        // We can either resolve this by adding an additional step where commits still occur, but go in to a "cached" state
-        // OR we can simply leave the surface state uncomitted and handle the few cases where problems occur on multiply committed state
-        // We've chosen the latter for now. Noting also that you want to handle the multiply committed state even
-        //   for desynchronized surfaces to handle potentially badly behaving clients in the most graceful way possible.
-        //
-        // TODO: If this causes a previously locked buffer to become unlocked we need to ensure that it is not being
-        //       actively drawn in the compositor
-
-        surface->pending.buffer->lock();
-        surface->pending.buffer->unlock();
-    }
-
     surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_wl_buffer>(wl_buffer) : nullptr;
     surface->pending.committed |= wroc_surface_committed_state::buffer;
 

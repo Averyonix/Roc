@@ -23,30 +23,24 @@ program_name = "wroc"
 
 # -----------------------------------------------------------------------------
 
-def ensure_dir(path: Path) -> Path:
+def ensure_dir(path: Path | str) -> Path:
     os.makedirs(path, exist_ok=True)
     return Path(path)
 
+cwd = Path(".")
 build_dir  = ensure_dir(".build")
 vendor_dir = ensure_dir(build_dir / "3rdparty")
 
 # -----------------------------------------------------------------------------
 
 def write_file_lazy(path: Path, data: str | bytes):
-    try:
-        if type(data) is str:
-            existing = path.read_text()
-        else:
-            existing = path.read_bytes()
-        if existing == data:
-            return
-    except FileNotFoundError:
-        pass
-
-    if type(data) is str:
-        path.write_text(data)
-    else:
-        path.write_bytes(data)
+    match data:
+        case bytes(b):
+            if not path.exists() or b != path.read_bytes():
+                path.write_bytes(b)
+        case str(t):
+            if not path.exists() or t != path.read_text():
+                path.write_text(t)
 
 # -----------------------------------------------------------------------------
 
@@ -148,15 +142,7 @@ else:
 
 # -----------------------------------------------------------------------------
 
-wlroots_src_dir = vendor_dir / "wlroots"
-
-def build_wlroots():
-    version = "0.20"
-    git_ref = "master"
-
-    git_fetch(wlroots_src_dir, "https://gitlab.freedesktop.org/wlroots/wlroots.git", git_ref)
-
-build_wlroots()
+wlroots_src_dir = git_fetch(vendor_dir / "wlroots", "https://gitlab.freedesktop.org/wlroots/wlroots.git", "master")
 
 # -----------------------------------------------------------------------------
 
@@ -323,4 +309,4 @@ if args.install:
     xdg_portal_dir = ensure_dir(os.path.expanduser("~/.config/xdg-desktop-portal"))
 
     install_file(cmake_dir / program_name, local_bin_dir / program_name)
-    install_file("resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")
+    install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")

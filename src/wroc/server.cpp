@@ -41,7 +41,7 @@ void wroc_run(int argc, char* argv[])
     wl_global_create(server->display, &wl_subcompositor_interface,       wl_subcompositor_interface.version,       server.get(),       wroc_wl_subcompositor_bind_global);
     wl_global_create(server->display, &xdg_wm_base_interface,            xdg_wm_base_interface.version,            server.get(),       wroc_xdg_wm_base_bind_global);
     wl_global_create(server->display, &wl_seat_interface,                wl_seat_interface.version,                server->seat.get(), wroc_wl_seat_bind_global);
-    wl_global_create(server->display, &wl_data_device_manager_interface, wl_data_device_manager_interface.version, server.get(), wroc_wl_data_device_manager_bind_global);
+    wl_global_create(server->display, &wl_data_device_manager_interface, wl_data_device_manager_interface.version, server.get(),       wroc_wl_data_device_manager_bind_global);
 
     wl_global_create(server->display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, server.get(), wroc_zwp_linux_dmabuf_v1_bind_global);
 

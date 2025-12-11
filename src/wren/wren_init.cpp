@@ -85,6 +85,27 @@ ref<wren_context> wren_create(wrei_registry* registry)
         VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
     };
 
+    {
+        uint32_t count = 0;
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
+        std::vector<VkExtensionProperties> props(count);
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, props.data()));
+
+        for (auto& ext : device_extensions) {
+            bool found = false;
+            for (auto& check : props) {
+                if (strcmp(check.extensionName, ext) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                log_error("Extension not present: {}", ext);
+                exit(1);
+            }
+        }
+    }
+
     wren_check(ctx->vk.CreateDevice(ctx->physical_device, wrei_ptr_to(VkDeviceCreateInfo {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = wren_vk_make_chain_in({

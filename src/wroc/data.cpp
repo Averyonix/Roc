@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include <wayland-client-protocol.h>
 
 static
 void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resource* resource, u32 id)
@@ -67,7 +68,7 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
     log_warn("wl_data_offer::set_actions()");
     if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) log_warn(" - copy{}", a == preferred_action ? " *" : "");
     if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE) log_warn(" - move{}", a == preferred_action ? " *" : "");
-    if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK)  log_warn(" - ask{}", a == preferred_action ? " *" : "");
+    if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK)  log_warn(" - ask{}",  a == preferred_action ? " *" : "");
 
     if (data_offer->source->dnd_actions >= wl_data_device_manager_dnd_action(preferred_action)) {
         data_offer->action = wl_data_device_manager_dnd_action(preferred_action);
@@ -353,8 +354,6 @@ void wroc_data_manager_finish_drag(wroc_server* server)
         drag = {};
         return;
     }
-
-
 
     if (drag.offer && drag.offer->device && drag.offer->source) {
         if (drag.offer->action && drag.source->dnd_actions >= drag.offer->action) {

@@ -137,7 +137,8 @@ wroc_renderer::~wroc_renderer()
 
 void wroc_render_frame(wroc_output* output)
 {
-    auto* renderer = output->server->renderer.get();
+    auto* server = output->server;
+    auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
     auto cmd = wren_begin_commands(wren);
 
@@ -228,22 +229,22 @@ void wroc_render_frame(wroc_output* output)
 
     // Draw cursor
 
-    if (auto* pointer = renderer->server->seat->pointer) {
+    if (auto* pointer = server->seat->pointer) {
         if (pointer->focused_surface) {
-            if (auto* cursor_surface = renderer->server->cursor_surface.get()) {
+            if (auto* cursor_surface = server->cursor_surface.get()) {
                 if (auto* buffer = cursor_surface->current.buffer.get()) {
-                    auto pos = vec2i32(pointer->layout_position) - renderer->server->cursor_hotspot;
+                    auto pos = vec2i32(pointer->layout_position) - server->cursor_hotspot;
                     draw(buffer->image.get(), pos, buffer->extent);
                 }
             }
         }
     }
 
-    if (renderer->server->data_manager.drag.source) {
-        if (auto* icon = renderer->server->data_manager.drag.icon.get()) {
+    if (server->data_manager.drag.source) {
+        if (auto* icon = server->data_manager.drag.icon.get()) {
             if (auto* buffer = icon->current.buffer.get()) {
                 if (buffer->image) {
-                    draw(buffer->image.get(), glm::ceil(renderer->server->seat->pointer->layout_position), buffer->extent);
+                    draw(buffer->image.get(), glm::ceil(server->seat->pointer->layout_position), buffer->extent);
                 }
             }
         }
@@ -301,6 +302,8 @@ void wroc_render_frame(wroc_output* output)
 
     wren_submit_commands(wren, cmd);
     wren_check(vkwsi_swapchain_present(&output->swapchain, 1, wren->queue, nullptr, 0, false));
+
+    // Send frame callbacks
 
     auto elapsed = wroc_get_elapsed_milliseconds(output->server);
 

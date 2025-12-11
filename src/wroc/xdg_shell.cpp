@@ -220,6 +220,13 @@ void wroc_xdg_toplevel::on_commit()
         initial_configure_complete = true;
         wroc_xdg_toplevel_on_initial_commit(this);
     }
+    else if (!initial_size_receieved) {
+        initial_size_receieved = true;
+        auto geom = wroc_xdg_surface_get_geometry(base.get());
+        log_error("INITIAL SIZE RECEIVED: ({}, {})", geom.extent.x, geom.extent.y);
+        wroc_xdg_toplevel_set_size(this, geom.extent);
+        wroc_xdg_toplevel_flush_configure(this);
+    }
 
     if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
     if (pending.committed >= wroc_xdg_toplevel_committed_state::app_id) current.app_id = pending.app_id;
