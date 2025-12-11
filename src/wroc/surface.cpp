@@ -118,73 +118,108 @@ void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32
     surface->pending.committed |= wroc_surface_committed_state::offset;
 }
 
-void wroc_surface_commit(wroc_surface* surface)
+static
+void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, wroc_surface_state& to)
 {
     // Update frame callbacks
 
-    surface->current.frame_callbacks.take_and_append_all(std::move(surface->pending.frame_callbacks));
+    to.frame_callbacks.take_and_append_all(std::move(from.frame_callbacks));
 
     // Update buffer
 
-    if (surface->pending.committed >= wroc_surface_committed_state::buffer) {
-        if (surface->pending.buffer && surface->pending.buffer->locked) {
-            log_error("Client is attempting to commit buffer that is already locked!");
-        }
+    if (from.committed >= wroc_surface_committed_state::buffer) {
 
-        if (surface->current.buffer) {
-            surface->current.buffer->unlock();
-        }
-
-        if (surface->pending.buffer) {
-            if (surface->pending.buffer->resource) {
-                surface->current.buffer = surface->pending.buffer;
-                surface->current.buffer->on_commit();
-            } else {
-                log_warn("Pending buffer was destroyed, surface contents will be cleared");
-                surface->current.buffer = nullptr;
+        if (&from == &surface->pending) {
+            if (from.buffer && from.buffer->locked) {
+                log_error("Client is attempting to commit a buffer that is already locked!");
             }
-        } else if (surface->current.buffer) {
-            log_warn("Null buffer was attached, surface contents will be cleared");
-            surface->current.buffer = nullptr;
         }
 
-        surface->pending.buffer = nullptr;
+        if (to.buffer) {
+            to.buffer->unlock();
+        }
+
+        if (&from == &surface->pending) {
+            if (from.buffer) {
+                if (from.buffer->resource) {
+                    to.buffer = from.buffer;
+                    to.buffer->on_commit();
+                } else {
+                    log_warn("Pending buffer was destroyed, surface contents will be cleared");
+                    to.buffer = nullptr;
+                }
+            } else if (to.buffer) {
+                log_warn("Null buffer was attached, surface contents will be cleared");
+                to.buffer = nullptr;
+            }
+        } else {
+            to.buffer = std::move(from.buffer);
+        }
+
+        from.buffer = nullptr;
     }
 
     // Update input region
 
-    if (surface->pending.committed >= wroc_surface_committed_state::input_region) {
-        surface->current.input_region = std::move(surface->pending.input_region);
+    if (from.committed >= wroc_surface_committed_state::input_region) {
+        to.input_region = std::move(from.input_region);
     }
 
     // Update offset
 
-    if (surface->pending.committed >= wroc_surface_committed_state::offset) {
+    if (from.committed >= wroc_surface_committed_state::offset) {
         // NOTE: This seems to be worded as if it's accumulative...
         //       > relative to the current buffer's upper left corner
         //       ...but wlroots treats it as if it's relative to the surface origin
-        surface->current.offset = surface->pending.offset;
+        to.offset = from.offset;
     }
 
     // Update surface stack
 
-    if (std::erase_if(surface->pending.surface_stack, [](auto& w) { return !w; })) {
+    if (std::erase_if(from.surface_stack, [](auto& w) { return !w; })) {
         // Clean out tombstones
-        surface->pending.committed |= wroc_surface_committed_state::surface_stack;
+        from.committed |= wroc_surface_committed_state::surface_stack;
     }
 
-    if (surface->pending.committed >= wroc_surface_committed_state::surface_stack) {
-        surface->current.surface_stack.clear();
-        surface->current.surface_stack.append_range(surface->pending.surface_stack);
+    if (from.committed >= wroc_surface_committed_state::surface_stack) {
+        to.surface_stack.clear();
+        to.surface_stack.append_range(from.surface_stack);
     }
 
-    surface->current.committed |= surface->pending.committed;
-    surface->pending.committed = wroc_surface_committed_state::none;
+    // Update commit flags
+
+    to.committed |= from.committed;
+    from.committed = wroc_surface_committed_state::none;
+}
+
+void wroc_surface_commit(wroc_surface* surface, bool from_parent_commit)
+{
+    bool synchronized = wroc_surface_is_synchronized(surface);
+    bool apply = !synchronized || from_parent_commit;
+    if (synchronized) {
+        if (from_parent_commit) {
+            wroc_surface_commit_state(surface, surface->cached, surface->current);
+        } else {
+            wroc_surface_commit_state(surface, surface->pending, surface->cached);
+        }
+    } else {
+        if (surface->cached.committed > wroc_surface_committed_state::none) {
+            // Apply remaining cached state
+            wroc_surface_commit_state(surface, surface->pending, surface->cached);
+            wroc_surface_commit_state(surface, surface->cached, surface->current);
+        } else {
+            wroc_surface_commit_state(surface, surface->pending, surface->current);
+        }
+    }
 
     // Commit addons
 
     if (surface->role_addon) {
-        surface->role_addon->on_commit();
+        surface->role_addon->on_commit(from_parent_commit);
+    }
+
+    if (!apply) {
+        return;
     }
 
     // Set output
@@ -208,9 +243,7 @@ void wroc_surface_commit(wroc_surface* surface)
         // Skip self
         if (s.get() == surface) continue;
 
-        if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
-            subsurface->on_parent_commit();
-        }
+        wroc_surface_commit(s.get(), true);
     }
 }
 
@@ -219,11 +252,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    if (surface->role_addon && surface->role_addon->is_synchronized()) {
-        return;
-    }
-
-    wroc_surface_commit(surface);
+    wroc_surface_commit(surface, false);
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
@@ -240,17 +269,20 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
     .offset               = wroc_wl_surface_offset,
 };
 
+static
+void wroc_surface_destroy_state(wroc_surface* surface, wroc_surface_state& state)
+{
+    // TODO: Should we send a done instead?
+    while (auto* callback = state.frame_callbacks.front()) wl_resource_destroy(callback);
+}
+
 wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
 
-    // TODO: Should we send a done instead?
-    while (auto* callback = pending.frame_callbacks.front()) {
-        wl_resource_destroy(callback);
-    }
-    while (auto* callback = current.frame_callbacks.front()) {
-        wl_resource_destroy(callback);
-    }
+    wroc_surface_destroy_state(this, pending);
+    wroc_surface_destroy_state(this, cached);
+    wroc_surface_destroy_state(this, current);
 
     log_warn("wroc_surface DESTROY, this = {}", (void*)this);
 }
@@ -272,4 +304,9 @@ bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 point)
     // log_trace("input_region.contains({}, {}) = {}", point.x, point.y, accepts_input);
 
     return accepts_input;
+}
+
+bool wroc_surface_is_synchronized(wroc_surface* surface)
+{
+    return surface->role_addon && surface->role_addon->is_synchronized();
 }

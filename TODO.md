@@ -12,9 +12,9 @@
 
 # Extras
 
- - cursor shape
- - set appropriate cursor on compositor initiated move/resize
+ - Cursor shape
+ - Set appropriate cursor on compositor initiated move/resize
+ - Arbitrary GPU cached window geometry
+    - Clip decorations off (including shadows arounded rounded corners)
 
 # Issues
-
- - Gwenview crashes when cycling through images trying to release a null proxy in `zwp_pointer_gestures_v1_release`

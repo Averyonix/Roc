@@ -50,34 +50,17 @@ void wroc_wl_subsurface_place(wl_resource* resource, wl_resource* _sibling, bool
 
     auto& surface_stack = subsurface->parent->pending.surface_stack;
 
-    if (sibling == subsurface->parent.get()) {
-        wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "sibling must not be own surface");
-        return;
-    }
+    auto cur = std::ranges::find(surface_stack, subsurface->surface.get(), &wrei_weak<wroc_surface>::get);
+    auto sib = std::ranges::find(surface_stack, sibling,                   &wrei_weak<wroc_surface>::get);
 
-    auto debug_print = [&]{
-        auto i = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; });
-        auto c = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == subsurface->surface.get(); });
-        log_debug("  size = {}, self = {}, sibling = {}", surface_stack.size(), std::distance(surface_stack.begin(), c), std::distance(surface_stack.begin(), i));
-    };
+    if (cur == surface_stack.end()) return wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Compositor error: surface not in stack!");
+    if (sib == surface_stack.end()) return wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Sibling not found in stack");
+    if (cur == sib)                 return wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Passed self as sibling");
 
-    log_debug("SUBSURFACE PLACE {}", above ? "ABOVE" : "BELOW");
-    debug_print();
+    if (cur > sib) std::rotate(sib + i32(above), cur, cur + 1);
+    else           std::rotate(cur, cur + 1, sib + i32(above));
 
-    if (std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; }) == surface_stack.end()) {
-        wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "sibling is not a sibling surface");
-        return;
-    }
-
-    std::erase_if(surface_stack, [&](auto& w) { return w.get() == subsurface->surface.get(); });
-
-    auto i = std::ranges::find_if(surface_stack, [&](auto& w) { return w.get() == sibling; });
-    if (above) i = std::next(i);
-
-    subsurface->parent->pending.surface_stack.insert(i, subsurface->surface.get());
     subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
-
-    debug_print();
 }
 
 static
@@ -106,21 +89,32 @@ void wroc_wl_subsurface_set_desync(wl_client* client, wl_resource* resource)
     wroc_get_userdata<wroc_subsurface>(resource)->synchronized = false;
 }
 
-void wroc_subsurface::on_parent_commit()
+
+static
+void wroc_subsurface_commit_state(wroc_subsurface* subsurface, wroc_subsurface_state& from, wroc_subsurface_state& to)
 {
-    if (is_synchronized()) {
-        wroc_surface_commit(surface.get());
+    // Position
+
+    if (from.committed >= wroc_subsurface_committed_state::position) {
+        to.position = from.position;
     }
+
+    // Commit flags
+
+    to.committed |= from.committed;
+    from.committed = wroc_subsurface_committed_state::none;
 }
 
-void wroc_subsurface::on_commit()
+void wroc_subsurface::on_commit(bool from_parent_commit)
 {
-    if (pending.committed >= wroc_subsurface_committed_state::position) {
-        current.position = pending.position;
-    }
+    // Subsurface specific state is always treated as synchronized
+    // (Layer order is tracked in parent state)
 
-    current.committed |= pending.committed;
-    pending = {};
+    if (from_parent_commit) {
+        wroc_subsurface_commit_state(this, cached, current);
+    } else {
+        wroc_subsurface_commit_state(this, pending, cached);
+    }
 }
 
 bool wroc_subsurface::is_synchronized()

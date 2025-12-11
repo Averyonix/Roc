@@ -55,10 +55,10 @@ void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resour
     surface->pending.committed |= wroc_xdg_surface_committed_state::geometry;
 }
 
-void wroc_xdg_surface::on_commit()
+void wroc_xdg_surface::on_commit(bool from_parent_commit)
 {
     if (xdg_role_addon) {
-        xdg_role_addon->on_commit();
+        xdg_role_addon->on_commit(from_parent_commit);
     }
 
     // Update geometry
@@ -214,7 +214,7 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
     xdg_surface_send_configure(toplevel->base->resource, wl_display_next_serial(toplevel->base->surface->server->display));
 }
 
-void wroc_xdg_toplevel::on_commit()
+void wroc_xdg_toplevel::on_commit(bool from_parent_commit)
 {
     if (!initial_configure_complete) {
         initial_configure_complete = true;
@@ -630,7 +630,7 @@ void wroc_xdg_popup_position(wroc_xdg_popup* popup)
     xdg_surface_send_configure(popup->base->resource, wl_display_next_serial(popup->base->surface->server->display));
 }
 
-void wroc_xdg_popup::on_commit()
+void wroc_xdg_popup::on_commit(bool from_parent_commit)
 {
     if (!initial_configure_complete) {
         initial_configure_complete = true;

@@ -86,7 +86,7 @@ struct wroc_wl_buffer;
 
 struct wroc_surface_role_addon : wrei_object
 {
-    virtual void on_commit() = 0;
+    virtual void on_commit(bool from_parent_commit) = 0;
     virtual void on_ack_configure(u32 serial) {}
     virtual bool is_synchronized() { return false; }
 };
@@ -123,6 +123,7 @@ struct wroc_surface : wrei_object
     wroc_wl_resource resource;
 
     wroc_surface_state pending;
+    wroc_surface_state cached;
     wroc_surface_state current = {
         .input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}}),
         .buffer_scale = 1.f
@@ -137,9 +138,10 @@ struct wroc_surface : wrei_object
     ~wroc_surface();
 };
 
-void wroc_surface_commit(wroc_surface*);
+void wroc_surface_commit(wroc_surface*, bool from_parent_commit);
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 void wroc_surface_set_output(wroc_surface*, wroc_output*);
+bool wroc_surface_is_synchronized(wroc_surface*);
 
 // -----------------------------------------------------------------------------
 
@@ -164,12 +166,12 @@ struct wroc_subsurface : wroc_surface_role_addon
     wroc_wl_resource resource;
 
     wroc_subsurface_state pending;
+    wroc_subsurface_state cached;
     wroc_subsurface_state current;
 
     bool synchronized = true;
 
-    void on_parent_commit();
-    virtual void on_commit() final override;
+    virtual void on_commit(bool from_parent_commit) final override;
     virtual bool is_synchronized() final override;
 
     static
@@ -214,7 +216,7 @@ struct wroc_xdg_surface : wroc_surface_role_addon
     u32 sent_configure_serial = {};
     u32 acked_configure_serial = {};
 
-    virtual void on_commit() final override;
+    virtual void on_commit(bool from_parent_commit) final override;
 
     static
     wroc_xdg_surface* try_from(wroc_surface* surface)
@@ -271,7 +273,7 @@ struct wroc_xdg_toplevel : wroc_surface_role_addon
     std::vector<xdg_toplevel_state> states;
     wroc_xdg_toplevel_configure_state pending_configure = {};
 
-    virtual void on_commit() final override;
+    virtual void on_commit(bool from_parent_commit) final override;
     virtual void on_ack_configure(u32 serial) final override;
 
     static
@@ -341,7 +343,7 @@ struct wroc_xdg_popup : wroc_surface_role_addon
     weak<wroc_xdg_toplevel> root_toplevel;
     bool initial_configure_complete;
 
-    virtual void on_commit() final override;
+    virtual void on_commit(bool from_parent_commit) final override;
 
     static
     wroc_xdg_popup* try_from(wroc_xdg_surface* xdg_surface)
