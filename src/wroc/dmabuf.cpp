@@ -59,6 +59,18 @@ void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u3
 }
 
 static
+void wroc_dmabuf_resource_destroy(wl_resource* resource)
+{
+    auto* buffer = wroc_get_userdata<wroc_dma_buffer>(resource);
+
+    log_warn("dmabuf {} destroyed, clearing image", (void*)buffer);
+
+    buffer->image = nullptr;
+
+    wrei_remove_ref(buffer);
+}
+
+static
 wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* params_resource, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags)
 {
     auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(params_resource);
@@ -68,8 +80,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->resource = new_resource;
     buffer->type = wroc_wl_buffer_type::dma;
 
-    wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, buffer);
-
+    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, wroc_dmabuf_resource_destroy);
 
     params->params.format = wren_find_format_from_drm(format).value();
     params->params.extent = { u32(width), u32(height) };
