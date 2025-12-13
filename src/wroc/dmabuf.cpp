@@ -83,7 +83,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, wroc_dmabuf_resource_destroy);
 
     params->params.format = wren_find_format_from_drm(format).value();
-    params->params.extent = { u32(width), u32(height) };
+    params->params.extent = {width, height};
     params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
     buffer->extent = {width, height};

@@ -27,6 +27,7 @@ using f64 = double;
 template<glm::length_t L, typename T>
 using wrei_vec = glm::vec<L, T>;
 
+using vec2u32 = wrei_vec<2, u32>;
 using vec2i32 = wrei_vec<2, i32>;
 using vec2f32 = wrei_vec<2, f32>;
 using vec2f64 = wrei_vec<2, f64>;

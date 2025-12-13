@@ -94,18 +94,18 @@ wren_buffer::~wren_buffer()
 
 // -----------------------------------------------------------------------------
 
-ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent, VkFormat format)
+ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, VkFormat format)
 {
     auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
     image->ctx = ctx;
 
-    image->extent = { extent.width, extent.height, 1 };
+    image->extent = extent;
 
     wren_check(vmaCreateImage(ctx->vma, wrei_ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent = image->extent,
+        .extent = {extent.x, extent.y, 1},
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -139,8 +139,8 @@ void wren_image_update(wren_image* image, const void* data)
     auto cmd = wren_begin_commands(ctx);
 
     constexpr auto pixel_size = 4;
-    auto row_length = extent.width;
-    auto image_height = row_length * extent.height;
+    auto row_length = extent.x;
+    auto image_height = row_length * extent.y;
     auto image_size = image_height * pixel_size;
 
     // TODO: This should be stored persistently for transfers
@@ -159,7 +159,7 @@ void wren_image_update(wren_image* image, const void* data)
         .bufferImageHeight = image_size,
         .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
         .imageOffset = {},
-        .imageExtent = { extent.width, extent.height, 1 },
+        .imageExtent = { extent.x, extent.y, 1 },
     }));
 
     wren_transition(ctx, cmd, image->image,

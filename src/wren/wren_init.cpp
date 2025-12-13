@@ -91,7 +91,7 @@ ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
     }
 
     {
-        uint32_t count = 0;
+        u32 count = 0;
         wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
         std::vector<VkExtensionProperties> props(count);
         wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, props.data()));

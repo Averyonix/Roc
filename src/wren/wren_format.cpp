@@ -69,7 +69,7 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
     auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
     image->ctx = ctx;
 
-    image->extent = { params.extent.width, params.extent.height, 1 };
+    image->extent = params.extent;
 
     VkExternalMemoryHandleTypeFlagBits htype = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
@@ -82,7 +82,7 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .extent = image->extent,
+        .extent = {image->extent.x, image->extent.y, 1},
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
     };
 

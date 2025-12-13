@@ -379,7 +379,7 @@ struct wroc_wl_buffer : wrei_object
 
     wroc_wl_resource resource;
 
-    vec2i32 extent;
+    vec2u32 extent;
 
     ref<wren_image> image;
 

@@ -4,8 +4,8 @@
 
 struct wroc_shader_rect
 {
-    wren_image_handle<vec4f32> image;
-    rect2f32 image_rect;
+    image4f32 image;
+    rect2f32  image_rect;
 
     rect2f32 rect;
 };

@@ -71,7 +71,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
-    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {u32(width), u32(height)}, VK_FORMAT_B8G8R8A8_UNORM);
+    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {width, height}, VK_FORMAT_B8G8R8A8_UNORM);
 
     log_warn("buffer created ({}, {})", width, height);
 }

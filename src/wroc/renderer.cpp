@@ -129,7 +129,7 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->background = wren_image_create(renderer->wren.get(), { u32(w), u32(h) }, VK_FORMAT_R8G8B8A8_UNORM);
+    renderer->background = wren_image_create(renderer->wren.get(), {w, h}, VK_FORMAT_R8G8B8A8_UNORM);
     wren_image_update(renderer->background.get(), data);
 
     renderer->sampler = wren_sampler_create(renderer->wren.get());
@@ -152,6 +152,7 @@ void wroc_render_frame(wroc_output* output)
     auto cmd = wren_begin_commands(wren);
 
     auto current = wroc_output_acquire_image(output);
+    auto current_extent = vec2f32(current.extent.width, current.extent.height);
 
     wren_transition(wren, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -179,7 +180,7 @@ void wroc_render_frame(wroc_output* output)
 
     wren->vk.CmdSetViewport(cmd, 0, 1, wrei_ptr_to(VkViewport {
         0, 0,
-        f32(current.extent.width), f32(current.extent.height),
+        current_extent.x, current_extent.y,
         0, 1,
     }));
     wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, current.extent }));
@@ -189,18 +190,17 @@ void wroc_render_frame(wroc_output* output)
 
     u32 rect_id = 0;
 
-    auto output_extent = vec2f64(current.extent.width, current.extent.height);
-    auto draw = [&](wren_image* image, vec2f64 offset, vec2f64 extent) {
+    auto draw = [&](wren_image* image, vec2f32 offset, vec2f32 extent) {
         assert(rect_id < wroc_max_rects);
 
         renderer->rects[rect_id++] = wroc_shader_rect {
-            .image = wren_image_handle<vec4f32>{image->id, renderer->sampler->id},
-            .image_rect = { {}, {image->extent.width, image->extent.height} },
+            .image = image4f32{image, renderer->sampler.get()},
+            .image_rect = { {}, image->extent },
             .rect = { offset, extent },
         };
     };
 
-    draw(output->server->renderer->background.get(), {}, vec2f64(current.extent.width, current.extent.height));
+    draw(output->server->renderer->background.get(), {}, current_extent);
 
     auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2i32 pos) -> void {
         if (!surface) return;
@@ -215,7 +215,7 @@ void wroc_render_frame(wroc_output* output)
                 s->position = pos;
 
                 // Draw self
-                draw(buffer->image.get(), pos, vec2f64(buffer->extent));
+                draw(buffer->image.get(), pos, buffer->extent);
 
             } else if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
 
@@ -249,7 +249,7 @@ void wroc_render_frame(wroc_output* output)
         } else {
             auto& fallback = cursor->fallback;
             auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
-            draw(fallback.image.get(), pos, {fallback.image->extent.width, fallback.image->extent.height});
+            draw(fallback.image.get(), pos, fallback.image->extent);
         }
     }
 
@@ -269,7 +269,7 @@ void wroc_render_frame(wroc_output* output)
 
     wroc_shader_rect_input si = {};
     si.rects = renderer->rects.device();
-    si.output_size = output_extent;
+    si.output_size = current_extent;
     wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
     if (renderer->options >= wroc_render_options::separate_draws) {
         for (u32 i = 0; i < rect_id; ++i) {

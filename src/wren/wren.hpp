@@ -142,14 +142,14 @@ struct wren_image : wrei_object
     VkImageView view;
     VkDeviceMemory memory;
     VmaAllocation vma_allocation;
-    VkExtent3D extent;
+    vec2u32 extent;
 
     u32 id;
 
     ~wren_image();
 };
 
-ref<wren_image> wren_image_create(wren_context*, VkExtent2D extent, VkFormat format);
+ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, VkFormat format);
 void wren_image_update(wren_image*, const void* data);
 
 void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,
@@ -203,7 +203,7 @@ struct wren_dma_plane
 struct wren_dma_params
 {
     std::vector<wren_dma_plane> planes;
-    VkExtent2D extent;
+    vec2u32 extent;
     wren_format format;
     zwp_linux_buffer_params_v1_flags flags;
 };

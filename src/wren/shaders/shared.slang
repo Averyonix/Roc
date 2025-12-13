@@ -2,42 +2,58 @@
 
 #define WREN_SHADER 1
 
+// -----------------------------------------------------------------------------
+
 typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef int8_t  i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 typedef float  f32;
 typedef double f64;
 
-struct vec4u8 {
-    u8 x, y, z, w;
+// -----------------------------------------------------------------------------
+
+typedef vector<f32, 2> vec2f32;
+typedef vector<i32, 2> vec2i32;
+typedef vector<u32, 2> vec2u32;
+
+typedef vector<f32, 3> vec3f32;
+typedef vector<i32, 3> vec3i32;
+typedef vector<u32, 3> vec3u32;
+
+typedef vector<u8,  4> vec2u8;
+typedef vector<f32, 4> vec4f32;
+typedef vector<i32, 4> vec4i32;
+typedef vector<u32, 4> vec4u32;
+
+// -----------------------------------------------------------------------------
+
+typedef matrix<f32, 2, 2> mat2x2f32;
+typedef matrix<f32, 2, 3> mat2x3f32;
+
+typedef matrix<f32, 3, 2> mat3x2f32;
+typedef matrix<f32, 3, 3> mat3x3f32;
+typedef matrix<f32, 3, 4> mat3x4f32;
+
+typedef matrix<f32, 4, 3> mat4x3f32;
+typedef matrix<f32, 4, 4> mat4x4f32;
+
+// -----------------------------------------------------------------------------
+
+struct wren_rect2i32<T>
+{
+    vector<T, 2> origin;
+    vector<T, 2> extent;
 };
 
-typedef float2 vec2f32;
-typedef int2   vec2i32;
-typedef uint2  vec2u32;
-
-typedef float3 vec3f32;
-typedef int3   vec3i32;
-typedef uint3  vec3u32;
-
-typedef float4 vec4f32;
-typedef int4   vec4i32;
-typedef uint4  vec4u32;
-
-typedef float2x2 mat2x2f32;
-typedef float2x3 mat2x3f32;
-
-typedef float3x2 mat3x2f32;
-typedef float3x3 mat3x3f32;
-typedef float3x4 mat3x4f32;
-
-typedef float4x3 mat4x3f32;
-typedef float4x4 mat4x4f32;
-
-struct rect2i32 { vec2i32 origin; vec2i32 extent; };
-struct rect2f32 { vec2f32 origin; vec2f32 extent; };
+typedef wren_rect2i32<i32> rect2i32;
+typedef wren_rect2i32<f32> rect2f32;
 
 // -----------------------------------------------------------------------------
 
@@ -89,4 +105,6 @@ struct wren_image_handle<T : ITexelElement>
     {
         return wren_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()[idx];
     }
-}
+};
+
+typedef wren_image_handle<vec4f32> image4f32;
