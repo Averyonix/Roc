@@ -58,7 +58,14 @@ struct wren_context : wrei_object
     ~wren_context();
 };
 
-ref<wren_context> wren_create(wrei_registry*);
+enum class wren_features
+{
+    none,
+    dmabuf = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wren_features)
+
+ref<wren_context> wren_create(wrei_registry*, wren_features);
 
 VkCommandBuffer wren_begin_commands( wren_context*);
 void            wren_submit_commands(wren_context*, VkCommandBuffer);

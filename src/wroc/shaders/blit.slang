@@ -13,7 +13,7 @@ struct VertexOutput
 };
 
 [shader("vertex")]
-VertexOutput vertex(u32 raw_id: SV_VertexID)
+VertexOutput vertex(u32 raw_id: SV_VulkanVertexID)
 {
     u32 rect_id = raw_id / 6;
     u32 id      = raw_id % 6;

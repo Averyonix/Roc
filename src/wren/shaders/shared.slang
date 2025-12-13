@@ -49,6 +49,11 @@ struct wren_image_handle<T : ITexelElement>
     u32 image   : 20;
     u32 sampler : 12;
 
+    __init()
+    {
+        this.image = 0;
+    }
+
     __init(u32 image)
     {
         this.image = image;

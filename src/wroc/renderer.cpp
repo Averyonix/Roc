@@ -107,12 +107,18 @@ VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<cons
     return pipeline;
 }
 
-void wroc_renderer_create(wroc_server* server)
+void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
 {
     auto* renderer = (server->renderer = wrei_adopt_ref(wrei_get_registry(server)->create<wroc_renderer>())).get();
     renderer->server = server;
+    renderer->options = render_options;
 
-    renderer->wren = wren_create(wrei_get_registry(server));
+    wren_features features = {};
+    if (!(render_options >= wroc_render_options::no_dmabuf)) {
+        features |= wren_features::dmabuf;
+    }
+
+    renderer->wren = wren_create(wrei_get_registry(server), features);
 
     std::filesystem::path path = getenv("WALLPAPER");
 
@@ -263,7 +269,13 @@ void wroc_render_frame(wroc_output* output)
     si.rects = renderer->rects->device<wroc_shader_rect>();
     si.output_size = output_extent;
     wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
-    wren->vk.CmdDraw(cmd, 6 * rect_id, 1, 0, 0);
+    if (renderer->options >= wroc_render_options::separate_draws) {
+        for (u32 i = 0; i < rect_id; ++i) {
+            wren->vk.CmdDraw(cmd, 6, 1, i * 6, 0);
+        }
+    } else {
+        wren->vk.CmdDraw(cmd, 6 * rect_id, 1, 0, 0);
+    }
 
     wren->vk.CmdEndRendering(cmd);
 

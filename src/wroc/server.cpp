@@ -11,6 +11,19 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
 
 void wroc_run(int argc, char* argv[])
 {
+    wroc_render_options render_options = {};
+    for (int i = 1; i < argc; ++i) {
+        auto arg = std::string_view(argv[i]);
+        if (arg == "--no-dmabuf") {
+            render_options |= wroc_render_options::no_dmabuf;
+        } else if (arg == "--separate-draws") {
+            render_options |= wroc_render_options::separate_draws;
+        } else {
+            log_error("Unrecognized flag: {}", arg);
+            return;
+        }
+    }
+
     wrei_registry registry;
     ref server = wrei_adopt_ref(registry.create<wroc_server>());
     log_warn("server = {}", (void*)server.get());
@@ -29,10 +42,10 @@ void wroc_run(int argc, char* argv[])
     unsetenv("WAYLAND_DEBUG");
     server->event_loop = wl_display_get_event_loop(server->display);
 
-    wl_display_set_default_max_buffer_size(server->display, 65536);
+    wl_display_set_default_max_buffer_size(server->display, 65'536);
 
     wroc_backend_init(server.get());
-    wroc_renderer_create(server.get());
+    wroc_renderer_create(server.get(), render_options);
 
     const char* socket = wl_display_add_socket_auto(server->display);
 
@@ -43,7 +56,9 @@ void wroc_run(int argc, char* argv[])
     wl_global_create(server->display, &wl_seat_interface,                wl_seat_interface.version,                server->seat.get(), wroc_wl_seat_bind_global);
     wl_global_create(server->display, &wl_data_device_manager_interface, wl_data_device_manager_interface.version, server.get(),       wroc_wl_data_device_manager_bind_global);
 
-    wl_global_create(server->display, &zwp_linux_dmabuf_v1_interface, 3/* zwp_linux_dmabuf_v1_interface.version */, server.get(), wroc_zwp_linux_dmabuf_v1_bind_global);
+    if (!(render_options >= wroc_render_options::no_dmabuf)) {
+        wl_global_create(server->display, &zwp_linux_dmabuf_v1_interface, 3, server.get(), wroc_zwp_linux_dmabuf_v1_bind_global);
+    }
 
     wl_global_create(server->display, &zwp_pointer_gestures_v1_interface, zwp_pointer_gestures_v1_interface.version, nullptr, wroc_zwp_pointer_gestures_v1_bind_global);
 

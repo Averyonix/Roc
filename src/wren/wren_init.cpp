@@ -2,7 +2,7 @@
 
 #include "wroc/server.hpp"
 
-ref<wren_context> wren_create(wrei_registry* registry)
+ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
 {
     auto ctx = wrei_adopt_ref(registry->create<wren_context>());
 
@@ -75,15 +75,20 @@ ref<wren_context> wren_create(wrei_registry* registry)
         }
     }
 
-    std::array device_extensions {
+    std::vector device_extensions {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
         VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
         VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
-        VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
     };
+
+    if (features >= wren_features::dmabuf) {
+        device_extensions.append_range(std::span<const char* const>{
+            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+            VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+            VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
+        });
+    }
 
     {
         uint32_t count = 0;

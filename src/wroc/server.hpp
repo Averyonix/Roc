@@ -565,11 +565,22 @@ void wroc_data_manager_finish_drag(wroc_server*);
 
 // -----------------------------------------------------------------------------
 
+enum class wroc_render_options
+{
+    none,
+
+    no_dmabuf      = 1 << 0,
+    separate_draws = 1 << 1,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_render_options)
+
 struct wroc_renderer : wrei_object
 {
     wroc_server* server;
 
     ref<wren_context> wren;
+
+    wroc_render_options options;
 
     VkFormat output_format = VK_FORMAT_B8G8R8A8_UNORM;
 
@@ -583,7 +594,7 @@ struct wroc_renderer : wrei_object
     ~wroc_renderer();
 };
 
-void wroc_renderer_create(wroc_server*);
+void wroc_renderer_create(wroc_server*, wroc_render_options);
 void wroc_render_frame(wroc_output*);
 
 enum class wroc_interaction_mode : u32
