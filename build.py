@@ -14,7 +14,7 @@ parser.add_argument("-B", "--build", action="store_true", help="Build")
 parser.add_argument("-R", "--release", action="store_true", help="Release")
 parser.add_argument("-I", "--install", action="store_true", help="Install")
 parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
-parser.add_argument("--git-slangc", action="store_true", help="Use git shader-slang")
+parser.add_argument("--system-slangc", action="store_true", help="Use system slangc")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -135,10 +135,10 @@ def build_slang() -> Path:
     cmake_build(source_dir, build_dir, install_dir, [])
     return install_dir / "bin/slangc"
 
-if args.git_slangc:
-    slangc = build_slang()
-else:
+if args.system_slangc:
     slangc = None
+else:
+    slangc = build_slang()
 
 # -----------------------------------------------------------------------------
 
@@ -211,7 +211,7 @@ generate_wayland_protocols()
 
 def build_shaders():
     shaders = [
-        ("src/wroc/shaders/blit.slang",  "wroc_shader_blit")
+        ("src/wroc/shaders/blit.slang", "wroc_blit_shader"),
     ]
 
     shader_include_dirs = [

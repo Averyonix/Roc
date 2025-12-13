@@ -44,4 +44,5 @@ struct wrei_rect
 };
 
 using rect2i32 = wrei_rect<i32>;
+using rect2f32 = wrei_rect<f32>;
 using rect2f64 = wrei_rect<f64>;

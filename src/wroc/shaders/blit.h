@@ -2,13 +2,17 @@
 
 #include "wren/shaders/shared.h"
 
-struct wren_shader_surface_in
+struct wroc_shader_rect
 {
     wren_image_handle<vec4f32> image;
+    rect2f32 image_rect;
 
-    vec2f32 src_origin;
-    vec2f32 src_extent;
+    rect2f32 rect;
+};
 
-    vec2f32 dst_origin;
-    vec2f32 dst_extent;
+struct wroc_shader_rect_input
+{
+    wroc_shader_rect* rects;
+
+    vec2f32 output_size;
 };

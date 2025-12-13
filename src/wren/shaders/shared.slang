@@ -36,6 +36,9 @@ typedef float3x4 mat3x4f32;
 typedef float4x3 mat4x3f32;
 typedef float4x4 mat4x4f32;
 
+struct rect2i32 { vec2i32 origin; vec2i32 extent; };
+struct rect2f32 { vec2f32 origin; vec2f32 extent; };
+
 // -----------------------------------------------------------------------------
 
 [[vk::binding(0, 0)]] __DynamicResource<__DynamicResourceKind.General> wren_heap_texture[];

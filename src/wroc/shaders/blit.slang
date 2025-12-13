@@ -3,25 +3,38 @@
 static const vec2f32 uvs[6] = { { 0, 0 }, { 0, 1 }, { 1, 0 },
                                 { 0, 1 }, { 1, 1 }, { 1, 0 } };
 
-[vk::push_constant] wren_shader_surface_in si;
+[vk::push_constant] wroc_shader_rect_input si;
 
 struct VertexOutput
 {
+    u32 rect_id;
     vec4f32 position : SV_Position;
-    vec2f32 uv;
+    vec2f32 tex;
 };
 
 [shader("vertex")]
-VertexOutput vertex(u32 id: SV_VertexID)
+VertexOutput vertex(u32 raw_id: SV_VertexID)
 {
+    u32 rect_id = raw_id / 6;
+    u32 id      = raw_id % 6;
+    wroc_shader_rect rect = si.rects[rect_id];
+
     VertexOutput out = {};
-    out.uv       =         uvs[id] * si.src_extent + si.src_origin;
-    out.position = vec4f32(uvs[id] * si.dst_extent + si.dst_origin, 0, 1);
+    out.rect_id = rect_id;
+    out.tex      = uvs[id] * rect.image_rect.extent + rect.image_rect.origin;
+    vec2f32 pos  = uvs[id] * rect.rect.extent       + rect.rect.origin;
+    out.position = vec4f32(pos * 2 / si.output_size - vec2f32(1), 0, 1);
+
     return out;
 }
 
 [shader("fragment")]
 vec4f32 fragment(in VertexOutput vout)
 {
-    return si.image.sample(vout.uv);
+    wroc_shader_rect rect = si.rects[vout.rect_id];
+
+    vec2f32 uv = vout.tex / rect.image.get_dimensions();
+    vec4f32 color = rect.image.sample(uv);
+    // if (color.w < 1) discard;
+    return color;
 }

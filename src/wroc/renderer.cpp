@@ -11,6 +11,9 @@
 #include "wroc/event.hpp"
 
 static
+constexpr u32 wroc_max_rects = 65'536;
+
+static
 VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<const u32> spirv, const char* vertex_entry,  const char* fragment_entry)
 {
     auto* wren = renderer->wren.get();
@@ -117,18 +120,21 @@ void wroc_renderer_create(wroc_server* server)
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->image = wren_image_create(renderer->wren.get(), { u32(w), u32(h) }, VK_FORMAT_R8G8B8A8_UNORM);
-    wren_image_update(renderer->image.get(), data);
+    renderer->background = wren_image_create(renderer->wren.get(), { u32(w), u32(h) }, VK_FORMAT_R8G8B8A8_UNORM);
+    wren_image_update(renderer->background.get(), data);
 
     renderer->sampler = wren_sampler_create(renderer->wren.get());
 
-    renderer->pipeline = wroc_renderer_create_pipeline(renderer, wroc_shader_blit, "vertex", "fragment");
+    renderer->pipeline = wroc_renderer_create_pipeline(renderer, wroc_blit_shader, "vertex", "fragment");
+
+    renderer->rects = wren_buffer_create(renderer->wren.get(), wroc_max_rects * sizeof(wroc_shader_rect));
 }
 
 wroc_renderer::~wroc_renderer()
 {
     wren->vk.DestroyPipeline(wren->device, pipeline, nullptr);
-    image.reset();
+    rects.reset();
+    background.reset();
     sampler.reset();
     vkwsi_context_destroy(wren->vkwsi);
 
@@ -151,7 +157,7 @@ void wroc_render_frame(wroc_output* output)
 
     wren->vk.CmdClearColorImage(cmd, current.image,
         VK_IMAGE_LAYOUT_GENERAL,
-        wrei_ptr_to(VkClearColorValue{.float32{0.1f, 0.1f, 0.1f, 1.f}}),
+        wrei_ptr_to(VkClearColorValue{.float32{0.f, 0.f, 0.f, 1.f}}),
         1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
     wren->vk.CmdBeginRendering(cmd, wrei_ptr_to(VkRenderingInfo {
@@ -173,26 +179,25 @@ void wroc_render_frame(wroc_output* output)
         f32(current.extent.width), f32(current.extent.height),
         0, 1,
     }));
-
     wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, current.extent }));
 
     wren->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wren->pipeline_layout, 0, 1, &wren->set, 0, nullptr);
-
     wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
+
+    u32 rect_id = 0;
 
     auto output_extent = vec2f64(current.extent.width, current.extent.height);
     auto draw = [&](wren_image* image, vec2f64 offset, vec2f64 extent) {
-        wren_shader_surface_in si {
+        assert(rect_id < wroc_max_rects);
+        wroc_shader_rect rect {
             .image = wren_image_handle<vec4f32>{image->id, renderer->sampler->id},
-            .src_extent = { 1, 1 },
-            .dst_origin = (offset * vec2f64(2)) / output_extent - vec2f64(1),
-            .dst_extent = (extent * vec2f64(2)) / output_extent,
+            .image_rect = { {}, {image->extent.width, image->extent.height} },
+            .rect = { offset, extent },
         };
-        wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
-        wren->vk.CmdDraw(cmd, 6, 1, 0, 0);
+        std::memcpy(renderer->rects->host<wroc_shader_rect>() + rect_id++, &rect, sizeof(rect));
     };
 
-    draw(output->server->renderer->image.get(), {}, vec2f64(current.extent.width, current.extent.height));
+    draw(output->server->renderer->background.get(), {}, vec2f64(current.extent.width, current.extent.height));
 
     auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2i32 pos) -> void {
         if (!surface) return;
@@ -210,6 +215,7 @@ void wroc_render_frame(wroc_output* output)
                 draw(buffer->image.get(), pos + surface->current.offset, vec2f64(buffer->extent));
 
             } else if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
+
                 // Draw subsurface
                 draw_surface(s.get(), pos + subsurface->current.position);
             }
@@ -249,6 +255,12 @@ void wroc_render_frame(wroc_output* output)
             }
         }
     }
+
+    wroc_shader_rect_input si = {};
+    si.rects = renderer->rects->device<wroc_shader_rect>();
+    si.output_size = output_extent;
+    wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
+    wren->vk.CmdDraw(cmd, 6 * rect_id, 1, 0, 0);
 
     wren->vk.CmdEndRendering(cmd);
 
