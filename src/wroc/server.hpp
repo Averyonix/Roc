@@ -586,7 +586,7 @@ struct wroc_renderer : wrei_object
 
     VkPipeline pipeline;
 
-    ref<wren_buffer> rects;
+    wren_array<struct wroc_shader_rect> rects;
 
     ref<wren_image> background;
     ref<wren_sampler> sampler;

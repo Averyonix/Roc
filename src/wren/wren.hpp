@@ -78,7 +78,7 @@ void wren_wait_for_timeline_value(wren_context*, const VkSemaphoreSubmitInfo&);
 
 struct wren_buffer : wrei_object
 {
-    wren_context* ctx;
+    ref<wren_context> ctx;
 
     VkBuffer buffer;
     VmaAllocation vma_allocation;
@@ -86,10 +86,16 @@ struct wren_buffer : wrei_object
     void* host_address;
 
     template<typename T>
-    T* device() const { return reinterpret_cast<T*>(device_address); }
+    T* device(usz byte_offset = 0) const
+    {
+        return reinterpret_cast<T*>(device_address + byte_offset);
+    }
 
     template<typename T>
-    T* host() const { return reinterpret_cast<T*>(host_address); }
+    T* host(usz byte_offset = 0) const
+    {
+        return reinterpret_cast<T*>(reinterpret_cast<byte*>(host_address) + byte_offset);
+    }
 
     ~wren_buffer();
 };
@@ -98,9 +104,39 @@ ref<wren_buffer> wren_buffer_create(wren_context*, usz size);
 
 // -----------------------------------------------------------------------------
 
+template<typename T>
+struct wren_array_element_proxy
+{
+    T* host_value;
+
+    void operator=(const T& value)
+    {
+        std::memcpy(host_value, &value, sizeof(value));
+    }
+};
+
+template<typename T>
+struct wren_array
+{
+    ref<wren_buffer> buffer;
+    usz byte_offset = 0;
+
+    T* device() const
+    {
+        return buffer->device<T>(byte_offset);
+    }
+
+    wren_array_element_proxy<T> operator[](usz index) const
+    {
+        return {buffer->host<T>(byte_offset) + index};
+    }
+};
+
+// -----------------------------------------------------------------------------
+
 struct wren_image : wrei_object
 {
-    wren_context* ctx;
+    ref<wren_context> ctx;
 
     VkImage image;
     VkImageView view;
@@ -125,7 +161,7 @@ void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,
 
 struct wren_sampler : wrei_object
 {
-    wren_context* ctx;
+    ref<wren_context> ctx;
 
     VkSampler sampler;
 

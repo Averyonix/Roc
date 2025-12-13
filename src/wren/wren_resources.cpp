@@ -133,7 +133,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, VkExtent2D extent, VkFormat
 
 void wren_image_update(wren_image* image, const void* data)
 {
-    auto* ctx = image->ctx;
+    auto* ctx = image->ctx.get();
     auto extent = image->extent;
 
     auto cmd = wren_begin_commands(ctx);

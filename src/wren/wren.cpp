@@ -7,6 +7,8 @@ wren_context::~wren_context()
 {
     log_info("Wren context destroyed");
 
+    vkwsi_context_destroy(vkwsi);
+
     vmaDestroyAllocator(vma);
 
     vk.DestroyPipelineLayout(device, pipeline_layout, nullptr);

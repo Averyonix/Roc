@@ -99,7 +99,7 @@ void wren_descriptor_id_allocator::free(u32 id)
 
 void wren_allocate_image_descriptor(wren_image* image)
 {
-    auto* ctx = image->ctx;
+    auto* ctx = image->ctx.get();
     auto& vk = ctx->vk;
 
     auto id = ctx->image_descriptor_allocator.allocate();
@@ -132,7 +132,7 @@ void wren_allocate_image_descriptor(wren_image* image)
 
 void wren_allocate_sampler_descriptor(wren_sampler* sampler)
 {
-    auto* ctx = sampler->ctx;
+    auto* ctx = sampler->ctx.get();
     auto& vk = ctx->vk;
 
     auto id = ctx->sampler_descriptor_allocator.allocate();

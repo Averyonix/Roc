@@ -136,18 +136,12 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
 
     renderer->pipeline = wroc_renderer_create_pipeline(renderer, wroc_blit_shader, "vertex", "fragment");
 
-    renderer->rects = wren_buffer_create(renderer->wren.get(), wroc_max_rects * sizeof(wroc_shader_rect));
+    renderer->rects = {wren_buffer_create(renderer->wren.get(), wroc_max_rects * sizeof(wroc_shader_rect))};
 }
 
 wroc_renderer::~wroc_renderer()
 {
     wren->vk.DestroyPipeline(wren->device, pipeline, nullptr);
-    rects.reset();
-    background.reset();
-    sampler.reset();
-    vkwsi_context_destroy(wren->vkwsi);
-
-    wren.reset();
 }
 
 void wroc_render_frame(wroc_output* output)
@@ -198,12 +192,12 @@ void wroc_render_frame(wroc_output* output)
     auto output_extent = vec2f64(current.extent.width, current.extent.height);
     auto draw = [&](wren_image* image, vec2f64 offset, vec2f64 extent) {
         assert(rect_id < wroc_max_rects);
-        wroc_shader_rect rect {
+
+        renderer->rects[rect_id++] = wroc_shader_rect {
             .image = wren_image_handle<vec4f32>{image->id, renderer->sampler->id},
             .image_rect = { {}, {image->extent.width, image->extent.height} },
             .rect = { offset, extent },
         };
-        std::memcpy(renderer->rects->host<wroc_shader_rect>() + rect_id++, &rect, sizeof(rect));
     };
 
     draw(output->server->renderer->background.get(), {}, vec2f64(current.extent.width, current.extent.height));
@@ -266,7 +260,7 @@ void wroc_render_frame(wroc_output* output)
     }
 
     wroc_shader_rect_input si = {};
-    si.rects = renderer->rects->device<wroc_shader_rect>();
+    si.rects = renderer->rects.device();
     si.output_size = output_extent;
     wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
     if (renderer->options >= wroc_render_options::separate_draws) {
