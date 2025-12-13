@@ -89,38 +89,27 @@ void wroc_wl_subsurface_set_desync(wl_client* client, wl_resource* resource)
     wroc_get_userdata<wroc_subsurface>(resource)->synchronized = false;
 }
 
-
-static
-void wroc_subsurface_commit_state(wroc_subsurface* subsurface, wroc_subsurface_state& from, wroc_subsurface_state& to)
+void wroc_subsurface::on_commit(wroc_surface_commit_flags flags)
 {
+    // Subsurface specific state is always applied immediately on parent commit, regardless of subsurface commits
+    // (Layer order is tracked in parent state)
+    if (!(flags >= wroc_surface_commit_flags::from_parent)) return;
+
     // Position
 
-    if (from.committed >= wroc_subsurface_committed_state::position) {
-        to.position = from.position;
+    if (pending.committed >= wroc_subsurface_committed_state::position) {
+        current.position = pending.position;
     }
 
     // Commit flags
 
-    to.committed |= from.committed;
-    from.committed = wroc_subsurface_committed_state::none;
-}
-
-void wroc_subsurface::on_commit(bool from_parent_commit)
-{
-    // Subsurface specific state is always treated as synchronized
-    // (Layer order is tracked in parent state)
-
-    if (from_parent_commit) {
-        wroc_subsurface_commit_state(this, cached, current);
-    } else {
-        wroc_subsurface_commit_state(this, pending, cached);
-    }
+    current.committed |= pending.committed;
+    pending.committed = wroc_subsurface_committed_state::none;
 }
 
 bool wroc_subsurface::is_synchronized()
 {
-    if (synchronized) return true;
-    return parent && parent->role_addon && parent->role_addon->is_synchronized();
+    return synchronized || (parent && parent->role_addon && parent->role_addon->is_synchronized());
 }
 
 const struct wl_subsurface_interface wroc_wl_subsurface_impl = {

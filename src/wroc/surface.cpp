@@ -192,12 +192,13 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     from.committed = wroc_surface_committed_state::none;
 }
 
-void wroc_surface_commit(wroc_surface* surface, bool from_parent_commit)
+static
+void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
 {
     bool synchronized = wroc_surface_is_synchronized(surface);
-    bool apply = !synchronized || from_parent_commit;
+    bool apply = !synchronized || flags >= wroc_surface_commit_flags::from_parent;
     if (synchronized) {
-        if (from_parent_commit) {
+        if (flags >= wroc_surface_commit_flags::from_parent) {
             wroc_surface_commit_state(surface, surface->cached, surface->current);
         } else {
             wroc_surface_commit_state(surface, surface->pending, surface->cached);
@@ -215,7 +216,7 @@ void wroc_surface_commit(wroc_surface* surface, bool from_parent_commit)
     // Commit addons
 
     if (surface->role_addon) {
-        surface->role_addon->on_commit(from_parent_commit);
+        surface->role_addon->on_commit(flags);
     }
 
     if (!apply) {
@@ -243,7 +244,7 @@ void wroc_surface_commit(wroc_surface* surface, bool from_parent_commit)
         // Skip self
         if (s.get() == surface) continue;
 
-        wroc_surface_commit(s.get(), true);
+        wroc_surface_commit(s.get(), wroc_surface_commit_flags::from_parent);
     }
 }
 
@@ -252,7 +253,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    wroc_surface_commit(surface, false);
+    wroc_surface_commit(surface, {});
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
