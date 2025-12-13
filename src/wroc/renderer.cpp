@@ -19,6 +19,8 @@ VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<cons
     auto* wren = renderer->wren.get();
     auto& vk = wren->vk;
 
+    constexpr static bool premultiplied_alpha = true;
+
     VkPipeline pipeline = {};
     wren_check(vk.CreateGraphicsPipelines(wren->device, nullptr, 1, wrei_ptr_to(VkGraphicsPipelineCreateInfo {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -80,8 +82,9 @@ VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<cons
             .attachmentCount = 1,
             .pAttachments = wrei_ptr_to(VkPipelineColorBlendAttachmentState {
                 .blendEnable = true,
-                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-                // .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                .srcColorBlendFactor = premultiplied_alpha
+                    ? VK_BLEND_FACTOR_ONE
+                    : VK_BLEND_FACTOR_SRC_ALPHA,
                 .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                 .colorBlendOp = VK_BLEND_OP_ADD,
                 .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
