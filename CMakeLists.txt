@@ -125,6 +125,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wroc/gestures.cpp
     src/wroc/xdg_shell.cpp
     src/wroc/data.cpp
+    src/wroc/cursor.cpp
 
     .build/shaders/src/wroc_shaders.cpp
 
@@ -162,6 +163,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     vk-wsi::vk-wsi
     stb-image
     unordered_dense::unordered_dense
+    Xcursor
     )
 
 add_subdirectory(test)

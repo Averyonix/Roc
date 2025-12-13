@@ -53,12 +53,7 @@ void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 se
         return;
     }
 
-    if (wl_surface) {
-        pointer->server->cursor_surface = wroc_get_userdata<wroc_surface>(wl_surface);
-        pointer->server->cursor_hotspot = {x, y};
-    } else {
-        pointer->server->cursor_surface = nullptr;
-    }
+    wroc_cursor_set(pointer->server->cursor.get(), wroc_get_userdata<wroc_surface>(wl_surface), {x, y});
 }
 
 const struct wl_pointer_interface wroc_wl_pointer_impl = {

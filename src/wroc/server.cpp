@@ -47,6 +47,8 @@ void wroc_run(int argc, char* argv[])
     wroc_backend_init(server.get());
     wroc_renderer_create(server.get(), render_options);
 
+    wroc_cursor_create(server.get());
+
     const char* socket = wl_display_add_socket_auto(server->display);
 
     wl_global_create(server->display, &wl_shm_interface,                 wl_shm_interface.version,                 server.get(),       wroc_wl_shm_bind_global);

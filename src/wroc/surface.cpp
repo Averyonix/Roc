@@ -81,7 +81,7 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
             wl_resource_post_error(resource, WL_SURFACE_ERROR_INVALID_OFFSET,
                 "Non-zero offset not allowed in wl_surface::attach since version %u", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
-            surface->pending.offset = { x, y };
+            surface->pending.delta = { x, y };
             surface->pending.committed |= wroc_surface_committed_state::offset;
         }
     }
@@ -114,7 +114,7 @@ static
 void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    surface->pending.offset = { x, y };
+    surface->pending.delta = { x, y };
     surface->pending.committed |= wroc_surface_committed_state::offset;
 }
 
@@ -165,13 +165,13 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
         to.input_region = std::move(from.input_region);
     }
 
-    // Update offset
+    // Update offset delta
 
     if (from.committed >= wroc_surface_committed_state::offset) {
-        // NOTE: This seems to be worded as if it's accumulative...
-        //       > relative to the current buffer's upper left corner
-        //       ...but wlroots treats it as if it's relative to the surface origin
-        to.offset = from.offset;
+        to.delta = from.delta;
+    } else {
+        to.delta = {};
+        to.committed -= wroc_surface_committed_state::offset;
     }
 
     // Update surface stack
@@ -291,7 +291,6 @@ wroc_surface::~wroc_surface()
 bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 point)
 {
     rect2f64 buffer_rect = {};
-    buffer_rect.origin = surface->current.offset;
     if (surface->current.buffer) {
         buffer_rect.extent = vec2f64{surface->current.buffer->extent} / surface->current.buffer_scale;
     }

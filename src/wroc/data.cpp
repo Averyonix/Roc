@@ -382,19 +382,32 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     // TODO: Handle drag with null source
     auto* data_source = wroc_get_userdata<wroc_data_source>(source);
     // auto* origin_surface = wroc_get_userdata<wroc_surface>(origin);
-    auto* drag_icon = wroc_get_userdata<wroc_surface>(icon);
+    auto* drag_surface = wroc_get_userdata<wroc_surface>(icon);
+
+    auto drag_icon = wrei_adopt_ref(wrei_get_registry(data_device)->create<wroc_drag_icon>());
+    drag_icon->surface = drag_surface;
+    drag_icon->surface->role_addon = drag_icon.get();
 
     auto* server = data_device->server;
 
-    log_warn("Drag started (device = {}, source = {}, icon = {})", (void*)data_device, (void*)data_source, (void*)drag_icon);
+    log_warn("Drag started (device = {}, source = {}, surface = {})", (void*)data_device, (void*)data_source, (void*)drag_surface);
 
     server->data_manager.drag.device = data_device;
     server->data_manager.drag.source = data_source;
-    server->data_manager.drag.icon = drag_icon;
+    server->data_manager.drag.icon = std::move(drag_icon);
     server->data_manager.drag.offered_surface = nullptr;
     server->data_manager.drag.offer = nullptr;
 
     wroc_data_manager_update_drag(server, server->surface_under_cursor.get());
+}
+
+void wroc_drag_icon::on_commit(wroc_surface_commit_flags)
+{
+    if (surface->current.committed >= wroc_surface_committed_state::offset) {
+        offset += surface->current.delta;
+
+        log_debug("drag_icon_commit, delta = ({}, {}), offset = ({}, {})", surface->current.delta.x, surface->current.delta.y, offset.x, offset.y);
+    }
 }
 
 const struct wl_data_device_interface wroc_wl_data_device_impl = {

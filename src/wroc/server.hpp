@@ -117,7 +117,7 @@ struct wroc_surface_state
 
     ref<wroc_wl_buffer> buffer;
     wroc_wl_resource_list frame_callbacks;
-    vec2i32 offset;
+    vec2i32 delta;
     wrei_region input_region;
     f64 buffer_scale;
     std::vector<weak<wroc_surface>> surface_stack;
@@ -565,6 +565,43 @@ void wroc_data_manager_finish_drag(wroc_server*);
 
 // -----------------------------------------------------------------------------
 
+struct wroc_drag_icon : wroc_surface_addon
+{
+    ref<wroc_surface> surface;
+
+    vec2i32 offset;
+
+    virtual void on_commit(wroc_surface_commit_flags);
+};
+
+// -----------------------------------------------------------------------------
+
+struct wroc_cursor_surface : wroc_surface_addon
+{
+    ref<wroc_surface> surface;
+
+    vec2i32 hotspot;
+
+    virtual void on_commit(wroc_surface_commit_flags);
+};
+
+struct wroc_cursor : wrei_object
+{
+    wroc_server* server;
+
+    struct {
+        ref<wren_image> image;
+        vec2i32         hotspot;
+    } fallback;
+
+    ref<wroc_cursor_surface> current;
+};
+
+void wroc_cursor_create(wroc_server* server);
+void wroc_cursor_set(wroc_cursor*, wroc_surface*, vec2i32 hotspot);
+
+// -----------------------------------------------------------------------------
+
 enum class wroc_render_options
 {
     none,
@@ -634,8 +671,7 @@ struct wroc_server : wrei_object
     wroc_interaction_mode interaction_mode;
 
     // TODO: We should track these per client-pointer
-    weak<wroc_surface> cursor_surface;
-    vec2i32            cursor_hotspot;
+    ref<wroc_cursor> cursor;
 
     struct {
         weak<wroc_xdg_toplevel> grabbed_toplevel;
@@ -652,7 +688,7 @@ struct wroc_server : wrei_object
         struct {
             weak<wroc_data_device> device;
             weak<wroc_data_source> source;
-            weak<wroc_surface>     icon;
+            ref<wroc_drag_icon>    icon;
             weak<wroc_surface>     offered_surface;
             weak<wroc_data_offer>  offer;
         } drag;

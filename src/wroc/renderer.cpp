@@ -215,7 +215,7 @@ void wroc_render_frame(wroc_output* output)
                 s->position = pos;
 
                 // Draw self
-                draw(buffer->image.get(), pos + surface->current.offset, vec2f64(buffer->extent));
+                draw(buffer->image.get(), pos, vec2f64(buffer->extent));
 
             } else if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
 
@@ -239,25 +239,33 @@ void wroc_render_frame(wroc_output* output)
     // Draw cursor
 
     if (auto* pointer = server->seat->pointer) {
+        // TODO: Move this to cursor.cpp
+        auto* cursor = server->cursor.get();
         if (pointer->focused_surface) {
-            if (auto* cursor_surface = server->cursor_surface.get()) {
-                if (auto* buffer = cursor_surface->current.buffer.get()) {
-                    auto pos = vec2i32(pointer->layout_position) - server->cursor_hotspot;
-                    draw(buffer->image.get(), pos, buffer->extent);
-                }
+            if (auto* cursor_surface = cursor->current.get()) {
+                auto pos = vec2i32(pointer->layout_position) - cursor_surface->hotspot;
+                draw_surface(cursor_surface->surface.get(), pos);
             }
+        } else {
+            auto& fallback = cursor->fallback;
+            auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
+            draw(fallback.image.get(), pos, {fallback.image->extent.width, fallback.image->extent.height});
         }
     }
 
     if (server->data_manager.drag.source) {
         if (auto* icon = server->data_manager.drag.icon.get()) {
-            if (auto* buffer = icon->current.buffer.get()) {
+            if (auto* buffer = icon->surface->current.buffer.get()) {
                 if (buffer->image) {
-                    draw(buffer->image.get(), glm::ceil(server->seat->pointer->layout_position), buffer->extent);
+                    draw(buffer->image.get(),
+                        glm::ceil(server->seat->pointer->layout_position) + vec2f64(icon->offset),
+                        buffer->extent);
                 }
             }
         }
     }
+
+    // Record draws
 
     wroc_shader_rect_input si = {};
     si.rects = renderer->rects.device();
