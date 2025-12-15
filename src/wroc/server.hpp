@@ -80,9 +80,19 @@ struct wroc_wl_region : wrei_object
     wrei_region region;
 };
 
-struct wroc_wl_buffer;
+struct wroc_buffer;
 
 // -----------------------------------------------------------------------------
+
+enum class wroc_surface_role
+{
+    none,
+    cursor,
+    drag_icon,
+    subsurface,
+    xdg_toplevel,
+    xdg_popup,
+};
 
 enum class wroc_surface_commit_flags
 {
@@ -91,12 +101,20 @@ enum class wroc_surface_commit_flags
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_commit_flags)
 
+struct wroc_surface;
+
 struct wroc_surface_addon : wrei_object
 {
+    weak<wroc_surface> surface;
+
     virtual void on_commit(wroc_surface_commit_flags) = 0;
     virtual void on_ack_configure(u32 serial) {}
     virtual bool is_synchronized() { return false; }
+    virtual wroc_surface_role get_role() { return wroc_surface_role::none; }
 };
+
+void wroc_surface_addon_detach(wroc_surface_addon* addon);
+void wroc_surface_addon_destroy(wl_client*, wl_resource*);
 
 enum class wroc_surface_committed_state : u32
 {
@@ -109,13 +127,11 @@ enum class wroc_surface_committed_state : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
 
-struct wroc_surface;
-
 struct wroc_surface_state
 {
     wroc_surface_committed_state committed;
 
-    ref<wroc_wl_buffer> buffer;
+    ref<wroc_buffer> buffer;
     wroc_wl_resource_list frame_callbacks;
     vec2i32 delta;
     wrei_region input_region;
@@ -136,7 +152,9 @@ struct wroc_surface : wrei_object
         .buffer_scale = 1.f
     };
 
+    wroc_surface_role role = wroc_surface_role::none;
     weak<wroc_surface_addon> role_addon;
+    std::vector<ref<wroc_surface_addon>> addons;
 
     weak<wroc_output> output;
 
@@ -148,6 +166,27 @@ struct wroc_surface : wrei_object
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 void wroc_surface_set_output(wroc_surface*, wroc_output*);
 bool wroc_surface_is_synchronized(wroc_surface*);
+
+bool wroc_surface_put_addon(wroc_surface*, wroc_surface_addon*);
+
+wroc_surface_addon* wroc_surface_get_addon(wroc_surface*, const std::type_info&);
+template<typename T>
+T* wroc_surface_get_addon(wroc_surface* surface)
+{
+    return static_cast<T*>(wroc_surface_get_addon(surface, typeid(T)));
+}
+
+template<typename T>
+T* wroc_surface_get_or_create_addon(wroc_surface* surface, bool* created = nullptr)
+{
+    if (created) *created = false;
+    auto* existing = wroc_surface_get_addon<T>(surface);
+    if (existing) return existing;
+    auto addon = wrei_adopt_ref(wrei_get_registry(surface)->create<T>());
+    if (!wroc_surface_put_addon(surface, addon.get())) return nullptr;
+    if (created) *created = true;
+    return addon.get();
+}
 
 // -----------------------------------------------------------------------------
 
@@ -166,7 +205,6 @@ struct wroc_subsurface_state
 
 struct wroc_subsurface : wroc_surface_addon
 {
-    ref<wroc_surface> surface;
     weak<wroc_surface> parent;
 
     wroc_wl_resource resource;
@@ -178,6 +216,8 @@ struct wroc_subsurface : wroc_surface_addon
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
     virtual bool is_synchronized() final override;
+
+    virtual wroc_surface_role get_role() final override { return wroc_surface_role::subsurface; }
 
     static
     wroc_subsurface* try_from(wroc_surface* surface)
@@ -204,11 +244,7 @@ struct wrox_xdg_surface_state
 
 struct wroc_xdg_surface : wroc_surface_addon
 {
-    ref<wroc_surface> surface;
-
     wroc_wl_resource resource;
-
-    weak<wroc_surface_addon> xdg_role_addon;
 
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
@@ -222,12 +258,6 @@ struct wroc_xdg_surface : wroc_surface_addon
     u32 acked_configure_serial = {};
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
-
-    static
-    wroc_xdg_surface* try_from(wroc_surface* surface)
-    {
-        return surface ? dynamic_cast<wroc_xdg_surface*>(surface->role_addon.get()) : nullptr;
-    }
 };
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface*);
@@ -281,17 +311,7 @@ struct wroc_xdg_toplevel : wroc_surface_addon
     virtual void on_commit(wroc_surface_commit_flags) final override;
     virtual void on_ack_configure(u32 serial) final override;
 
-    static
-    wroc_xdg_toplevel* try_from(wroc_xdg_surface* xdg_surface)
-    {
-        return xdg_surface ? dynamic_cast<wroc_xdg_toplevel*>(xdg_surface->xdg_role_addon.get()) : nullptr;
-    }
-
-    static
-    wroc_xdg_toplevel* try_from(wroc_surface* surface)
-    {
-        return try_from(wroc_xdg_surface::try_from(surface));
-    }
+    virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_toplevel; }
 };
 
 void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel*, vec2i32 bounds);
@@ -350,17 +370,7 @@ struct wroc_xdg_popup : wroc_surface_addon
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
 
-    static
-    wroc_xdg_popup* try_from(wroc_xdg_surface* xdg_surface)
-    {
-        return xdg_surface ? dynamic_cast<wroc_xdg_popup*>(xdg_surface->xdg_role_addon.get()) : nullptr;
-    }
-
-    static
-    wroc_xdg_popup* try_from(wroc_surface* surface)
-    {
-        return try_from(wroc_xdg_surface::try_from(surface));
-    }
+    virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_popup; }
 };
 
 // -----------------------------------------------------------------------------
@@ -371,7 +381,7 @@ enum class wroc_wl_buffer_type : u32
     dma,
 };
 
-struct wroc_wl_buffer : wrei_object
+struct wroc_buffer : wrei_object
 {
     wroc_server* server;
 
@@ -406,7 +416,7 @@ struct wroc_wl_shm_pool : wrei_object
     ~wroc_wl_shm_pool();
 };
 
-struct wroc_shm_buffer : wroc_wl_buffer
+struct wroc_shm_buffer : wroc_buffer
 {
     ref<wroc_wl_shm_pool> pool;
 
@@ -430,7 +440,7 @@ struct wroc_zwp_linux_buffer_params : wrei_object
     ~wroc_zwp_linux_buffer_params();
 };
 
-struct wroc_dma_buffer : wroc_wl_buffer
+struct wroc_dma_buffer : wroc_buffer
 {
     virtual void on_commit() final override;
 };
@@ -567,22 +577,22 @@ void wroc_data_manager_finish_drag(wroc_server*);
 
 struct wroc_drag_icon : wroc_surface_addon
 {
-    ref<wroc_surface> surface;
-
     vec2i32 offset;
 
-    virtual void on_commit(wroc_surface_commit_flags);
+    virtual void on_commit(wroc_surface_commit_flags) final override;
+
+    virtual wroc_surface_role get_role() final override { return wroc_surface_role::drag_icon; }
 };
 
 // -----------------------------------------------------------------------------
 
 struct wroc_cursor_surface : wroc_surface_addon
 {
-    ref<wroc_surface> surface;
-
     vec2i32 hotspot;
 
-    virtual void on_commit(wroc_surface_commit_flags);
+    virtual void on_commit(wroc_surface_commit_flags) final override;
+
+    virtual wroc_surface_role get_role() final override { return wroc_surface_role::cursor; }
 };
 
 struct wroc_cursor : wrei_object
@@ -594,7 +604,7 @@ struct wroc_cursor : wrei_object
         vec2i32         hotspot;
     } fallback;
 
-    ref<wroc_cursor_surface> current;
+    weak<wroc_cursor_surface> current;
 };
 
 void wroc_cursor_create(wroc_server* server);
@@ -688,7 +698,7 @@ struct wroc_server : wrei_object
         struct {
             weak<wroc_data_device> device;
             weak<wroc_data_source> source;
-            ref<wroc_drag_icon>    icon;
+            weak<wroc_drag_icon>   icon;
             weak<wroc_surface>     offered_surface;
             weak<wroc_data_offer>  offer;
         } drag;

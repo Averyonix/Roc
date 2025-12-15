@@ -53,6 +53,10 @@ void wroc_cursor_create(wroc_server* server)
 
     log_info("Using theme: {}", theme ?: "<xcursor-fallback>");
 
+    if (theme) {
+        setenv("XCURSOR_THEME", theme, true);
+    }
+
     XcursorImage* image = XcursorLibraryLoadImage("default", theme, 24);
     log_info("  size ({}, {}) hot ({}, {})", image->width, image->height, image->xhot, image->yhot);
 
@@ -69,20 +73,12 @@ void wroc_cursor_set(wroc_cursor* cursor, wroc_surface* surface, vec2i32 hotspot
         return;
     }
 
-    if (auto* existing = dynamic_cast<wroc_cursor_surface*>(surface->role_addon.get())) {
-        cursor->current = existing;
-        log_debug("wroc_cursor_surface reused, hotspot = ({}, {})", hotspot.x, hotspot.y);
-    } else {
-        cursor->current = wrei_adopt_ref(wrei_get_registry(cursor)->create<wroc_cursor_surface>());
-        log_debug("wroc_cursor_surface created, hotspot = ({}, {})", hotspot.x, hotspot.y);
-    }
-
-    auto cursor_surface = cursor->current.get();
-    cursor_surface->surface = surface;
-    cursor_surface->surface->role_addon = cursor_surface;
+    bool created = false;
+    auto* cursor_surface = wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created);
+    log_debug("wroc_cursor_surface {}, hotspot = ({}, {})", created ? "created" : "reused", hotspot.x, hotspot.y);
+    cursor->current = cursor_surface;
 
     cursor_surface->hotspot = hotspot;
-
 }
 
 void wroc_cursor_surface::on_commit(wroc_surface_commit_flags)

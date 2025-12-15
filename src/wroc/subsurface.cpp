@@ -8,8 +8,8 @@ void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resour
     wroc_debug_track_resource(new_resource);
     auto* surface = wroc_get_userdata<wroc_surface>(_surface);
     auto* subsurface = wrei_get_registry(surface)->create<wroc_subsurface>();
-    subsurface->surface = surface;
-    subsurface->surface->role_addon = subsurface;
+    wroc_surface_put_addon(surface, subsurface);
+
     subsurface->resource = new_resource;
     subsurface->parent = wroc_get_userdata<wroc_surface>(parent);
 
@@ -113,7 +113,7 @@ bool wroc_subsurface::is_synchronized()
 }
 
 const struct wl_subsurface_interface wroc_wl_subsurface_impl = {
-    .destroy      = wroc_simple_resource_destroy_callback,
+    .destroy      = wroc_surface_addon_destroy,
     .set_position = wroc_wl_subsurface_set_position,
     .place_above  = wroc_wl_subsurface_place_above,
     .place_below  = wroc_wl_subsurface_place_below,

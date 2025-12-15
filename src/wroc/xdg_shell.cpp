@@ -13,8 +13,7 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
     auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);;
     auto* xdg_surface = wrei_get_registry(surface)->create<wroc_xdg_surface>();
     xdg_surface->resource = new_resource;
-    xdg_surface->surface = surface;
-    xdg_surface->surface->role_addon = xdg_surface;
+    wroc_surface_put_addon(surface, xdg_surface);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_surface_impl, xdg_surface);
 }
 
@@ -43,7 +42,7 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
     auto* xdg_toplevel = wrei_get_registry(xdg_surface)->create<wroc_xdg_toplevel>();
     xdg_toplevel->resource = new_resource;
     xdg_toplevel->base = xdg_surface;
-    xdg_toplevel->base->xdg_role_addon = xdg_toplevel;
+    wroc_surface_put_addon(xdg_surface->surface.get(), xdg_toplevel);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel);
 }
 
@@ -57,9 +56,7 @@ void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resour
 
 void wroc_xdg_surface::on_commit(wroc_surface_commit_flags flags)
 {
-    if (xdg_role_addon) {
-        xdg_role_addon->on_commit(flags);
-    }
+    // TODO: Order of addon commit updates
 
     // Update geometry
 
@@ -86,8 +83,10 @@ void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u3
         log_info("Client acked configure: {}", serial);
         xdg_surface->acked_configure_serial = serial;
 
-        if (xdg_surface->xdg_role_addon) {
-            xdg_surface->xdg_role_addon->on_ack_configure(serial);
+        for (auto& a : xdg_surface->surface->addons) {
+            if (a.get() != xdg_surface) {
+                a->on_ack_configure(serial);
+            }
         }
     }
 }
@@ -156,7 +155,7 @@ void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resourc
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
 
     // TODO: Use seat to select pointer
-    auto* pointer = toplevel->base->surface->server->seat->pointer;
+    auto* pointer = toplevel->surface->server->seat->pointer;
     if (!std::ranges::contains(pointer->pressed, BTN_LEFT)) {
         log_warn("toplevel attempted to initiate move but left button was not pressed");
         return;
@@ -173,7 +172,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
     auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
 
     // TODO: Use seat to select pointer
-    auto* pointer = toplevel->base->surface->server->seat->pointer;
+    auto* pointer = toplevel->surface->server->seat->pointer;
     if (!std::ranges::contains(pointer->pressed, BTN_LEFT)) {
         log_warn("toplevel attempted to initiate resize but left button was not pressed");
         return;
@@ -236,7 +235,7 @@ void wroc_xdg_toplevel::on_commit(wroc_surface_commit_flags)
 }
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
-    .destroy          = wroc_simple_resource_destroy_callback,
+    .destroy          = wroc_surface_addon_destroy,
     .set_parent       = WROC_STUB,
     .set_title        = wroc_xdg_toplevel_set_title,
     .set_app_id       = wroc_xdg_toplevel_set_app_id,
@@ -575,15 +574,15 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
     auto* popup = wrei_get_registry(base)->create<wroc_xdg_popup>();
     popup->resource = new_resource;
     popup->base = base;
-    popup->base->xdg_role_addon = popup;
+    wroc_surface_put_addon(base->surface.get(), popup);
 
     auto* xdg_positioner = wroc_get_userdata<wroc_xdg_positioner>(positioner);
 
     popup->positioner = xdg_positioner;
     popup->parent = wroc_get_userdata<wroc_xdg_surface>(_parent);
-    if (wroc_xdg_toplevel* toplevel = wroc_xdg_toplevel::try_from(popup->parent.get())) {
+    if (wroc_xdg_toplevel* toplevel = wroc_surface_get_addon<wroc_xdg_toplevel>(popup->surface.get())) {
         popup->root_toplevel = toplevel;
-    } else if (wroc_xdg_popup* parent_popup = wroc_xdg_popup::try_from(popup->parent.get())) {
+    } else if (wroc_xdg_popup* parent_popup = wroc_surface_get_addon<wroc_xdg_popup>(popup->surface.get())) {
         popup->root_toplevel = parent_popup->root_toplevel;
     }
 
@@ -644,7 +643,7 @@ void wroc_xdg_popup::on_commit(wroc_surface_commit_flags)
 }
 
 const struct xdg_popup_interface wroc_xdg_popup_impl = {
-    .destroy    = wroc_simple_resource_destroy_callback,
+    .destroy    = wroc_surface_addon_destroy,
     .grab       = WROC_NOISY_STUB(grab),
     .reposition = WROC_NOISY_STUB(reposition),
 };

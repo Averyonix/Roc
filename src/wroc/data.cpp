@@ -384,9 +384,8 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     // auto* origin_surface = wroc_get_userdata<wroc_surface>(origin);
     auto* drag_surface = wroc_get_userdata<wroc_surface>(icon);
 
-    auto drag_icon = wrei_adopt_ref(wrei_get_registry(data_device)->create<wroc_drag_icon>());
-    drag_icon->surface = drag_surface;
-    drag_icon->surface->role_addon = drag_icon.get();
+    auto drag_icon = wroc_surface_get_or_create_addon<wroc_drag_icon>(drag_surface);
+    drag_icon->offset = {};
 
     auto* server = data_device->server;
 

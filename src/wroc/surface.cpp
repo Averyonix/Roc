@@ -73,7 +73,7 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_wl_buffer>(wl_buffer) : nullptr;
+    surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_buffer>(wl_buffer) : nullptr;
     surface->pending.committed |= wroc_surface_committed_state::buffer;
 
     if (x || y) {
@@ -215,8 +215,8 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
 
     // Commit addons
 
-    if (surface->role_addon) {
-        surface->role_addon->on_commit(flags);
+    for (auto& addon : surface->addons) {
+        addon->on_commit(flags);
     }
 
     if (!apply) {
@@ -309,4 +309,53 @@ bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 point)
 bool wroc_surface_is_synchronized(wroc_surface* surface)
 {
     return surface->role_addon && surface->role_addon->is_synchronized();
+}
+
+// -----------------------------------------------------------------------------
+
+bool wroc_surface_put_addon(wroc_surface* surface, wroc_surface_addon* addon)
+{
+    auto role = addon->get_role();
+    if (role != wroc_surface_role::none) {
+        if (surface->role_addon) {
+            log_error("Surface already has addon for role {}", magic_enum::enum_name(surface->role));
+            return false;
+        }
+
+        if (surface->role == wroc_surface_role::none) {
+            surface->role = role;
+        } else if (surface->role != role) {
+            log_error("Surface already has role {}, can't change to {}", magic_enum::enum_name(surface->role), magic_enum::enum_name(role));
+            return false;
+        }
+
+        surface->role_addon = addon;
+    }
+
+    addon->surface = surface;
+    surface->addons.emplace_back(addon);
+
+    return true;
+}
+
+wroc_surface_addon* wroc_surface_get_addon(wroc_surface* surface, const std::type_info& type)
+{
+    auto iter = std::ranges::find_if(surface->addons, [&](const auto& a) { return typeid(*a.get()) == type; });
+    return iter == surface->addons.end() ? nullptr : iter->get();
+}
+
+void wroc_surface_addon_detach(wroc_surface_addon* addon)
+{
+    if (!addon->surface) return;
+    std::erase_if(addon->surface->addons, [&](const auto& a) { return a.get() == addon; });
+    if (addon->surface->role_addon == addon) {
+        addon->surface->role_addon = nullptr;
+    }
+    addon->surface = nullptr;
+}
+
+void wroc_surface_addon_destroy(wl_client*, wl_resource* resource)
+{
+    wroc_surface_addon_detach(wroc_get_userdata<wroc_surface_addon>(resource));
+    wl_resource_destroy(resource);
 }
