@@ -238,6 +238,18 @@ void wroc_render_frame(wroc_output* output)
 
     // Draw cursor
 
+    if (server->data_manager.drag.source) {
+        if (auto* icon = server->data_manager.drag.icon.get()) {
+            if (auto* buffer = icon->surface->current.buffer.get()) {
+                if (buffer->image) {
+                    draw(buffer->image.get(),
+                        glm::ceil(server->seat->pointer->layout_position) + vec2f64(icon->offset),
+                        buffer->extent);
+                }
+            }
+        }
+    }
+
     if (auto* pointer = server->seat->pointer) {
         // TODO: Move this to cursor.cpp
         auto* cursor = server->cursor.get();
@@ -250,18 +262,6 @@ void wroc_render_frame(wroc_output* output)
             auto& fallback = cursor->fallback;
             auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
             draw(fallback.image.get(), pos, fallback.image->extent);
-        }
-    }
-
-    if (server->data_manager.drag.source) {
-        if (auto* icon = server->data_manager.drag.icon.get()) {
-            if (auto* buffer = icon->surface->current.buffer.get()) {
-                if (buffer->image) {
-                    draw(buffer->image.get(),
-                        glm::ceil(server->seat->pointer->layout_position) + vec2f64(icon->offset),
-                        buffer->extent);
-                }
-            }
         }
     }
 

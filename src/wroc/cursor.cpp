@@ -48,9 +48,6 @@ void wroc_cursor_create(wroc_server* server)
     try_theme("breeze_cursors");
     try_theme("Adwaita");
 
-    // Else fall back to first available theme
-    if (!theme && !themes.empty()) theme = themes.front().c_str();
-
     log_info("Using theme: {}", theme ?: "<xcursor-fallback>");
 
     if (theme) {
