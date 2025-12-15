@@ -106,8 +106,7 @@ void wroc_keyboard_enter(wroc_keyboard* kb, wroc_surface* surface)
             xkb_state_serialize_mods(kb->xkb_state, XKB_STATE_MODS_LOCKED),
             xkb_state_serialize_layout(kb->xkb_state, XKB_STATE_LAYOUT_EFFECTIVE));
 
-        std::erase(kb->server->surfaces, surface);
-        kb->server->surfaces.emplace_back(surface);
+        wroc_surface_raise(surface);
 
         break;
     }

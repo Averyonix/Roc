@@ -167,6 +167,8 @@ bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
 void wroc_surface_set_output(wroc_surface*, wroc_output*);
 bool wroc_surface_is_synchronized(wroc_surface*);
 
+void wroc_surface_raise(wroc_surface*);
+
 bool wroc_surface_put_addon(wroc_surface*, wroc_surface_addon*);
 
 wroc_surface_addon* wroc_surface_get_addon(wroc_surface*, const std::type_info&);
@@ -266,6 +268,13 @@ void wroc_xdg_surface_flush_configure(wroc_xdg_surface*);
 
 // -----------------------------------------------------------------------------
 
+struct wroc_xdg_shell_role_addon : wroc_surface_addon
+{
+    wroc_xdg_surface* base() const { return wroc_surface_get_addon<wroc_xdg_surface>(surface.get()); }
+};
+
+// -----------------------------------------------------------------------------
+
 enum class wroc_xdg_toplevel_configure_state : u32
 {
     none,
@@ -291,10 +300,8 @@ struct wroc_xdg_toplevel_state
     std::string app_id;
 };
 
-struct wroc_xdg_toplevel : wroc_surface_addon
+struct wroc_xdg_toplevel : wroc_xdg_shell_role_addon
 {
-    ref<wroc_xdg_surface> base;
-
     wroc_wl_resource resource;
 
     wroc_xdg_toplevel_state pending;
@@ -357,13 +364,13 @@ struct wroc_xdg_positioner : wrei_object
 
 // -----------------------------------------------------------------------------
 
-struct wroc_xdg_popup : wroc_surface_addon
+struct wroc_xdg_popup : wroc_xdg_shell_role_addon
 {
-    ref<wroc_xdg_surface> base;
-
     wroc_wl_resource resource;
 
     ref<wroc_xdg_positioner> positioner;
+    std::optional<u32> reposition_token;
+
     weak<wroc_xdg_surface> parent;
     weak<wroc_xdg_toplevel> root_toplevel;
     bool initial_configure_complete;

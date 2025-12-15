@@ -306,7 +306,7 @@ void wroc_render_frame(wroc_output* output)
     if (auto* pointer = output->server->seat->pointer) {
         for (auto* surface : output->server->surfaces | std::views::reverse) {
             if (auto* toplevel = wroc_surface_get_addon<wroc_xdg_toplevel>(surface)) {
-                auto surface_pos = wroc_xdg_surface_get_position(toplevel->base.get());
+                auto surface_pos = wroc_xdg_surface_get_position(toplevel->base());
                 if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
                     output->server->toplevel_under_cursor = toplevel;
                     output->server->surface_under_cursor = surface_under_cursor;
@@ -314,7 +314,7 @@ void wroc_render_frame(wroc_output* output)
                 }
             }
             if (auto* popup = wroc_surface_get_addon<wroc_xdg_popup>(surface)) {
-                auto surface_pos = wroc_xdg_surface_get_position(popup->base.get());
+                auto surface_pos = wroc_xdg_surface_get_position(popup->base());
                 if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
                     output->server->toplevel_under_cursor = popup->root_toplevel;
                     output->server->surface_under_cursor = surface_under_cursor;

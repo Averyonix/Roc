@@ -311,6 +311,14 @@ bool wroc_surface_is_synchronized(wroc_surface* surface)
     return surface->role_addon && surface->role_addon->is_synchronized();
 }
 
+void wroc_surface_raise(wroc_surface* surface)
+{
+    // TODO: Implement generic "slide" algorithm for this and subsurface layers
+
+    auto i = std::ranges::find(surface->server->surfaces, surface);
+    std::rotate(i, i + 1, surface->server->surfaces.end());
+}
+
 // -----------------------------------------------------------------------------
 
 bool wroc_surface_put_addon(wroc_surface* surface, wroc_surface_addon* addon)

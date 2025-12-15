@@ -41,7 +41,6 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
     auto* xdg_toplevel = wrei_get_registry(xdg_surface)->create<wroc_xdg_toplevel>();
     xdg_toplevel->resource = new_resource;
-    xdg_toplevel->base = xdg_surface;
     wroc_surface_put_addon(xdg_surface->surface.get(), xdg_toplevel);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel);
 }
@@ -101,7 +100,7 @@ static
 void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* parent, wl_resource* positioner);
 
 const struct xdg_surface_interface wroc_xdg_surface_impl = {
-    .destroy             = wroc_simple_resource_destroy_callback,
+    .destroy             = wroc_surface_addon_destroy,
     .get_toplevel        = wroc_xdg_surface_get_toplevel,
     .get_popup           = wroc_xdg_surface_get_popup,
     .set_window_geometry = wroc_xdg_surface_set_window_geometry,
@@ -178,7 +177,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
         return;
     }
 
-    vec2i32 anchor_rel = toplevel->base->anchor.relative;
+    vec2i32 anchor_rel = toplevel->base()->anchor.relative;
     wroc_directions dirs = {};
     switch (edges) {
         break;case XDG_TOPLEVEL_RESIZE_EDGE_NONE: return;
@@ -210,7 +209,7 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
         })));
     }
 
-    xdg_surface_send_configure(toplevel->base->resource, wl_display_next_serial(toplevel->base->surface->server->display));
+    xdg_surface_send_configure(toplevel->base()->resource, wl_display_next_serial(toplevel->surface->server->display));
 }
 
 void wroc_xdg_toplevel::on_commit(wroc_surface_commit_flags)
@@ -221,7 +220,7 @@ void wroc_xdg_toplevel::on_commit(wroc_surface_commit_flags)
     }
     else if (!initial_size_receieved) {
         initial_size_receieved = true;
-        auto geom = wroc_xdg_surface_get_geometry(base.get());
+        auto geom = wroc_xdg_surface_get_geometry(base());
         log_error("INITIAL SIZE RECEIVED: ({}, {})", geom.extent.x, geom.extent.y);
         wroc_xdg_toplevel_set_size(this, geom.extent);
         wroc_xdg_toplevel_flush_configure(this);
@@ -281,7 +280,7 @@ void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel* toplevel, xdg_toplevel_state
 void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
 {
     if (toplevel->pending_configure == wroc_xdg_toplevel_configure_state::none) return;
-    if (toplevel->base->sent_configure_serial > toplevel->base->acked_configure_serial) {
+    if (toplevel->base()->sent_configure_serial > toplevel->base()->acked_configure_serial) {
         log_warn("Waiting for client ack before reconfiguring");
         return;
     }
@@ -293,7 +292,7 @@ void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
     xdg_toplevel_send_configure(toplevel->resource, toplevel->size.x, toplevel->size.y,
         wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(toplevel->states)));
 
-    wroc_xdg_surface_flush_configure(toplevel->base.get());
+    wroc_xdg_surface_flush_configure(toplevel->base());
 
     toplevel->pending_configure = {};
 }
@@ -573,7 +572,6 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
     auto* base = wroc_get_userdata<wroc_xdg_surface>(resource);
     auto* popup = wrei_get_registry(base)->create<wroc_xdg_popup>();
     popup->resource = new_resource;
-    popup->base = base;
     wroc_surface_put_addon(base->surface.get(), popup);
 
     auto* xdg_positioner = wroc_get_userdata<wroc_xdg_positioner>(positioner);
@@ -613,20 +611,27 @@ void wroc_xdg_popup_position(wroc_xdg_popup* popup)
 {
     auto parent_origin = popup->parent->surface->position + wroc_xdg_surface_get_geometry(popup->parent.get()).origin;
 
+    auto* base = popup->base();
+
     rect2i32 constraint {
         .origin = -parent_origin,
     };
-    for (auto* output : popup->base->surface->server->outputs) {
+    for (auto* output : popup->surface->server->outputs) {
         constraint.extent = output->size;
         break;
     }
     auto geometry = wroc_xdg_positioner_apply(popup->positioner->rules, constraint);
 
-    popup->base->anchor.relative = {};
-    popup->base->anchor.position = parent_origin + geometry.origin;
+    base->anchor.relative = {};
+    base->anchor.position = parent_origin + geometry.origin;
+
+    if (popup->reposition_token) {
+        xdg_popup_send_repositioned(popup->resource, *popup->reposition_token);
+        popup->reposition_token = std::nullopt;
+    }
 
     xdg_popup_send_configure(popup->resource, geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
-    xdg_surface_send_configure(popup->base->resource, wl_display_next_serial(popup->base->surface->server->display));
+    xdg_surface_send_configure(base->resource, wl_display_next_serial(base->surface->server->display));
 }
 
 void wroc_xdg_popup::on_commit(wroc_surface_commit_flags)
@@ -639,11 +644,29 @@ void wroc_xdg_popup::on_commit(wroc_surface_commit_flags)
         } else {
             log_error("xdg_popup has no parent set at commit time, can't configure");
         }
+
+        wroc_surface_raise(surface.get());
     }
+}
+
+static
+void wroc_xdg_popup_reposition(wl_client* client, wl_resource* resource, wl_resource* _positioner, u32 token)
+{
+    log_warn("xdg_popup::reposition(token = {})", token);
+
+    auto* popup = wroc_get_userdata<wroc_xdg_popup>(resource);
+    auto* positioner = wroc_get_userdata<wroc_xdg_positioner>(_positioner);
+
+    popup->positioner = positioner;
+    popup->reposition_token = token;
+
+    wroc_xdg_popup_position(popup);
+
+    // TODO: We should double buffer the new geometry until the client has committed in response to the new configure
 }
 
 const struct xdg_popup_interface wroc_xdg_popup_impl = {
     .destroy    = wroc_surface_addon_destroy,
     .grab       = WROC_NOISY_STUB(grab),
-    .reposition = WROC_NOISY_STUB(reposition),
+    .reposition = wroc_xdg_popup_reposition,
 };
