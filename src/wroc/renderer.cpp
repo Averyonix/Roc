@@ -172,7 +172,7 @@ void wroc_render_frame(wroc_output* output)
         .pColorAttachments = wrei_ptr_to(VkRenderingAttachmentInfo {
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = current.view,
-            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         }),
@@ -192,6 +192,8 @@ void wroc_render_frame(wroc_output* output)
 
     auto draw = [&](wren_image* image, vec2f32 offset, vec2f32 extent) {
         assert(rect_id < wroc_max_rects);
+
+        wren_image_wait(image);
 
         renderer->rects[rect_id++] = wroc_shader_rect {
             .image = image4f32{image, renderer->sampler.get()},

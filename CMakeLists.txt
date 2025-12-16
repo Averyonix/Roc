@@ -107,6 +107,7 @@ target_sources(            ${PROJECT_NAME} PUBLIC
     src/wrei/log.cpp
     src/wrei/shm.cpp
     src/wrei/region.cpp
+    src/wrei/chrono.cpp
 
     src/wroc/client.cpp
     src/wroc/server.cpp

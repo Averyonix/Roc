@@ -186,6 +186,35 @@ wren_image::~wren_image()
     }
 }
 
+void wren_image_wait(wren_image* image)
+{
+    auto* params = image->dma_params.get();
+    if (!params) return;
+
+    // TODO: Importing sync files to Vulkan semaphores
+    // TODO: Wait for images asynchronously to prevent frames from being delayed
+
+    for (auto& plane : params->planes) {
+        pollfd pfd {
+            .fd = plane.fd,
+            .events = POLLIN,
+        };
+        int timeout_ms = 10;
+        auto start = std::chrono::steady_clock::now();
+        int ret = poll(&pfd, 1, timeout_ms);
+            auto dur = std::chrono::steady_clock::now() - start;
+        if (ret < 0) {
+            log_error("Failed to wait for DMA-BUF");
+        } else if (ret == 0) {
+            log_error("Timed out waiting for DMA-BUF fence after {}", wrei_duration_to_string(dur));
+        } else {
+            if (dur > 1ms) {
+                log_warn("Waiting for imported DMA-BUF took a long time: {}", wrei_duration_to_string(dur));
+            }
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 
 ref<wren_sampler> wren_sampler_create(wren_context* ctx)

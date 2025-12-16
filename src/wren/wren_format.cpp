@@ -110,6 +110,8 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
 
     wren_check(ctx->vk.CreateImage(ctx->device, &img_info, nullptr, &image->image));
 
+    image->dma_params = std::make_unique<wren_dma_params>(params);
+
     VkBindImageMemoryInfo bindi = {};
 
     {
@@ -120,6 +122,9 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
         log_trace("  plane[0].fd = {}", params.planes.front().fd);
         log_trace("  ctx->vk.GetMemoryFdPropertiesKHR = {}", (void*)ctx->vk.GetMemoryFdPropertiesKHR);
         wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, htype, params.planes.front().fd, &fdp));
+
+        // TODO: Multi-plane support
+        assert(params.planes.size() == 1);
 
         VkImageMemoryRequirementsInfo2 memri = {
             .image = image->image,
@@ -134,7 +139,9 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
 
         auto mem = wren_find_vk_memory_type_index(ctx, memr.memoryRequirements.memoryTypeBits & fdp.memoryTypeBits, 0);
 
+        // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
         int dfd = fcntl(params.planes.front().fd, F_DUPFD_CLOEXEC, 0);
+        image->dma_params->planes[0].fd = dfd;
 
         VkMemoryAllocateInfo memi = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
