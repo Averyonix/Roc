@@ -1,6 +1,8 @@
 #include "server.hpp"
 #include <wayland-client-protocol.h>
 
+const u32 wroc_wl_data_device_manager_version = 3;
+
 static
 void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resource* resource, u32 id)
 {

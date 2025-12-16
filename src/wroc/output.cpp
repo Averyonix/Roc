@@ -5,6 +5,8 @@
 
 #include "wroc/event.hpp"
 
+const u32 wroc_wl_output_version = 4;
+
 const struct wl_output_interface wroc_wl_output_impl = {
     .release = wroc_simple_resource_destroy_callback,
 };
@@ -143,7 +145,7 @@ void wroc_output_added(wroc_output* output)
     } else {
         log_debug("Output added");
         output->server->outputs.emplace_back(output);
-        output->global = wl_global_create(output->server->display, &wl_output_interface, 2/* wl_output_interface.version */, output, wroc_wl_output_bind_global);
+        output->global = WROC_SERVER_GLOBAL(output->server, wl_output, output);
     }
 }
 

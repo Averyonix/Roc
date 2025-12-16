@@ -12,7 +12,7 @@ void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx,
     vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
     pointer->layout_position = pos + vec2f64(pointer->current_output->position);
     wroc_post_event(pointer->server, wroc_pointer_event {
-        { .type = wroc_event_type::pointer_motion },
+        .type = wroc_event_type::pointer_motion,
         .pointer = pointer,
         .output = pointer->current_output,
     });
@@ -43,7 +43,7 @@ void wroc_listen_wl_pointer_leave(void* data, wl_pointer*, u32 serial, wl_surfac
     // NOTE: In theory no mouse buttons should every be left pressed at this point anyway?
     for (auto button : pointer->pressed) {
         wroc_post_event(pointer->server, wroc_pointer_event {
-            { .type = wroc_event_type::pointer_button },
+            .type = wroc_event_type::pointer_button,
             .pointer = pointer,
             .button { .button = button, .pressed = false },
         });
@@ -77,7 +77,7 @@ void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 /* t
     log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
     update_pointer_button_state(pointer, button, state == WL_POINTER_BUTTON_STATE_PRESSED);
     wroc_post_event(pointer->server, wroc_pointer_event {
-        { .type = wroc_event_type::pointer_button },
+        .type = wroc_event_type::pointer_button,
         .pointer = pointer,
         .output = pointer->current_output,
         .button { .button = button, .pressed = state == WL_POINTER_BUTTON_STATE_PRESSED },
@@ -91,7 +91,7 @@ void wroc_listen_wl_pointer_axis(void* data, wl_pointer*, u32 /* time */, u32 ax
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     wroc_post_event(pointer->server, wroc_pointer_event {
-        { .type = wroc_event_type::pointer_axis },
+        .type = wroc_event_type::pointer_axis,
         .pointer = pointer,
         .output = pointer->current_output,
         .axis {
@@ -177,7 +177,7 @@ void wroc_pointer_set(wroc_backend* backend, struct wl_pointer* wl_pointer)
 
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
     wroc_post_event(pointer->server, wroc_pointer_event {
-        { .type = wroc_event_type::pointer_added },
+        .type = wroc_event_type::pointer_added,
         .pointer = pointer,
     });
 }
@@ -210,7 +210,7 @@ void wroc_listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 forma
     kb->xkb_state = state;
 
     wroc_post_event(kb->server, wroc_keyboard_event {
-        { .type = wroc_event_type::keyboard_keymap },
+        .type = wroc_event_type::keyboard_keymap,
         .keyboard = kb,
     });
 }
@@ -247,7 +247,7 @@ void wroc_listen_wl_keyboard_key(void* data, wl_keyboard*, u32 /* serial */, u32
         bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
         update_kb_key_state(kb, keycode, pressed);
         wroc_post_event(kb->server, wroc_keyboard_event {
-            { .type = wroc_event_type::keyboard_key },
+            .type = wroc_event_type::keyboard_key,
             .keyboard = kb,
             .key { .keycode = keycode, .pressed = pressed },
         });
@@ -263,7 +263,7 @@ void wroc_listen_wl_keyboard_leave(void* data, wl_keyboard*, u32 /* serial */, w
 
     for (auto keycode : kb->pressed) {
         wroc_post_event(kb->server, wroc_keyboard_event {
-            { .type = wroc_event_type::keyboard_key },
+            .type = wroc_event_type::keyboard_key,
             .keyboard = kb,
             .key { .keycode = u32(keycode), .pressed = false },
         });
@@ -277,7 +277,7 @@ void wroc_listen_wl_keyboard_modifiers(void* data, wl_keyboard*, u32 /* serial *
     auto kb = static_cast<wroc_wayland_keyboard*>(data);
     xkb_state_update_mask(kb->xkb_state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
     wroc_post_event(kb->server, wroc_keyboard_event {
-        { .type = wroc_event_type::keyboard_modifiers },
+        .type = wroc_event_type::keyboard_modifiers,
         .keyboard = kb,
         .mods {
             .depressed = mods_depressed,
@@ -330,7 +330,7 @@ void wroc_keyboard_set(wroc_backend* backend, struct wl_keyboard* wl_keyboard)
 
     wl_keyboard_add_listener(wl_keyboard, &wroc_wl_keyboard_listener, keyboard);
     wroc_post_event(keyboard->server, wroc_keyboard_event {
-        { .type = wroc_event_type::keyboard_added },
+        .type = wroc_event_type::keyboard_added,
         .keyboard = keyboard,
     });
 }

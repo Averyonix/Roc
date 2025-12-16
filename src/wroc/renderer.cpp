@@ -119,6 +119,7 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
     }
 
     renderer->wren = wren_create(wrei_get_registry(server), features);
+    wroc_renderer_init_buffer_feedback(renderer);
 
     std::filesystem::path path = getenv("WALLPAPER");
 

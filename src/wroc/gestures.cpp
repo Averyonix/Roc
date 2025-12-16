@@ -1,5 +1,7 @@
 #include "server.hpp"
 
+const u32 wroc_zwp_pointer_gestures_v1_version = 3;
+
 static
 void wroc_pointer_gestures_get_swipe_gesture(wl_client* client, wl_resource* resource, u32 id, wl_resource* pointer)
 {

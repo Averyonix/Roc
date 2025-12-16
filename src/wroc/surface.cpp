@@ -1,6 +1,10 @@
 #include "server.hpp"
 #include "util.hpp"
 
+
+const u32 wroc_wl_compositor_version = 6;
+const u32 wroc_wl_subcompositor_version = 1;
+
 static
 void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, u32 id)
 {
@@ -32,8 +36,8 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
 }
 
 const struct wl_compositor_interface wroc_wl_compositor_impl = {
-    .create_region  = wroc_wl_compositor_create_region,
     .create_surface = wroc_wl_compositor_create_surface,
+    .create_region  = wroc_wl_compositor_create_region,
 };
 
 void wroc_wl_compositor_bind_global(wl_client* client, void* data, u32 version, u32 id)
@@ -61,8 +65,8 @@ void wroc_wl_region_subtract(wl_client* client, wl_resource* resource, i32 x, i3
 }
 
 const struct wl_region_interface wroc_wl_region_impl = {
-    .add      = wroc_wl_region_add,
     .destroy  = wroc_simple_resource_destroy_callback,
+    .add      = wroc_wl_region_add,
     .subtract = wroc_wl_region_subtract,
 };
 

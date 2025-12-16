@@ -1,6 +1,7 @@
 #include "server.hpp"
 #include "util.hpp"
 
+const u32 wroc_xdg_wm_base_version = 7;
 
 static
 void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id);
@@ -18,8 +19,8 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
 }
 
 const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
-    .create_positioner = wroc_xdg_wm_base_create_positioner,
     .destroy           = wroc_simple_resource_destroy_callback,
+    .create_positioner = wroc_xdg_wm_base_create_positioner,
     .get_xdg_surface   = wroc_xdg_wm_base_get_xdg_surface,
     .pong              = WROC_STUB,
 };

@@ -1,5 +1,9 @@
 #include "server.hpp"
 
+#include "wrei/shm.hpp"
+
+const u32 wroc_zwp_linux_dmabuf_v1_version = 5;
+
 static
 void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 params_id)
 {
@@ -19,10 +23,15 @@ wroc_zwp_linux_buffer_params::~wroc_zwp_linux_buffer_params()
 }
 
 static
+void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* feedback_resource);
+
+static
 void wroc_dmabuf_get_default_feedback(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr);
+
+    wroc_dmabuf_send_tranches(wroc_get_userdata<wroc_server>(resource), new_resource);
 }
 
 static
@@ -31,11 +40,14 @@ void wroc_dmabuf_get_surface_feedback(wl_client* client, wl_resource* resource, 
     auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr);
 
+    // TODO: Surface optimized tranches?
+
+    wroc_dmabuf_send_tranches(wroc_get_userdata<wroc_server>(resource), new_resource);
 }
 
 const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
-    .create_params        = wroc_dmabuf_create_params,
     .destroy              = wroc_simple_resource_destroy_callback,
+    .create_params        = wroc_dmabuf_create_params,
     .get_default_feedback = wroc_dmabuf_get_default_feedback,
     .get_surface_feedback = wroc_dmabuf_get_surface_feedback,
 };
@@ -71,8 +83,15 @@ void wroc_dmabuf_resource_destroy(wl_resource* resource)
 }
 
 static
-wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* params_resource, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags)
+wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* params_resource, u32 buffer_id, i32 width, i32 height, u32 drm_format, u32 flags)
 {
+    auto format = wren_find_format_from_drm(drm_format);
+
+    if (!format) {
+        wl_resource_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "Invalid format");
+        return nullptr;
+    }
+
     auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(params_resource);
     auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = wrei_get_registry(params)->create<wroc_dma_buffer>();
@@ -82,12 +101,16 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
 
     wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, wroc_dmabuf_resource_destroy);
 
-    params->params.format = wren_find_format_from_drm(format).value();
+    params->params.format = format;
     params->params.extent = {width, height};
     params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
+    log_warn("dma buffer create, format = {} ({})", drm_format, format ? string_VkFormat(format->vk) : "??");
+
     buffer->extent = {width, height};
     buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), params->params);
+
+    log_warn("dma buffer created ({}, {}), format = {}", width, height, string_VkFormat(params->params.format->vk));
 
     return buffer;
 }
@@ -109,10 +132,10 @@ void wroc_dmabuf_params_create_buffer_immed(wl_client* client, wl_resource* para
 }
 
 const struct zwp_linux_buffer_params_v1_interface wroc_zwp_linux_buffer_params_v1_impl = {
+    .destroy      = wroc_simple_resource_destroy_callback,
     .add          = wroc_dmabuf_params_add,
     .create       = wroc_dmabuf_params_create_buffer,
     .create_immed = wroc_dmabuf_params_create_buffer_immed,
-    .destroy      = wroc_simple_resource_destroy_callback,
 };
 
 const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedback_v1_impl = {
@@ -124,21 +147,108 @@ void wroc_dma_buffer::on_commit()
     lock();
 }
 
+void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
+{
+    auto wren = renderer->wren;
+
+    struct tranche_entry
+    {
+        u32 format;
+        u32 padding;
+        u64 modifier;
+    };
+
+    auto& feedback = renderer->buffer_feedback;
+
+    // Enumerate formats
+
+    std::vector<tranche_entry> entries;
+    // entries.emplace_back(DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR);
+    // entries.emplace_back(DRM_FORMAT_ARGB8888, 0, DRM_FORMAT_MOD_LINEAR);
+    for (auto[format, modifiers] : wren->dmabuf_texture_formats) {
+        for (auto modifier : modifiers) {
+            entries.emplace_back(tranche_entry {
+                .format = format->drm,
+                .modifier = modifier,
+            });
+        }
+    }
+
+    // Copy to shared memory
+
+    usz size = entries.size() * sizeof(tranche_entry);
+    int rw, ro;
+    if (!wrei_allocate_shm_file_pair(size, &rw, &ro)) {
+        log_error("Failed to allocate shared memory pair");
+        std::terminate();
+    }
+
+    void* dst = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, rw, 0);
+    close(rw);
+    if (dst == MAP_FAILED) {
+        log_error("mmap failed");
+        close(ro);
+        return;
+    }
+
+    std::memcpy(dst, entries.data(), size);
+
+    // Generate indices
+    // TODO: Move LINEAR modifiers into lower tranche?
+
+    feedback.format_table = ro;
+    feedback.format_table_size = size;
+
+    feedback.tranche_formats.resize(entries.size());
+    for (u16 i = 0; i < entries.size(); ++i) {
+        feedback.tranche_formats[i] = i;
+    }
+}
+
+static
+void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* feedback_resource)
+{
+    wl_array dev_id = {
+        .size = sizeof(server->renderer->wren->dev_id),
+        .alloc = sizeof(server->renderer->wren->dev_id),
+        .data = &server->renderer->wren->dev_id,
+    };
+
+    auto& feedback = server->renderer->buffer_feedback;
+
+    zwp_linux_dmabuf_feedback_v1_send_main_device(feedback_resource, &dev_id);
+    zwp_linux_dmabuf_feedback_v1_send_format_table(feedback_resource, feedback.format_table, feedback.format_table_size);
+
+    zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(feedback_resource, &dev_id);
+    zwp_linux_dmabuf_feedback_v1_send_tranche_flags(feedback_resource, 0);
+    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(feedback_resource, wrei_ptr_to(wroc_to_wl_array<u16>(feedback.tranche_formats)));
+    zwp_linux_dmabuf_feedback_v1_send_tranche_done(feedback_resource);
+}
+
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_v1_impl, static_cast<wroc_server*>(data));
 
+    if (version >= ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION) {
+        return;
+    }
+
+    // Deprecated method of exposing formats, only use with legacy clients
+
     auto send_modifier = [&](u32 format, u64 modifier) {
-        zwp_linux_dmabuf_v1_send_modifier(new_resource, format, modifier >> 32, modifier & 0xFFFF'FFFF);
+        u32 modifier_hi =  modifier >> 32;
+        u32 modifier_lo = modifier & 0xFFFF'FFFF;
+        zwp_linux_dmabuf_v1_send_modifier(new_resource, format, modifier_hi, modifier_lo);
     };
 
-    for (auto& format : {
-        DRM_FORMAT_XRGB8888,
-        DRM_FORMAT_ARGB8888,
-    }) {
-        zwp_linux_dmabuf_v1_send_format(new_resource, format);
-        // send_modifier(format, DRM_FORMAT_MOD_INVALID);
-        send_modifier(format, DRM_FORMAT_MOD_LINEAR);
+    auto* server = static_cast<wroc_server*>(data);
+
+    for (auto[format, modifiers] : server->renderer->wren->dmabuf_texture_formats) {
+        zwp_linux_dmabuf_v1_send_format(new_resource, format->drm);
+
+        for (auto modifier : modifiers) {
+            send_modifier(format->drm, modifier);
+        }
     }
 };

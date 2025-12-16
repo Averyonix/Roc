@@ -30,7 +30,7 @@ void wroc_begin_resize_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* po
 
 bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& base_event)
 {
-    if (base_event.type == wroc_event_type::pointer_button) {
+    if (wroc_event_get_type(base_event) == wroc_event_type::pointer_button) {
         auto& event = static_cast<const wroc_pointer_event&>(base_event);
         if (event.button.pressed) {
             if (wroc_get_active_modifiers(server) >= wroc_modifiers::mod) {
@@ -73,7 +73,7 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
         }
     }
 
-    if (base_event.type == wroc_event_type::pointer_motion
+    if (wroc_event_get_type(base_event) == wroc_event_type::pointer_motion
             && (server->interaction_mode == wroc_interaction_mode::move
             ||  server->interaction_mode == wroc_interaction_mode::size)) {
         auto& event = static_cast<const wroc_pointer_event&>(base_event);

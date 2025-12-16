@@ -1,6 +1,8 @@
 #include "server.hpp"
 #include "util.hpp"
 
+const u32 wroc_wl_seat_version = 10;
+
 static
 void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
 {
@@ -28,8 +30,8 @@ void wroc_wl_seat_get_pointer(wl_client* client, wl_resource* resource, u32 id)
 }
 
 const struct wl_seat_interface wroc_wl_seat_impl = {
-    .get_keyboard = wroc_wl_seat_get_keyboard,
     .get_pointer  = wroc_wl_seat_get_pointer,
+    .get_keyboard = wroc_wl_seat_get_keyboard,
     .get_touch    = WROC_STUB,
     .release      = wroc_simple_resource_destroy_callback,
 };
@@ -57,8 +59,8 @@ void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 se
 }
 
 const struct wl_pointer_interface wroc_wl_pointer_impl = {
-    .release    = wroc_simple_resource_destroy_callback,
     .set_cursor = wroc_wl_pointer_set_cursor,
+    .release    = wroc_simple_resource_destroy_callback,
 };
 
 void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id)

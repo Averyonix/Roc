@@ -17,18 +17,32 @@ enum class wroc_event_type
     pointer_axis,
 };
 
-struct wroc_event
+struct wroc_event {};
+
+#define WROC_EVENT_BASE wroc_event_type type;
+
+struct wroc_event_base : wroc_event
 {
-    wroc_event_type type;
+    WROC_EVENT_BASE
 };
+
+inline
+wroc_event_type wroc_event_get_type(const wroc_event& event)
+{
+    return static_cast<const wroc_event_base&>(event).type;
+}
 
 struct wroc_output_event : wroc_event
 {
+    WROC_EVENT_BASE
+
     wroc_output* output;
 };
 
 struct wroc_keyboard_event : wroc_event
 {
+    WROC_EVENT_BASE
+
     wroc_keyboard* keyboard;
 
     union {
@@ -47,6 +61,8 @@ struct wroc_keyboard_event : wroc_event
 
 struct wroc_pointer_event : wroc_event
 {
+    WROC_EVENT_BASE
+
     wroc_pointer* pointer;
     wroc_output* output;
 

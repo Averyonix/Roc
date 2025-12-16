@@ -1,5 +1,7 @@
 #include "server.hpp"
 
+const u32 wroc_wl_shm_version = 2;
+
 static
 void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, int fd, i32 size)
 {
@@ -31,10 +33,10 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
     wroc_debug_track_resource(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_shm_impl, static_cast<wroc_server*>(data));
 
-    // TODO: Integrate with Wren to expose supported formats
-
-    wl_shm_send_format(new_resource, WL_SHM_FORMAT_ARGB8888);
-    wl_shm_send_format(new_resource, WL_SHM_FORMAT_XRGB8888);
+    auto* server = static_cast<wroc_server*>(data);
+    for (auto&[format, _] : server->renderer->wren->shm_texture_formats.entries) {
+        wl_shm_send_format(new_resource, format->shm);
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -61,19 +63,19 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     shm_buffer->pool = pool;
     shm_buffer->stride = stride;
-    shm_buffer->format = wl_shm_format(format);
+    shm_buffer->format = wren_find_format_from_shm(wl_shm_format(format));
     shm_buffer->offset = offset;
 
-    if (shm_buffer->format != WL_SHM_FORMAT_ARGB8888 && shm_buffer->format != WL_SHM_FORMAT_XRGB8888) {
-        log_error("Unsupported format: {}", magic_enum::enum_name(shm_buffer->format));
+    if (!shm_buffer->format) {
+        log_error("Unsupported format: {}", magic_enum::enum_name(wl_shm_format(format)));
         wrei_debugbreak();
     }
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
-    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {width, height}, VK_FORMAT_B8G8R8A8_UNORM);
+    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {width, height}, shm_buffer->format->vk);
 
-    log_warn("buffer created ({}, {})", width, height);
+    log_warn("shm buffer created ({}, {}), format = {}", width, height, string_VkFormat(shm_buffer->format->vk));
 }
 
 static

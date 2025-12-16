@@ -16,7 +16,8 @@
     DO(DestroyInstance) \
     DO(GetPhysicalDeviceMemoryProperties) \
     DO(GetPhysicalDeviceFormatProperties2) \
-    DO(CreateWaylandSurfaceKHR)
+    DO(CreateWaylandSurfaceKHR) \
+    DO(GetPhysicalDeviceImageFormatProperties2) \
 
 #define WREN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \
@@ -82,7 +83,7 @@
     DO(CmdBlitImage2) \
     DO(GetMemoryFdPropertiesKHR) \
     DO(GetImageMemoryRequirements2) \
-    DO(BindImageMemory2)
+    DO(BindImageMemory2) \
 
 #define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

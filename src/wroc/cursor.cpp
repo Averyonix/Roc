@@ -24,6 +24,7 @@ std::vector<std::string> wroc_cursor_list_themes()
     }
 
     return themes;
+
 }
 
 void wroc_cursor_create(wroc_server* server)

@@ -2,6 +2,8 @@
 
 #include "wroc/server.hpp"
 
+#include <sys/sysmacros.h>
+
 ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
 {
     auto ctx = wrei_adopt_ref(registry->create<wren_context>());
@@ -65,6 +67,27 @@ ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
         log_info("  Selected: {}", props.properties.deviceName);
     }
 
+    {
+        VkPhysicalDeviceDrmPropertiesEXT drm_props {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
+        };
+        ctx->vk.GetPhysicalDeviceProperties2(ctx->physical_device, wrei_ptr_to(VkPhysicalDeviceProperties2 {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+            .pNext = &drm_props,
+        }));
+
+        if (drm_props.hasRender) {
+            ctx->dev_id = makedev(drm_props.renderMajor, drm_props.renderMinor);
+        } else if (drm_props.hasPrimary) {
+            ctx->dev_id = makedev(drm_props.primaryMajor, drm_props.primaryMinor);
+        } else {
+            log_error("Vulkan physical has no render or primary nodes");
+            return nullptr;
+        }
+
+        log_info("Device ID: {}", ctx->dev_id);
+    }
+
     ctx->queue_family = ~0u;
     std::vector<VkQueueFamilyProperties> queue_props;
     wren_vk_enumerate(queue_props, ctx->vk.GetPhysicalDeviceQueueFamilyProperties, ctx->physical_device);
@@ -124,6 +147,7 @@ ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
             wrei_ptr_to(VkPhysicalDeviceVulkan11Features {
                 .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
                 .storagePushConstant16 = true,
+                .samplerYcbcrConversion = true,
                 .shaderDrawParameters = true,
             }),
             wrei_ptr_to(VkPhysicalDeviceVulkan12Features {
@@ -205,6 +229,14 @@ ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
     }), nullptr, &ctx->cmd_pool));
 
     wren_init_descriptors(ctx.get());
+
+    for (auto& format : wren_get_formats()) {
+        wren_register_format(ctx.get(), &format);
+    }
+
+    log_info("shm texture formats: {}", ctx->shm_texture_formats.size());
+    log_info("render formats: {}", ctx->dmabuf_render_formats.size());
+    log_info("dmabuf texture formats: {}", ctx->dmabuf_texture_formats.size());
 
     return ctx;
 }

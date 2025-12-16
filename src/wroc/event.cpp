@@ -7,7 +7,7 @@ void wroc_handle_event(wroc_server* server, const wroc_event& base_event)
         return;
     }
 
-    switch (base_event.type) {
+    switch (wroc_event_get_type(base_event)) {
         case wroc_event_type::output_added:
         case wroc_event_type::output_removed:
         case wroc_event_type::output_frame:

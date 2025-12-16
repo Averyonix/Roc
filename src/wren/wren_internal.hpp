@@ -46,6 +46,10 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 // -----------------------------------------------------------------------------
 
+void wren_register_format(wren_context*, wren_format);
+
+// -----------------------------------------------------------------------------
+
 u32 wren_find_vk_memory_type_index(wren_context*, u32 type_filter, VkMemoryPropertyFlags properties);
 
 // -----------------------------------------------------------------------------

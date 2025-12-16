@@ -73,8 +73,8 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
             | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     }), wrei_ptr_to(VmaAllocationCreateInfo {
-        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     }), &buffer->buffer, &buffer->vma_allocation, &vma_alloc_info));
 
     buffer->host_address = vma_alloc_info.pMappedData;
@@ -199,7 +199,7 @@ void wren_image_wait(wren_image* image)
             .fd = plane.fd,
             .events = POLLIN,
         };
-        int timeout_ms = 10;
+        int timeout_ms = 1000;
         auto start = std::chrono::steady_clock::now();
         int ret = poll(&pfd, 1, timeout_ms);
             auto dur = std::chrono::steady_clock::now() - start;

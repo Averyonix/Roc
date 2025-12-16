@@ -22,6 +22,70 @@ struct wren_descriptor_id_allocator
 
 // -----------------------------------------------------------------------------
 
+struct wren_format_t
+{
+    u32 drm;
+    VkFormat vk;
+    VkFormat vk_srgb;
+    wl_shm_format shm;
+    bool is_ycbcr;
+
+    // NOTE: These are singleton objects per supported format
+    //       so we delete copy/move and protect construction
+
+    constexpr wren_format_t(const struct wren_format_t_create_params&);
+    WREI_DELETE_COPY_MOVE(wren_format_t)
+};
+
+using wren_format = const wren_format_t*;
+
+struct wren_format_modifier_props
+{
+    VkDrmFormatModifierProperties2EXT props;
+    vec2u32 max_extent;
+    bool has_mutable_srgb;
+};
+
+struct wren_format_props
+{
+    wren_format format;
+    struct {
+        vec2u32 max_extent;
+        VkFormatFeatureFlags features;
+        bool has_mutable_srgb;
+    } shm;
+    struct {
+        std::vector<wren_format_modifier_props> render_mods;
+        std::vector<wren_format_modifier_props> texture_mods;
+    } dmabuf;
+};
+
+std::span<const wren_format_t> wren_get_formats();
+wren_format wren_find_format_from_vulkan(VkFormat);
+wren_format wren_find_format_from_drm(u32 drm_format);
+wren_format wren_find_format_from_shm(wl_shm_format);
+
+struct wren_format_set
+{
+    using modifier_set = ankerl::unordered_dense::set<u64>;
+    ankerl::unordered_dense::map<wren_format, modifier_set> entries;
+
+    void add(wren_format format, u64 modifier)
+    {
+        entries[format].insert(modifier);
+    }
+
+    usz   size() { return entries.size(); }
+    bool empty() { return !entries.empty(); }
+
+    auto begin() const { return entries.begin(); }
+    auto end() const { return entries.end(); }
+};
+
+const wren_format_props* wren_get_format_props(wren_context*, wren_format);
+
+// -----------------------------------------------------------------------------
+
 struct wren_context : wrei_object
 {
     struct {
@@ -36,6 +100,8 @@ struct wren_context : wrei_object
     VkInstance instance;
     VkPhysicalDevice physical_device;
     VkDevice device;
+
+    dev_t dev_id;
 
     vkwsi_context* vkwsi;
 
@@ -54,6 +120,12 @@ struct wren_context : wrei_object
 
     wren_descriptor_id_allocator image_descriptor_allocator;
     wren_descriptor_id_allocator sampler_descriptor_allocator;
+
+    wren_format_set dmabuf_texture_formats;
+    wren_format_set dmabuf_render_formats;
+    wren_format_set shm_texture_formats;
+
+    ankerl::unordered_dense::map<wren_format, wren_format_props> format_props;
 
     ~wren_context();
 };
@@ -174,21 +246,6 @@ struct wren_sampler : wrei_object
 };
 
 ref<wren_sampler> wren_sampler_create(wren_context*);
-
-// -----------------------------------------------------------------------------
-
-struct wren_format
-{
-    u32 drm;
-    VkFormat vk;
-    VkFormat vk_srgb;
-	bool is_ycbcr;
-};
-
-std::span<const wren_format> wren_get_formats();
-std::optional<wren_format> wren_find_format_from_vulkan(VkFormat);
-std::optional<wren_format> wren_find_format_from_drm(u32 drm_format);
-void wren_enumerate_drm_modifiers(wren_context*, const wren_format&, std::vector<VkDrmFormatModifierProperties2EXT>&);
 
 // -----------------------------------------------------------------------------
 

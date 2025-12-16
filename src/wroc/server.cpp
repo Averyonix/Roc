@@ -9,6 +9,12 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
     return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
+wl_global* wroc_server_global(auto* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
+{
+    assert(version <= interface->version);
+    return wl_global_create(server->display, interface, version, data ?: server, bind);
+}
+
 void wroc_run(int argc, char* argv[])
 {
     wroc_render_options render_options = {};
@@ -25,13 +31,18 @@ void wroc_run(int argc, char* argv[])
     }
 
     wrei_registry registry;
-    ref server = wrei_adopt_ref(registry.create<wroc_server>());
-    log_warn("server = {}", (void*)server.get());
+    wroc_server* server =registry.create<wroc_server>();
+    defer { wrei_remove_ref(server); };
+    log_warn("server = {}", (void*)server);
+
+    // Seat
 
     server->seat = wrei_adopt_ref(registry.create<wroc_seat>());
     server->seat->name = "seat-0";
 
     server->epoch = std::chrono::steady_clock::now();
+
+    // Init libwayland
 
     if (getenv("WROC_WAYLAND_DEBUG_SERVER")) {
         setenv("WAYLAND_DEBUG", "1", true);
@@ -44,29 +55,40 @@ void wroc_run(int argc, char* argv[])
 
     wl_display_set_default_max_buffer_size(server->display, 65'536);
 
-    wroc_backend_init(server.get());
-    wroc_renderer_create(server.get(), render_options);
-
-    wroc_cursor_create(server.get());
-
     const char* socket = wl_display_add_socket_auto(server->display);
 
-    wl_global_create(server->display, &wl_shm_interface,                 wl_shm_interface.version,                 server.get(),       wroc_wl_shm_bind_global);
-    wl_global_create(server->display, &wl_compositor_interface,          wl_compositor_interface.version,          server.get(),       wroc_wl_compositor_bind_global);
-    wl_global_create(server->display, &wl_subcompositor_interface,       wl_subcompositor_interface.version,       server.get(),       wroc_wl_subcompositor_bind_global);
-    wl_global_create(server->display, &xdg_wm_base_interface,            xdg_wm_base_interface.version,            server.get(),       wroc_xdg_wm_base_bind_global);
-    wl_global_create(server->display, &wl_seat_interface,                wl_seat_interface.version,                server->seat.get(), wroc_wl_seat_bind_global);
-    wl_global_create(server->display, &wl_data_device_manager_interface, wl_data_device_manager_interface.version, server.get(),       wroc_wl_data_device_manager_bind_global);
+    // Backend
 
+    wroc_backend_init(server);
+
+    // Renderer
+
+    wroc_renderer_create(server, render_options);
+
+    // Cursor
+
+    wroc_cursor_create(server);
+
+    // Register globals
+
+    WROC_SERVER_GLOBAL(server, wl_shm);
     if (!(render_options >= wroc_render_options::no_dmabuf)) {
-        wl_global_create(server->display, &zwp_linux_dmabuf_v1_interface, 3, server.get(), wroc_zwp_linux_dmabuf_v1_bind_global);
+        WROC_SERVER_GLOBAL(server, zwp_linux_dmabuf_v1);
     }
+    WROC_SERVER_GLOBAL(server, wl_compositor);
+    WROC_SERVER_GLOBAL(server, wl_subcompositor);
+    WROC_SERVER_GLOBAL(server, wl_data_device_manager);
+    WROC_SERVER_GLOBAL(server, xdg_wm_base);
+    WROC_SERVER_GLOBAL(server, wl_seat, server->seat.get());
+    WROC_SERVER_GLOBAL(server, zwp_pointer_gestures_v1);
 
-    wl_global_create(server->display, &zwp_pointer_gestures_v1_interface, zwp_pointer_gestures_v1_interface.version, nullptr, wroc_zwp_pointer_gestures_v1_bind_global);
+    // Run
 
     log_info("Running compositor on: {}", socket);
 
     wl_display_run(server->display);
+
+    // Shutdown
 
     log_info("Compositor shutting down");
 
@@ -82,6 +104,7 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Display destroyed");
 
+    wrei_remove_ref(server);
     server = nullptr;
 
     log_info("Shutdown complete");

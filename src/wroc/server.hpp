@@ -429,7 +429,7 @@ struct wroc_shm_buffer : wroc_buffer
 
     i32 offset;
     i32 stride;
-    wl_shm_format format;
+    wren_format format;
 
     virtual void on_commit() final override;
 };
@@ -632,6 +632,12 @@ struct wroc_renderer : wrei_object
 {
     wroc_server* server;
 
+    struct {
+        int format_table;
+        usz format_table_size;
+        std::vector<u16> tranche_formats;
+    } buffer_feedback;
+
     ref<wren_context> wren;
 
     wroc_render_options options;
@@ -649,7 +655,10 @@ struct wroc_renderer : wrei_object
 };
 
 void wroc_renderer_create(wroc_server*, wroc_render_options);
+void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
+
+// -----------------------------------------------------------------------------
 
 enum class wroc_interaction_mode : u32
 {
@@ -711,6 +720,10 @@ struct wroc_server : wrei_object
         } drag;
     } data_manager;
 };
+
+wl_global* wroc_server_global(auto* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data = nullptr);
+#define WROC_SERVER_GLOBAL(Server, Interface, ...) \
+    wroc_server_global(Server, &Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
 
 u32 wroc_get_elapsed_milliseconds(wroc_server*);
 wroc_modifiers wroc_get_active_modifiers(wroc_server*);

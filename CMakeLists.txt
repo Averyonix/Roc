@@ -87,11 +87,14 @@ target_compile_options(    ${PROJECT_NAME} PRIVATE
     -Wno-unknown-pragmas
     -Wno-gnu-conditional-omitted-operand
     -Wno-zero-length-array
-    -Wno-c99-designator
     -Wno-unused-parameter
     -Wno-nested-anon-types
     -Wno-c23-extensions
     -Wimplicit-fallthrough
+
+    # -Wno-unused-const-variable
+    # -Wno-unused-function
+
     -Wshadow
     )
 if(USE_ASAN)
@@ -100,6 +103,7 @@ endif()
 target_include_directories(${PROJECT_NAME} PUBLIC
     src
     .build/shaders/include
+    /usr/include/drm
     )
 target_sources(            ${PROJECT_NAME} PUBLIC
     src/main.cpp
@@ -165,6 +169,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     stb-image
     unordered_dense::unordered_dense
     Xcursor
+    drm
     )
 
 add_subdirectory(test)
