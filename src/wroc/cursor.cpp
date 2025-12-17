@@ -64,19 +64,29 @@ void wroc_cursor_create(wroc_server* server)
     cursor->fallback.hotspot = {image->xhot, image->yhot};
 }
 
-void wroc_cursor_set(wroc_cursor* cursor, wroc_surface* surface, vec2i32 hotspot)
+void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surface, vec2i32 hotspot)
 {
-    if (!surface) {
-        cursor->current = nullptr;
-        return;
+    bool created;
+    auto* cursor_surface = surface ? wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created) : nullptr;
+    if (cursor_surface) {
+        log_debug("wroc_cursor_surface {}, hotspot = ({}, {})", created ? "created" : "reused", hotspot.x, hotspot.y);
+        cursor_surface->hotspot = hotspot;
     }
 
-    bool created = false;
-    auto* cursor_surface = wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created);
-    log_debug("wroc_cursor_surface {}, hotspot = ({}, {})", created ? "created" : "reused", hotspot.x, hotspot.y);
-    cursor->current = cursor_surface;
+    // TODO: Track and update only last focused surface
+    //       OR track cursor at the client level directly
 
-    cursor_surface->hotspot = hotspot;
+    u32 count = 0;
+    for (auto* target_surface : cursor->server->surfaces) {
+        if (!target_surface->resource) continue;
+        if (wl_resource_get_client(target_surface->resource) != client) continue;
+        if (target_surface->role == wroc_surface_role::cursor) continue;
+
+        target_surface->cursor = cursor_surface;
+        count++;
+    }
+
+    log_debug("cursor updated for {} surface(s)", count);
 }
 
 void wroc_cursor_surface::on_commit(wroc_surface_commit_flags)

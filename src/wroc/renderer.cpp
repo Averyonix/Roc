@@ -22,7 +22,7 @@ VkPipeline wroc_renderer_create_pipeline(
     auto* wren = renderer->wren.get();
     auto& vk = wren->vk;
 
-    static constexpr bool premultiplied = true;
+    static constexpr bool premultiplied_alpha = true;
 
     VkPipeline pipeline = {};
     wren_check(vk.CreateGraphicsPipelines(wren->device, nullptr, 1, wrei_ptr_to(VkGraphicsPipelineCreateInfo {
@@ -85,7 +85,7 @@ VkPipeline wroc_renderer_create_pipeline(
             .attachmentCount = 1,
             .pAttachments = wrei_ptr_to(VkPipelineColorBlendAttachmentState {
                 .blendEnable = true,
-                .srcColorBlendFactor = premultiplied
+                .srcColorBlendFactor = premultiplied_alpha
                     ? VK_BLEND_FACTOR_ONE
                     : VK_BLEND_FACTOR_SRC_ALPHA,
                 .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -197,7 +197,8 @@ void wroc_render_frame(wroc_output* output)
     auto draw = [&](wren_image* image, vec2f32 offset, vec2f32 extent) {
         assert(rect_id < wroc_max_rects);
 
-        wren_image_wait(image);
+        // TODO: Async buffer waits
+        // wren_image_wait(image);
 
         renderer->rects[rect_id++] = wroc_shader_rect {
             .image = image4f32{image, renderer->sampler.get()},
@@ -260,13 +261,15 @@ void wroc_render_frame(wroc_output* output)
 
     if (auto* pointer = server->seat->pointer) {
         // TODO: Move this to cursor.cpp
-        auto* cursor = server->cursor.get();
-        if (pointer->focused_surface) {
-            if (auto* cursor_surface = cursor->current.get()) {
+        if (pointer->focused_surface && pointer->focused_surface->cursor) {
+            // If surface is focused and has cursor set, render cursor surface (possibly hidden)
+            if (auto* cursor_surface = pointer->focused_surface->cursor->get()) {
                 auto pos = vec2i32(pointer->layout_position) - cursor_surface->hotspot;
                 draw_surface(cursor_surface->surface.get(), pos);
             }
         } else {
+            // ... else fall back to default cursor
+            auto* cursor = server->cursor.get();
             auto& fallback = cursor->fallback;
             auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
             draw(fallback.image.get(), pos, fallback.image->extent);

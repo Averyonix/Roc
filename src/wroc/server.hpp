@@ -141,6 +141,8 @@ struct wroc_surface_state
     std::vector<weak<wroc_surface>> surface_stack;
 };
 
+struct wroc_cursor_surface;
+
 struct wroc_surface : wrei_object
 {
     wroc_server* server = {};
@@ -161,6 +163,8 @@ struct wroc_surface : wrei_object
     weak<wroc_output> output;
 
     vec2i32 position;
+
+    std::optional<weak<wroc_cursor_surface>> cursor;
 
     ~wroc_surface();
 };
@@ -606,12 +610,10 @@ struct wroc_cursor : wrei_object
         ref<wren_image> image;
         vec2i32         hotspot;
     } fallback;
-
-    weak<wroc_cursor_surface> current;
 };
 
 void wroc_cursor_create(wroc_server* server);
-void wroc_cursor_set(wroc_cursor*, wroc_surface*, vec2i32 hotspot);
+void wroc_cursor_set(wroc_cursor*, wl_client* client, wroc_surface* cursor_surface, vec2i32 hotspot);
 
 // -----------------------------------------------------------------------------
 
