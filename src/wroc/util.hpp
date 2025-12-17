@@ -41,7 +41,7 @@ wl_client* wroc_resource_get_client(wl_resource* resource)
 
 // -----------------------------------------------------------------------------
 
-class wroc_wl_resource
+class wroc_resource
 {
     wl_resource* resource = {};
     wl_listener destroy_listener {
@@ -49,12 +49,12 @@ class wroc_wl_resource
     };
 
 public:
-    wroc_wl_resource()
+    wroc_resource()
     {
         wl_list_init(&destroy_listener.link);
     }
 
-    wroc_wl_resource(wl_resource* resource)
+    wroc_resource(wl_resource* resource)
         : resource(resource)
     {
         wl_resource_add_destroy_listener(resource, &destroy_listener);
@@ -73,7 +73,7 @@ public:
         }
     }
 
-    wroc_wl_resource& operator=(wl_resource* other)
+    wroc_resource& operator=(wl_resource* other)
     {
         reset(other);
         return *this;
@@ -81,24 +81,24 @@ public:
 
     static void on_destroy(wl_listener* listener, void* data)
     {
-        wroc_wl_resource* self = wl_container_of(listener, self, destroy_listener);
+        wroc_resource* self = wl_container_of(listener, self, destroy_listener);
         self->resource = nullptr;
         wl_list_init(&self->destroy_listener.link);
 
         // log_debug("wrei_resource<{}>: resource destroyed, clearing..", (void*)self);
     }
 
-    ~wroc_wl_resource()
+    ~wroc_resource()
     {
         wl_list_remove(&destroy_listener.link);
     }
 
-    WREI_DELETE_COPY_MOVE(wroc_wl_resource)
+    WREI_DELETE_COPY_MOVE(wroc_resource)
 
     operator wl_resource*() const { return resource; }
 };
 
-class wroc_wl_resource_list
+class wroc_resource_list
 {
     struct list_node
     {
@@ -167,7 +167,7 @@ class wroc_wl_resource_list
     };
 
 public:
-    wroc_wl_resource_list()
+    wroc_resource_list()
     {
         root.next = &root;
         root.prev = &root;
@@ -197,7 +197,7 @@ public:
         root.prev = &root;
     }
 
-    void take_and_append_all(wroc_wl_resource_list&& other)
+    void take_and_append_all(wroc_resource_list&& other)
     {
         if (other.root.next == &other.root) return;
 
@@ -226,12 +226,12 @@ public:
         return iterator{&root};
     }
 
-    ~wroc_wl_resource_list()
+    ~wroc_resource_list()
     {
         clear();
     }
 
-    WREI_DELETE_COPY_MOVE(wroc_wl_resource_list)
+    WREI_DELETE_COPY_MOVE(wroc_resource_list)
 };
 
 // -----------------------------------------------------------------------------

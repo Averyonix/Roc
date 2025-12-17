@@ -1,6 +1,6 @@
 #include "event.hpp"
 
-void wroc_begin_move_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* pointer, wroc_directions directions)
+void wroc_begin_move_interaction(wroc_toplevel* toplevel, wroc_pointer* pointer, wroc_directions directions)
 {
     auto* server = toplevel->surface->server;
     server->movesize.grabbed_toplevel = toplevel;
@@ -10,7 +10,7 @@ void wroc_begin_move_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* poin
     server->interaction_mode = wroc_interaction_mode::move;
 }
 
-void wroc_begin_resize_interaction(wroc_xdg_toplevel* toplevel, wroc_pointer* pointer, vec2i32 new_anchor_rel, wroc_directions directions)
+void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_pointer* pointer, vec2i32 new_anchor_rel, wroc_directions directions)
 {
     auto* server = toplevel->surface->server;
     server->movesize.grabbed_toplevel = toplevel;

@@ -42,7 +42,7 @@ struct wroc_output : wrei_object
     wroc_server* server;
 
     wl_global* global;
-    wroc_wl_resource_list resources;
+    wroc_resource_list resources;
 
     vec2i32 size;
 
@@ -71,11 +71,11 @@ void wroc_backend_output_destroy(wroc_output*);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_wl_region : wrei_object
+struct wroc_region : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     wrei_region region;
 };
@@ -132,7 +132,7 @@ struct wroc_surface_state
     wroc_surface_committed_state committed;
 
     ref<wroc_buffer> buffer;
-    wroc_wl_resource_list frame_callbacks;
+    wroc_resource_list frame_callbacks;
     vec2i32 delta;
     wrei_region input_region;
     f64 buffer_scale;
@@ -143,7 +143,7 @@ struct wroc_surface : wrei_object
 {
     wroc_server* server = {};
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     wroc_surface_state pending;
     wroc_surface_state cached;
@@ -209,7 +209,7 @@ struct wroc_subsurface : wroc_surface_addon
 {
     weak<wroc_surface> parent;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     wroc_subsurface_state pending;
     wroc_subsurface_state current;
@@ -220,12 +220,6 @@ struct wroc_subsurface : wroc_surface_addon
     virtual bool is_synchronized() final override;
 
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::subsurface; }
-
-    static
-    wroc_subsurface* try_from(wroc_surface* surface)
-    {
-        return surface ? dynamic_cast<wroc_subsurface*>(surface->role_addon.get()) : nullptr;
-    }
 };
 
 // -----------------------------------------------------------------------------
@@ -246,7 +240,7 @@ struct wrox_xdg_surface_state
 
 struct wroc_xdg_surface : wroc_surface_addon
 {
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
@@ -300,9 +294,9 @@ struct wroc_xdg_toplevel_state
     std::string app_id;
 };
 
-struct wroc_xdg_toplevel : wroc_xdg_shell_role_addon
+struct wroc_toplevel : wroc_xdg_shell_role_addon
 {
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     wroc_xdg_toplevel_state pending;
     wroc_xdg_toplevel_state current;
@@ -321,10 +315,10 @@ struct wroc_xdg_toplevel : wroc_xdg_shell_role_addon
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_toplevel; }
 };
 
-void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel*, vec2i32 bounds);
-void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel*, vec2i32 size);
-void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel*, xdg_toplevel_state, bool enabled);
-void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel*);
+void wroc_xdg_toplevel_set_bounds(wroc_toplevel*, vec2i32 bounds);
+void wroc_xdg_toplevel_set_size(wroc_toplevel*, vec2i32 size);
+void wroc_xdg_toplevel_set_state(wroc_toplevel*, xdg_toplevel_state, bool enabled);
+void wroc_xdg_toplevel_flush_configure(wroc_toplevel*);
 
 // -----------------------------------------------------------------------------
 
@@ -340,7 +334,7 @@ struct wroc_axis_overlaps
     i32 end;
 };
 
-struct wroc_xdg_positioner_rules
+struct wroc_positioner_rules
 {
     vec2i32 size;
     rect2i32 anchor_rect;
@@ -353,26 +347,26 @@ struct wroc_xdg_positioner_rules
     u32 parent_configure;
 };
 
-struct wroc_xdg_positioner : wrei_object
+struct wroc_positioner : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
-    wroc_xdg_positioner_rules rules;
+    wroc_positioner_rules rules;
 };
 
 // -----------------------------------------------------------------------------
 
-struct wroc_xdg_popup : wroc_xdg_shell_role_addon
+struct wroc_popup : wroc_xdg_shell_role_addon
 {
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
-    ref<wroc_xdg_positioner> positioner;
+    ref<wroc_positioner> positioner;
     std::optional<u32> reposition_token;
 
     weak<wroc_xdg_surface> parent;
-    weak<wroc_xdg_toplevel> root_toplevel;
+    weak<wroc_toplevel> root_toplevel;
     bool initial_configure_complete;
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
@@ -382,7 +376,7 @@ struct wroc_xdg_popup : wroc_xdg_shell_role_addon
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_wl_buffer_type : u32
+enum class wroc_buffer_type : u32
 {
     shm,
     dma,
@@ -392,9 +386,9 @@ struct wroc_buffer : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_buffer_type type;
+    wroc_buffer_type type;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     vec2u32 extent;
 
@@ -410,22 +404,22 @@ struct wroc_buffer : wrei_object
 
 // -----------------------------------------------------------------------------
 
-struct wroc_wl_shm_pool : wrei_object
+struct wroc_shm_pool : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     i32 size;
     int fd;
     void* data;
 
-    ~wroc_wl_shm_pool();
+    ~wroc_shm_pool();
 };
 
 struct wroc_shm_buffer : wroc_buffer
 {
-    ref<wroc_wl_shm_pool> pool;
+    ref<wroc_shm_pool> pool;
 
     i32 offset;
     i32 stride;
@@ -436,15 +430,15 @@ struct wroc_shm_buffer : wroc_buffer
 
 // -----------------------------------------------------------------------------
 
-struct wroc_zwp_linux_buffer_params : wrei_object
+struct wroc_dma_buffer_params : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     wren_dma_params params;
 
-    ~wroc_zwp_linux_buffer_params();
+    ~wroc_dma_buffer_params();
 };
 
 struct wroc_dma_buffer : wroc_buffer
@@ -463,7 +457,7 @@ struct wroc_seat : wrei_object
 
     std::string name;
 
-    wroc_wl_resource_list resources;
+    wroc_resource_list resources;
 };
 
 // -----------------------------------------------------------------------------
@@ -491,7 +485,7 @@ struct wroc_keyboard : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource_list resources;
+    wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
 
     struct xkb_context* xkb_context;
@@ -523,7 +517,7 @@ struct wroc_pointer : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource_list resources;
+    wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
 
     std::vector<u32> pressed = {};
@@ -546,7 +540,7 @@ struct wroc_data_source : wrei_object
     wl_data_device_manager_dnd_action dnd_actions;
     bool cancelled = false;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     ~wroc_data_source();
 };
@@ -555,7 +549,7 @@ struct wroc_data_offer : wrei_object
 {
     wroc_server* server;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     weak<wroc_data_source> source;
     weak<wroc_data_device> device;
@@ -571,7 +565,7 @@ struct wroc_data_device : wrei_object
     wroc_server* server;
     wroc_seat* seat;
 
-    wroc_wl_resource resource;
+    wroc_resource resource;
 
     ~wroc_data_device();
 };
@@ -690,7 +684,7 @@ struct wroc_server : wrei_object
     std::vector<wroc_output*>  outputs;
     std::vector<wroc_surface*> surfaces;
 
-    weak<wroc_xdg_toplevel> toplevel_under_cursor;
+    weak<wroc_toplevel> toplevel_under_cursor;
     weak<wroc_surface>      surface_under_cursor;
     weak<wroc_surface>      implicit_grab_surface;
 
@@ -700,7 +694,7 @@ struct wroc_server : wrei_object
     ref<wroc_cursor> cursor;
 
     struct {
-        weak<wroc_xdg_toplevel> grabbed_toplevel;
+        weak<wroc_toplevel> grabbed_toplevel;
         vec2f64 pointer_grab;
         vec2i32 surface_grab;
         wroc_directions directions;
@@ -728,5 +722,5 @@ wl_global* wroc_server_global(auto* server, const wl_interface* interface, i32 v
 u32 wroc_get_elapsed_milliseconds(wroc_server*);
 wroc_modifiers wroc_get_active_modifiers(wroc_server*);
 
-void wroc_begin_move_interaction(wroc_xdg_toplevel*, wroc_pointer*, wroc_directions);
-void wroc_begin_resize_interaction(wroc_xdg_toplevel*, wroc_pointer*, vec2i32 anchor_rel, wroc_directions);
+void wroc_begin_move_interaction(wroc_toplevel*, wroc_pointer*, wroc_directions);
+void wroc_begin_resize_interaction(wroc_toplevel*, wroc_pointer*, vec2i32 anchor_rel, wroc_directions);

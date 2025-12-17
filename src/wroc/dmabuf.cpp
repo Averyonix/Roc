@@ -9,13 +9,13 @@ void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 par
 {
     auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* params = wrei_get_registry(server)->create<wroc_zwp_linux_buffer_params>();
+    auto* params = wrei_get_registry(server)->create<wroc_dma_buffer_params>();
     params->server = server;
     params->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params);
 }
 
-wroc_zwp_linux_buffer_params::~wroc_zwp_linux_buffer_params()
+wroc_dma_buffer_params::~wroc_dma_buffer_params()
 {
     for (auto& plane : params.planes) {
         close(plane.fd);
@@ -57,7 +57,7 @@ void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u3
 {
     // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
 
-    auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(resource);
+    auto* params = wroc_get_userdata<wroc_dma_buffer_params>(resource);
     if (!params->params.planes.empty()) {
         log_error("Multiple plane formats not currently supported");
     }
@@ -92,12 +92,12 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
         return nullptr;
     }
 
-    auto* params = wroc_get_userdata<wroc_zwp_linux_buffer_params>(params_resource);
+    auto* params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
     auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = wrei_get_registry(params)->create<wroc_dma_buffer>();
     buffer->server = params->server;
     buffer->resource = new_resource;
-    buffer->type = wroc_wl_buffer_type::dma;
+    buffer->type = wroc_buffer_type::dma;
 
     wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, wroc_dmabuf_resource_destroy);
 
@@ -206,7 +206,7 @@ void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
 }
 
 static
-void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* feedback_resource)
+void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* resource)
 {
     wl_array dev_id = {
         .size = sizeof(server->renderer->wren->dev_id),
@@ -216,13 +216,13 @@ void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* feedback_resour
 
     auto& feedback = server->renderer->buffer_feedback;
 
-    zwp_linux_dmabuf_feedback_v1_send_main_device(feedback_resource, &dev_id);
-    zwp_linux_dmabuf_feedback_v1_send_format_table(feedback_resource, feedback.format_table, feedback.format_table_size);
+    zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &dev_id);
+    zwp_linux_dmabuf_feedback_v1_send_format_table(resource, feedback.format_table, feedback.format_table_size);
 
-    zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(feedback_resource, &dev_id);
-    zwp_linux_dmabuf_feedback_v1_send_tranche_flags(feedback_resource, 0);
-    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(feedback_resource, wrei_ptr_to(wroc_to_wl_array<u16>(feedback.tranche_formats)));
-    zwp_linux_dmabuf_feedback_v1_send_tranche_done(feedback_resource);
+    zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource, &dev_id);
+    zwp_linux_dmabuf_feedback_v1_send_tranche_flags(resource, 0);
+    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, wrei_ptr_to(wroc_to_wl_array<u16>(feedback.tranche_formats)));
+    zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
 }
 
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)

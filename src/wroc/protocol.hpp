@@ -60,6 +60,8 @@ void wroc_simple_resource_destroy_callback(wl_client* client, wl_resource* resou
     wl_resource_destroy(resource);
 }
 
+// -----------------------------------------------------------------------------
+
 extern const struct wl_compositor_interface wroc_wl_compositor_impl;
 extern const struct wl_region_interface     wroc_wl_region_impl;
 extern const struct wl_surface_interface    wroc_wl_surface_impl;
@@ -67,7 +69,7 @@ extern const struct wl_surface_interface    wroc_wl_surface_impl;
 extern const struct wl_subcompositor_interface wroc_wl_subcompositor_impl;
 extern const struct wl_subsurface_interface    wroc_wl_subsurface_impl;
 
-extern const struct wl_output_interface     wroc_wl_output_impl;
+extern const struct wl_output_interface wroc_wl_output_impl;
 
 extern const struct xdg_wm_base_interface    wroc_xdg_wm_base_impl;
 extern const struct xdg_surface_interface    wroc_xdg_surface_impl;
@@ -75,14 +77,14 @@ extern const struct xdg_toplevel_interface   wroc_xdg_toplevel_impl;
 extern const struct xdg_positioner_interface wroc_xdg_positioner_impl;
 extern const struct xdg_popup_interface      wroc_xdg_popup_impl;
 
-extern const struct wl_buffer_interface     wroc_wl_buffer_impl;
+extern const struct wl_buffer_interface wroc_wl_buffer_impl;
 
-extern const struct wl_shm_interface        wroc_wl_shm_impl;
-extern const struct wl_shm_pool_interface   wroc_wl_shm_pool_impl;
+extern const struct wl_shm_interface      wroc_wl_shm_impl;
+extern const struct wl_shm_pool_interface wroc_wl_shm_pool_impl;
 
-extern const struct wl_seat_interface       wroc_wl_seat_impl;
-extern const struct wl_keyboard_interface   wroc_wl_keyboard_impl;
-extern const struct wl_pointer_interface    wroc_wl_pointer_impl;
+extern const struct wl_seat_interface     wroc_wl_seat_impl;
+extern const struct wl_keyboard_interface wroc_wl_keyboard_impl;
+extern const struct wl_pointer_interface  wroc_wl_pointer_impl;
 
 extern const struct wl_data_device_manager_interface wroc_wl_data_device_manager_impl;
 extern const struct wl_data_offer_interface          wroc_wl_data_offer_impl;

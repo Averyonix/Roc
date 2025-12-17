@@ -10,7 +10,7 @@ void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, i
     auto* new_resource = wl_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* pool = wrei_get_registry(server)->create<wroc_wl_shm_pool>();
+    auto* pool = wrei_get_registry(server)->create<wroc_shm_pool>();
     pool->server = server;
     pool->resource = new_resource;
     pool->fd = fd;
@@ -44,7 +44,7 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
 static
 void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 format)
 {
-    auto* pool = wroc_get_userdata<wroc_wl_shm_pool>(resource);
+    auto* pool = wroc_get_userdata<wroc_shm_pool>(resource);
 
     i32 needed = stride * height + offset;
     if (needed > pool->size) {
@@ -57,7 +57,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     auto* shm_buffer = wrei_get_registry(pool)->create<wroc_shm_buffer>();
     shm_buffer->server = pool->server;
-    shm_buffer->type = wroc_wl_buffer_type::shm;
+    shm_buffer->type = wroc_buffer_type::shm;
     shm_buffer->resource = new_resource;
     shm_buffer->extent = {width, height};
 
@@ -81,7 +81,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 static
 void wroc_wl_shm_pool_resize(wl_client* client, wl_resource* resource, i32 size)
 {
-    auto* pool = wroc_get_userdata<wroc_wl_shm_pool>(resource);
+    auto* pool = wroc_get_userdata<wroc_shm_pool>(resource);
     munmap(pool->data, pool->size);
     pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
     pool->size = size;
@@ -96,7 +96,7 @@ const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
     .resize        = wroc_wl_shm_pool_resize,
 };
 
-wroc_wl_shm_pool::~wroc_wl_shm_pool()
+wroc_shm_pool::~wroc_shm_pool()
 {
     if (data) munmap(data, size);
     close(fd);

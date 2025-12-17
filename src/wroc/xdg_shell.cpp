@@ -40,7 +40,7 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
     auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
-    auto* xdg_toplevel = wrei_get_registry(xdg_surface)->create<wroc_xdg_toplevel>();
+    auto* xdg_toplevel = wrei_get_registry(xdg_surface)->create<wroc_toplevel>();
     xdg_toplevel->resource = new_resource;
     wroc_surface_put_addon(xdg_surface->surface.get(), xdg_toplevel);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel);
@@ -134,7 +134,7 @@ vec2i32 wroc_xdg_surface_get_position(wroc_xdg_surface* xdg_surface, rect2i32* p
 static
 void wroc_xdg_toplevel_set_title(wl_client* client, wl_resource* resource, const char* title)
 {
-    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     toplevel->pending.title = title ? std::string{title} : std::string{};
     toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::title;
 }
@@ -142,7 +142,7 @@ void wroc_xdg_toplevel_set_title(wl_client* client, wl_resource* resource, const
 static
 void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, const char* app_id)
 {
-    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     toplevel->pending.app_id = app_id ? std::string{app_id} : std::string{};
     toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::app_id;
 }
@@ -152,7 +152,7 @@ void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resourc
 {
     // TODO: Check serial
 
-    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
 
     // TODO: Use seat to select pointer
     auto* pointer = toplevel->surface->server->seat->pointer;
@@ -169,7 +169,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
 {
     // TODO: Check serial
 
-    auto* toplevel = wroc_get_userdata<wroc_xdg_toplevel>(resource);
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
 
     // TODO: Use seat to select pointer
     auto* pointer = toplevel->surface->server->seat->pointer;
@@ -196,7 +196,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
 }
 
 static
-void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
+void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
 {
     wroc_xdg_toplevel_set_size(toplevel, {0, 0});
     wroc_xdg_toplevel_set_state(toplevel, XDG_TOPLEVEL_STATE_ACTIVATED, true);
@@ -213,7 +213,7 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_xdg_toplevel* toplevel)
     xdg_surface_send_configure(toplevel->base()->resource, wl_display_next_serial(toplevel->surface->server->display));
 }
 
-void wroc_xdg_toplevel::on_commit(wroc_surface_commit_flags)
+void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 {
     if (!initial_configure_complete) {
         initial_configure_complete = true;
@@ -251,14 +251,14 @@ const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .set_minimized    = WROC_STUB,
 };
 
-void wroc_xdg_toplevel_set_size(wroc_xdg_toplevel* toplevel, vec2i32 size)
+void wroc_xdg_toplevel_set_size(wroc_toplevel* toplevel, vec2i32 size)
 {
     if (toplevel->size == size) return;
     toplevel->size = size;
     toplevel->pending_configure = wroc_xdg_toplevel_configure_state::size;
 }
 
-void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel* toplevel, vec2i32 bounds)
+void wroc_xdg_toplevel_set_bounds(wroc_toplevel* toplevel, vec2i32 bounds)
 {
     if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
         toplevel->bounds = bounds;
@@ -266,7 +266,7 @@ void wroc_xdg_toplevel_set_bounds(wroc_xdg_toplevel* toplevel, vec2i32 bounds)
     }
 }
 
-void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel* toplevel, xdg_toplevel_state state, bool enabled)
+void wroc_xdg_toplevel_set_state(wroc_toplevel* toplevel, xdg_toplevel_state state, bool enabled)
 {
     if (enabled) {
         if (std::ranges::find(toplevel->states, state) == toplevel->states.end()) {
@@ -278,7 +278,7 @@ void wroc_xdg_toplevel_set_state(wroc_xdg_toplevel* toplevel, xdg_toplevel_state
     }
 }
 
-void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
+void wroc_xdg_toplevel_flush_configure(wroc_toplevel* toplevel)
 {
     if (toplevel->pending_configure == wroc_xdg_toplevel_configure_state::none) return;
     if (toplevel->base()->sent_configure_serial > toplevel->base()->acked_configure_serial) {
@@ -298,7 +298,7 @@ void wroc_xdg_toplevel_flush_configure(wroc_xdg_toplevel* toplevel)
     toplevel->pending_configure = {};
 }
 
-void wroc_xdg_toplevel::on_ack_configure(u32 serial)
+void wroc_toplevel::on_ack_configure(u32 serial)
 {
     wroc_xdg_toplevel_flush_configure(this);
 }
@@ -310,7 +310,7 @@ void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource
     auto* new_resource = wl_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* positioner = wrei_get_registry(server)->create<wroc_xdg_positioner>();
+    auto* positioner = wrei_get_registry(server)->create<wroc_positioner>();
     positioner->resource = new_resource;
     positioner->server = server;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_positioner_impl, positioner);
@@ -319,55 +319,55 @@ void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource
 static
 void wroc_xdg_positioner_set_size(wl_client* client, wl_resource* resource, i32 width, i32 height)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.size = {width, height};
+    wroc_get_userdata<wroc_positioner>(resource)->rules.size = {width, height};
 }
 
 static
 void wroc_xdg_positioner_set_anchor_rect(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.anchor_rect = {{x, y}, {width, height}};
+    wroc_get_userdata<wroc_positioner>(resource)->rules.anchor_rect = {{x, y}, {width, height}};
 }
 
 static
 void wroc_xdg_positioner_set_anchor(wl_client* client, wl_resource* resource, u32 anchor)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.anchor = xdg_positioner_anchor(anchor);
+    wroc_get_userdata<wroc_positioner>(resource)->rules.anchor = xdg_positioner_anchor(anchor);
 }
 
 static
 void wroc_xdg_positioner_set_gravity(wl_client* client, wl_resource* resource, u32 gravity)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.gravity = xdg_positioner_gravity(gravity);
+    wroc_get_userdata<wroc_positioner>(resource)->rules.gravity = xdg_positioner_gravity(gravity);
 }
 
 static
 void wroc_xdg_positioner_set_constraint_adjustment(wl_client* client, wl_resource* resource, u32 constraint_adjustment)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.constraint_adjustment = xdg_positioner_constraint_adjustment(constraint_adjustment);
+    wroc_get_userdata<wroc_positioner>(resource)->rules.constraint_adjustment = xdg_positioner_constraint_adjustment(constraint_adjustment);
 }
 
 static
 void wroc_xdg_positioner_set_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.offset = {x, y};
+    wroc_get_userdata<wroc_positioner>(resource)->rules.offset = {x, y};
 }
 
 static
 void wroc_xdg_positioner_set_reactive(wl_client* client, wl_resource* resource)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.reactive = true;
+    wroc_get_userdata<wroc_positioner>(resource)->rules.reactive = true;
 }
 
 static
 void wroc_xdg_positioner_set_parent_size(wl_client* client, wl_resource* resource, i32 width, i32 height)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.parent_size = {width, height};
+    wroc_get_userdata<wroc_positioner>(resource)->rules.parent_size = {width, height};
 }
 
 static
 void wroc_xdg_positioner_set_parent_configure(wl_client* client, wl_resource* resource, u32 serial)
 {
-    wroc_get_userdata<wroc_xdg_positioner>(resource)->rules.parent_configure = serial;
+    wroc_get_userdata<wroc_positioner>(resource)->rules.parent_configure = serial;
 }
 
 const struct xdg_positioner_interface wroc_xdg_positioner_impl = {
@@ -526,7 +526,7 @@ wrei_vec<2, T> wroc_xdg_positioner_gravity_to_rel(xdg_positioner_gravity gravity
 }
 
 static
-void wroc_xdg_positioner_apply_axis_from_rules(const wroc_xdg_positioner_rules& rules, rect2i32 constraint, rect2i32& target, u32 axis)
+void wroc_xdg_positioner_apply_axis_from_rules(const wroc_positioner_rules& rules, rect2i32 constraint, rect2i32& target, u32 axis)
 {
     auto anchor = wroc_xdg_positioner_anchor_to_rel(rules.anchor, rules.anchor_rect.extent);
     auto gravity = wroc_xdg_positioner_gravity_to_rel(rules.gravity, rules.size);
@@ -556,7 +556,7 @@ void wroc_xdg_positioner_apply_axis_from_rules(const wroc_xdg_positioner_rules& 
 }
 
 static
-rect2i32 wroc_xdg_positioner_apply(const wroc_xdg_positioner_rules& rules, rect2i32 constraint)
+rect2i32 wroc_xdg_positioner_apply(const wroc_positioner_rules& rules, rect2i32 constraint)
 {
     rect2i32 target;
     wroc_xdg_positioner_apply_axis_from_rules(rules, constraint, target, 0);
@@ -571,17 +571,17 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
     auto* new_resource = wl_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* base = wroc_get_userdata<wroc_xdg_surface>(resource);
-    auto* popup = wrei_get_registry(base)->create<wroc_xdg_popup>();
+    auto* popup = wrei_get_registry(base)->create<wroc_popup>();
     popup->resource = new_resource;
     wroc_surface_put_addon(base->surface.get(), popup);
 
-    auto* xdg_positioner = wroc_get_userdata<wroc_xdg_positioner>(positioner);
+    auto* xdg_positioner = wroc_get_userdata<wroc_positioner>(positioner);
 
     popup->positioner = xdg_positioner;
     popup->parent = wroc_get_userdata<wroc_xdg_surface>(_parent);
-    if (wroc_xdg_toplevel* toplevel = wroc_surface_get_addon<wroc_xdg_toplevel>(popup->surface.get())) {
+    if (wroc_toplevel* toplevel = wroc_surface_get_addon<wroc_toplevel>(popup->surface.get())) {
         popup->root_toplevel = toplevel;
-    } else if (wroc_xdg_popup* parent_popup = wroc_surface_get_addon<wroc_xdg_popup>(popup->surface.get())) {
+    } else if (wroc_popup* parent_popup = wroc_surface_get_addon<wroc_popup>(popup->surface.get())) {
         popup->root_toplevel = parent_popup->root_toplevel;
     }
 
@@ -608,7 +608,7 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 }
 
 static
-void wroc_xdg_popup_position(wroc_xdg_popup* popup)
+void wroc_xdg_popup_position(wroc_popup* popup)
 {
     auto parent_origin = popup->parent->surface->position + wroc_xdg_surface_get_geometry(popup->parent.get()).origin;
 
@@ -635,7 +635,7 @@ void wroc_xdg_popup_position(wroc_xdg_popup* popup)
     xdg_surface_send_configure(base->resource, wl_display_next_serial(base->surface->server->display));
 }
 
-void wroc_xdg_popup::on_commit(wroc_surface_commit_flags)
+void wroc_popup::on_commit(wroc_surface_commit_flags)
 {
     if (!initial_configure_complete) {
         initial_configure_complete = true;
@@ -655,8 +655,8 @@ void wroc_xdg_popup_reposition(wl_client* client, wl_resource* resource, wl_reso
 {
     log_warn("xdg_popup::reposition(token = {})", token);
 
-    auto* popup = wroc_get_userdata<wroc_xdg_popup>(resource);
-    auto* positioner = wroc_get_userdata<wroc_xdg_positioner>(_positioner);
+    auto* popup = wroc_get_userdata<wroc_popup>(resource);
+    auto* positioner = wroc_get_userdata<wroc_positioner>(_positioner);
 
     popup->positioner = positioner;
     popup->reposition_token = token;

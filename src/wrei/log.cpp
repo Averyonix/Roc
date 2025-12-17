@@ -37,11 +37,11 @@ void wrei_log(wrei_log_level level, std::string_view message)
 
     switch (level) {
         case wrei_log_level::trace: fmt = { "[" WREI_VT_COLOR(90, "TRACE") "] " WREI_VT_COLOR(90, "{}") "\n", "[TRACE] {}\n" }; break;
-        case wrei_log_level::debug: fmt = { "[" WREI_VT_COLOR(96, "DEBUG") "] {}\n",                     "[DEBUG] {}\n" }; break;
-        case wrei_log_level::info:  fmt = { " [" WREI_VT_COLOR(94, "INFO") "] {}\n",                     " [INFO] {}\n" }; break;
-        case wrei_log_level::warn:  fmt = { " [" WREI_VT_COLOR(93, "WARN") "] {}\n",                     " [WARN] {}\n" }; break;
-        case wrei_log_level::error: fmt = { "[" WREI_VT_COLOR(91, "ERROR") "] {}\n",                     "[ERROR] {}\n" }; break;
-        case wrei_log_level::fatal: fmt = { "[" WREI_VT_COLOR(91, "FATAL") "] {}\n",                     "[FATAL] {}\n" }; break;
+        case wrei_log_level::debug: fmt = { "[" WREI_VT_COLOR(96, "DEBUG") "] {}\n",                          "[DEBUG] {}\n" }; break;
+        case wrei_log_level::info:  fmt = { " [" WREI_VT_COLOR(94, "INFO") "] {}\n",                          " [INFO] {}\n" }; break;
+        case wrei_log_level::warn:  fmt = { " [" WREI_VT_COLOR(93, "WARN") "] {}\n",                          " [WARN] {}\n" }; break;
+        case wrei_log_level::error: fmt = { "[" WREI_VT_COLOR(91, "ERROR") "] {}\n",                          "[ERROR] {}\n" }; break;
+        case wrei_log_level::fatal: fmt = { "[" WREI_VT_COLOR(91, "FATAL") "] {}\n",                          "[FATAL] {}\n" }; break;
     }
 
     std::cout << std::vformat(fmt.vt, std::make_format_args(message));

@@ -220,7 +220,7 @@ void wroc_render_frame(wroc_output* output)
                 // Draw self
                 draw(buffer->image.get(), pos, buffer->extent);
 
-            } else if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
+            } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
 
                 // Draw subsurface
                 draw_surface(s.get(), pos + subsurface->current.position);
@@ -295,7 +295,7 @@ void wroc_render_frame(wroc_output* output)
                 if (wroc_surface_point_accepts_input(s.get(), cursor_pos - vec2f64(surface_pos))) {
                     return s.get();
                 }
-            } else if (auto* subsurface = wroc_subsurface::try_from(s.get())) {
+            } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
                 if (auto* under = surface_accepts_input(s.get(), surface_pos + subsurface->current.position, cursor_pos)) {
                     return under;
                 }
@@ -308,7 +308,7 @@ void wroc_render_frame(wroc_output* output)
     output->server->surface_under_cursor = {};
     if (auto* pointer = output->server->seat->pointer) {
         for (auto* surface : output->server->surfaces | std::views::reverse) {
-            if (auto* toplevel = wroc_surface_get_addon<wroc_xdg_toplevel>(surface)) {
+            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
                 auto surface_pos = wroc_xdg_surface_get_position(toplevel->base());
                 if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
                     output->server->toplevel_under_cursor = toplevel;
@@ -316,7 +316,7 @@ void wroc_render_frame(wroc_output* output)
                     break;
                 }
             }
-            if (auto* popup = wroc_surface_get_addon<wroc_xdg_popup>(surface)) {
+            if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
                 auto surface_pos = wroc_xdg_surface_get_position(popup->base());
                 if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
                     output->server->toplevel_under_cursor = popup->root_toplevel;

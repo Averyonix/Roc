@@ -11,7 +11,7 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
     auto* new_resource = wl_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* region = wrei_get_registry(server)->create<wroc_wl_region>();
+    auto* region = wrei_get_registry(server)->create<wroc_region>();
     region->server = server;
     region->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_region_impl, region);
@@ -52,14 +52,14 @@ void wroc_wl_compositor_bind_global(wl_client* client, void* data, u32 version, 
 static
 void wroc_wl_region_add(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
-    auto* region = wroc_get_userdata<wroc_wl_region>(resource);
+    auto* region = wroc_get_userdata<wroc_region>(resource);
     region->region.add({{x, y}, {width, height}});
 }
 
 static
 void wroc_wl_region_subtract(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
-    auto* region = wroc_get_userdata<wroc_wl_region>(resource);
+    auto* region = wroc_get_userdata<wroc_region>(resource);
 
     region->region.subtract({{x, y}, {width, height}});
 }
@@ -105,7 +105,7 @@ static
 void wroc_wl_surface_set_input_region(wl_client* client, wl_resource* resource, wl_resource* input_region)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    auto* region = wroc_get_userdata<wroc_wl_region>(input_region);
+    auto* region = wroc_get_userdata<wroc_region>(input_region);
     if (region) {
         surface->pending.input_region = region->region;
     } else {
