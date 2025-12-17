@@ -579,10 +579,12 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 
     popup->positioner = xdg_positioner;
     popup->parent = wroc_get_userdata<wroc_xdg_surface>(_parent);
-    if (wroc_toplevel* toplevel = wroc_surface_get_addon<wroc_toplevel>(popup->surface.get())) {
-        popup->root_toplevel = toplevel;
-    } else if (wroc_popup* parent_popup = wroc_surface_get_addon<wroc_popup>(popup->surface.get())) {
-        popup->root_toplevel = parent_popup->root_toplevel;
+    if (popup->parent) {
+        if (wroc_toplevel* toplevel = wroc_surface_get_addon<wroc_toplevel>(popup->parent->surface.get())) {
+            popup->root_toplevel = toplevel;
+        } else if (wroc_popup* parent_popup = wroc_surface_get_addon<wroc_popup>(popup->parent->surface.get())) {
+            popup->root_toplevel = parent_popup->root_toplevel;
+        }
     }
 
     auto& rules = xdg_positioner->rules;

@@ -371,6 +371,7 @@ bool wroc_surface_put_addon(wroc_surface* surface, wroc_surface_addon* addon)
 
 wroc_surface_addon* wroc_surface_get_addon(wroc_surface* surface, const std::type_info& type)
 {
+    if (!surface) return nullptr;
     auto iter = std::ranges::find_if(surface->addons, [&](const auto& a) { return typeid(*a.get()) == type; });
     return iter == surface->addons.end() ? nullptr : iter->get();
 }
