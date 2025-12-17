@@ -255,10 +255,15 @@ struct wrei_region
 
     ~wrei_region();
 
+    void clear();
+
+    bool empty() const;
+
     void add(rect2i32);
     void subtract(rect2i32);
 
-    bool contains(vec2i32 point);
+    bool contains(vec2i32 point) const;
+    bool contains(rect2i32 rect) const;
 };
 
 // -----------------------------------------------------------------------------

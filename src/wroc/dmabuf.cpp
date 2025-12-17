@@ -85,7 +85,7 @@ void wroc_dmabuf_resource_destroy(wl_resource* resource)
 static
 wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* params_resource, u32 buffer_id, i32 width, i32 height, u32 drm_format, u32 flags)
 {
-    auto format = wren_find_format_from_drm(drm_format);
+    auto format = wren_format_from_drm(drm_format);
 
     if (!format) {
         wl_resource_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "Invalid format");
@@ -105,12 +105,10 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     params->params.extent = {width, height};
     params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
-    log_warn("dma buffer create, format = {} ({})", drm_format, format ? string_VkFormat(format->vk) : "??");
-
     buffer->extent = {width, height};
     buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), params->params);
 
-    log_warn("dma buffer created ({}, {}), format = {}", width, height, string_VkFormat(params->params.format->vk));
+    log_warn("dma buffer created ({}, {}), format = {}", width, height, format->name);
 
     return buffer;
 }
@@ -223,6 +221,8 @@ void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* resource)
     zwp_linux_dmabuf_feedback_v1_send_tranche_flags(resource, 0);
     zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, wrei_ptr_to(wroc_to_wl_array<u16>(feedback.tranche_formats)));
     zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
+
+    zwp_linux_dmabuf_feedback_v1_send_done(resource);
 }
 
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)

@@ -102,6 +102,19 @@ void wroc_wl_surface_frame(wl_client* client, wl_resource* resource, u32 callbac
 }
 
 static
+void wroc_wl_surface_set_opaque_region(wl_client* client, wl_resource* resource, wl_resource* opaque_region)
+{
+    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    auto* region = wroc_get_userdata<wroc_region>(opaque_region);
+    if (region) {
+        surface->pending.opaque_region = region->region;
+    } else {
+        surface->pending.opaque_region.clear();
+    }
+    surface->pending.committed |= wroc_surface_committed_state::opaque_region;
+}
+
+static
 void wroc_wl_surface_set_input_region(wl_client* client, wl_resource* resource, wl_resource* input_region)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
@@ -161,6 +174,12 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
         }
 
         from.buffer = nullptr;
+    }
+
+    // Update opaque region
+
+    if (from.committed >= wroc_surface_committed_state::opaque_region) {
+        to.opaque_region = std::move(from.opaque_region);
     }
 
     // Update input region
@@ -265,7 +284,7 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
     .attach               = wroc_wl_surface_attach,
     .damage               = WROC_STUB,
     .frame                = wroc_wl_surface_frame,
-    .set_opaque_region    = WROC_STUB,
+    .set_opaque_region    = wroc_wl_surface_set_opaque_region,
     .set_input_region     = wroc_wl_surface_set_input_region,
     .commit               = wroc_wl_surface_commit,
     .set_buffer_transform = WROC_STUB,

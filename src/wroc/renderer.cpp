@@ -14,12 +14,15 @@ static
 constexpr u32 wroc_max_rects = 65'536;
 
 static
-VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<const u32> spirv, const char* vertex_entry,  const char* fragment_entry)
+VkPipeline wroc_renderer_create_pipeline(
+    wroc_renderer* renderer,
+    std::span<const u32> spirv,
+    const char* vertex_entry,  const char* fragment_entry)
 {
     auto* wren = renderer->wren.get();
     auto& vk = wren->vk;
 
-    constexpr static bool premultiplied_alpha = true;
+    static constexpr bool premultiplied = true;
 
     VkPipeline pipeline = {};
     wren_check(vk.CreateGraphicsPipelines(wren->device, nullptr, 1, wrei_ptr_to(VkGraphicsPipelineCreateInfo {
@@ -27,7 +30,7 @@ VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<cons
         .pNext = wrei_ptr_to(VkPipelineRenderingCreateInfo {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
             .colorAttachmentCount = 1,
-            .pColorAttachmentFormats = wrei_ptr_to(renderer->output_format),
+            .pColorAttachmentFormats = &renderer->output_format->vk,
         }),
         .stageCount = 2,
         .pStages = std::array {
@@ -82,7 +85,7 @@ VkPipeline wroc_renderer_create_pipeline(wroc_renderer* renderer, std::span<cons
             .attachmentCount = 1,
             .pAttachments = wrei_ptr_to(VkPipelineColorBlendAttachmentState {
                 .blendEnable = true,
-                .srcColorBlendFactor = premultiplied_alpha
+                .srcColorBlendFactor = premultiplied
                     ? VK_BLEND_FACTOR_ONE
                     : VK_BLEND_FACTOR_SRC_ALPHA,
                 .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -130,7 +133,7 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->background = wren_image_create(renderer->wren.get(), {w, h}, VK_FORMAT_R8G8B8A8_UNORM);
+    renderer->background = wren_image_create(renderer->wren.get(), {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
     wren_image_update(renderer->background.get(), data);
 
     renderer->sampler = wren_sampler_create(renderer->wren.get());
@@ -199,7 +202,9 @@ void wroc_render_frame(wroc_output* output)
         renderer->rects[rect_id++] = wroc_shader_rect {
             .image = image4f32{image, renderer->sampler.get()},
             .image_rect = { {}, image->extent },
+            .image_has_alpha = image->format->has_alpha,
             .rect = { offset, extent },
+            .opacity = 1.f,
         };
     };
 

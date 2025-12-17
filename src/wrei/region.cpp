@@ -49,6 +49,16 @@ wrei_region::~wrei_region()
     pixman_region32_fini(&region);
 }
 
+void wrei_region::clear()
+{
+    pixman_region32_clear(&region);
+}
+
+bool wrei_region::empty() const
+{
+    return pixman_region32_empty(&region);
+}
+
 void wrei_region::add(rect2i32 rect)
 {
     pixman_region32_union_rect(&region, &region, rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
@@ -68,8 +78,21 @@ void wrei_region::subtract(rect2i32 rect)
     pixman_region32_fini(&subtrahend);
 }
 
-bool wrei_region::contains(vec2i32 point)
+bool wrei_region::contains(vec2i32 point) const
 {
     pixman_box32_t box;
     return pixman_region32_contains_point(&region, point.x, point.y, &box);
+}
+
+bool wrei_region::contains(rect2i32 rect) const
+{
+    pixman_box32 box{
+        .x1 = rect.origin.x,
+        .y1 = rect.origin.y,
+        .x2 = rect.origin.x + rect.extent.x,
+        .y2 = rect.origin.y + rect.extent.y,
+    };
+    auto overlap = pixman_region32_contains_rectangle(&region, &box);
+
+    return overlap == PIXMAN_REGION_IN;
 }

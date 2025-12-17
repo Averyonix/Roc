@@ -14,10 +14,11 @@ const struct wl_output_interface wroc_wl_output_impl = {
 static
 void wroc_output_init_swapchain(wroc_output* output)
 {
-    auto* wren = output->server->renderer->wren.get();
+    auto* renderer = output->server->renderer.get();
+    auto* wren = renderer->wren.get();
 
     log_debug("Creating vulkan swapchain");
-    wren_check(vkwsi_swapchain_create(&output->swapchain, output->server->renderer->wren->vkwsi, output->vk_surface));
+    wren_check(vkwsi_swapchain_create(&output->swapchain, renderer->wren->vkwsi, output->vk_surface));
 
     wren_check(wren->vk.CreateSemaphore(wren->device, wrei_ptr_to(VkSemaphoreCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -35,7 +36,7 @@ void wroc_output_init_swapchain(wroc_output* output)
         // TODO: We need to handle selection of format between outputs and render pipelines
         // if (f.format == VK_FORMAT_R8G8B8A8_SRGB || f.format == VK_FORMAT_B8G8R8A8_SRGB) {
         // if (f.format == VK_FORMAT_R8G8B8A8_UNORM || f.format == VK_FORMAT_B8G8R8A8_UNORM) {
-        if (f.format == output->server->renderer->output_format) {
+        if (f.format == renderer->output_format->vk) {
             output->format = f;
             found = true;
             break;

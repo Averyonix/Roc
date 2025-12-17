@@ -2,6 +2,10 @@
 
 #include "pch.hpp"
 
+static_assert(std::endian::native == std::endian::little);
+
+// -----------------------------------------------------------------------------
+
 using u64 = uint64_t;
 using u32 = uint32_t;
 using u16 = uint16_t;

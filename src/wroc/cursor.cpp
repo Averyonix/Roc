@@ -58,7 +58,7 @@ void wroc_cursor_create(wroc_server* server)
     XcursorImage* image = XcursorLibraryLoadImage("default", theme, 24);
     log_info("  size ({}, {}) hot ({}, {})", image->width, image->height, image->xhot, image->yhot);
 
-    cursor->fallback.image = wren_image_create(server->renderer->wren.get(), {image->width, image->height}, VK_FORMAT_R8G8B8A8_UNORM);
+    cursor->fallback.image = wren_image_create(server->renderer->wren.get(), {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
     wren_image_update(cursor->fallback.image.get(), image->pixels);
 
     cursor->fallback.hotspot = {image->xhot, image->yhot};

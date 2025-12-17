@@ -2,8 +2,36 @@
 
 #include "wrei/util.hpp"
 
-// We only support little endian architectures
-static_assert(std::endian::native == std::endian::little);
+//
+// Formats are taken from wlroots
+// To simply things we only support little endian architectures
+//
+
+static constexpr u32 wren_opaque_drm_formats[] {
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_RGBX8888,
+	DRM_FORMAT_BGRX8888,
+	DRM_FORMAT_R8,
+	DRM_FORMAT_GR88,
+	DRM_FORMAT_RGB888,
+	DRM_FORMAT_BGR888,
+	DRM_FORMAT_RGBX4444,
+	DRM_FORMAT_BGRX4444,
+	DRM_FORMAT_RGBX5551,
+	DRM_FORMAT_BGRX5551,
+	DRM_FORMAT_XRGB1555,
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_BGR565,
+	DRM_FORMAT_XRGB2101010,
+	DRM_FORMAT_XBGR2101010,
+	DRM_FORMAT_XBGR16161616F,
+	DRM_FORMAT_XBGR16161616,
+	DRM_FORMAT_YVYU,
+	DRM_FORMAT_VYUY,
+	DRM_FORMAT_NV12,
+	DRM_FORMAT_P010,
+};
 
 struct wren_format_t_create_params
 {
@@ -13,13 +41,13 @@ struct wren_format_t_create_params
     bool is_ycbcr;
 };
 
-#define WROC_FORMAT wren_format_t_create_params
-
 constexpr wren_format_t::wren_format_t(const wren_format_t_create_params& params)
-    : drm(params.drm)
+    : name(drmGetFormatName(params.drm))
+    , drm(params.drm)
     , vk(params.vk)
     , vk_srgb(params.vk_srgb)
     , is_ycbcr(params.is_ycbcr)
+    , has_alpha(!std::ranges::contains(wren_opaque_drm_formats, params.drm))
 {
     switch (drm) {
         break;case DRM_FORMAT_XRGB8888:
@@ -31,8 +59,9 @@ constexpr wren_format_t::wren_format_t(const wren_format_t_create_params& params
     }
 }
 
-// format list courtesy of wlroots pixel_format.c
-static constexpr wren_format_t formats[] {
+#define WROC_FORMAT wren_format_t_create_params
+
+static const wren_format_t wren_formats[] {
 
     // Vulkan non-packed 8-bits-per-channel formats have an inverted channel
     // order compared to the DRM formats, because DRM format channel order
@@ -274,30 +303,25 @@ static constexpr VkFormatFeatureFlags wren_ycbcr_texture_features
 
 std::span<const wren_format_t> wren_get_formats()
 {
-    return formats;
+    return wren_formats;
 }
 
 template<typename T>
 wren_format wren_find_format(T needle, auto... members)
 {
-    for (auto& format : formats) {
+    for (auto& format : wren_formats) {
         if (((format.*members == needle) || ...)) return &format;
     }
 
     return nullptr;
 }
 
-wren_format wren_find_format_from_vulkan(VkFormat vk_format)
-{
-    return wren_find_format(vk_format, &wren_format_t::vk, &wren_format_t::vk_srgb);
-}
-
-wren_format wren_find_format_from_drm(u32 drm_format)
+wren_format wren_format_from_drm(u32 drm_format)
 {
     return wren_find_format(drm_format, &wren_format_t::drm);
 }
 
-wren_format wren_find_format_from_shm(wl_shm_format shm_format)
+wren_format wren_format_from_shm(wl_shm_format shm_format)
 {
     return wren_find_format(shm_format, &wren_format_t::shm);
 }
@@ -500,7 +524,7 @@ void wren_register_format(wren_context* ctx, wren_format format)
         if (!out_props.dmabuf.texture_mods.empty()) add(std::format("texture({})", out_props.dmabuf.texture_mods.size()));
 
         if (register_props) {
-            log_debug("Format {:4}{} -> {}", drmGetFormatName(format->drm), format->is_ycbcr ? " (YCbCr)" : "", supported);
+            log_debug("Format {:4}{} -> {}", format->name, format->is_ycbcr ? " (YCbCr)" : "", supported);
         }
     }
 
@@ -523,6 +547,7 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
     image->ctx = ctx;
 
     image->extent = params.extent;
+    image->format = params.format;
 
     VkExternalMemoryHandleTypeFlagBits htype = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 

@@ -94,17 +94,18 @@ wren_buffer::~wren_buffer()
 
 // -----------------------------------------------------------------------------
 
-ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, VkFormat format)
+ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format format)
 {
     auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
     image->ctx = ctx;
 
     image->extent = extent;
+    image->format = format;
 
     wren_check(vmaCreateImage(ctx->vma, wrei_ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
-        .format = format,
+        .format = format->vk,
         .extent = {extent.x, extent.y, 1},
         .mipLevels = 1,
         .arrayLayers = 1,
@@ -121,7 +122,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, VkFormat fo
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
+        .format = format->vk,
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
 

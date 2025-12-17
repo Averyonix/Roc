@@ -121,9 +121,10 @@ enum class wroc_surface_committed_state : u32
     none,
     buffer        = 1 << 0,
     offset        = 1 << 1,
-    input_region  = 1 << 2,
-    buffer_scale  = 1 << 3,
-    surface_stack = 1 << 4,
+    opaque_region = 1 << 2,
+    input_region  = 1 << 3,
+    buffer_scale  = 1 << 4,
+    surface_stack = 1 << 5,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
 
@@ -134,6 +135,7 @@ struct wroc_surface_state
     ref<wroc_buffer> buffer;
     wroc_resource_list frame_callbacks;
     vec2i32 delta;
+    wrei_region opaque_region;
     wrei_region input_region;
     f64 buffer_scale;
     std::vector<weak<wroc_surface>> surface_stack;
@@ -636,7 +638,7 @@ struct wroc_renderer : wrei_object
 
     wroc_render_options options;
 
-    VkFormat output_format = VK_FORMAT_B8G8R8A8_UNORM;
+    wren_format output_format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
 
     VkPipeline pipeline;
 

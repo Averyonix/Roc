@@ -35,6 +35,10 @@ vec4f32 fragment(in VertexOutput vout)
 
     vec2f32 uv = vout.tex / rect.image.get_dimensions();
     vec4f32 color = rect.image.sample(uv);
+
+    if (rect.image_has_alpha == 0) color.w = 1;
+    if (rect.opacity < 1.0) color *= rect.opacity;
+
     // if (color.w < 1) discard;
     return color;
 }

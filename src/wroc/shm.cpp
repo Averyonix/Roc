@@ -63,7 +63,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     shm_buffer->pool = pool;
     shm_buffer->stride = stride;
-    shm_buffer->format = wren_find_format_from_shm(wl_shm_format(format));
+    shm_buffer->format = wren_format_from_shm(wl_shm_format(format));
     shm_buffer->offset = offset;
 
     if (!shm_buffer->format) {
@@ -73,9 +73,9 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
-    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {width, height}, shm_buffer->format->vk);
+    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {width, height}, shm_buffer->format);
 
-    log_warn("shm buffer created ({}, {}), format = {}", width, height, string_VkFormat(shm_buffer->format->vk));
+    log_warn("shm buffer created ({}, {}), format = {}", width, height, shm_buffer->format->name);
 }
 
 static

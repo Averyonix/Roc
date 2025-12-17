@@ -24,11 +24,13 @@ struct wren_descriptor_id_allocator
 
 struct wren_format_t
 {
+    const char* name;
     u32 drm;
     VkFormat vk;
     VkFormat vk_srgb;
     wl_shm_format shm;
     bool is_ycbcr;
+    bool has_alpha;
 
     // NOTE: These are singleton objects per supported format
     //       so we delete copy/move and protect construction
@@ -61,9 +63,8 @@ struct wren_format_props
 };
 
 std::span<const wren_format_t> wren_get_formats();
-wren_format wren_find_format_from_vulkan(VkFormat);
-wren_format wren_find_format_from_drm(u32 drm_format);
-wren_format wren_find_format_from_shm(wl_shm_format);
+wren_format wren_format_from_drm(u32 drm_format);
+wren_format wren_format_from_shm(wl_shm_format);
 
 struct wren_format_set
 {
@@ -212,6 +213,8 @@ struct wren_image : wrei_object
 
     std::unique_ptr<struct wren_dma_params> dma_params;
 
+    wren_format format;
+
     VkImage image;
     VkImageView view;
     VkDeviceMemory memory;
@@ -223,7 +226,7 @@ struct wren_image : wrei_object
     ~wren_image();
 };
 
-ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, VkFormat format);
+ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format format);
 void wren_image_update(wren_image*, const void* data);
 void wren_image_wait(wren_image*);
 
