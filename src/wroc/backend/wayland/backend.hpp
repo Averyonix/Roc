@@ -4,6 +4,8 @@
 
 // -----------------------------------------------------------------------------
 
+struct wroc_wayland_backend;
+
 struct wroc_wayland_output : wroc_output
 {
     struct wl_surface* wl_surface = {};
@@ -33,7 +35,7 @@ struct wroc_wayland_pointer : wroc_pointer
     ~wroc_wayland_pointer();
 };
 
-struct wroc_backend : wrei_object
+struct wroc_wayland_backend : wroc_backend
 {
     wroc_server* server = {};
 
@@ -51,9 +53,16 @@ struct wroc_backend : wrei_object
     ref<wroc_wayland_pointer>  pointer = {};
 
     wl_event_source* event_source = {};
+
+    virtual void create_output() final override;
+    virtual void destroy_output(wroc_output*) final override;
+
+    ~wroc_wayland_backend();
 };
 
-wroc_wayland_output* wroc_backend_find_output_for_surface(wroc_backend*, wl_surface*);
+void wroc_wayland_backend_init(wroc_server*);
+
+wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_backend*, wl_surface*);
 
 extern const xdg_surface_listener wroc_xdg_surface_listener;
 extern const xdg_wm_base_listener wroc_xdg_wm_base_listener;

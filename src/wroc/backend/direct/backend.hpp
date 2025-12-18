@@ -1,0 +1,60 @@
+#pragma once
+
+#include "wroc/server.hpp"
+
+// -----------------------------------------------------------------------------
+
+struct wroc_direct_backend;
+
+struct wroc_drm_output : wroc_output
+{
+    wl_event_source* timer;
+
+    ~wroc_drm_output();
+};
+
+struct wroc_libinput_keyboard : wroc_keyboard
+{
+    struct wl_keyboard* wl_keyboard = {};
+
+    ~wroc_libinput_keyboard();
+};
+
+struct wroc_libinput_pointer : wroc_pointer
+{
+    struct wl_pointer* wl_pointer = {};
+    u32 last_serial = {};
+
+    wroc_drm_output* current_output = {};
+
+    ~wroc_libinput_pointer();
+};
+
+struct wroc_direct_backend : wroc_backend
+{
+    wroc_server* server = {};
+
+    struct libseat* seat;
+    struct udev* udev;
+    struct libinput* libinput;
+
+    std::vector<ref<wroc_drm_output>> outputs;
+
+    ref<wroc_libinput_keyboard> keyboard = {};
+    ref<wroc_libinput_pointer>  pointer = {};
+
+    wl_event_source* libseat_event_source = {};
+    wl_event_source* libinput_event_source = {};
+
+    virtual void create_output() final override;
+    virtual void destroy_output(wroc_output*) final override;
+
+    ~wroc_direct_backend();
+};
+
+void wroc_direct_backend_init(wroc_server*);
+
+void wroc_backend_init_libinput(wroc_direct_backend*);
+void wroc_backend_deinit_libinput(wroc_direct_backend*);
+
+void wroc_backend_init_drm(wroc_direct_backend*);

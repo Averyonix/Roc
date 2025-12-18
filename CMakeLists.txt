@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.0)
 
-project(${PROJECT_NAME})
+project(wroc)
 
 # ------------------------------------------------------------------------------
 
@@ -72,83 +72,52 @@ target_include_directories(luajit INTERFACE ${VENDOR_DIR}/luajit/src)
 
 # ------------------------------------------------------------------------------
 
-add_executable(            ${PROJECT_NAME})
-target_precompile_headers( ${PROJECT_NAME} PUBLIC src/wrei/pch.hpp)
-target_compile_definitions(${PROJECT_NAME} PUBLIC "PROGRAM_NAME=\"${PROJECT_NAME}\"")
-target_compile_options(    ${PROJECT_NAME} PRIVATE
-    -std=c++26
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Werror
-    -Wno-sometimes-uninitialized
-    -Wno-missing-designated-field-initializers
-    -Wno-missing-field-initializers
-    -Wno-unknown-pragmas
-    -Wno-gnu-conditional-omitted-operand
-    -Wno-zero-length-array
-    -Wno-unused-parameter
-    -Wno-nested-anon-types
-    -Wno-c23-extensions
-    -Wimplicit-fallthrough
+function(init_target target_name)
+    target_compile_options(${target_name} PRIVATE
+        -std=c++26
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+        -Wno-sometimes-uninitialized
+        -Wno-missing-designated-field-initializers
+        -Wno-missing-field-initializers
+        -Wno-unknown-pragmas
+        -Wno-gnu-conditional-omitted-operand
+        -Wno-zero-length-array
+        -Wno-unused-parameter
+        -Wno-nested-anon-types
+        -Wno-c23-extensions
+        -Wimplicit-fallthrough
 
-    # -Wno-unused-const-variable
-    # -Wno-unused-function
+        # -Wno-unused-const-variable
+        # -Wno-unused-function
 
-    -Wshadow
-    )
-if(USE_ASAN)
-    target_compile_options(${PROJECT_NAME} PUBLIC -fsanitize=address)
-endif()
-target_include_directories(${PROJECT_NAME} PUBLIC
-    src
-    .build/shaders/include
-    /usr/include/drm
-    )
-target_sources(            ${PROJECT_NAME} PUBLIC
-    src/main.cpp
+        -Wshadow
+        )
+    if(USE_ASAN)
+        target_compile_options(${target_name} PUBLIC -fsanitize=address)
+        target_link_libraries(${target_name} PUBLIC asan)
+    endif()
+endfunction()
 
+# ------------------------------------------------------------------------------
+
+add_library(wrei)
+init_target(wrei)
+target_precompile_headers(wrei PUBLIC src/wrei/pch.hpp)
+target_compile_definitions(wrei PUBLIC "PROGRAM_NAME=\"wroc\"")
+target_sources(wrei PUBLIC
     src/wrei/log.cpp
     src/wrei/shm.cpp
     src/wrei/region.cpp
     src/wrei/chrono.cpp
-
-    src/wroc/client.cpp
-    src/wroc/server.cpp
-    src/wroc/event.cpp
-    src/wroc/output.cpp
-    src/wroc/keyboard.cpp
-    src/wroc/pointer.cpp
-    src/wroc/renderer.cpp
-    src/wroc/buffer.cpp
-    src/wroc/dmabuf.cpp
-    src/wroc/seat.cpp
-    src/wroc/shm.cpp
-    src/wroc/surface.cpp
-    src/wroc/subsurface.cpp
-    src/wroc/interaction.cpp
-    src/wroc/gestures.cpp
-    src/wroc/xdg_shell.cpp
-    src/wroc/data.cpp
-    src/wroc/cursor.cpp
-
-    .build/shaders/src/wroc_shaders.cpp
-
-    src/wroc/backend/wayland/wayland.cpp
-    src/wroc/backend/wayland/seat.cpp
-    src/wroc/backend/wayland/output.cpp
-
-    src/wren/wren.cpp
-    src/wren/wren_init.cpp
-    src/wren/wren_functions.cpp
-    src/wren/wren_resources.cpp
-    src/wren/wren_descriptors.cpp
-    src/wren/wren_format.cpp
     )
-if(USE_ASAN)
-    target_link_libraries(${PROJECT_NAME} PUBLIC asan)
-endif()
-target_link_libraries(${PROJECT_NAME} PUBLIC
+target_include_directories(wrei PUBLIC
+    src
+    /usr/include/drm
+    )
+target_link_libraries(wrei PUBLIC
     wayland-server
     wayland-client
     wayland-header
@@ -170,6 +139,67 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     unordered_dense::unordered_dense
     Xcursor
     drm
+    udev
+    seat
     )
+
+# ------------------------------------------------------------------------------
+
+add_library(wren)
+init_target(wren)
+target_sources(wren PUBLIC
+    .build/shaders/src/wroc_shaders.cpp
+    src/wren/wren.cpp
+    src/wren/wren_init.cpp
+    src/wren/wren_functions.cpp
+    src/wren/wren_resources.cpp
+    src/wren/wren_descriptors.cpp
+    src/wren/wren_format.cpp
+    )
+target_include_directories(wren PUBLIC
+    src
+    .build/shaders/include
+    )
+target_link_libraries(wren PUBLIC wrei)
+
+# ------------------------------------------------------------------------------
+
+add_executable(wroc)
+init_target(wroc)
+target_sources(wroc PUBLIC
+    src/wroc/client.cpp
+    src/wroc/server.cpp
+    src/wroc/event.cpp
+    src/wroc/output.cpp
+    src/wroc/keyboard.cpp
+    src/wroc/pointer.cpp
+    src/wroc/renderer.cpp
+    src/wroc/buffer.cpp
+    src/wroc/dmabuf.cpp
+    src/wroc/seat.cpp
+    src/wroc/shm.cpp
+    src/wroc/surface.cpp
+    src/wroc/subsurface.cpp
+    src/wroc/interaction.cpp
+    src/wroc/gestures.cpp
+    src/wroc/xdg_shell.cpp
+    src/wroc/data.cpp
+    src/wroc/cursor.cpp
+
+    src/main.cpp
+
+    src/wroc/backend/backend.cpp
+
+    src/wroc/backend/wayland/wayland.cpp
+    src/wroc/backend/wayland/seat.cpp
+    src/wroc/backend/wayland/output.cpp
+
+    src/wroc/backend/direct/backend.cpp
+    src/wroc/backend/direct/output.cpp
+    src/wroc/backend/direct/input.cpp
+    )
+target_link_libraries(wroc PUBLIC wren wrei)
+
+# ------------------------------------------------------------------------------
 
 add_subdirectory(test)

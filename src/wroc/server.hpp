@@ -23,10 +23,21 @@ struct wren_renderer;
 
 // -----------------------------------------------------------------------------
 
-struct wroc_backend;
+struct wroc_output;
 
-void wroc_backend_init(wroc_server*);
-void wroc_backend_destroy(wroc_backend*);
+struct wroc_backend : wrei_object
+{
+    virtual void create_output() = 0;
+    virtual void destroy_output(wroc_output*) = 0;
+};
+
+enum struct wroc_backend_type
+{
+    wayland,
+    direct,
+};
+
+void wroc_backend_init(wroc_server*, wroc_backend_type);
 
 // -----------------------------------------------------------------------------
 
@@ -65,9 +76,6 @@ struct wroc_output : wrei_object
 };
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
-
-void wroc_backend_output_create(wroc_backend*);
-void wroc_backend_output_destroy(wroc_output*);
 
 // -----------------------------------------------------------------------------
 
@@ -674,7 +682,7 @@ WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
 struct wroc_server : wrei_object
 {
-    wroc_backend*      backend;
+    ref<wroc_backend>  backend;
     ref<wroc_renderer> renderer;
     ref<wroc_seat>     seat;
 

@@ -19,10 +19,6 @@ args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
 
-program_name = "wroc"
-
-# -----------------------------------------------------------------------------
-
 def ensure_dir(path: Path | str) -> Path:
     os.makedirs(path, exist_ok=True)
     return Path(path)
@@ -284,7 +280,6 @@ if ((args.build or args.install) and not cmake_dir.exists()) or args.configure:
     cmd  = ["cmake", "--fresh", "-B", cmake_dir, "-G", "Ninja", f"-DVENDOR_DIR={vendor_dir}", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
     cmd += [f"-DCMAKE_C_COMPILER={c_compiler}", f"-DCMAKE_CXX_COMPILER={cxx_compiler}", f"-DCMAKE_LINKER_TYPE={linker_type}"]
     cmd += [f"-DCMAKE_BUILD_TYPE={build_type}"]
-    cmd += [f"-DPROJECT_NAME={program_name}"]
     if args.asan:
         cmd += ["-DUSE_ASAN=1"]
 
@@ -308,5 +303,8 @@ if args.install:
     local_bin_dir  = ensure_dir(os.path.expanduser("~/.local/bin"))
     xdg_portal_dir = ensure_dir(os.path.expanduser("~/.config/xdg-desktop-portal"))
 
-    install_file(cmake_dir / program_name, local_bin_dir / program_name)
-    install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")
+    def install_for(program_name):
+        install_file(cmake_dir / program_name, local_bin_dir / program_name)
+        # install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")
+
+    install_for("wroc")

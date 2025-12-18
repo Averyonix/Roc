@@ -29,7 +29,7 @@ std::vector<std::string> wroc_cursor_list_themes()
 
 void wroc_cursor_create(wroc_server* server)
 {
-    server->cursor = wrei_get_registry(server)->create<wroc_cursor>();
+    server->cursor = wrei_adopt_ref(wrei_get_registry(server)->create<wroc_cursor>());
     auto cursor = server->cursor.get();
     cursor->server = server;
 
@@ -56,6 +56,9 @@ void wroc_cursor_create(wroc_server* server)
     }
 
     XcursorImage* image = XcursorLibraryLoadImage("default", theme, 24);
+    defer {
+        XcursorImageDestroy(image);
+    };
     log_info("  size ({}, {}) hot ({}, {})", image->width, image->height, image->xhot, image->yhot);
 
     cursor->fallback.image = wren_image_create(server->renderer->wren.get(), {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888));

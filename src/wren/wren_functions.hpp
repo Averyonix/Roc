@@ -18,6 +18,12 @@
     DO(GetPhysicalDeviceFormatProperties2) \
     DO(CreateWaylandSurfaceKHR) \
     DO(GetPhysicalDeviceImageFormatProperties2) \
+    DO(GetPhysicalDeviceDisplayPropertiesKHR) \
+    DO(GetDisplayModePropertiesKHR) \
+    DO(GetPhysicalDeviceDisplayPlanePropertiesKHR) \
+    DO(GetDisplayPlaneSupportedDisplaysKHR) \
+    DO(GetDisplayPlaneCapabilitiesKHR) \
+    DO(CreateDisplayPlaneSurfaceKHR) \
 
 #define WREN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \

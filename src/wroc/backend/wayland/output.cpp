@@ -7,7 +7,7 @@
 
 #include "wroc/event.hpp"
 
-wroc_wayland_output* wroc_backend_find_output_for_surface(wroc_backend* backend, wl_surface* surface)
+wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_backend* backend, wl_surface* surface)
 {
     for (auto& output : backend->outputs) {
         if (output->wl_surface == surface) return output.get();
@@ -110,7 +110,7 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
     if (!output->vk_surface) {
         log_debug("Creating vulkan surface");
 
-        auto* backend = output->server->backend;
+        auto* backend = dynamic_cast<wroc_wayland_backend*>(output->server->backend.get());
         auto* wren = output->server->renderer->wren.get();
 
         wren_check(wren->vk.CreateWaylandSurfaceKHR(wren->instance, wrei_ptr_to(VkWaylandSurfaceCreateInfoKHR {
@@ -140,9 +140,10 @@ void wroc_listen_toplevel_close(void* data, xdg_toplevel*)
 
     auto* server = output->server;
 
-    wroc_backend_output_destroy(output);
+    auto* backend = static_cast<wroc_wayland_backend*>(output->server->backend.get());
+    backend->destroy_output(output);
 
-    if (server->backend->outputs.empty()) {
+    if (backend->outputs.empty()) {
         log_debug("Last output closed, quitting...");
         wroc_terminate(server);
     }
@@ -192,19 +193,19 @@ const zxdg_toplevel_decoration_v1_listener wroc_zxdg_toplevel_decoration_v1_list
 
 // -----------------------------------------------------------------------------
 
-void wroc_backend_output_create(wroc_backend* backend)
+void wroc_wayland_backend::create_output()
 {
-    if (!backend->wl_compositor) {
+    if (!wl_compositor) {
         log_error("No wl_compositor interface bound");
         return;
     }
 
-    if (!backend->xdg_wm_base) {
+    if (!xdg_wm_base) {
         log_error("No xdg_wm_base interface bound");
         return;
     }
 
-    auto* output = wrei_get_registry(backend)->create<wroc_wayland_output>();
+    auto* output = wrei_get_registry(this)->create<wroc_wayland_output>();
 
     output->physical_size_mm = {};
     output->model = "Unknown";
@@ -212,12 +213,12 @@ void wroc_backend_output_create(wroc_backend* backend)
     output->name = "WL-1";
     output->description = "Wayland output 1";
 
-    backend->outputs.emplace_back(output);
+    outputs.emplace_back(output);
 
-    output->server = backend->server;
+    output->server = server;
 
-    output->wl_surface = wl_compositor_create_surface(backend->wl_compositor);
-    output->xdg_surface = xdg_wm_base_get_xdg_surface(backend->xdg_wm_base, output->wl_surface);
+    output->wl_surface = wl_compositor_create_surface(wl_compositor);
+    output->xdg_surface = xdg_wm_base_get_xdg_surface(xdg_wm_base, output->wl_surface);
     xdg_surface_add_listener(output->xdg_surface, &wroc_xdg_surface_listener, output);
 
     output->toplevel = xdg_surface_get_toplevel(output->xdg_surface);
@@ -226,8 +227,8 @@ void wroc_backend_output_create(wroc_backend* backend)
     xdg_toplevel_set_app_id(output->toplevel, PROGRAM_NAME);
     xdg_toplevel_set_title(output->toplevel, output->name.c_str());
 
-    if (backend->decoration_manager) {
-        output->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(backend->decoration_manager, output->toplevel);
+    if (decoration_manager) {
+        output->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, output->toplevel);
         zxdg_toplevel_decoration_v1_add_listener(output->decoration, &wroc_zxdg_toplevel_decoration_v1_listener, output);
         zxdg_toplevel_decoration_v1_set_mode(output->decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     } else {
@@ -249,8 +250,8 @@ wroc_wayland_output::~wroc_wayland_output()
     if (frame_callback) wl_callback_destroy(frame_callback);
 }
 
-void wroc_backend_output_destroy(wroc_output* output)
+void wroc_wayland_backend::destroy_output(wroc_output* output)
 {
-    std::erase_if(output->server->backend->outputs, [&](auto& o) { return o.get() == output; });
+    std::erase_if(outputs, [&](auto& o) { return o.get() == output; });
     wrei_remove_ref(output);
 }

@@ -19,7 +19,7 @@ const xdg_wm_base_listener wroc_xdg_wm_base_listener = {
 static
 void wroc_listen_registry_global(void *data, wl_registry*, u32 name, const char* interface, u32 version)
 {
-    auto* backend = static_cast<wroc_backend*>(data);
+    auto* backend = static_cast<wroc_wayland_backend*>(data);
 
     bool matched;
 
@@ -29,7 +29,7 @@ void wroc_listen_registry_global(void *data, wl_registry*, u32 name, const char*
         u32 wroc_version_bind_global = std::min(version, u32(Interface.version)); \
         backend->Member = static_cast<decltype(backend->Member)>(wl_registry_bind(backend->wl_registry, name, &Interface, wroc_version_bind_global)); \
         log_info("wl_registry::global(name = {:2}, interface = {:41}, version = {:2} ({}))", name, interface, version, wroc_version_bind_global); \
-        { __VA_ARGS__ }\
+        { __VA_ARGS__ } \
         break; \
     }
 
@@ -63,7 +63,7 @@ const wl_registry_listener wroc_wl_registry_listener {
 static
 int wroc_listen_backend_display_read(int fd, u32 mask, void* data)
 {
-    auto* backend = static_cast<wroc_backend*>(data);
+    auto* backend = static_cast<wroc_wayland_backend*>(data);
 
     // log_trace("backend display read, events = {:#x}", events);
 
@@ -80,9 +80,10 @@ int wroc_listen_backend_display_read(int fd, u32 mask, void* data)
     return 1;
 }
 
-void wroc_backend_init(wroc_server* server)
+void wroc_wayland_backend_init(wroc_server* server)
 {
-    auto* backend = wrei_get_registry(server)->create<wroc_backend>();
+    auto* backend = wrei_get_registry(server)->create<wroc_wayland_backend>();
+    server->backend = wrei_adopt_ref(backend);
     backend->server = server;
 
     if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
@@ -97,33 +98,30 @@ void wroc_backend_init(wroc_server* server)
     wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend);
     wl_display_roundtrip(backend->wl_display);
 
-    server->backend = backend;
 
     backend->event_source = wl_event_loop_add_fd(server->event_loop, wl_display_get_fd(backend->wl_display), WL_EVENT_READABLE,
         wroc_listen_backend_display_read, backend);
 
-    wroc_backend_output_create(backend);
+    backend->create_output();
 
     wl_display_flush(backend->wl_display);
 }
 
-void wroc_backend_destroy(wroc_backend* backend)
+wroc_wayland_backend::~wroc_wayland_backend()
 {
-    wl_event_source_remove(backend->event_source);
+    wl_event_source_remove(event_source);
 
-    if (backend->keyboard) backend->keyboard = nullptr;
-    if (backend->pointer)  backend->pointer = nullptr;
+    if (keyboard) keyboard = nullptr;
+    if (pointer)  pointer = nullptr;
 
-    backend->outputs.clear();
+    outputs.clear();
 
-    zxdg_decoration_manager_v1_destroy(backend->decoration_manager);
-    wl_compositor_destroy(backend->wl_compositor);
-    xdg_wm_base_destroy(backend->xdg_wm_base);
-    wl_seat_destroy(backend->seat);
+    zxdg_decoration_manager_v1_destroy(decoration_manager);
+    wl_compositor_destroy(wl_compositor);
+    xdg_wm_base_destroy(xdg_wm_base);
+    wl_seat_destroy(seat);
 
-    wl_registry_destroy(backend->wl_registry);
+    wl_registry_destroy(wl_registry);
 
-    wl_display_disconnect(backend->wl_display);
-
-    wrei_get_registry(backend)->destroy(backend, backend->wrei.version);
+    wl_display_disconnect(wl_display);
 }

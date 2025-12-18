@@ -18,12 +18,16 @@ wl_global* wroc_server_global(auto* server, const wl_interface* interface, i32 v
 void wroc_run(int argc, char* argv[])
 {
     wroc_render_options render_options = {};
+    wroc_backend_type backend_type = wroc_backend_type::wayland;
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
         if (arg == "--no-dmabuf") {
             render_options |= wroc_render_options::no_dmabuf;
         } else if (arg == "--separate-draws") {
             render_options |= wroc_render_options::separate_draws;
+        } else if (arg == "--direct") {
+            // TODO: Auto detect backend
+            backend_type = wroc_backend_type::direct;
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
@@ -57,13 +61,13 @@ void wroc_run(int argc, char* argv[])
 
     const char* socket = wl_display_add_socket_auto(server->display);
 
-    // Backend
-
-    wroc_backend_init(server);
-
     // Renderer
 
     wroc_renderer_create(server, render_options);
+
+    // Backend
+
+    wroc_backend_init(server, backend_type);
 
     // Cursor
 
@@ -93,7 +97,7 @@ void wroc_run(int argc, char* argv[])
     log_info("Compositor shutting down");
 
     if (server->backend) {
-        wroc_backend_destroy(server->backend);
+        server->backend = nullptr;
     }
 
     wl_display_destroy_clients(server->display);

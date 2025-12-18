@@ -25,7 +25,7 @@ void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surfac
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
-    pointer->current_output = wroc_backend_find_output_for_surface(pointer->server->backend, surface);
+    pointer->current_output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(pointer->server->backend.get()), surface);
 
     wroc_backend_pointer_absolute(pointer, sx, sy);
 
@@ -161,7 +161,7 @@ wroc_wayland_pointer::~wroc_wayland_pointer()
 }
 
 static
-void wroc_pointer_set(wroc_backend* backend, struct wl_pointer* wl_pointer)
+void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_pointer)
 {
     if (!backend->pointer || backend->pointer->wl_pointer != wl_pointer) {
         log_debug("pointer_set({}, old = {})", (void*)wl_pointer, (void*)(backend->pointer ? backend->pointer->wl_pointer : nullptr));
@@ -312,7 +312,7 @@ wroc_wayland_keyboard::~wroc_wayland_keyboard()
 }
 
 static
-void wroc_keyboard_set(wroc_backend* backend, struct wl_keyboard* wl_keyboard)
+void wroc_keyboard_set(wroc_wayland_backend* backend, struct wl_keyboard* wl_keyboard)
 {
     if (!backend->keyboard || backend->keyboard->wl_keyboard != wl_keyboard) {
         log_debug("keyboard_set({}, old = {})", (void*)wl_keyboard, (void*)(backend->keyboard ? backend->keyboard->wl_keyboard : nullptr));
@@ -340,7 +340,7 @@ void wroc_keyboard_set(wroc_backend* backend, struct wl_keyboard* wl_keyboard)
 static
 void wroc_listen_wl_seat_capabilities(void* data, wl_seat* seat, u32 capabilities)
 {
-    auto* backend = static_cast<wroc_backend*>(data);
+    auto* backend = static_cast<wroc_wayland_backend*>(data);
     log_debug("wl_seat::capabilities");
 
     if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD) {
