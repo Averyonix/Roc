@@ -88,25 +88,12 @@ static
 void wroc_listen_wl_pointer_axis(void* data, wl_pointer*, u32 /* time */, u32 axis, wl_fixed_t value)
 {
     log_debug("pointer_axis(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), wl_fixed_to_double(value));
-
-    auto* pointer = static_cast<wroc_wayland_pointer*>(data);
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_axis,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .axis {
-            .delta = {
-                axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? wl_fixed_to_double(value) : 0.0,
-                axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? wl_fixed_to_double(value) : 0.0,
-            }
-        },
-    });
 }
 
 static
 void wroc_listen_wl_pointer_frame(void* /* data */, wl_pointer*)
 {
-    // log_info("pointer_axis_frame");
+    // log_info("pointer_frame");
 }
 
 static
@@ -128,9 +115,22 @@ void wroc_listen_wl_pointer_axis_discrete(void* /* data */, wl_pointer*, u32 axi
 }
 
 static
-void wroc_listen_wl_pointer_axis_value120(void* /* data */, wl_pointer*, u32 axis, i32 value120)
+void wroc_listen_wl_pointer_axis_value120(void* data, wl_pointer*, u32 axis, i32 value120)
 {
     log_debug("pointer_axis_value120(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), value120);
+
+    auto* pointer = static_cast<wroc_wayland_pointer*>(data);
+    wroc_post_event(pointer->server, wroc_pointer_event {
+        .type = wroc_event_type::pointer_axis,
+        .pointer = pointer,
+        .output = pointer->current_output,
+        .axis {
+            .delta = {
+                axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? (value120 / 120.0) : 0.0,
+                axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? (value120 / 120.0) : 0.0,
+            }
+        },
+    });
 }
 
 static

@@ -694,7 +694,8 @@ struct alignas(u64) wroc_imgui_texture
 };
 
 void wroc_imgui_init(wroc_server*);
-void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer);
+void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer, bool* wants_mouse);
+bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------
 

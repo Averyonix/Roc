@@ -59,6 +59,12 @@ struct wroc_keyboard_event : wroc_event
     };
 };
 
+inline
+u32 wroc_key_to_xkb(u32 libinput_code)
+{
+    return libinput_code + 8;
+}
+
 struct wroc_pointer_event : wroc_event
 {
     WROC_EVENT_BASE

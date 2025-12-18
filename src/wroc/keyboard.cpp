@@ -171,7 +171,7 @@ void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 static
 void wroc_debug_print_key(wroc_keyboard* kb, u32 libinput_keycode, bool pressed)
 {
-    u32 xkb_keycode = libinput_keycode + 8;
+    u32 xkb_keycode = wroc_key_to_xkb(libinput_keycode);
     char name[128] = {};
     char _utf[128] = {};
 

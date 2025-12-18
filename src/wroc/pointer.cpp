@@ -140,22 +140,29 @@ void wroc_pointer_motion(wroc_pointer* pointer, wroc_output* output, vec2f64 del
 static
 void wroc_pointer_axis(wroc_pointer* pointer, vec2f64 rel)
 {
+    // TODO: Handle different types of scroll correctly
+
     auto time = wroc_get_elapsed_milliseconds(pointer->server);
     for (auto* resource : pointer->resources) {
         if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
-        if (rel.x) {
-            wl_pointer_send_axis(resource,
-                time,
-                WL_POINTER_AXIS_HORIZONTAL_SCROLL,
-                wl_fixed_from_double(rel.x));
+
+        auto version = wl_resource_get_version(resource);
+        if (version >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION) {
+            if (rel.x) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x * 120));
+            if (rel.y) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y * 120));
+        } else if (version >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION) {
+            // TODO: Accumulate fractional values
+            if (rel.x) wl_pointer_send_axis_discrete(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x));
+            if (rel.y) wl_pointer_send_axis_discrete(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y));
+        } else {
+            constexpr double discrete_to_pixels = 15;
+            if (rel.x) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(rel.x * discrete_to_pixels));
+            if (rel.y) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(rel.y * discrete_to_pixels));
         }
-        if (rel.y) {
-            wl_pointer_send_axis(resource,
-                time,
-                WL_POINTER_AXIS_VERTICAL_SCROLL,
-                wl_fixed_from_double(rel.y));
+
+        if (version >= WL_POINTER_FRAME_SINCE_VERSION) {
+            wroc_pointer_send_frame(resource);
         }
-        wroc_pointer_send_frame(resource);
     }
 }
 
