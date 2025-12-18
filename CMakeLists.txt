@@ -38,6 +38,18 @@ add_subdirectory(${VENDOR_DIR}/glm EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
+add_library(imgui)
+target_include_directories(imgui PUBLIC ${VENDOR_DIR}/imgui)
+target_sources(imgui PRIVATE
+    ${VENDOR_DIR}/imgui/imgui.cpp
+    ${VENDOR_DIR}/imgui/imgui_demo.cpp
+    ${VENDOR_DIR}/imgui/imgui_draw.cpp
+    ${VENDOR_DIR}/imgui/imgui_tables.cpp
+    ${VENDOR_DIR}/imgui/imgui_widgets.cpp
+    )
+
+# ------------------------------------------------------------------------------
+
 add_subdirectory(${VENDOR_DIR}/unordered-dense EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
@@ -87,7 +99,6 @@ function(init_target target_name)
         -Wno-zero-length-array
         -Wno-unused-parameter
         -Wno-nested-anon-types
-        -Wno-c23-extensions
         -Wimplicit-fallthrough
 
         # -Wno-unused-const-variable
@@ -141,26 +152,25 @@ target_link_libraries(wrei PUBLIC
     drm
     udev
     seat
+    imgui
     )
 
 # ------------------------------------------------------------------------------
 
+add_subdirectory(.build/shaders)
+
 add_library(wren)
 init_target(wren)
 target_sources(wren PUBLIC
-    .build/shaders/src/wroc_shaders.cpp
     src/wren/wren.cpp
     src/wren/wren_init.cpp
     src/wren/wren_functions.cpp
     src/wren/wren_resources.cpp
     src/wren/wren_descriptors.cpp
     src/wren/wren_format.cpp
+    src/wren/wren_pipelines.cpp
     )
-target_include_directories(wren PUBLIC
-    src
-    .build/shaders/include
-    )
-target_link_libraries(wren PUBLIC wrei)
+target_link_libraries(wren PUBLIC wrei shaders)
 
 # ------------------------------------------------------------------------------
 
@@ -185,6 +195,7 @@ target_sources(wroc PUBLIC
     src/wroc/xdg_shell.cpp
     src/wroc/data.cpp
     src/wroc/cursor.cpp
+    src/wroc/imgui.cpp
 
     src/main.cpp
 

@@ -650,19 +650,51 @@ struct wroc_renderer : wrei_object
 
     wren_format output_format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
 
-    VkPipeline pipeline;
+    ref<wren_pipeline> pipeline;
 
     wren_array<struct wroc_shader_rect> rects;
 
     ref<wren_image> background;
     ref<wren_sampler> sampler;
-
-    ~wroc_renderer();
 };
 
 void wroc_renderer_create(wroc_server*, wroc_render_options);
 void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
+
+// -----------------------------------------------------------------------------
+
+struct wroc_imgui : wrei_object
+{
+    wroc_server* server;
+
+    std::chrono::steady_clock::time_point last_frame = {};
+
+    ImGuiContext* context;
+
+    ref<wren_pipeline> pipeline;
+
+    wren_array<ImDrawIdx> indices;
+    wren_array<ImDrawVert> vertices;
+
+    ref<wren_image> font_image;
+};
+
+struct alignas(u64) wroc_imgui_texture
+{
+    wren_image_handle<vec4f32> handle;
+    wren_format format;
+
+    wroc_imgui_texture(wren_image* image, wren_sampler* sampler)
+        : handle(image, sampler)
+        , format(image->format)
+    {}
+
+    operator ImTextureID() const { return std::bit_cast<ImTextureID>(*this); }
+};
+
+void wroc_imgui_init(wroc_server*);
+void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer);
 
 // -----------------------------------------------------------------------------
 
@@ -680,11 +712,23 @@ enum class wroc_directions : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
+enum class wroc_options : u32
+{
+    none,
+
+    imgui = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_options)
+
 struct wroc_server : wrei_object
 {
     ref<wroc_backend>  backend;
     ref<wroc_renderer> renderer;
     ref<wroc_seat>     seat;
+
+    ref<wroc_imgui> imgui;
+
+    wroc_options options;
 
     wroc_modifiers main_mod = wroc_modifiers::alt;
 

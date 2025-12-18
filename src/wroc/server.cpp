@@ -19,6 +19,7 @@ void wroc_run(int argc, char* argv[])
 {
     wroc_render_options render_options = {};
     wroc_backend_type backend_type = wroc_backend_type::wayland;
+    wroc_options options = wroc_options::none;
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
         if (arg == "--no-dmabuf") {
@@ -28,6 +29,8 @@ void wroc_run(int argc, char* argv[])
         } else if (arg == "--direct") {
             // TODO: Auto detect backend
             backend_type = wroc_backend_type::direct;
+        } else if (arg == "--imgui") {
+            options |= wroc_options::imgui;
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
@@ -35,9 +38,11 @@ void wroc_run(int argc, char* argv[])
     }
 
     wrei_registry registry;
-    wroc_server* server =registry.create<wroc_server>();
+    wroc_server* server = registry.create<wroc_server>();
     defer { wrei_remove_ref(server); };
     log_warn("server = {}", (void*)server);
+
+    server->options = options;
 
     // Seat
 
@@ -64,6 +69,12 @@ void wroc_run(int argc, char* argv[])
     // Renderer
 
     wroc_renderer_create(server, render_options);
+
+    // ImGui
+
+    if (server->options >= wroc_options::imgui) {
+        wroc_imgui_init(server);
+    }
 
     // Backend
 

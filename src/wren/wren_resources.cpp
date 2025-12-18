@@ -218,15 +218,15 @@ void wren_image_wait(wren_image* image)
 
 // -----------------------------------------------------------------------------
 
-ref<wren_sampler> wren_sampler_create(wren_context* ctx)
+ref<wren_sampler> wren_sampler_create(wren_context* ctx, VkFilter mag, VkFilter min)
 {
     ref sampler = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_sampler>());
     sampler->ctx = ctx;
 
     wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_NEAREST,
-        .minFilter = VK_FILTER_LINEAR,
+        .magFilter = mag,
+        .minFilter = min,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
         .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
         .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,

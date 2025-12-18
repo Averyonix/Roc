@@ -5,110 +5,13 @@
 #include "wren/wren.hpp"
 #include "wren/wren_internal.hpp"
 
-#include "wroc_shaders.hpp"
+#include "wroc_blit_shader.hpp"
 #include "shaders/blit.h"
 
 #include "wroc/event.hpp"
 
 static
 constexpr u32 wroc_max_rects = 65'536;
-
-static
-VkPipeline wroc_renderer_create_pipeline(
-    wroc_renderer* renderer,
-    std::span<const u32> spirv,
-    const char* vertex_entry,  const char* fragment_entry)
-{
-    auto* wren = renderer->wren.get();
-    auto& vk = wren->vk;
-
-    static constexpr bool premultiplied_alpha = true;
-
-    VkPipeline pipeline = {};
-    wren_check(vk.CreateGraphicsPipelines(wren->device, nullptr, 1, wrei_ptr_to(VkGraphicsPipelineCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = wrei_ptr_to(VkPipelineRenderingCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-            .colorAttachmentCount = 1,
-            .pColorAttachmentFormats = &renderer->output_format->vk,
-        }),
-        .stageCount = 2,
-        .pStages = std::array {
-            VkPipelineShaderStageCreateInfo {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext = wrei_ptr_to(VkShaderModuleCreateInfo {
-                    .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                    .codeSize = spirv.size_bytes(),
-                    .pCode = spirv.data(),
-                }),
-                .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                .pName = vertex_entry,
-            },
-            VkPipelineShaderStageCreateInfo {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext = wrei_ptr_to(VkShaderModuleCreateInfo {
-                    .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                    .codeSize = spirv.size_bytes(),
-                    .pCode = spirv.data(),
-                }),
-                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .pName = fragment_entry,
-            },
-        }.data(),
-        .pVertexInputState = wrei_ptr_to(VkPipelineVertexInputStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        }),
-        .pInputAssemblyState = wrei_ptr_to(VkPipelineInputAssemblyStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        }),
-        .pViewportState = wrei_ptr_to(VkPipelineViewportStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 1,
-            .scissorCount = 1,
-        }),
-        .pRasterizationState = wrei_ptr_to(VkPipelineRasterizationStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .lineWidth = 1.f,
-        }),
-        .pMultisampleState = wrei_ptr_to(VkPipelineMultisampleStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        }),
-        .pDepthStencilState = wrei_ptr_to(VkPipelineDepthStencilStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-            .minDepthBounds = 0,
-            .maxDepthBounds = 1,
-        }),
-        .pColorBlendState = wrei_ptr_to(VkPipelineColorBlendStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = wrei_ptr_to(VkPipelineColorBlendAttachmentState {
-                .blendEnable = true,
-                .srcColorBlendFactor = premultiplied_alpha
-                    ? VK_BLEND_FACTOR_ONE
-                    : VK_BLEND_FACTOR_SRC_ALPHA,
-                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .colorBlendOp = VK_BLEND_OP_ADD,
-                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .alphaBlendOp = VK_BLEND_OP_ADD,
-                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-            }),
-        }),
-        .pDynamicState = wrei_ptr_to(VkPipelineDynamicStateCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = 2,
-            .pDynamicStates = std::array {
-                VK_DYNAMIC_STATE_VIEWPORT,
-                VK_DYNAMIC_STATE_SCISSOR,
-            }.data(),
-        }),
-        .layout = wren->pipeline_layout,
-    }), nullptr, &pipeline));
-
-    return pipeline;
-}
 
 void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
 {
@@ -124,6 +27,8 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
     renderer->wren = wren_create(wrei_get_registry(server), features);
     wroc_renderer_init_buffer_feedback(renderer);
 
+    auto* wren = renderer->wren.get();
+
     std::filesystem::path path = getenv("WALLPAPER");
 
     int w, h;
@@ -133,19 +38,16 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->background = wren_image_create(renderer->wren.get(), {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
+    renderer->background = wren_image_create(wren, {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
     wren_image_update(renderer->background.get(), data);
 
-    renderer->sampler = wren_sampler_create(renderer->wren.get());
+    renderer->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    renderer->pipeline = wroc_renderer_create_pipeline(renderer, wroc_blit_shader, "vertex", "fragment");
+    renderer->pipeline = wren_pipeline_create(wren,
+        wren_blend_mode::premultiplied, server->renderer->output_format,
+        wroc_blit_shader, "vertex", "fragment");
 
-    renderer->rects = {wren_buffer_create(renderer->wren.get(), wroc_max_rects * sizeof(wroc_shader_rect))};
-}
-
-wroc_renderer::~wroc_renderer()
-{
-    wren->vk.DestroyPipeline(wren->device, pipeline, nullptr);
+    renderer->rects = {wren_buffer_create(wren, wroc_max_rects * sizeof(wroc_shader_rect))};
 }
 
 void wroc_render_frame(wroc_output* output)
@@ -187,11 +89,14 @@ void wroc_render_frame(wroc_output* output)
         current_extent.x, current_extent.y,
         0, 1,
     }));
-    wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, current.extent }));
-
     wren->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wren->pipeline_layout, 0, 1, &wren->set, 0, nullptr);
-    wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline);
 
+    auto start_draws = [&] {
+        wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, current.extent }));
+        wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline->pipeline);
+    };
+
+    u32 rect_id_start = 0;
     u32 rect_id = 0;
 
     auto draw = [&](wren_image* image, vec2f32 offset, vec2f32 extent) {
@@ -208,6 +113,25 @@ void wroc_render_frame(wroc_output* output)
             .opacity = 1.f,
         };
     };
+
+    auto flush_draws = [&] {
+        if (rect_id_start == rect_id) return;
+
+        wroc_shader_rect_input si = {};
+        si.rects = renderer->rects.device();
+        si.output_size = current_extent;
+        wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
+        if (renderer->options >= wroc_render_options::separate_draws) {
+            for (u32 i = rect_id_start; i < rect_id; ++i) {
+                wren->vk.CmdDraw(cmd, 6, 1, i * 6, 0);
+            }
+        } else {
+            wren->vk.CmdDraw(cmd, 6 * (rect_id - rect_id_start), 1, rect_id_start * 6, 0);
+        }
+        rect_id_start = rect_id;
+    };
+
+    start_draws();
 
     draw(output->server->renderer->background.get(), {}, current_extent);
 
@@ -245,6 +169,14 @@ void wroc_render_frame(wroc_output* output)
         draw_surface(surface, pos);
     }
 
+    // Draw ImGui
+
+    if (server->imgui) {
+        flush_draws();
+        wroc_imgui_frame(server->imgui.get(), current_extent, cmd);
+        start_draws();
+    }
+
     // Draw cursor
 
     if (server->data_manager.drag.source) {
@@ -276,19 +208,9 @@ void wroc_render_frame(wroc_output* output)
         }
     }
 
-    // Record draws
+    // Finish
 
-    wroc_shader_rect_input si = {};
-    si.rects = renderer->rects.device();
-    si.output_size = current_extent;
-    wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
-    if (renderer->options >= wroc_render_options::separate_draws) {
-        for (u32 i = 0; i < rect_id; ++i) {
-            wren->vk.CmdDraw(cmd, 6, 1, i * 6, 0);
-        }
-    } else {
-        wren->vk.CmdDraw(cmd, 6 * rect_id, 1, 0, 0);
-    }
+    flush_draws();
 
     wren->vk.CmdEndRendering(cmd);
 

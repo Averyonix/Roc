@@ -49,7 +49,9 @@
     DO(CmdSetViewport) \
     DO(CmdSetScissor) \
     DO(CmdBindPipeline) \
+    DO(CmdBindIndexBuffer) \
     DO(CmdDraw) \
+    DO(CmdDrawIndexed) \
     DO(CmdEndRendering) \
     DO(EndCommandBuffer) \
     DO(QueueSubmit2) \

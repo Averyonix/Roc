@@ -39,7 +39,29 @@ struct wren_format_t
     WREI_DELETE_COPY_MOVE(wren_format_t)
 };
 
-using wren_format = const wren_format_t*;
+extern const wren_format_t wren_formats[];
+
+struct wren_format
+{
+    i32 _index;
+
+    constexpr wren_format(                      ) : _index(-1              ) {}
+    constexpr wren_format(const wren_format_t* f) : _index(f - wren_formats) {}
+
+    constexpr const wren_format_t* operator->() const noexcept { return &wren_formats[_index]; };
+    constexpr                   operator bool() const noexcept { return _index >= 0;           }
+
+    constexpr bool operator==(const wren_format&) const noexcept = default;
+};
+
+template<>
+struct std::hash<wren_format>
+{
+    usz operator()(const wren_format& f) const noexcept
+    {
+        return std::hash<i32>()(f._index);
+    }
+};
 
 struct wren_format_modifier_props
 {
@@ -62,7 +84,6 @@ struct wren_format_props
     } dmabuf;
 };
 
-std::span<const wren_format_t> wren_get_formats();
 wren_format wren_format_from_drm(u32 drm_format);
 wren_format wren_format_from_shm(wl_shm_format);
 
@@ -199,6 +220,11 @@ struct wren_array
         return buffer->device<T>(byte_offset);
     }
 
+    T* host() const
+    {
+        return buffer->host<T>(byte_offset);
+    }
+
     wren_array_element_proxy<T> operator[](usz index) const
     {
         return {buffer->host<T>(byte_offset) + index};
@@ -248,7 +274,32 @@ struct wren_sampler : wrei_object
     ~wren_sampler();
 };
 
-ref<wren_sampler> wren_sampler_create(wren_context*);
+ref<wren_sampler> wren_sampler_create(wren_context*, VkFilter mag, VkFilter min);
+
+// -----------------------------------------------------------------------------
+
+enum class wren_blend_mode
+{
+    none,
+    premultiplied,
+    postmultiplied,
+};
+
+struct wren_pipeline : wrei_object
+{
+    ref<wren_context> ctx;
+
+    VkPipeline pipeline;
+
+    ~wren_pipeline();
+};
+
+ref<wren_pipeline> wren_pipeline_create(wren_context*,
+    wren_blend_mode,
+    wren_format,
+    std::span<const u32> spirv,
+    const char* vertex_entry,
+    const char* fragment_entry);
 
 // -----------------------------------------------------------------------------
 
@@ -272,3 +323,19 @@ struct wren_dma_params
 };
 
 ref<wren_image> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+struct wren_image_handle
+{
+    u32 image   : 20 = {};
+    u32 sampler : 12 = {};
+
+    wren_image_handle() = default;
+
+    wren_image_handle(wren_image* image, wren_sampler* sampler)
+        : image(image->id)
+        , sampler(sampler->id)
+    {}
+};

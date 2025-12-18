@@ -27,7 +27,7 @@ typedef vector<f32, 3> vec3f32;
 typedef vector<i32, 3> vec3i32;
 typedef vector<u32, 3> vec3u32;
 
-typedef vector<u8,  4> vec2u8;
+typedef vector<u8,  4> vec4u8;
 typedef vector<f32, 4> vec4f32;
 typedef vector<i32, 4> vec4i32;
 typedef vector<u32, 4> vec4u32;
@@ -108,3 +108,10 @@ struct wren_image_handle<T : ITexelElement>
 };
 
 typedef wren_image_handle<vec4f32> image4f32;
+
+// -----------------------------------------------------------------------------
+
+vec4f32 wrei_unpack_unorm4u8(vec4u8 in)
+{
+    return vec4f32(in.x, in.y, in.z, in.w) / 255;
+}

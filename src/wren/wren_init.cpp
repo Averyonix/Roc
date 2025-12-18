@@ -230,9 +230,7 @@ ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
 
     wren_init_descriptors(ctx.get());
 
-    for (auto& format : wren_get_formats()) {
-        wren_register_format(ctx.get(), &format);
-    }
+    wren_register_formats(ctx.get());
 
     log_info("shm texture formats: {}", ctx->shm_texture_formats.size());
     log_info("render formats: {}", ctx->dmabuf_render_formats.size());

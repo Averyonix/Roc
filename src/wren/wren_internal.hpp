@@ -46,7 +46,7 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 // -----------------------------------------------------------------------------
 
-void wren_register_format(wren_context*, wren_format);
+void wren_register_formats(wren_context*);
 
 // -----------------------------------------------------------------------------
 

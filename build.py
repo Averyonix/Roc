@@ -93,6 +93,10 @@ git_fetch(vendor_dir / "glm", "https://github.com/g-truc/glm.git", "master")
 
 # -----------------------------------------------------------------------------
 
+git_fetch(vendor_dir / "imgui", "https://github.com/ocornut/imgui.git", "docking")
+
+# -----------------------------------------------------------------------------
+
 git_fetch(vendor_dir / "unordered-dense", "https://github.com/martinus/unordered_dense.git", "main")
 
 # -----------------------------------------------------------------------------
@@ -208,6 +212,7 @@ generate_wayland_protocols()
 def build_shaders():
     shaders = [
         ("src/wroc/shaders/blit.slang", "wroc_blit_shader"),
+        ("src/wroc/shaders/imgui.slang", "wroc_imgui_shader"),
     ]
 
     shader_include_dirs = [
@@ -219,20 +224,25 @@ def build_shaders():
     shader_gen_include_dir = ensure_dir(shader_gen_dir / "include")
     shader_gen_source_dir  = ensure_dir(shader_gen_dir / "src")
 
-    header_path = shader_gen_include_dir / "wroc_shaders.hpp"
-    source_path = shader_gen_source_dir  / "wroc_shaders.cpp"
+    target_name = "shaders"
 
-    header_out = ""
-    source_out = ""
-
-    header_out += "#include <span>\n"
-    header_out += "#include <cstdint>\n"
-
-    source_out += f"#include \"{header_path.name}\"\n"
+    cmake_path = shader_gen_dir / "CMakeLists.txt"
+    cmake_out  = f"add_library({target_name})\n"
+    cmake_out += f"target_include_directories({target_name} PUBLIC include)\n"
+    cmake_out += f"target_compile_options({target_name} PRIVATE -std=c++26 -Wno-c23-extensions)\n"
+    cmake_out += f"target_sources({target_name} PRIVATE\n"
 
     for shader_src, prefix in shaders:
+
+        cmake_out += f"    src/{prefix}.cpp\n"
+
+        header_path = shader_gen_include_dir / f"{prefix}.hpp"
+        source_path = shader_gen_source_dir  / f"{prefix}.cpp"
+
         tmp_path    = shader_gen_spv_dir / f"{prefix}.spv.tmp"
         spv_path    = shader_gen_spv_dir / f"{prefix}.spv"
+
+        # Compile shader
 
         cmd  = ["slangc"]
         cmd += ["-o", tmp_path]
@@ -248,20 +258,31 @@ def build_shaders():
 
         subprocess.run(cmd, executable=slangc)
 
+        # SPIR-V binary
+
         write_file_lazy(spv_path, tmp_path.read_bytes())
         tmp_path.unlink()
 
-        source_out += "\n"
+        # C++ source
+
+        source_out  = f"#include \"{prefix}.hpp\"\n"
+        source_out +=  "\n"
         source_out += f"alignas(uint32_t) static constexpr char {prefix}_data[] {{\n"
         source_out += f"#embed \"../spv/{prefix}.spv\"\n"
         source_out +=  "};\n"
-        source_out += f"const std::span<const uint32_t> {prefix}(reinterpret_cast<const uint32_t*>({prefix}_data), sizeof({prefix}_data) / 4);\n"
+        source_out += f"extern const std::span<const uint32_t> {prefix}(reinterpret_cast<const uint32_t*>({prefix}_data), sizeof({prefix}_data) / 4);\n"
+        write_file_lazy(source_path, source_out)
 
-        header_out += "\n"
+        # C++ header
+
+        header_out  =  "#include <span>\n"
+        header_out +=  "#include <cstdint>\n"
+        header_out +=  "\n"
         header_out += f"extern const std::span<const uint32_t> {prefix};\n"
+        write_file_lazy(header_path, header_out)
 
-    write_file_lazy(header_path, header_out)
-    write_file_lazy(source_path, source_out)
+    cmake_out += "    )\n"
+    write_file_lazy(cmake_path, cmake_out)
 
 build_shaders()
 

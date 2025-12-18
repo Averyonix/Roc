@@ -61,7 +61,7 @@ constexpr wren_format_t::wren_format_t(const wren_format_t_create_params& params
 
 #define WROC_FORMAT wren_format_t_create_params
 
-static const wren_format_t wren_formats[] {
+const wren_format_t wren_formats[] {
 
     // Vulkan non-packed 8-bits-per-channel formats have an inverted channel
     // order compared to the DRM formats, because DRM format channel order
@@ -301,11 +301,6 @@ static constexpr VkFormatFeatureFlags wren_ycbcr_texture_features
 
 // -----------------------------------------------------------------------------
 
-std::span<const wren_format_t> wren_get_formats()
-{
-    return wren_formats;
-}
-
 template<typename T>
 wren_format wren_find_format(T needle, auto... members)
 {
@@ -494,6 +489,7 @@ bool wren_try_register_dmabuf_format(wren_context* ctx, wren_format format, u32 
     return !out->dmabuf.render_mods.empty() || !out->dmabuf.texture_mods.empty();
 }
 
+static
 void wren_register_format(wren_context* ctx, wren_format format)
 {
     VkDrmFormatModifierPropertiesList2EXT mod_list = {
@@ -530,6 +526,13 @@ void wren_register_format(wren_context* ctx, wren_format format)
 
     if (register_props) {
         ctx->format_props.insert({ format, std::move(out_props) });
+    }
+}
+
+void wren_register_formats(wren_context* ctx)
+{
+    for (const auto& format : wren_formats) {
+        wren_register_format(ctx, &format);
     }
 }
 
