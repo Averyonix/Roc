@@ -131,7 +131,12 @@ struct wren_context : wrei_object
 
     struct {
         u32 active_images;
+        usz active_image_owned_memory;
+        usz active_image_imported_memory;
+
         u32 active_buffers;
+        usz active_buffer_memory;
+
         u32 active_samplers;
     } stats;
 
@@ -252,6 +257,11 @@ struct wren_image : wrei_object
     VkDeviceMemory memory;
     VmaAllocation vma_allocation;
     vec2u32 extent;
+
+    struct {
+        usz owned_allocation_size;
+        usz imported_allocation_size;
+    } stats;
 
     u32 id;
 

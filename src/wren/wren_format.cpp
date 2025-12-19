@@ -633,6 +633,9 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
             .memoryTypeIndex = mem,
         };
 
+        image->stats.imported_allocation_size += memr.memoryRequirements.size;
+        ctx->stats.active_image_imported_memory += memr.memoryRequirements.size;
+
         VkImportMemoryFdInfoKHR importi = {
             .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
             .handleType = htype,

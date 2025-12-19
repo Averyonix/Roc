@@ -332,15 +332,19 @@ void draw_debug_window(wroc_server* server)
 
     ImGui::Separator();
 
-    ImGui_Text("Wren.Images:   {}", server->renderer->wren->stats.active_images);
-    ImGui_Text("Wren.Buffers:  {}", server->renderer->wren->stats.active_buffers);
-    ImGui_Text("Wren.Samplers: {}", server->renderer->wren->stats.active_samplers);
+    auto* wren = server->renderer->wren.get();
+    ImGui_Text("Wren.Images:   {} ({} / {})", wren->stats.active_images,
+        wrei_byte_size_to_string(wren->stats.active_image_owned_memory),
+        wrei_byte_size_to_string(wren->stats.active_image_imported_memory));
+    ImGui_Text("Wren.Buffers:  {} ({})", wren->stats.active_buffers,
+        wrei_byte_size_to_string(wren->stats.active_buffer_memory));
+    ImGui_Text("Wren.Samplers: {}", wren->stats.active_samplers);
 
     ImGui::Separator();
 
     // Elapsed
 
-    ImGui_Text("Elapsed: {}", wroc_get_elapsed_milliseconds(server));
+    ImGui_Text("Elapsed: {:.1f}s", wroc_get_elapsed_milliseconds(server) / 1000.0);
 
     ImGui::Separator();
     ImGui::Dummy(ImVec2(0.f, 0.f));

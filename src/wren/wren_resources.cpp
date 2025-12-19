@@ -65,7 +65,7 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 
     ctx->stats.active_buffers++;
 
-    VmaAllocationInfo vma_alloc_info;
+    VmaAllocationInfo alloc_info;
     wren_check(vmaCreateBuffer(ctx->vma, wrei_ptr_to(VkBufferCreateInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
@@ -77,9 +77,11 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
     }), wrei_ptr_to(VmaAllocationCreateInfo {
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    }), &buffer->buffer, &buffer->vma_allocation, &vma_alloc_info));
+    }), &buffer->buffer, &buffer->vma_allocation, &alloc_info));
 
-    buffer->host_address = vma_alloc_info.pMappedData;
+    ctx->stats.active_buffer_memory += alloc_info.size;
+
+    buffer->host_address = alloc_info.pMappedData;
 
     buffer->device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, wrei_ptr_to(VkBufferDeviceAddressInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
@@ -92,6 +94,10 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 wren_buffer::~wren_buffer()
 {
     ctx->stats.active_buffers--;
+
+    VmaAllocationInfo alloc_info;
+    vmaGetAllocationInfo(ctx->vma, vma_allocation, &alloc_info);
+    ctx->stats.active_buffer_memory -= alloc_info.size;
 
     vmaDestroyBuffer(ctx->vma, buffer, vma_allocation);
 }
@@ -108,6 +114,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
     image->extent = extent;
     image->format = format;
 
+    VmaAllocationInfo alloc_info;
     wren_check(vmaCreateImage(ctx->vma, wrei_ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
@@ -122,7 +129,10 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), wrei_ptr_to(VmaAllocationCreateInfo {
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    }), &image->image, &image->vma_allocation, nullptr));
+    }), &image->image, &image->vma_allocation, &alloc_info));
+
+    image->stats.owned_allocation_size += alloc_info.size;
+    ctx->stats.active_image_owned_memory += alloc_info.size;
 
     wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -215,6 +225,8 @@ wren_image::~wren_image()
     }
 
     ctx->stats.active_images--;
+    ctx->stats.active_image_owned_memory -= stats.owned_allocation_size;
+    ctx->stats.active_image_imported_memory -= stats.imported_allocation_size;
 
     log_debug("wren_image::destroyed");
 

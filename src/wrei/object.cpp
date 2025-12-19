@@ -3,13 +3,13 @@
 wrei_registry::~wrei_registry()
 {
     if (active_allocations) {
-        log_error("[wrei_registry] Found {} remaining active allocations", active_allocations);
+        log_error("Registry found {} remaining active allocations", active_allocations);
         wrei_debugbreak();
     }
 
     for (auto[i, bin] : bins | std::views::enumerate) {
         if (!bin.empty()) {
-            log_debug("[wrei_registry] Cleaning up {:3} allocations from bin size: {}", bin.size(), 1 << i);
+            log_debug("Registry cleaning up {} allocations from bin size: {}", bin.size(), 1 << i);
         }
         for (auto& block : bin) {
             ::free(block.data);
@@ -32,7 +32,7 @@ auto wrei_registry::allocate(usz size) -> allocated_block
     // log_trace("allocate({}), bin[{}].count = {}", size, bin_idx, bin.size());
 
     if (bin.empty()) {
-        block.data = malloc(size);
+        block.data = ::malloc(size);
         block.version = 1;
     } else {
         block = bin.back();
