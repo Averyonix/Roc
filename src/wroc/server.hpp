@@ -662,6 +662,7 @@ struct wroc_renderer : wrei_object
     ref<wren_pipeline> pipeline;
 
     wren_array<struct wroc_shader_rect> rects;
+    std::vector<struct wroc_shader_rect> rects_cpu;
 
     ref<wren_image> background;
     ref<wren_sampler> sampler;
@@ -783,7 +784,7 @@ struct wroc_server : wrei_object
     } data_manager;
 };
 
-wl_global* wroc_server_global(auto* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data = nullptr);
+wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data = nullptr);
 #define WROC_SERVER_GLOBAL(Server, Interface, ...) \
     wroc_server_global(Server, &Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
 

@@ -9,7 +9,7 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
     return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-wl_global* wroc_server_global(auto* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
+wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
 {
     assert(version <= interface->version);
     return wl_global_create(server->display, interface, version, data ?: server, bind);

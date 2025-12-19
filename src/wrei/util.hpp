@@ -162,6 +162,15 @@ std::string wrei_byte_size_to_string(u64 bytes);
 // -----------------------------------------------------------------------------
 
 inline
+usz wrei_compute_geometric_growth(usz current_size, usz new_min_size)
+{
+    usz geometric = current_size + (current_size >> 1);
+    return std::max(geometric, new_min_size);
+}
+
+// -----------------------------------------------------------------------------
+
+inline
 std::string wrei_escape_utf8(std::string_view in)
 {
     std::string out;

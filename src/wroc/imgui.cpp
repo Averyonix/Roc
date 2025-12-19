@@ -4,9 +4,6 @@
 #include "wroc_imgui_shader.hpp"
 #include "shaders/imgui.h"
 
-static constexpr u32 wroc_imgui_max_indices  = 1 << 18;
-static constexpr u32 wroc_imgui_max_vertices = 1 << 18;
-
 void wroc_imgui_init(wroc_server* server)
 {
     auto* wren = server->renderer->wren.get();
@@ -14,9 +11,6 @@ void wroc_imgui_init(wroc_server* server)
     server->imgui = wrei_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
     imgui->server = server;
-
-    imgui->indices  = {wren_buffer_create(wren, wroc_imgui_max_indices  * sizeof(ImDrawIdx))};
-    imgui->vertices = {wren_buffer_create(wren, wroc_imgui_max_vertices * sizeof(ImDrawVert))};
 
     imgui->pipeline = wren_pipeline_create(wren,
         wren_blend_mode::postmultiplied, server->renderer->output_format,
@@ -286,8 +280,8 @@ static bool show_demo_window = false;
 static
 void draw_debug_window(wroc_server* server)
 {
-    ImGui::Begin("Roc");
     defer { ImGui::End(); };
+    ImGui::Begin("Roc");
 
     // Window toggles
 
@@ -338,13 +332,39 @@ void draw_debug_window(wroc_server* server)
         wrei_byte_size_to_string(wren->stats.active_image_imported_memory));
     ImGui_Text("Wren.Buffers:  {} ({})", wren->stats.active_buffers,
         wrei_byte_size_to_string(wren->stats.active_buffer_memory));
-    ImGui_Text("Wren.Samplers: {}", wren->stats.active_samplers);
+
+    ImGui::Separator();
+
+    // Surfaces
+
+    {
+        wrei_enum_map<u32, wroc_surface_role> counts = {};
+        for (auto* surface : server->surfaces) {
+            counts[surface->role]++;
+        }
+
+        ImGui_Text("Surfaces:      {}", server->surfaces.size());
+        if (auto c = counts[wroc_surface_role::none])         ImGui_Text("  Unassigned:  {}", c);
+        if (auto c = counts[wroc_surface_role::cursor])       ImGui_Text("  Cursor:      {}", c);
+        if (auto c = counts[wroc_surface_role::drag_icon])    ImGui_Text("  Drag Icon:   {}", c);
+        if (auto c = counts[wroc_surface_role::subsurface])   ImGui_Text("  Subsurface:  {}", c);
+        if (auto c = counts[wroc_surface_role::xdg_toplevel]) ImGui_Text("  Toplevel:    {}", c);
+        if (auto c = counts[wroc_surface_role::xdg_popup])    ImGui_Text("  Popup:       {}", c);
+    }
 
     ImGui::Separator();
 
     // Elapsed
 
     ImGui_Text("Elapsed: {:.1f}s", wroc_get_elapsed_milliseconds(server) / 1000.0);
+
+    ImGui::Separator();
+
+    // Screenshot
+
+    if (ImGui::Button("Screenshot")) {
+        server->renderer->screenshot_queued = true;
+    }
 
     ImGui::Separator();
     ImGui::Dummy(ImVec2(0.f, 0.f));
@@ -366,8 +386,9 @@ void draw_debug_window(wroc_server* server)
 static
 void draw_log_window()
 {
-    if (!show_log_window || !ImGui::Begin("Log", &show_log_window)) return;
+    if (!show_log_window) return;
     defer { ImGui::End(); };
+    if (!ImGui::Begin("Log", &show_log_window)) return;
 
     auto scroll_to_bottom = ImGui::Button("Follow");
 
@@ -450,6 +471,18 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bo
     auto data = ImGui::GetDrawData();
     if (!data->TotalIdxCount) return;
 
+    if (imgui->vertices.count < usz(data->TotalVtxCount)) {
+        auto new_size = wrei_compute_geometric_growth(imgui->vertices.count, data->TotalVtxCount);
+        log_debug("ImGui - reallocating vertex buffer, size: {}", new_size);
+        imgui->vertices = {wren_buffer_create(wren, new_size * sizeof(ImDrawVert)), usz(new_size)};
+    }
+
+    if (imgui->indices.count < usz(data->TotalIdxCount)) {
+        auto new_size = wrei_compute_geometric_growth(imgui->indices.count, data->TotalIdxCount);
+        log_debug("ImGui - reallocating index buffer, size: {}", new_size);
+        imgui->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx)), usz(new_size)};
+    }
+
     wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline->pipeline);
     wren->vk.CmdBindIndexBuffer(cmd,
         imgui->indices.buffer->buffer, imgui->indices.byte_offset,
@@ -462,9 +495,6 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bo
     u32 index_offset = 0;
     for (i32 i = 0; i < data->CmdListsCount; ++i) {
         auto list = data->CmdLists[i];
-
-        assert(vertex_offset + list->VtxBuffer.size() <= wroc_imgui_max_vertices);
-        assert(index_offset + list->IdxBuffer.size() <= wroc_imgui_max_indices);
 
         std::memcpy(imgui->vertices.host() + vertex_offset, list->VtxBuffer.Data, list->VtxBuffer.size() * sizeof(ImDrawVert));
         std::memcpy(imgui->indices.host()  + index_offset,  list->IdxBuffer.Data, list->IdxBuffer.size() * sizeof(ImDrawIdx));

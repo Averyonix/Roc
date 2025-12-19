@@ -153,6 +153,7 @@ void device_init_pointer(wroc_input_device* device)
         .type = wroc_event_type::pointer_motion,
         .pointer = pointer,
         .output = output,
+        .motion = {},
     });
 }
 
@@ -211,6 +212,7 @@ void handle_pointer_motion(wroc_input_device* device, libinput_event_pointer* ev
         .type = wroc_event_type::pointer_motion,
         .pointer = pointer,
         .output = pointer->current_output,
+        .motion = {},
     });
 }
 

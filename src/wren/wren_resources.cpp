@@ -63,6 +63,8 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
     auto buffer = wrei_create<wren_buffer>();
     buffer->ctx = ctx;
 
+    buffer->size = size;
+
     ctx->stats.active_buffers++;
 
     VmaAllocationInfo alloc_info;

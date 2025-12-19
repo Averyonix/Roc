@@ -189,6 +189,7 @@ struct wren_buffer : wrei_object
     VmaAllocation vma_allocation;
     VkDeviceAddress device_address;
     void* host_address;
+    usz size;
 
     template<typename T>
     T* device(usz byte_offset = 0) const
@@ -224,7 +225,16 @@ template<typename T>
 struct wren_array
 {
     ref<wren_buffer> buffer;
+    usz count = 0;
     usz byte_offset = 0;
+
+    wren_array() = default;
+
+    wren_array(const auto& buffer, usz count, usz byte_offset = {})
+        : buffer(buffer)
+        , count(count)
+        , byte_offset(byte_offset)
+    {}
 
     T* device() const
     {

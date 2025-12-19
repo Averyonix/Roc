@@ -222,7 +222,7 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
     else if (!initial_size_receieved) {
         initial_size_receieved = true;
         auto geom = wroc_xdg_surface_get_geometry(base());
-        log_error("INITIAL SIZE RECEIVED: ({}, {})", geom.extent.x, geom.extent.y);
+        log_debug("Initial surface size: ({}, {})", geom.extent.x, geom.extent.y);
         wroc_xdg_toplevel_set_size(this, geom.extent);
         wroc_xdg_toplevel_flush_configure(this);
     }

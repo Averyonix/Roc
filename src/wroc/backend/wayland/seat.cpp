@@ -15,6 +15,7 @@ void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx,
         .type = wroc_event_type::pointer_motion,
         .pointer = pointer,
         .output = pointer->current_output,
+        .motion = {},
     });
 }
 

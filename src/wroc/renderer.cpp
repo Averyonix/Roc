@@ -10,9 +10,6 @@
 
 #include "wroc/event.hpp"
 
-static
-constexpr u32 wroc_max_rects = 65'536;
-
 void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
 {
 
@@ -47,8 +44,6 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
     renderer->pipeline = wren_pipeline_create(wren,
         wren_blend_mode::premultiplied, server->renderer->output_format,
         wroc_blit_shader, "vertex", "fragment");
-
-    renderer->rects = {wren_buffer_create(wren, wroc_max_rects * sizeof(wroc_shader_rect))};
 }
 
 void wroc_render_frame(wroc_output* output)
@@ -100,23 +95,42 @@ void wroc_render_frame(wroc_output* output)
     u32 rect_id_start = 0;
     u32 rect_id = 0;
 
+    renderer->rects_cpu.clear();
+
     auto draw = [&](wren_image* image, vec2f32 offset, vec2f32 extent) {
-        assert(rect_id < wroc_max_rects);
 
         // TODO: Async buffer waits
         // wren_image_wait(image);
 
-        renderer->rects[rect_id++] = wroc_shader_rect {
+        rect_id++;
+        renderer->rects_cpu.emplace_back(wroc_shader_rect {
             .image = image4f32{image, renderer->sampler.get()},
             .image_rect = { {}, image->extent },
             .image_has_alpha = image->format->has_alpha,
             .rect = { offset, extent },
             .opacity = 1.f,
-        };
+        });
     };
+
+    std::vector<ref<wren_buffer>> replaced_buffers;
 
     auto flush_draws = [&] {
         if (rect_id_start == rect_id) return;
+
+        if (renderer->rects.count < rect_id) {
+            auto new_size = wrei_compute_geometric_growth(renderer->rects.count, rect_id);
+            log_debug("Renderer - reallocating rect buffer, size: {}", new_size);
+            if (renderer->rects.buffer && rect_id_start) {
+                // Previous draws using this buffer, keep alive until all draws complete
+                log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
+                replaced_buffers.emplace_back(renderer->rects.buffer);
+            }
+            renderer->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect)), new_size};
+        }
+
+        if (!renderer->rects_cpu.empty()) {
+            std::memcpy(renderer->rects.host() + rect_id_start, renderer->rects_cpu.data() + rect_id_start, (rect_id - rect_id_start) * sizeof(wroc_shader_rect));
+        }
 
         wroc_shader_rect_input si = {};
         si.rects = renderer->rects.device();
