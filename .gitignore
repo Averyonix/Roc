@@ -8,4 +8,5 @@ test/
 
 # Runtime
 *.log
+*.png
 imgui.ini

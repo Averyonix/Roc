@@ -80,6 +80,7 @@
     DO(GetImageMemoryRequirements) \
     DO(BindImageMemory) \
     DO(CmdCopyBufferToImage) \
+    DO(CmdCopyImageToBuffer) \
     DO(CreateSampler) \
     DO(DestroySampler) \
     DO(CreateDescriptorSetLayout) \

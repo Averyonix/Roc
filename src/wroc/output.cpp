@@ -49,7 +49,9 @@ void wroc_output_init_swapchain(wroc_output* output)
 
     auto sw_info = vkwsi_swapchain_info_default();
     sw_info.image_sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
-    sw_info.image_usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    sw_info.image_usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+        // TODO: DONT DO THIS - Use an intermediary buffer or multi-view rendering for screenshots
+        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     sw_info.present_mode = VK_PRESENT_MODE_FIFO_KHR;
     sw_info.min_image_count = 2;
     sw_info.format = output->format.format;
@@ -61,6 +63,16 @@ static
 void wroc_output_send_configuration(wroc_output* output, wl_resource* client_resource, bool initial)
 {
     log_debug("Output sending configuration to: {}", (void*)client_resource);
+
+    log_debug("  position = ({}, {})", output->position.x, output->position.y);
+    log_debug("  physical size = {}x{}mm", output->physical_size_mm.x, output->physical_size_mm.y);
+    log_debug("  subpixel_layout = {}", magic_enum::enum_name(output->subpixel_layout));
+    log_debug("  make = {}", output->make);
+    log_debug("  model = {}", output->make);
+    log_debug("  mode = {}x{} @ {:}", output->mode.size.x, output->mode.size.y, output->mode.refresh);
+    log_debug("  scale = {}", output->scale);
+    log_debug("  name = {}", output->name);
+    log_debug("  description = {}", output->description);
 
     wl_output_send_geometry(client_resource,
         output->position.x, output->position.y,

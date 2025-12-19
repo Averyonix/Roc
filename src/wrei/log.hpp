@@ -19,6 +19,16 @@ bool wrei_is_log_level_enabled(wrei_log_level);
 void wrei_init_log(wrei_log_level, const char* log_file);
 void      wrei_log(wrei_log_level, std::string_view message);
 
+struct wrei_log_entry
+{
+    wrei_log_level level;
+    std::string message;
+};
+std::span<const wrei_log_entry> wrei_log_get_history();
+void wrei_log_set_history_enabled(bool enabled);
+bool wrei_log_is_history_enabled();
+void wrei_log_clear_history();
+
 template<typename ...Args>
 void wrei_log(wrei_log_level level, std::format_string<Args...> fmt, Args&&... args)
 {

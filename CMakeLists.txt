@@ -4,6 +4,16 @@ project(wroc)
 
 # ------------------------------------------------------------------------------
 
+function(target_generated_source target visibility generated_source_name)
+    string(JOIN "\n" generated_content ${ARGN})
+    file(GENERATE
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${generated_source_name}"
+        CONTENT "${generated_content}")
+    target_sources(${target} ${visibility} "${CMAKE_CURRENT_BINARY_DIR}/${generated_source_name}")
+endfunction()
+
+# ------------------------------------------------------------------------------
+
 add_subdirectory(${VENDOR_DIR}/wayland EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
@@ -27,10 +37,10 @@ add_subdirectory(${VENDOR_DIR}/magic-enum EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
-add_library(                stb-image ${VENDOR_DIR}/stb/stb_image.h)
-set_source_files_properties(stb-image PUBLIC ${VENDOR_DIR}/stb/stb_image.h PROPERTIES LANGUAGE C)
-target_include_directories( stb-image PUBLIC ${VENDOR_DIR}/stb)
-target_compile_definitions( stb-image PRIVATE STB_IMAGE_IMPLEMENTATION=1)
+add_library(stb-image)
+target_include_directories(stb-image PUBLIC ${VENDOR_DIR}/stb)
+target_generated_source(stb-image PRIVATE stb_image.c       "#define STB_IMAGE_IMPLEMENTATION 1"       "#include <stb_image.h>")
+target_generated_source(stb-image PRIVATE stb_image_write.c "#define STB_IMAGE_WRITE_IMPLEMENTATION 1" "#include <stb_image_write.h>")
 
 # ------------------------------------------------------------------------------
 
@@ -46,6 +56,7 @@ target_sources(imgui PRIVATE
     ${VENDOR_DIR}/imgui/imgui_draw.cpp
     ${VENDOR_DIR}/imgui/imgui_tables.cpp
     ${VENDOR_DIR}/imgui/imgui_widgets.cpp
+    ${VENDOR_DIR}/imgui/misc/cpp/imgui_stdlib.cpp
     )
 
 # ------------------------------------------------------------------------------
@@ -64,12 +75,9 @@ add_subdirectory(${VENDOR_DIR}/vkwsi EXCLUDE_FROM_ALL)
 add_subdirectory(${VENDOR_DIR}/vulkan-memory-allocator  EXCLUDE_FROM_ALL)
 
 add_library(vma-object)
-file(GENERATE
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_mem_alloc.cpp
-    CONTENT "#define VMA_IMPLEMENTATION\n#include <vk_mem_alloc.h>")
-target_sources(       vma-object PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/vk_mem_alloc.cpp)
-target_link_libraries(vma-object PUBLIC GPUOpen::VulkanMemoryAllocator)
-target_compile_options(vma-object PRIVATE -w)
+target_generated_source(   vma-object PRIVATE vk_mem_alloc.cpp "#define VMA_IMPLEMENTATION" "#include <vk_mem_alloc.h>")
+target_compile_options(    vma-object PRIVATE -w)
+target_link_libraries(     vma-object PUBLIC GPUOpen::VulkanMemoryAllocator)
 target_compile_definitions(vma-object PUBLIC "VMA_STATIC_VULKAN_FUNCTIONS=0" "VMA_DYNAMIC_VULKAN_FUNCTIONS=1")
 
 # ------------------------------------------------------------------------------
@@ -208,6 +216,7 @@ target_sources(wroc PUBLIC
     src/wroc/backend/direct/backend.cpp
     src/wroc/backend/direct/output.cpp
     src/wroc/backend/direct/input.cpp
+    src/wroc/backend/direct/events.cpp
     )
 target_link_libraries(wroc PUBLIC wren wrei)
 

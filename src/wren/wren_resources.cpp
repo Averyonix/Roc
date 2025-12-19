@@ -131,6 +131,34 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
     return image;
 }
 
+void wren_image_readback(wren_image* image, void* data)
+{
+    auto* ctx = image->ctx.get();
+    auto extent = image->extent;
+
+    auto cmd = wren_begin_commands(ctx);
+
+    constexpr auto pixel_size = 4;
+    auto row_length = extent.x;
+    auto image_height = row_length * extent.y;
+    auto image_size = image_height * pixel_size;
+
+    // TODO: This should be stored persistently for transfers
+    ref buffer = wren_buffer_create(ctx, image_size);
+
+    ctx->vk.CmdCopyImageToBuffer(cmd, image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
+        .bufferOffset = 0,
+        .bufferRowLength = row_length,
+        .bufferImageHeight = image_size,
+        .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .imageOffset = {},
+        .imageExtent = { extent.x, extent.y, 1 },
+    }));
+
+    wren_submit_commands(ctx, cmd);
+
+    std::memcpy(data, buffer->host_address, image_size);
+}
 
 void wren_image_update(wren_image* image, const void* data)
 {
@@ -173,6 +201,12 @@ void wren_image_update(wren_image* image, const void* data)
 
 wren_image::~wren_image()
 {
+    // TODO: Proper non-owning image support
+    if (!id) {
+        log_debug("Image isn't imported, don't free");
+        return;
+    }
+
     log_debug("wren_image::destroyed");
 
     ctx->image_descriptor_allocator.free(id);

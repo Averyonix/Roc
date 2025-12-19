@@ -123,9 +123,8 @@ void wroc_keyboard_keymap_update(wroc_keyboard* kb)
 {
     // Update modifier indices
 
-    for (auto[i, mod_name] : wroc_modifier_xkb_names | std::views::enumerate) {
-        auto[mod, xkb_name] = mod_name;
-        kb->xkb_mod_masks[i] = { mod, xkb_keymap_mod_get_mask(kb->xkb_keymap, xkb_name) };
+    for (auto[i, mod] : wroc_modifier_info | std::views::enumerate) {
+        kb->xkb_mod_masks[i] = { mod.flag, xkb_keymap_mod_get_mask(kb->xkb_keymap, mod.name) };
     }
 
     wroc_keyboard_update_active_modifiers(kb);
@@ -194,6 +193,17 @@ static
 void wroc_keyboard_key(wroc_keyboard* kb, u32 keycode, bool pressed)
 {
     wroc_debug_print_key(kb, keycode, pressed);
+
+    {
+        // TODO: Proper compositor keybind handling
+        u32 xkb_keycode = wroc_key_to_xkb(keycode);
+        auto sym = xkb_state_key_get_one_sym(kb->xkb_state, xkb_keycode);
+        if (sym == XKB_KEY_Print && pressed) {
+            log_debug("PRINT OVERRIDE, saving screenshot");
+            kb->server->renderer->screenshot_queued = true;
+            return;
+        }
+    }
 
     for (auto* resource : kb->resources) {
         if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;

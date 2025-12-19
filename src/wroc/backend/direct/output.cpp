@@ -99,6 +99,9 @@ found_plane:
     output->make = display_props.displayName;
     output->description = display_props.displayName;
     output->size = {mode_props.parameters.visibleRegion.width, mode_props.parameters.visibleRegion.height};
+    output->mode.flags = WL_OUTPUT_MODE_CURRENT;
+    output->mode.size = output->size;
+    output->mode.refresh = mode_props.parameters.refreshRate / 1000.f;
 
     backend->outputs.emplace_back(output);
 

@@ -1,13 +1,40 @@
 #include "backend.hpp"
 
+wroc_device* open_device(wroc_direct_backend* backend, const char* path)
+{
+    int fd = -1;
+    auto dev_id = libseat_open_device(backend->seat, path, &fd);
+    if (fd < 0) {
+        log_error("Failed to open device");
+        return nullptr;
+    }
+
+    auto device = wrei_adopt_ref(wrei_get_registry(backend)->create<wroc_device>());
+    device->dev_id = dev_id;
+    device->fd = fd;
+
+    backend->devices.emplace_back(device);
+
+    return device.get();
+}
+
+void close_device(wroc_direct_backend* backend, wroc_device* device)
+{
+    libseat_close_device(backend->seat, device->dev_id);
+    close(device->fd);
+    std::erase_if(backend->devices, [&](const auto& d) { return d.get() == device; });
+}
+
+// -----------------------------------------------------------------------------
+
 static
-void seat_enable(struct libseat* seat, void* data)
+void seat_enable(libseat* seat, void* data)
 {
     log_debug("SEAT ENABLE");
 }
 
 static
-void seat_disable(struct libseat* seat, void* data)
+void seat_disable(libseat* seat, void* data)
 {
     log_debug("SEAT DISABLE");
 }
@@ -31,14 +58,20 @@ int handle_libseat_readable(int fd, u32 mask, void* data)
 static
 int open_restricted(const char* path, int flags, void* data)
 {
-    log_debug("OPEN RESTRICTED: {}", path);
+    log_debug("OPEN RESTRICTED");
+    log_debug("  path: {}", path ?: "nullptr");
     auto* backend = static_cast<wroc_direct_backend*>(data);
 
-    // int fd;
-    // libseat_open_device(backend->seat, path, &fd);
-    // return fd;
+    auto device = open_device(backend, path);
+    if (!device) {
+        log_error("Failed to open");
+        return -1;
+    }
 
-    return libseat_open_device(backend->seat, path, nullptr);
+    log_info("  device.id: {}", device->dev_id);
+    log_info("  device.fd: {}", device->fd);
+
+    return device->fd;
 }
 
 static
@@ -46,22 +79,20 @@ void close_restricted(int fd, void* data)
 {
     log_debug("CLOSE RESTRICTED: {}", fd);
     auto* backend = static_cast<wroc_direct_backend*>(data);
-    // close(fd);
 
-    libseat_close_device(backend->seat, fd);
+    auto iter = std::ranges::find(backend->devices, fd, [&](const auto& d) { return d->fd; });
+    if (iter != backend->devices.end()) {
+        log_debug("Closing device: (id = {})", iter->get()->dev_id);
+        close_device(backend, iter->get());
+    } else {
+        log_error("Could not find open device for fd: {}", fd);
+    }
 }
 
 static constexpr libinput_interface wroc_libinput_interface {
     .open_restricted = open_restricted,
     .close_restricted = close_restricted,
 };
-
-static
-void handle_libinput_event(libinput_event* event)
-{
-    auto type = libinput_event_get_type(event);
-    log_warn("libinput event: {}", magic_enum::enum_name(type));
-}
 
 static
 int handle_libinput_readable(int fd, u32 mask, void* data)
@@ -71,7 +102,7 @@ int handle_libinput_readable(int fd, u32 mask, void* data)
 
     libinput_event* event;
     while ((event = libinput_get_event(backend->libinput))) {
-        handle_libinput_event(event);
+        wroc_backend_handle_libinput_event(backend, event);
         libinput_event_destroy(event);
     }
 
@@ -80,13 +111,44 @@ int handle_libinput_readable(int fd, u32 mask, void* data)
 
 // -----------------------------------------------------------------------------
 
+static
+void log_libinput(libinput* libinput, libinput_log_priority priority, const char* fmt, va_list args) {
+    wrei_log_level level;
+    switch (priority) {
+        break;case LIBINPUT_LOG_PRIORITY_ERROR: level = wrei_log_level::error;
+        break;case LIBINPUT_LOG_PRIORITY_INFO: level = wrei_log_level::info;
+        break;default: level = wrei_log_level::debug;
+    }
+
+	static char wlr_fmt[4096] = {};
+	vsnprintf(wlr_fmt, sizeof(wlr_fmt) - 1, fmt, args);
+    wrei_log(level, std::format("[libinput] {}", wlr_fmt));
+}
+
+// -----------------------------------------------------------------------------
+
 void wroc_backend_init_libinput(wroc_direct_backend* backend)
 {
+    // udev
+
+    log_debug("INIT BACKEND LIBINPUT, backend: {}", (void*)backend);
+
+    backend->udev = udev_new();
+    if (!backend->udev) {
+        log_error("Input backend init failed: Failed to create udev context");
+        return;
+    }
+
+    // libseat
+
     backend->seat = libseat_open_seat(&wroc_seat_listener, nullptr);
     if (!backend->seat) {
         log_error("Failed to open seat");
-        return;
+        std::terminate();
     }
+
+    backend->seat_name = libseat_seat_name(backend->seat);
+    log_info("seat name: {}", backend->seat_name);
 
     int seat_fd = libseat_get_fd(backend->seat);
     assert(seat_fd >= 0);
@@ -94,22 +156,31 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     backend->libseat_event_source = wl_event_loop_add_fd(
         wl_display_get_event_loop(backend->server->display), seat_fd, WL_EVENT_READABLE, handle_libseat_readable, backend);
 
-    backend->udev = udev_new();
+    // libinput
+
     backend->libinput = libinput_udev_create_context(&wroc_libinput_interface, backend, backend->udev);
     if (!backend->libinput) {
-        log_error("Failed ot create libinput context");
-        return;
+        log_error("Failed to create libinput context");
+        std::terminate();
     }
 
-    auto res = wrei_unix_check_n1(libinput_udev_assign_seat(backend->libinput, "seat-0"));
-    if (res == 0) {
-        log_debug("LIBINPUT SEAT ACQUIRED SUCCESSFULLY");
+	libinput_log_set_handler(backend->libinput, log_libinput);
+	libinput_log_set_priority(backend->libinput, LIBINPUT_LOG_PRIORITY_DEBUG);
+
+    auto res = wrei_unix_check_n1(libinput_udev_assign_seat(backend->libinput, backend->seat_name));
+    if (res < 0) {
+        log_error("libinput failed to acquire seat");
+        std::terminate();
     }
 
     int libinput_fd = libinput_get_fd(backend->libinput);
     log_debug("LIBINPUT FD = {}", libinput_fd);
 
     handle_libinput_readable(libinput_fd, WL_EVENT_READABLE, backend);
+    if (backend->input_devices.empty()) {
+        log_error("LIBINPUT initialization failed, no keyboard or mouse detected");
+        std::terminate();
+    }
 
     backend->libinput_event_source = wl_event_loop_add_fd(
         wl_display_get_event_loop(backend->server->display), libinput_fd, WL_EVENT_READABLE, handle_libinput_readable, backend);

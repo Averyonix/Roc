@@ -271,7 +271,77 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
 template<typename ...Args>
 void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
 {
-    ImGui::Text("%s", std::vformat(fmt.get(), std::make_format_args(args...)).c_str());
+    ImGui::TextUnformatted(std::vformat(fmt.get(), std::make_format_args(args...)).c_str());
+}
+
+static
+void draw_stat_window(wroc_server* server)
+{
+    ImGui::Begin("Stats");
+    defer { ImGui::End(); };
+
+    ImGui_Text("Elapsed: {}", wroc_get_elapsed_milliseconds(server));
+    static std::string launch_text = "konsole";
+    ImGui::InputText("Launch", &launch_text);
+    ImGui::SameLine();
+    if (ImGui::Button("Run")) {
+        log_warn("Launching: [{}]", launch_text.c_str());
+        log_warn("  WAYLAND_DISPLAY={}", getenv("WAYLAND_DISPLAY"));
+        if (fork() == 0) {
+            execlp(launch_text.c_str(), launch_text.c_str(), nullptr);
+        }
+    }
+}
+
+static
+void draw_log_window()
+{
+    ImGui::Begin("Log");
+    defer { ImGui::End(); };
+
+    auto scroll_to_bottom = ImGui::Button("Follow");
+
+    ImGui::SameLine();
+    bool history_enabled = wrei_log_is_history_enabled();
+    if (ImGui::Checkbox("Enabled", &history_enabled)) {
+        wrei_log_set_history_enabled(history_enabled);
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Clear")) {
+        wrei_log_clear_history();
+    }
+
+    ImGui::BeginChild("scroll-region", ImVec2(), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_HorizontalScrollbar);
+    defer { ImGui::EndChild(); };
+
+    auto history = wrei_log_get_history();
+    ImGuiListClipper clipper;
+    clipper.Begin(history.size());
+    while (clipper.Step()) {
+        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+            const auto& entry = history[i];
+            std::optional<ImVec4> color;
+            const char* format;
+            switch (entry.level) {
+                break;case wrei_log_level::trace: format = "[TRACE] %s"; color = ImVec4(99/255., 104/255., 109/255., 1.0);
+                break;case wrei_log_level::debug: format = "[DEBUG] %s"; color = ImVec4(22/255., 160/255., 133/255., 1.0);
+                break;case wrei_log_level::info:  format = " [INFO] %s"; color = ImVec4(29/255., 153/255., 243/255., 1.0);
+                break;case wrei_log_level::warn:  format = " [WARN] %s"; color = ImVec4(253/255., 188/255., 75/255., 1.0);
+                break;case wrei_log_level::error: format = "[ERROR] %s"; color = ImVec4(192/255., 57/255., 43/255., 1.0);
+                break;case wrei_log_level::fatal: format = "[FATAL] %s"; color = ImVec4(192/255., 57/255., 43/255., 1.0);
+            }
+
+            if (color) ImGui::PushStyleColor(ImGuiCol_Text, *color);
+            ImGui::Text(format, entry.message.c_str());
+            if (color) ImGui::PopStyleColor();
+        }
+    }
+    ImGui::Separator();
+
+    if (scroll_to_bottom || (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())) {
+        ImGui::SetScrollHereY(1.f);
+    }
 }
 
 void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bool* wants_mouse)
@@ -297,9 +367,8 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bo
 
     ImGui::ShowDemoWindow();
 
-    ImGui::Begin("Stats");
-    ImGui_Text("Elapsed: {}", wroc_get_elapsed_milliseconds(imgui->server));
-    ImGui::End();
+    draw_stat_window(imgui->server);
+    draw_log_window();
 
     ImGui::Render();
 

@@ -31,6 +31,7 @@ void wroc_run(int argc, char* argv[])
             backend_type = wroc_backend_type::direct;
         } else if (arg == "--imgui") {
             options |= wroc_options::imgui;
+            wrei_log_set_history_enabled(true);
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
@@ -68,9 +69,13 @@ void wroc_run(int argc, char* argv[])
 
     // Renderer
 
+    log_warn("Initializing renderer");
+
     wroc_renderer_create(server, render_options);
 
     // ImGui
+
+    log_warn("Initializing imgui");
 
     if (server->options >= wroc_options::imgui) {
         wroc_imgui_init(server);
@@ -78,7 +83,11 @@ void wroc_run(int argc, char* argv[])
 
     // Backend
 
+    log_warn("Initializing backend");
+
     wroc_backend_init(server, backend_type);
+
+    log_warn("Backend initialized");
 
     // Cursor
 
@@ -98,6 +107,11 @@ void wroc_run(int argc, char* argv[])
     WROC_SERVER_GLOBAL(server, zwp_pointer_gestures_v1);
 
     // Run
+
+    log_warn("Setting WAYLAND_DISPLAY={}", socket);
+    setenv("WAYLAND_DISPLAY", socket, true);
+    setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, true);
+    unsetenv("DISPLAY");
 
     log_info("Running compositor on: {}", socket);
 

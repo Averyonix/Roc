@@ -15,6 +15,7 @@ constexpr u32 wroc_max_rects = 65'536;
 
 void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
 {
+
     auto* renderer = (server->renderer = wrei_adopt_ref(wrei_get_registry(server)->create<wroc_renderer>())).get();
     renderer->server = server;
     renderer->options = render_options;
@@ -262,12 +263,64 @@ void wroc_render_frame(wroc_output* output)
         }
     }
 
+    if (renderer->screenshot_queued) {
+        renderer->screenshot_queued = false;
+
+        // TODO: Factor this out to function and add options (rect, format, etc..)
+        // TODO: Also just render everything twice instead of copying?
+
+        wren_submit_commands(wren, cmd);
+
+        auto row_stride = current.extent.width * 4;
+        auto byte_size = row_stride * current.extent.height;
+
+        log_warn("Saving screen ({}, {})", current.extent.width, current.extent.height);
+        log_warn("  row_stride = {}", row_stride);
+        log_warn("  row_stride = {}", byte_size);
+
+        std::vector<char> data;
+        data.resize(byte_size);
+
+        // TODO: HACK HACK HACK
+        //       We should just expose a wren_image instead of directly using the vkwsi returns
+        ref<wren_image> image = wrei_get_registry(wren)->create<wren_image>();
+        image->image = current.image;
+        image->ctx = wren;
+        image->extent = vec2u32(current.extent.width, current.extent.height);
+
+        auto t1 = std::chrono::steady_clock::now();
+
+        log_warn("  performing image readback");
+        wren_image_readback(image.get(), data.data());
+
+        auto t2 = std::chrono::steady_clock::now();
+        log_warn("  image readback completed in {}, saving...", wrei_duration_to_string(t2 - t1));
+
+        // Byte swap BGRA -> RGBA
+        for (u32 i = 0; i < byte_size; i += 4) {
+            auto b = data[i + 0];
+            auto g = data[i + 1];
+            auto r = data[i + 2];
+
+            data[i + 0] = r;
+            data[i + 1] = g;
+            data[i + 2] = b;
+        }
+
+        stbi_write_png("screenshot.png", image->extent.x, image->extent.y, STBI_rgb_alpha, data.data(), image->extent.x * 4);
+        auto t3 = std::chrono::steady_clock::now();
+        log_warn("  save complete in {}", wrei_duration_to_string(t3 - t2));
+
+        cmd = wren_begin_commands(wren);
+    }
+
     wren_transition(wren, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     wren_submit_commands(wren, cmd);
+
     wren_check(vkwsi_swapchain_present(&output->swapchain, 1, wren->queue, nullptr, 0, false));
 
     // Send frame callbacks

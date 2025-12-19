@@ -6,6 +6,12 @@
 
 struct wroc_direct_backend;
 
+struct wroc_device : wrei_object
+{
+    int dev_id;
+    int fd;
+};
+
 struct wroc_drm_output : wroc_output
 {
     wl_event_source* timer;
@@ -15,19 +21,23 @@ struct wroc_drm_output : wroc_output
 
 struct wroc_libinput_keyboard : wroc_keyboard
 {
-    struct wl_keyboard* wl_keyboard = {};
-
-    ~wroc_libinput_keyboard();
 };
 
 struct wroc_libinput_pointer : wroc_pointer
 {
-    struct wl_pointer* wl_pointer = {};
-    u32 last_serial = {};
-
     wroc_drm_output* current_output = {};
+};
 
-    ~wroc_libinput_pointer();
+struct wroc_input_device : wrei_object
+{
+    wroc_direct_backend* backend;
+
+    libinput_device* handle;
+
+    ref<wroc_libinput_keyboard> keyboard;
+    ref<wroc_libinput_pointer> pointer;
+
+    ~wroc_input_device();
 };
 
 struct wroc_direct_backend : wroc_backend
@@ -35,13 +45,15 @@ struct wroc_direct_backend : wroc_backend
     wroc_server* server = {};
 
     struct libseat* seat;
+    const char* seat_name;
     struct udev* udev;
     struct libinput* libinput;
 
+    std::vector<ref<wroc_device>> devices;
+
     std::vector<ref<wroc_drm_output>> outputs;
 
-    ref<wroc_libinput_keyboard> keyboard = {};
-    ref<wroc_libinput_pointer>  pointer = {};
+    std::vector<ref<wroc_input_device>> input_devices;
 
     wl_event_source* libseat_event_source = {};
     wl_event_source* libinput_event_source = {};
@@ -56,5 +68,7 @@ void wroc_direct_backend_init(wroc_server*);
 
 void wroc_backend_init_libinput(wroc_direct_backend*);
 void wroc_backend_deinit_libinput(wroc_direct_backend*);
+
+void wroc_backend_handle_libinput_event(wroc_direct_backend*, libinput_event*);
 
 void wroc_backend_init_drm(wroc_direct_backend*);

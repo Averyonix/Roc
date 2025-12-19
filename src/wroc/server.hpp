@@ -487,12 +487,21 @@ enum class wroc_modifiers : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_modifiers)
 
-static constexpr std::pair<wroc_modifiers, const char*> wroc_modifier_xkb_names[] = {
-    { wroc_modifiers::super, XKB_MOD_NAME_LOGO },
-    { wroc_modifiers::shift, XKB_MOD_NAME_SHIFT },
-    { wroc_modifiers::ctrl,  XKB_MOD_NAME_CTRL },
-    { wroc_modifiers::alt,   XKB_MOD_NAME_ALT },
-    { wroc_modifiers::num,   XKB_MOD_NAME_NUM },
+struct wroc_modifier
+{
+    wroc_modifiers flag;
+    const char* name;
+    xkb_keysym_t left;
+    xkb_keysym_t right;
+    xkb_keysym_t lock;
+};
+
+static constexpr wroc_modifier wroc_modifier_info[] = {
+    { wroc_modifiers::super, XKB_MOD_NAME_LOGO,  XKB_KEY_Super_L,   XKB_KEY_Super_R                       },
+    { wroc_modifiers::shift, XKB_MOD_NAME_SHIFT, XKB_KEY_Shift_L,   XKB_KEY_Shift_R,   XKB_KEY_Shift_Lock },
+    { wroc_modifiers::ctrl,  XKB_MOD_NAME_CTRL,  XKB_KEY_Control_L, XKB_KEY_Control_R                     },
+    { wroc_modifiers::alt,   XKB_MOD_NAME_ALT,   XKB_KEY_Alt_L,     XKB_KEY_Alt_R                         },
+    { wroc_modifiers::num,   XKB_MOD_NAME_NUM,   XKB_KEY_NoSymbol,  XKB_KEY_NoSymbol,  XKB_KEY_Num_Lock   },
 };
 
 struct wroc_keyboard : wrei_object
@@ -506,7 +515,7 @@ struct wroc_keyboard : wrei_object
     struct xkb_state*   xkb_state;
     struct xkb_keymap*  xkb_keymap;
 
-    std::array<std::pair<wroc_modifiers, xkb_mod_mask_t>, std::size(wroc_modifier_xkb_names)> xkb_mod_masks;
+    std::array<std::pair<wroc_modifiers, xkb_mod_mask_t>, std::size(wroc_modifier_info)> xkb_mod_masks;
     wroc_modifiers active_modifiers;
 
     int keymap_fd = -1;
@@ -656,6 +665,8 @@ struct wroc_renderer : wrei_object
 
     ref<wren_image> background;
     ref<wren_sampler> sampler;
+
+    bool screenshot_queued = false;
 };
 
 void wroc_renderer_create(wroc_server*, wroc_render_options);

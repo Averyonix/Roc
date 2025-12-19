@@ -254,6 +254,7 @@ struct wren_image : wrei_object
 
 ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format format);
 void wren_image_update(wren_image*, const void* data);
+void wren_image_readback(wren_image*, void* data);
 void wren_image_wait(wren_image*);
 
 void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,

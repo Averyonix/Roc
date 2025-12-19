@@ -59,8 +59,9 @@ void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 /* time */, wl_f
     wroc_backend_pointer_absolute(pointer, sx, sy);
 }
 
+// TODO: Factor out button state tracking!
 static
-void update_pointer_button_state(wroc_wayland_pointer* pointer, u32 button, bool state)
+void update_pointer_button_state(wroc_pointer* pointer, u32 button, bool state)
 {
     if (!state) {
         std::erase(pointer->pressed, button);
@@ -215,6 +216,7 @@ void wroc_listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 forma
     });
 }
 
+// TODO: Factor this and keymap management out between backends
 static
 void update_kb_key_state(wroc_keyboard* kb, u32 keycode, bool state)
 {

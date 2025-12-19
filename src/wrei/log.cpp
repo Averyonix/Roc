@@ -9,6 +9,8 @@ static struct {
     wrei_log_level log_level = wrei_log_level::trace;
     std::ofstream log_file;
     MessageConnection* ipc_sink = {};
+    std::vector<wrei_log_entry> history;
+    bool history_enabled;
 } wrei_log_state = {};
 
 void wrei_log_set_message_sink(struct MessageConnection* conn)
@@ -26,9 +28,33 @@ bool wrei_is_log_level_enabled(wrei_log_level level)
     return level >= wrei_get_log_level();
 }
 
+bool wrei_log_is_history_enabled()
+{
+    return wrei_log_state.history_enabled;
+}
+
+void wrei_log_set_history_enabled(bool enabled)
+{
+    wrei_log_state.history_enabled = enabled;
+}
+
+void wrei_log_clear_history()
+{
+    wrei_log_state.history.clear();
+}
+
+std::span<const wrei_log_entry> wrei_log_get_history()
+{
+    return wrei_log_state.history;
+}
+
 void wrei_log(wrei_log_level level, std::string_view message)
 {
     if (wrei_log_state.log_level > level) return;
+
+    if (wrei_log_state.history_enabled) {
+        wrei_log_state.history.emplace_back(level, std::string(message));
+    }
 
     struct {
         const char* vt;
