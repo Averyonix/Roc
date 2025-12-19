@@ -7,6 +7,10 @@ wren_context::~wren_context()
 {
     log_info("Wren context destroyed");
 
+    assert(stats.active_images == 0);
+    assert(stats.active_buffers == 0);
+    assert(stats.active_samplers == 0);
+
     vkwsi_context_destroy(vkwsi);
 
     vmaDestroyAllocator(vma);

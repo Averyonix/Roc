@@ -12,7 +12,7 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
     auto* new_resource = wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);;
-    auto* xdg_surface = wrei_get_registry(surface)->create<wroc_xdg_surface>();
+    auto* xdg_surface = wrei_create_unsafe<wroc_xdg_surface>();
     xdg_surface->resource = new_resource;
     wroc_surface_put_addon(surface, xdg_surface);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_surface_impl, xdg_surface);
@@ -40,7 +40,7 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
     auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
-    auto* xdg_toplevel = wrei_get_registry(xdg_surface)->create<wroc_toplevel>();
+    auto* xdg_toplevel = wrei_create_unsafe<wroc_toplevel>();
     xdg_toplevel->resource = new_resource;
     wroc_surface_put_addon(xdg_surface->surface.get(), xdg_toplevel);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_toplevel_impl, xdg_toplevel);
@@ -310,7 +310,7 @@ void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource
     auto* new_resource = wl_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* positioner = wrei_get_registry(server)->create<wroc_positioner>();
+    auto* positioner = wrei_create_unsafe<wroc_positioner>();
     positioner->resource = new_resource;
     positioner->server = server;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_positioner_impl, positioner);
@@ -571,7 +571,7 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
     auto* new_resource = wl_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* base = wroc_get_userdata<wroc_xdg_surface>(resource);
-    auto* popup = wrei_get_registry(base)->create<wroc_popup>();
+    auto* popup = wrei_create_unsafe<wroc_popup>();
     popup->resource = new_resource;
     wroc_surface_put_addon(base->surface.get(), popup);
 

@@ -9,7 +9,7 @@ wroc_device* open_device(wroc_direct_backend* backend, const char* path)
         return nullptr;
     }
 
-    auto device = wrei_adopt_ref(wrei_get_registry(backend)->create<wroc_device>());
+    auto device = wrei_create<wroc_device>();
     device->dev_id = dev_id;
     device->fd = fd;
 

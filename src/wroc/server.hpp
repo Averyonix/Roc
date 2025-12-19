@@ -198,7 +198,7 @@ T* wroc_surface_get_or_create_addon(wroc_surface* surface, bool* created = nullp
     if (created) *created = false;
     auto* existing = wroc_surface_get_addon<T>(surface);
     if (existing) return existing;
-    auto addon = wrei_adopt_ref(wrei_get_registry(surface)->create<T>());
+    auto addon = wrei_create<T>();
     if (!wroc_surface_put_addon(surface, addon.get())) return nullptr;
     if (created) *created = true;
     return addon.get();

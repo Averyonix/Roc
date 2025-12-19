@@ -10,7 +10,7 @@ void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, i
     auto* new_resource = wl_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* pool = wrei_get_registry(server)->create<wroc_shm_pool>();
+    auto* pool = wrei_create_unsafe<wroc_shm_pool>();
     pool->server = server;
     pool->resource = new_resource;
     pool->fd = fd;
@@ -55,7 +55,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
     auto* new_resource = wl_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
 
-    auto* shm_buffer = wrei_get_registry(pool)->create<wroc_shm_buffer>();
+    auto* shm_buffer = wrei_create_unsafe<wroc_shm_buffer>();
     shm_buffer->server = pool->server;
     shm_buffer->type = wroc_buffer_type::shm;
     shm_buffer->resource = new_resource;

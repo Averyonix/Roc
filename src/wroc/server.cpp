@@ -38,16 +38,15 @@ void wroc_run(int argc, char* argv[])
         }
     }
 
-    wrei_registry registry;
-    wroc_server* server = registry.create<wroc_server>();
-    defer { wrei_remove_ref(server); };
+    ref<wroc_server> server_ref = wrei_create<wroc_server>();
+    wroc_server* server = server_ref.get();
     log_warn("server = {}", (void*)server);
 
     server->options = options;
 
     // Seat
 
-    server->seat = wrei_adopt_ref(registry.create<wroc_seat>());
+    server->seat = wrei_create<wroc_seat>();
     server->seat->name = "seat-0";
 
     server->epoch = std::chrono::steady_clock::now();
@@ -133,8 +132,7 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Display destroyed");
 
-    wrei_remove_ref(server);
-    server = nullptr;
+    server_ref = nullptr;
 
     log_info("Shutdown complete");
 }

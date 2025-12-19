@@ -7,7 +7,7 @@ void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resour
     auto* new_resource = wl_resource_create(client, &wl_subsurface_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* surface = wroc_get_userdata<wroc_surface>(_surface);
-    auto* subsurface = wrei_get_registry(surface)->create<wroc_subsurface>();
+    auto* subsurface = wrei_create_unsafe<wroc_subsurface>();
     wroc_surface_put_addon(surface, subsurface);
 
     subsurface->resource = new_resource;

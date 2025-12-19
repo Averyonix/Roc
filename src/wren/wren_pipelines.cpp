@@ -8,7 +8,7 @@ ref<wren_pipeline> wren_pipeline_create(
     const char* vertex_entry,
     const char* fragment_entry)
 {
-    ref pipeline = wrei_get_registry(ctx)->create<wren_pipeline>();
+    ref pipeline = wrei_create<wren_pipeline>();
     pipeline->ctx = ctx;
 
     wren_check(ctx->vk.CreateGraphicsPipelines(ctx->device, nullptr, 1, wrei_ptr_to(VkGraphicsPipelineCreateInfo {

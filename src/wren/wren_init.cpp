@@ -4,9 +4,9 @@
 
 #include <sys/sysmacros.h>
 
-ref<wren_context> wren_create(wrei_registry* registry, wren_features features)
+ref<wren_context> wren_create(wren_features features)
 {
-    auto ctx = wrei_adopt_ref(registry->create<wren_context>());
+    auto ctx = wrei_create<wren_context>();
 
     ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!ctx->vulkan1) {

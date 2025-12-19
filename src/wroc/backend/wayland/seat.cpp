@@ -172,7 +172,7 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
         return;
     }
 
-    auto* pointer = (backend->pointer = wrei_adopt_ref(wrei_get_registry(backend)->create<wroc_wayland_pointer>())).get();
+    auto* pointer = (backend->pointer = wrei_create<wroc_wayland_pointer>()).get();
     pointer->wl_pointer = wl_pointer;
     pointer->server = backend->server;
 
@@ -324,7 +324,7 @@ void wroc_keyboard_set(wroc_wayland_backend* backend, struct wl_keyboard* wl_key
         return;
     }
 
-    auto* keyboard = (backend->keyboard = wrei_adopt_ref(wrei_get_registry(backend)->create<wroc_wayland_keyboard>())).get();
+    auto* keyboard = (backend->keyboard = wrei_create<wroc_wayland_keyboard>()).get();
     keyboard->wl_keyboard = wl_keyboard;
     keyboard->server = backend->server;
 

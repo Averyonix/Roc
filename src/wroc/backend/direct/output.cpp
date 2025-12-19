@@ -91,7 +91,7 @@ found_plane:
 
     log_info("Alpha mode: {}", magic_enum::enum_name(alpha_mode));
 
-    auto output = wrei_get_registry(backend)->create<wroc_drm_output>();
+    auto output = wrei_create<wroc_drm_output>();
 
     output->physical_size_mm = {display_props.physicalDimensions.width, display_props.physicalDimensions.height};
     output->model = "Unknown";
@@ -120,11 +120,11 @@ found_plane:
 
     wroc_post_event(output->server, wroc_output_event {
         .type = wroc_event_type::output_added,
-        .output = output,
+        .output = output.get(),
     });
 
-    output->timer = wl_event_loop_add_timer(wl_display_get_event_loop(backend->server->display), handle_output_timer, output);
-    handle_output_timer(output);
+    output->timer = wl_event_loop_add_timer(wl_display_get_event_loop(backend->server->display), handle_output_timer, output.get());
+    handle_output_timer(output.get());
 }
 
 wroc_drm_output::~wroc_drm_output()

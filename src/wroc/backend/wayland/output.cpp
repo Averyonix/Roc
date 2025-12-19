@@ -205,7 +205,7 @@ void wroc_wayland_backend::create_output()
         return;
     }
 
-    auto* output = wrei_get_registry(this)->create<wroc_wayland_output>();
+    auto output = wrei_create<wroc_wayland_output>();
 
     output->physical_size_mm = {};
     output->model = "Unknown";
@@ -219,17 +219,17 @@ void wroc_wayland_backend::create_output()
 
     output->wl_surface = wl_compositor_create_surface(wl_compositor);
     output->xdg_surface = xdg_wm_base_get_xdg_surface(xdg_wm_base, output->wl_surface);
-    xdg_surface_add_listener(output->xdg_surface, &wroc_xdg_surface_listener, output);
+    xdg_surface_add_listener(output->xdg_surface, &wroc_xdg_surface_listener, output.get());
 
     output->toplevel = xdg_surface_get_toplevel(output->xdg_surface);
-    xdg_toplevel_add_listener(output->toplevel, &wroc_xdg_toplevel_listener, output);
+    xdg_toplevel_add_listener(output->toplevel, &wroc_xdg_toplevel_listener, output.get());
 
     xdg_toplevel_set_app_id(output->toplevel, PROGRAM_NAME);
     xdg_toplevel_set_title(output->toplevel, output->name.c_str());
 
     if (decoration_manager) {
         output->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, output->toplevel);
-        zxdg_toplevel_decoration_v1_add_listener(output->decoration, &wroc_zxdg_toplevel_decoration_v1_listener, output);
+        zxdg_toplevel_decoration_v1_add_listener(output->decoration, &wroc_zxdg_toplevel_decoration_v1_listener, output.get());
         zxdg_toplevel_decoration_v1_set_mode(output->decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     } else {
         log_warn("Server side decorations are not supported, backend outputs will remain undecorated");

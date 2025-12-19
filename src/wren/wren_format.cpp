@@ -546,8 +546,10 @@ const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format fo
 
 ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
 {
-    auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
+    auto image = wrei_create<wren_image>();
     image->ctx = ctx;
+
+    ctx->stats.active_images++;
 
     image->extent = params.extent;
     image->format = params.format;

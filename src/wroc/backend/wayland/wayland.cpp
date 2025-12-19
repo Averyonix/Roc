@@ -82,8 +82,8 @@ int wroc_listen_backend_display_read(int fd, u32 mask, void* data)
 
 void wroc_wayland_backend_init(wroc_server* server)
 {
-    auto* backend = wrei_get_registry(server)->create<wroc_wayland_backend>();
-    server->backend = wrei_adopt_ref(backend);
+    auto backend = wrei_create<wroc_wayland_backend>();
+    server->backend = backend;
     backend->server = server;
 
     if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
@@ -95,12 +95,11 @@ void wroc_wayland_backend_init(wroc_server* server)
     unsetenv("WAYLAND_DEBUG");
     backend->wl_registry = wl_display_get_registry(backend->wl_display);
 
-    wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend);
+    wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend.get());
     wl_display_roundtrip(backend->wl_display);
 
-
     backend->event_source = wl_event_loop_add_fd(server->event_loop, wl_display_get_fd(backend->wl_display), WL_EVENT_READABLE,
-        wroc_listen_backend_display_read, backend);
+        wroc_listen_backend_display_read, backend.get());
 
     backend->create_output();
 

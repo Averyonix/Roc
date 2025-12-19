@@ -6,12 +6,9 @@
 
 using wrei_object_version = u32;
 
-struct wrei_registry;
-
 struct wrei_object_meta
 {
     size_t              size;
-    wrei_registry*      registry;
     u32                 ref_count;
     wrei_object_version version;
 };
@@ -27,8 +24,6 @@ struct wrei_object
     virtual ~wrei_object() = default;
 };
 
-// -----------------------------------------------------------------------------
-
 struct wrei_registry
 {
     struct allocated_block
@@ -38,72 +33,34 @@ struct wrei_registry
     };
 
     std::array<std::vector<allocated_block>, 64> bins;
+    u32 active_allocations;
+    u32 inactive_allocations;
+    u64 lifetime_allocations;
 
-    ~wrei_registry()
-    {
-        for (auto& bin : bins) {
-            for (auto& block : bin) {
-                ::free(block.data);
-            }
-        }
-    }
+    ~wrei_registry();
 
-    allocated_block allocate(usz size)
-    {
-        assert(std::popcount(size) == 1);
-
-        allocated_block block;
-
-        auto bin_idx = std::countr_zero(size);
-        auto& bin = bins[bin_idx];
-
-        // log_trace("allocate({}), bin[{}].count = {}", size, bin_idx, bin.size());
-
-        if (bin.empty()) {
-            block.data = malloc(size);
-            block.version = 1;
-        } else {
-            block = bin.back();
-            bin.pop_back();
-        }
-
-        return block;
-    }
-
-    template<typename T>
-    T* create()
-    {
-        static constexpr auto size = wrei_round_up_power2(sizeof(T));
-        allocated_block block = allocate(size);
-        auto* t = new (block.data) T {};
-        t->wrei.size = size;
-        t->wrei.version = block.version;
-        t->wrei.registry = this;
-        t->wrei.ref_count = 1;
-        return t;
-    }
-
-    void destroy(wrei_object* object, wrei_object_version version)
-    {
-        assert(version == object->wrei.version);
-
-        version++;
-        assert(version != 0);
-
-        auto size = object->wrei.size;
-
-        object->~wrei_object();
-        new (object) wrei_object {};
-
-        auto& bin = bins[std::countr_zero(size)];
-        bin.emplace_back(object, version);
-    }
+    allocated_block allocate(usz size);
+    void free(wrei_object*, wrei_object_version);
 };
 
-inline
-wrei_registry* wrei_get_registry(wrei_object* object)
+extern struct wrei_registry wrei_registry;
+
+template<typename T>
+T* wrei_create_unsafe()
 {
-    return object->wrei.registry;
+    static constexpr auto size = wrei_round_up_power2(sizeof(T));
+    wrei_registry::allocated_block block = wrei_registry.allocate(size);
+    auto* t = new (block.data) T {};
+    t->wrei.size = size;
+    t->wrei.version = block.version;
+    t->wrei.ref_count = 1;
+    return t;
+}
+
+inline
+void wrei_destroy(wrei_object* object, wrei_object_version version)
+{
+    wrei_registry.free(object, version);
 }
 
 // -----------------------------------------------------------------------------
@@ -119,7 +76,7 @@ template<typename T>
 void wrei_remove_ref(T* t)
 {
     if (t && !--static_cast<wrei_object*>(t)->wrei.ref_count) {
-        wrei_get_registry(t)->destroy(t, t->wrei.version);
+        wrei_destroy(t, t->wrei.version);
     }
 }
 
@@ -206,6 +163,12 @@ wrei_ref<T> wrei_adopt_ref(T* t)
     return {t, wrei_ref_adopt_tag{}};
 }
 
+template<typename T>
+wrei_ref<T> wrei_create()
+{
+    return wrei_adopt_ref(wrei_create_unsafe<T>());
+}
+
 // -----------------------------------------------------------------------------
 
 template<typename T>
@@ -249,21 +212,6 @@ struct wrei_weak
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
     operator wrei_weak<T2>() { return wrei_weak<T2>{value, version}; }
 };
-
-template<typename T>
-T* wrei_add_ref(wrei_weak<T> t)
-{
-    if (t) t->wrei.ref_count++;
-    return t;
-}
-
-template<typename T>
-void wrei_remove_ref(wrei_weak<T> t)
-{
-    if (t && !--t->wrei.ref_count) {
-        wrei_get_registry(t)->destroy(t, t->wrei.version);
-    }
-}
 
 // -----------------------------------------------------------------------------
 

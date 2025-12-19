@@ -6,7 +6,7 @@
 static
 void device_init_keyboard(wroc_input_device* device)
 {
-    device->keyboard = wrei_adopt_ref(wrei_get_registry(device)->create<wroc_libinput_keyboard>());
+    device->keyboard = wrei_create<wroc_libinput_keyboard>();
     device->keyboard->server = device->backend->server;
 
     device->keyboard->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
@@ -127,7 +127,7 @@ wroc_input_device::~wroc_input_device()
 static
 void device_init_pointer(wroc_input_device* device)
 {
-    device->pointer = wrei_adopt_ref(wrei_get_registry(device)->create<wroc_libinput_pointer>());
+    device->pointer = wrei_create<wroc_libinput_pointer>();
     device->pointer->server = device->backend->server;
     if (device->backend->outputs.empty()) {
         log_error("NO OUTPUTS FOUND!");
@@ -254,21 +254,21 @@ void handle_device_added(wroc_direct_backend* backend, struct libinput_device* l
         return;
     }
 
-    auto device = wrei_get_registry(backend)->create<wroc_input_device>();
+    auto device = wrei_create<wroc_input_device>();
     device->backend = backend;
     device->handle = libinput_device_ref(libinput_device);
-    libinput_device_set_user_data(libinput_device, device);
+    libinput_device_set_user_data(libinput_device, device.get());
 
-    backend->input_devices.emplace_back(wrei_adopt_ref(device));
+    backend->input_devices.emplace_back(device);
 
     if (libinput_device_has_capability(libinput_device, LIBINPUT_DEVICE_CAP_KEYBOARD)) {
         log_debug("  has keyboard capability");
-        device_init_keyboard(device);
+        device_init_keyboard(device.get());
     }
 
     if (libinput_device_has_capability(libinput_device, LIBINPUT_DEVICE_CAP_POINTER)) {
         log_debug("  has pointer capability");
-        device_init_pointer(device);
+        device_init_pointer(device.get());
     }
 }
 

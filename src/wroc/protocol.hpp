@@ -1,7 +1,7 @@
 #pragma once
 
 #include "wrei/log.hpp"
-#include "wrei/ref.hpp"
+#include "wrei/object.hpp"
 
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)

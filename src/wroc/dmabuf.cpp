@@ -9,7 +9,7 @@ void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 par
 {
     auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* params = wrei_get_registry(server)->create<wroc_dma_buffer_params>();
+    auto* params = wrei_create_unsafe<wroc_dma_buffer_params>();
     params->server = server;
     params->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params);
@@ -94,7 +94,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
 
     auto* params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
     auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
-    auto* buffer = wrei_get_registry(params)->create<wroc_dma_buffer>();
+    auto* buffer = wrei_create_unsafe<wroc_dma_buffer>();
     buffer->server = params->server;
     buffer->resource = new_resource;
     buffer->type = wroc_buffer_type::dma;

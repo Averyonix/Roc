@@ -11,8 +11,8 @@ void wroc_imgui_init(wroc_server* server)
 {
     auto* wren = server->renderer->wren.get();
 
-    auto* imgui = wrei_get_registry(server)->create<wroc_imgui>();
-    server->imgui = wrei_adopt_ref(imgui);
+    server->imgui = wrei_create<wroc_imgui>();
+    auto* imgui = server->imgui.get();
     imgui->server = server;
 
     imgui->indices  = {wren_buffer_create(wren, wroc_imgui_max_indices  * sizeof(ImDrawIdx))};
@@ -24,6 +24,12 @@ void wroc_imgui_init(wroc_server* server)
 
     imgui->context = ImGui::CreateContext();
     ImGui::SetCurrentContext(imgui->context);
+
+    auto& style = ImGui::GetStyle();
+    style.FrameRounding = 3;
+    style.ScrollbarRounding = 3;
+    style.WindowRounding = 5;
+    style.WindowBorderSize = 0;
 
     auto& io = ImGui::GetIO();
 
@@ -274,19 +280,79 @@ void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
     ImGui::TextUnformatted(std::vformat(fmt.get(), std::make_format_args(args...)).c_str());
 }
 
+static bool show_log_window = true;
+static bool show_demo_window = false;
+
 static
-void draw_stat_window(wroc_server* server)
+void draw_debug_window(wroc_server* server)
 {
-    ImGui::Begin("Stats");
+    ImGui::Begin("Roc");
     defer { ImGui::End(); };
 
+    // Window toggles
+
+    ImGui::Checkbox("Show Log", &show_log_window);
+    ImGui::SameLine(113.f);
+    ImGui::Checkbox("Show Demo", &show_demo_window);
+
+    ImGui::Separator();
+
+    // Frametime
+
+    {
+        static u32 frames = 0;
+        static std::chrono::steady_clock::duration frametime;
+        static f64 fps = 0.0;
+
+        frames++;
+        static auto last_report = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_report > 1s) {
+            auto dur = now - last_report;
+            auto seconds = std::chrono::duration_cast<std::chrono::duration<f64>>(dur).count();
+
+            frametime = dur / frames;
+            fps = frames / seconds;
+
+            last_report = now;
+            frames = 0;
+        }
+
+        ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(frametime), fps);
+    }
+
+    ImGui::Separator();
+
+    // Allocations
+
+    ImGui_Text("Objects:       {}/{} ({})",
+        wrei_registry.active_allocations,
+        wrei_registry.inactive_allocations,
+        wrei_registry.lifetime_allocations);
+
+    ImGui::Separator();
+
+    ImGui_Text("Wren.Images:   {}", server->renderer->wren->stats.active_images);
+    ImGui_Text("Wren.Buffers:  {}", server->renderer->wren->stats.active_buffers);
+    ImGui_Text("Wren.Samplers: {}", server->renderer->wren->stats.active_samplers);
+
+    ImGui::Separator();
+
+    // Elapsed
+
     ImGui_Text("Elapsed: {}", wroc_get_elapsed_milliseconds(server));
+
+    ImGui::Separator();
+    ImGui::Dummy(ImVec2(0.f, 0.f));
+
+    // Application launch
+
     static std::string launch_text = "konsole";
-    ImGui::InputText("Launch", &launch_text);
+    bool run = ImGui::InputText("##launch", &launch_text, ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
-    if (ImGui::Button("Run")) {
-        log_warn("Launching: [{}]", launch_text.c_str());
-        log_warn("  WAYLAND_DISPLAY={}", getenv("WAYLAND_DISPLAY"));
+    if (ImGui::Button("Run") || run) {
+        log_info("Launching: [{}]", launch_text.c_str());
+        log_debug("  WAYLAND_DISPLAY={}", getenv("WAYLAND_DISPLAY"));
         if (fork() == 0) {
             execlp(launch_text.c_str(), launch_text.c_str(), nullptr);
         }
@@ -296,7 +362,7 @@ void draw_stat_window(wroc_server* server)
 static
 void draw_log_window()
 {
-    ImGui::Begin("Log");
+    if (!show_log_window || !ImGui::Begin("Log", &show_log_window)) return;
     defer { ImGui::End(); };
 
     auto scroll_to_bottom = ImGui::Button("Follow");
@@ -311,6 +377,8 @@ void draw_log_window()
     if (ImGui::Button("Clear")) {
         wrei_log_clear_history();
     }
+
+    ImGui::Separator();
 
     ImGui::BeginChild("scroll-region", ImVec2(), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_HorizontalScrollbar);
     defer { ImGui::EndChild(); };
@@ -365,10 +433,11 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bo
 
     ImGui::NewFrame();
 
-    ImGui::ShowDemoWindow();
-
-    draw_stat_window(imgui->server);
+    draw_debug_window(imgui->server);
     draw_log_window();
+    if (show_demo_window) {
+        ImGui::ShowDemoWindow(&show_demo_window);
+    }
 
     ImGui::Render();
 

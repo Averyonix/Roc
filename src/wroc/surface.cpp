@@ -11,7 +11,7 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
     auto* new_resource = wl_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* region = wrei_get_registry(server)->create<wroc_region>();
+    auto* region = wrei_create_unsafe<wroc_region>();
     region->server = server;
     region->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_region_impl, region);
@@ -23,7 +23,7 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* new_resource = wl_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
-    auto* surface = wrei_get_registry(server)->create<wroc_surface>();
+    auto* surface = wrei_create_unsafe<wroc_surface>();
     surface->server = server;
     surface->resource = new_resource;
     server->surfaces.emplace_back(surface);

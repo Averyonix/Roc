@@ -60,8 +60,10 @@ u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryP
 
 ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 {
-    auto buffer = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_buffer>());
+    auto buffer = wrei_create<wren_buffer>();
     buffer->ctx = ctx;
+
+    ctx->stats.active_buffers++;
 
     VmaAllocationInfo vma_alloc_info;
     wren_check(vmaCreateBuffer(ctx->vma, wrei_ptr_to(VkBufferCreateInfo {
@@ -89,6 +91,8 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
 
 wren_buffer::~wren_buffer()
 {
+    ctx->stats.active_buffers--;
+
     vmaDestroyBuffer(ctx->vma, buffer, vma_allocation);
 }
 
@@ -96,8 +100,10 @@ wren_buffer::~wren_buffer()
 
 ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format format)
 {
-    auto image = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_image>());
+    auto image = wrei_create<wren_image>();
     image->ctx = ctx;
+
+    ctx->stats.active_images++;
 
     image->extent = extent;
     image->format = format;
@@ -201,11 +207,14 @@ void wren_image_update(wren_image* image, const void* data)
 
 wren_image::~wren_image()
 {
+
     // TODO: Proper non-owning image support
     if (!id) {
         log_debug("Image isn't imported, don't free");
         return;
     }
+
+    ctx->stats.active_images--;
 
     log_debug("wren_image::destroyed");
 
@@ -254,8 +263,10 @@ void wren_image_wait(wren_image* image)
 
 ref<wren_sampler> wren_sampler_create(wren_context* ctx, VkFilter mag, VkFilter min)
 {
-    ref sampler = wrei_adopt_ref(wrei_get_registry(ctx)->create<wren_sampler>());
+    ref sampler = wrei_create<wren_sampler>();
     sampler->ctx = ctx;
+
+    ctx->stats.active_samplers++;
 
     wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -277,6 +288,8 @@ ref<wren_sampler> wren_sampler_create(wren_context* ctx, VkFilter mag, VkFilter 
 
 wren_sampler::~wren_sampler()
 {
+    ctx->stats.active_samplers--;
+
     ctx->sampler_descriptor_allocator.free(id);
 
     ctx->vk.DestroySampler(ctx->device, sampler, nullptr);

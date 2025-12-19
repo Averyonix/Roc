@@ -131,6 +131,7 @@ target_sources(wrei PUBLIC
     src/wrei/shm.cpp
     src/wrei/region.cpp
     src/wrei/chrono.cpp
+    src/wrei/object.cpp
     )
 target_include_directories(wrei PUBLIC
     src

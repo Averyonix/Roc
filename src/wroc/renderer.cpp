@@ -1,6 +1,6 @@
 #include "server.hpp"
 
-#include "wrei/ref.hpp"
+#include "wrei/object.hpp"
 
 #include "wren/wren.hpp"
 #include "wren/wren_internal.hpp"
@@ -16,7 +16,7 @@ constexpr u32 wroc_max_rects = 65'536;
 void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
 {
 
-    auto* renderer = (server->renderer = wrei_adopt_ref(wrei_get_registry(server)->create<wroc_renderer>())).get();
+    auto* renderer = (server->renderer = wrei_create<wroc_renderer>()).get();
     renderer->server = server;
     renderer->options = render_options;
 
@@ -25,7 +25,7 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
         features |= wren_features::dmabuf;
     }
 
-    renderer->wren = wren_create(wrei_get_registry(server), features);
+    renderer->wren = wren_create(features);
     wroc_renderer_init_buffer_feedback(renderer);
 
     auto* wren = renderer->wren.get();
@@ -283,7 +283,7 @@ void wroc_render_frame(wroc_output* output)
 
         // TODO: HACK HACK HACK
         //       We should just expose a wren_image instead of directly using the vkwsi returns
-        ref<wren_image> image = wrei_get_registry(wren)->create<wren_image>();
+        ref<wren_image> image = wrei_create<wren_image>();
         image->image = current.image;
         image->ctx = wren;
         image->extent = vec2u32(current.extent.width, current.extent.height);

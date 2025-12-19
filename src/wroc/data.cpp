@@ -8,7 +8,7 @@ void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resour
 {
     auto* new_resource = wl_resource_create(client, &wl_data_source_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* data_source = wrei_get_registry(server)->create<wroc_data_source>();
+    auto* data_source = wrei_create_unsafe<wroc_data_source>();
     data_source->resource = new_resource;
     data_source->server = server;
     data_source->server->data_manager.sources.emplace_back(data_source);
@@ -20,7 +20,7 @@ void wroc_wl_data_device_manager_get_data_device(wl_client* client, wl_resource*
 {
     auto* new_resource = wl_resource_create(client, &wl_data_device_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* data_device = wrei_get_registry(server)->create<wroc_data_device>();
+    auto* data_device = wrei_create_unsafe<wroc_data_device>();
     data_device->resource = new_resource;
     data_device->server = server;
     data_device->seat = wroc_get_userdata<wroc_seat>(seat);
@@ -233,7 +233,7 @@ static
 wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* source)
 {
     auto* offer_resource = wl_resource_create(wroc_resource_get_client(device->resource), &wl_data_offer_interface, wl_resource_get_version(device->resource), 0);
-    auto* data_offer = wrei_get_registry(device)->create<wroc_data_offer>();
+    auto* data_offer = wrei_create_unsafe<wroc_data_offer>();
     data_offer->resource = offer_resource;
     data_offer->server = device->server;
     data_offer->source = source;

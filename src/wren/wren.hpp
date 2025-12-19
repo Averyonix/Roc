@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wrei/ref.hpp"
+#include "wrei/object.hpp"
 #include "wrei/types.hpp"
 
 #include "wren_functions.hpp"
@@ -129,6 +129,12 @@ struct wren_context : wrei_object
 
     VmaAllocator vma;
 
+    struct {
+        u32 active_images;
+        u32 active_buffers;
+        u32 active_samplers;
+    } stats;
+
     u32 queue_family;
     VkQueue queue;
 
@@ -159,7 +165,7 @@ enum class wren_features
 };
 WREI_DECORATE_FLAG_ENUM(wren_features)
 
-ref<wren_context> wren_create(wrei_registry*, wren_features);
+ref<wren_context> wren_create(wren_features);
 
 VkCommandBuffer wren_begin_commands( wren_context*);
 void            wren_submit_commands(wren_context*, VkCommandBuffer);
