@@ -196,6 +196,18 @@ ImGuiKey wroc_imgui_key_from_xkb_sym(u32 code)
         case XKB_KEY_KP_Enter:    return ImGuiKey_KeypadEnter;
         case XKB_KEY_KP_Equal:    return ImGuiKey_KeypadEqual;
 
+        case XKB_KEY_KP_Home:     return ImGuiKey_Home;
+        case XKB_KEY_KP_End:      return ImGuiKey_End;
+        case XKB_KEY_KP_Prior:    return ImGuiKey_PageUp;
+        case XKB_KEY_KP_Next:     return ImGuiKey_PageDown;
+        case XKB_KEY_KP_Insert:   return ImGuiKey_Insert;
+        case XKB_KEY_KP_Delete:   return ImGuiKey_Delete;
+
+        case XKB_KEY_KP_Left:     return ImGuiKey_LeftArrow;
+        case XKB_KEY_KP_Right:    return ImGuiKey_RightArrow;
+        case XKB_KEY_KP_Up:       return ImGuiKey_UpArrow;
+        case XKB_KEY_KP_Down:     return ImGuiKey_DownArrow;
+
         // TODO: ImGuiKey_AppBack
         // TODO: ImGuiKey_AppForward
         // TODO: ImGuiKey_Oem102
@@ -210,46 +222,36 @@ bool wroc_imgui_handle_key(wroc_imgui* imgui, const wroc_keyboard_event& event)
     auto& io = ImGui::GetIO();
 
     auto xkb_keycode = wroc_key_to_xkb(event.key.keycode);
-    auto xkb_sym = xkb_state_key_get_one_sym(event.keyboard->xkb_state, xkb_keycode);
 
     // Keys
 
+    auto xkb_sym = xkb_state_key_get_one_sym(event.keyboard->state, xkb_keycode);
     auto imkey = wroc_imgui_key_from_xkb_sym(xkb_sym);
     io.AddKeyEvent(imkey, event.key.pressed);
-
-    // Modifiers
-
-    auto mods_pressed = [&](u32 l, u32 r) {
-        for (auto& p : event.keyboard->pressed) {
-            if (p == l || p == r) return true;
-        }
-        return false;
-    };
-
-    switch (xkb_sym) {
-        break;case XKB_KEY_Shift_L:
-              case XKB_KEY_Shift_R:
-            io.AddKeyEvent(ImGuiMod_Shift, mods_pressed(KEY_LEFTSHIFT, KEY_RIGHTSHIFT));
-        break;case XKB_KEY_Control_L:
-              case XKB_KEY_Control_R:
-            io.AddKeyEvent(ImGuiMod_Ctrl, mods_pressed(KEY_LEFTCTRL, KEY_RIGHTCTRL));
-        break;case XKB_KEY_Alt_L:
-              case XKB_KEY_Alt_R:
-            io.AddKeyEvent(ImGuiMod_Alt, mods_pressed(KEY_LEFTALT, KEY_RIGHTALT));
-        break;case XKB_KEY_Super_L:
-              case XKB_KEY_Super_R:
-            io.AddKeyEvent(ImGuiMod_Super, mods_pressed(KEY_LEFTMETA, KEY_RIGHTMETA));
-    }
 
     // Text
 
     if (event.key.pressed) {
         char utf[128] = {};
-        xkb_state_key_get_utf8(event.keyboard->xkb_state, xkb_keycode, utf, sizeof(utf) - 1);
+        xkb_state_key_get_utf8(event.keyboard->state, xkb_keycode, utf, sizeof(utf) - 1);
         io.AddInputCharactersUTF8(utf);
     }
 
     return event.key.pressed && io.WantCaptureKeyboard;
+}
+
+static
+bool wroc_imgui_handle_mods(wroc_imgui* imgui, const wroc_keyboard_event& event)
+{
+    auto& io = ImGui::GetIO();
+
+    auto mods = wroc_get_active_modifiers(imgui->server);
+    io.AddKeyEvent(ImGuiMod_Shift, mods >= wroc_modifiers::shift);
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods >= wroc_modifiers::ctrl);
+    io.AddKeyEvent(ImGuiMod_Alt,   mods >= wroc_modifiers::alt);
+    io.AddKeyEvent(ImGuiMod_Super, mods >= wroc_modifiers::super);
+
+    return false;
 }
 
 bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
@@ -261,6 +263,8 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
             return wroc_imgui_handle_pointer_event(imgui, static_cast<const wroc_pointer_event&>(event));
         break;case wroc_event_type::keyboard_key:
             return wroc_imgui_handle_key(imgui, static_cast<const wroc_keyboard_event&>(event));
+        break;case wroc_event_type::keyboard_modifiers:
+            return wroc_imgui_handle_mods(imgui, static_cast<const wroc_keyboard_event&>(event));
         break;default:
             ;
     }
@@ -338,7 +342,7 @@ void draw_debug_window(wroc_server* server)
     // Surfaces
 
     {
-        wrei_enum_map<u32, wroc_surface_role> counts = {};
+        wrei_enum_map<wroc_surface_role, u32> counts = {};
         for (auto* surface : server->surfaces) {
             counts[surface->role]++;
         }

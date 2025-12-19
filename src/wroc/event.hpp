@@ -6,8 +6,6 @@ enum class wroc_event_type
     output_removed,
     output_frame,
 
-    keyboard_added,
-    keyboard_keymap,
     keyboard_key,
     keyboard_modifiers,
 
@@ -43,7 +41,7 @@ struct wroc_keyboard_event : wroc_event
 {
     WROC_EVENT_BASE
 
-    wroc_keyboard* keyboard;
+    wroc_seat_keyboard* keyboard;
 
     union {
         struct {

@@ -46,8 +46,7 @@ void wroc_run(int argc, char* argv[])
 
     // Seat
 
-    server->seat = wrei_create<wroc_seat>();
-    server->seat->name = "seat-0";
+    wroc_seat_init(server);
 
     server->epoch = std::chrono::steady_clock::now();
 

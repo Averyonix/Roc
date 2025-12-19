@@ -5,6 +5,7 @@
 // -----------------------------------------------------------------------------
 
 struct wroc_direct_backend;
+struct wroc_input_device;
 
 struct wroc_device : wrei_object
 {
@@ -21,10 +22,15 @@ struct wroc_drm_output : wroc_output
 
 struct wroc_libinput_keyboard : wroc_keyboard
 {
+    wroc_input_device* base;
+
+    virtual void update_leds(libinput_led) final override;
 };
 
 struct wroc_libinput_pointer : wroc_pointer
 {
+    wroc_input_device* base;
+
     wroc_drm_output* current_output = {};
 };
 

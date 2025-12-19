@@ -187,117 +187,49 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
 // -----------------------------------------------------------------------------
 
 static
-void wroc_listen_wl_keyboard_keymap(void* data, wl_keyboard* keyboard, u32 format, i32 fd, u32 size)
+void wroc_listen_wl_keyboard_keymap(void* data, wl_keyboard*, u32 format, i32 fd, u32 size)
 {
-    auto kb = static_cast<wroc_wayland_keyboard*>(data);
-    kb->wl_keyboard = keyboard;
-
-    defer { close(fd); };
-
-    if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
-        log_error("unsupported keyboard keymap type");
-        return;
-    }
-
-    char* map_shm = static_cast<char*>(wrei_unix_check_null(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0)));
-    defer { munmap(map_shm, size); };
-
-    auto* keymap = xkb_keymap_new_from_string(kb->xkb_context, map_shm, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
-    auto* state = xkb_state_new(keymap);
-
-    xkb_keymap_unref(kb->xkb_keymap);
-    xkb_state_unref(kb->xkb_state);
-
-    kb->xkb_keymap = keymap;
-    kb->xkb_state = state;
-
-    wroc_post_event(kb->server, wroc_keyboard_event {
-        .type = wroc_event_type::keyboard_keymap,
-        .keyboard = kb,
-    });
+    // Upstream keymaps are ignored
+    close(fd);
 }
 
-// TODO: Factor this and keymap management out between backends
 static
-void update_kb_key_state(wroc_keyboard* kb, u32 keycode, bool state)
+void wroc_listen_wl_keyboard_enter(void* data, wl_keyboard*, u32 serial, wl_surface*, wl_array* key_array)
 {
-    if (!state) {
-        std::erase(kb->pressed, keycode);
-    } else if (std::ranges::find(kb->pressed, keycode) == kb->pressed.end()) {
-        kb->pressed.emplace_back(keycode);
+    auto kb = static_cast<wroc_wayland_keyboard*>(data);
+
+    kb->enter(wroc_to_span<u32>(key_array));
+}
+
+static
+void wroc_listen_wl_keyboard_key(void* data, wl_keyboard*, u32 serial, u32 time, u32 keycode, u32 state)
+{
+    auto kb = static_cast<wroc_wayland_keyboard*>(data);
+
+    switch (state) {
+        break;case WL_POINTER_BUTTON_STATE_PRESSED:  kb->press(keycode);
+        break;case WL_POINTER_BUTTON_STATE_RELEASED: kb->release(keycode);
     }
 }
 
 static
-void wroc_listen_wl_keyboard_enter(void* data, wl_keyboard*, u32 /* serial */, wl_surface*, wl_array* key_array)
+void wroc_listen_wl_keyboard_leave(void* data, wl_keyboard*, u32 serial, wl_surface*)
 {
     auto kb = static_cast<wroc_wayland_keyboard*>(data);
 
-    log_debug("keyboard enter:");
-    for (u32 keycode : wroc_to_span<u32>(key_array)) {
-        update_kb_key_state(kb, keycode, true);
-
-        // TODO: Should we send an "enter" event?
-    }
+    kb->leave();
 }
 
 static
-void wroc_listen_wl_keyboard_key(void* data, wl_keyboard*, u32 /* serial */, u32 /* time */, u32 keycode, u32 state)
+void wroc_listen_wl_keyboard_modifiers(void* data, wl_keyboard*, u32 serial, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group)
 {
-    auto kb = static_cast<wroc_wayland_keyboard*>(data);
-
-    if (state != WL_KEYBOARD_KEY_STATE_REPEATED) {
-        bool pressed = state == WL_KEYBOARD_KEY_STATE_PRESSED;
-        update_kb_key_state(kb, keycode, pressed);
-        wroc_post_event(kb->server, wroc_keyboard_event {
-            .type = wroc_event_type::keyboard_key,
-            .keyboard = kb,
-            .key { .keycode = keycode, .pressed = pressed },
-        });
-    }
-}
-
-static
-void wroc_listen_wl_keyboard_leave(void* data, wl_keyboard*, u32 /* serial */, wl_surface*)
-{
-    auto kb = static_cast<wroc_wayland_keyboard*>(data);
-
-    log_debug("keyboard leave");
-
-    for (auto keycode : kb->pressed) {
-        wroc_post_event(kb->server, wroc_keyboard_event {
-            .type = wroc_event_type::keyboard_key,
-            .keyboard = kb,
-            .key { .keycode = u32(keycode), .pressed = false },
-        });
-    }
-    kb->pressed.clear();
-}
-
-static
-void wroc_listen_wl_keyboard_modifiers(void* data, wl_keyboard*, u32 /* serial */, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group)
-{
-    auto kb = static_cast<wroc_wayland_keyboard*>(data);
-    xkb_state_update_mask(kb->xkb_state, mods_depressed, mods_latched, mods_locked, 0, 0, group);
-    wroc_post_event(kb->server, wroc_keyboard_event {
-        .type = wroc_event_type::keyboard_modifiers,
-        .keyboard = kb,
-        .mods {
-            .depressed = mods_depressed,
-            .latched   = mods_latched,
-            .locked    = mods_locked,
-            .group     = group,
-        }
-    });
+    // Upstream modifier state is ignored
 }
 
 static
 void wroc_listen_wl_keyboard_repeat_info(void* data, wl_keyboard*, i32 rate, i32 delay)
 {
-    auto kb = static_cast<wroc_wayland_keyboard*>(data);
-    log_debug("keyboard_repeat_info ( rate = {}, delay = {} )", rate, delay);
-    kb->rate = rate;
-    kb->delay = delay;
+    // Upstream repeat info is ignored
 }
 
 const wl_keyboard_listener wroc_wl_keyboard_listener {
@@ -329,13 +261,9 @@ void wroc_keyboard_set(wroc_wayland_backend* backend, struct wl_keyboard* wl_key
     keyboard->wl_keyboard = wl_keyboard;
     keyboard->server = backend->server;
 
-    keyboard->xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-
     wl_keyboard_add_listener(wl_keyboard, &wroc_wl_keyboard_listener, keyboard);
-    wroc_post_event(keyboard->server, wroc_keyboard_event {
-        .type = wroc_event_type::keyboard_added,
-        .keyboard = keyboard,
-    });
+
+    backend->server->seat->keyboard->attach(keyboard);
 }
 
 // -----------------------------------------------------------------------------

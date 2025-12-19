@@ -22,6 +22,7 @@
 #include <ranges>
 #include <random>
 #include <stacktrace>
+#include <flat_set>
 
 #include <cstring>
 #include <csignal>

@@ -462,11 +462,13 @@ struct wroc_dma_buffer : wroc_buffer
 
 // -----------------------------------------------------------------------------
 
+struct wroc_seat_keyboard;
+
 struct wroc_seat : wrei_object
 {
     wroc_server* server;
 
-    struct wroc_keyboard* keyboard;
+    ref<wroc_seat_keyboard> keyboard;
     struct wroc_pointer*  pointer;
 
     std::string name;
@@ -474,65 +476,104 @@ struct wroc_seat : wrei_object
     wroc_resource_list resources;
 };
 
+void wroc_seat_init(wroc_server*);
+void wroc_seat_init_keyboard(wroc_seat*);
+
 // -----------------------------------------------------------------------------
 
 enum class wroc_modifiers : u32
 {
+    none,
+
     mod    = 1 << 0,
     super  = 1 << 1,
     shift  = 1 << 2,
     ctrl   = 1 << 3,
     alt    = 1 << 4,
     num    = 1 << 5,
+    caps   = 1 << 6,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_modifiers)
 
-struct wroc_modifier
+enum class wroc_key_action
 {
-    wroc_modifiers flag;
-    const char* name;
-    xkb_keysym_t left;
-    xkb_keysym_t right;
-    xkb_keysym_t lock;
+    press,      // Key was pressed by source
+    release,    // Key was released by source
+    enter,      // Key was "discovered" in the pressed state (does not trigger "on press" actions)
+                // E.g. keyboard enter events in the Wayland client
 };
 
-static constexpr wroc_modifier wroc_modifier_info[] = {
-    { wroc_modifiers::super, XKB_MOD_NAME_LOGO,  XKB_KEY_Super_L,   XKB_KEY_Super_R                       },
-    { wroc_modifiers::shift, XKB_MOD_NAME_SHIFT, XKB_KEY_Shift_L,   XKB_KEY_Shift_R,   XKB_KEY_Shift_Lock },
-    { wroc_modifiers::ctrl,  XKB_MOD_NAME_CTRL,  XKB_KEY_Control_L, XKB_KEY_Control_R                     },
-    { wroc_modifiers::alt,   XKB_MOD_NAME_ALT,   XKB_KEY_Alt_L,     XKB_KEY_Alt_R                         },
-    { wroc_modifiers::num,   XKB_MOD_NAME_NUM,   XKB_KEY_NoSymbol,  XKB_KEY_NoSymbol,  XKB_KEY_Num_Lock   },
-};
-
+/**
+ * Represents a source (evdev) keyboard
+ *
+ * Source keyboards are "dumb" evdev (KEY_*) key code buckets.
+ * We ignore pre-existing state (e.g. modifiers/keymaps) from sources (E.g. nested wayland environments)
+ */
 struct wroc_keyboard : wrei_object
 {
     wroc_server* server;
 
-    wroc_resource_list resources;
-    weak<wroc_surface> focused_surface;
+    std::flat_set<u32> pressed = {};
 
-    struct xkb_context* xkb_context;
-    struct xkb_state*   xkb_state;
-    struct xkb_keymap*  xkb_keymap;
+    weak<wroc_seat_keyboard> target;
 
-    std::array<std::pair<wroc_modifiers, xkb_mod_mask_t>, std::size(wroc_modifier_info)> xkb_mod_masks;
-    wroc_modifiers active_modifiers;
+    void enter(std::span<const u32>);
+    void leave();
+    void press(u32);
+    void release(u32);
 
-    int keymap_fd = -1;
-    i32 keymap_size;
+    bool is_down(u32) const;
 
-    std::vector<u32> pressed = {};
-
-    i32 rate;
-    i32 delay;
+    virtual void update_leds(libinput_led) {};
 
     ~wroc_keyboard();
 };
 
-wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_keyboard*);
+/*
+ * Represents a virtual (xkb) keyboard that is exposed to clients
+ *
+ * This will typically be an aggregate of several source keyboards
+ * XKB keymaps are selected here, modifier states are derived based on source states/events
+ * LED event states are sent back to source keyboards.
+ */
+struct wroc_seat_keyboard : wrei_object
+{
+    wroc_seat* seat;
 
-void wroc_keyboard_clear_focus(wroc_keyboard*);
-void wroc_keyboard_enter(wroc_keyboard*, wroc_surface*);
+    std::vector<wroc_keyboard*> sources;
+
+    // Aggregate of sources[...]->pressed
+    ankerl::unordered_dense::map<u32, u32> keys;
+
+    wroc_resource_list resources;
+    weak<wroc_surface> focused_surface;
+
+    struct xkb_context* context;
+    struct xkb_state*   state;
+    struct xkb_keymap*  keymap;
+
+    wrei_enum_map<wroc_modifiers, xkb_mod_mask_t> mod_masks;
+
+    int keymap_fd = -1;
+    i32 keymap_size;
+
+    i32 rate = 25;
+    i32 delay = 600;
+
+    void attach(wroc_keyboard* keyboard);
+
+    bool is_locked(wroc_modifiers) const;
+    void set_locked(wroc_modifiers, bool locked);
+
+    ~wroc_seat_keyboard();
+};
+
+void wroc_seat_keyboard_on_get(wroc_seat_keyboard*, wl_client*, wl_resource*);
+
+wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_seat_keyboard*);
+
+void wroc_keyboard_clear_focus(wroc_seat_keyboard*);
+void wroc_keyboard_enter(wroc_seat_keyboard*, wroc_surface*);
 
 // -----------------------------------------------------------------------------
 

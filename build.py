@@ -142,7 +142,7 @@ else:
 
 # -----------------------------------------------------------------------------
 
-wlroots_src_dir = git_fetch(vendor_dir / "wlroots", "https://gitlab.freedesktop.org/wlroots/wlroots.git", "master")
+git_fetch(vendor_dir / "wlr-protocols", "https://gitlab.freedesktop.org/wlroots/wlr-protocols.git", "master")
 
 # -----------------------------------------------------------------------------
 

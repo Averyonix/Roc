@@ -10,13 +10,9 @@ void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
     auto* new_resource = wl_resource_create(client, &wl_keyboard_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     seat->keyboard->resources.emplace_back(new_resource);
-    wroc_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard);
+    wroc_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard.get());
 
-    // TODO: This should be handled in keyboard.cpp
-    wl_keyboard_send_keymap(new_resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, seat->keyboard->keymap_fd, seat->keyboard->keymap_size);
-    if (wl_resource_get_version(new_resource) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION) {
-        wl_keyboard_send_repeat_info(new_resource, 25, 600);
-    }
+    wroc_seat_keyboard_on_get(seat->keyboard.get(), client, new_resource);
 }
 
 static
@@ -69,3 +65,12 @@ void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id
     if (seat->pointer)  caps |= WL_SEAT_CAPABILITY_POINTER;
     wl_seat_send_capabilities(new_resource, caps);
 };
+
+void wroc_seat_init(wroc_server* server)
+{
+    server->seat = wrei_create<wroc_seat>();
+    server->seat->name = "seat-0";
+    server->seat->server = server;
+
+    wroc_seat_init_keyboard(server->seat.get());
+}

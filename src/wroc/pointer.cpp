@@ -68,9 +68,9 @@ void wroc_pointer_button(wroc_pointer* pointer, u32 button, bool pressed)
     if (pointer->server->seat->keyboard && pressed) {
         if (pointer->server->toplevel_under_cursor) {
             log_debug("trying to enter keyboard...");
-            wroc_keyboard_enter(pointer->server->seat->keyboard, pointer->server->toplevel_under_cursor->surface.get());
+            wroc_keyboard_enter(pointer->server->seat->keyboard.get(), pointer->server->toplevel_under_cursor->surface.get());
         } else {
-            wroc_keyboard_clear_focus(pointer->server->seat->keyboard);
+            wroc_keyboard_clear_focus(pointer->server->seat->keyboard.get());
         }
     }
 

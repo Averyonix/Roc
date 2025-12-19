@@ -18,8 +18,6 @@ void wroc_handle_event(wroc_server* server, const wroc_event& base_event)
             wroc_handle_output_event(server, static_cast<const wroc_output_event&>(base_event));
             break;
 
-        case wroc_event_type::keyboard_added:
-        case wroc_event_type::keyboard_keymap:
         case wroc_event_type::keyboard_key:
         case wroc_event_type::keyboard_modifiers:
             wroc_handle_keyboard_event(server, static_cast<const wroc_keyboard_event&>(base_event));

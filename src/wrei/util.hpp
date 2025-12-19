@@ -65,7 +65,7 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
-template<typename T, typename E>
+template<typename E, typename T>
 struct wrei_enum_map
 {
     T _data[magic_enum::enum_count<E>()];
