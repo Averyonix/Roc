@@ -23,7 +23,6 @@ void wroc_handle_event(wroc_server* server, const wroc_event& base_event)
             wroc_handle_keyboard_event(server, static_cast<const wroc_keyboard_event&>(base_event));
             break;
 
-        case wroc_event_type::pointer_added:
         case wroc_event_type::pointer_button:
         case wroc_event_type::pointer_motion:
         case wroc_event_type::pointer_axis:

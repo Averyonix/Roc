@@ -30,7 +30,7 @@ struct wroc_wayland_pointer : wroc_pointer
     struct wl_pointer* wl_pointer = {};
     u32 last_serial = {};
 
-    wroc_wayland_output* current_output = {};
+    weak<wroc_wayland_output> current_output = {};
 
     ~wroc_wayland_pointer();
 };

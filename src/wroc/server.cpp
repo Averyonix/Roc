@@ -71,6 +71,10 @@ void wroc_run(int argc, char* argv[])
 
     wroc_renderer_create(server, render_options);
 
+    // Cursor
+
+    wroc_cursor_create(server);
+
     // ImGui
 
     log_warn("Initializing imgui");
@@ -86,10 +90,6 @@ void wroc_run(int argc, char* argv[])
     wroc_backend_init(server, backend_type);
 
     log_warn("Backend initialized");
-
-    // Cursor
-
-    wroc_cursor_create(server);
 
     // Register globals
 

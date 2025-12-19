@@ -463,13 +463,14 @@ struct wroc_dma_buffer : wroc_buffer
 // -----------------------------------------------------------------------------
 
 struct wroc_seat_keyboard;
+struct wroc_seat_pointer;
 
 struct wroc_seat : wrei_object
 {
     wroc_server* server;
 
     ref<wroc_seat_keyboard> keyboard;
-    struct wroc_pointer*  pointer;
+    ref<wroc_seat_pointer>  pointer;
 
     std::string name;
 
@@ -478,6 +479,7 @@ struct wroc_seat : wrei_object
 
 void wroc_seat_init(wroc_server*);
 void wroc_seat_init_keyboard(wroc_seat*);
+void wroc_seat_init_pointer(wroc_seat*);
 
 // -----------------------------------------------------------------------------
 
@@ -522,8 +524,6 @@ struct wroc_keyboard : wrei_object
     void press(u32);
     void release(u32);
 
-    bool is_down(u32) const;
-
     virtual void update_leds(libinput_led) {};
 
     ~wroc_keyboard();
@@ -560,7 +560,7 @@ struct wroc_seat_keyboard : wrei_object
     i32 rate = 25;
     i32 delay = 600;
 
-    void attach(wroc_keyboard* keyboard);
+    void attach(wroc_keyboard*);
 
     bool is_locked(wroc_modifiers) const;
     void set_locked(wroc_modifiers, bool locked);
@@ -581,12 +581,41 @@ struct wroc_pointer : wrei_object
 {
     wroc_server* server;
 
+    std::flat_set<u32> pressed = {};
+
+    weak<wroc_seat_pointer> target;
+
+    void enter(std::span<const u32>);
+    void leave();
+    void press(u32);
+    void release(u32);
+
+    void absolute(vec2f64 layout_position);
+    void relative(vec2f64 delta);
+
+    void scroll(vec2f64 delta);
+
+    ~wroc_pointer();
+};
+
+struct wroc_seat_pointer : wrei_object
+{
+    wroc_seat* seat;
+
+    std::vector<wroc_pointer*> sources;
+
+    // Aggregate of sources[...]->pressed
+    ankerl::unordered_dense::map<u32, u32> buttons = {};
+
     wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
 
-    std::vector<u32> pressed = {};
-
     vec2f64 layout_position;
+
+    bool is_pressed(u32 button) const;
+    u32 num_pressed() const;
+
+    void attach(wroc_pointer*);
 };
 
 // -----------------------------------------------------------------------------
@@ -832,5 +861,5 @@ wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface
 u32 wroc_get_elapsed_milliseconds(wroc_server*);
 wroc_modifiers wroc_get_active_modifiers(wroc_server*);
 
-void wroc_begin_move_interaction(wroc_toplevel*, wroc_pointer*, wroc_directions);
-void wroc_begin_resize_interaction(wroc_toplevel*, wroc_pointer*, vec2i32 anchor_rel, wroc_directions);
+void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_directions);
+void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, vec2i32 anchor_rel, wroc_directions);

@@ -9,14 +9,8 @@
 static
 void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx, wl_fixed_t sy)
 {
-    vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
-    pointer->layout_position = pos + vec2f64(pointer->current_output->position);
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_motion,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .motion = {},
-    });
+    vec2f64 surface_pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    pointer->absolute(surface_pos + vec2f64(pointer->current_output->position));
 }
 
 static
@@ -41,77 +35,57 @@ void wroc_listen_wl_pointer_leave(void* data, wl_pointer*, u32 serial, wl_surfac
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
 
-    // NOTE: In theory no mouse buttons should every be left pressed at this point anyway?
-    for (auto button : pointer->pressed) {
-        wroc_post_event(pointer->server, wroc_pointer_event {
-            .type = wroc_event_type::pointer_button,
-            .pointer = pointer,
-            .button { .button = button, .pressed = false },
-        });
-    }
-    pointer->pressed.clear();
+    pointer->leave();
 }
 
 static
-void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 /* time */, wl_fixed_t sx, wl_fixed_t sy)
+void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 time, wl_fixed_t sx, wl_fixed_t sy)
 {
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
 
     wroc_backend_pointer_absolute(pointer, sx, sy);
 }
 
-// TODO: Factor out button state tracking!
 static
-void update_pointer_button_state(wroc_pointer* pointer, u32 button, bool state)
+void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 time, u32 button, u32 state)
 {
-    if (!state) {
-        std::erase(pointer->pressed, button);
-    } else if (std::ranges::find(pointer->pressed, button) == pointer->pressed.end()) {
-        pointer->pressed.emplace_back(button);
+    auto* pointer = static_cast<wroc_wayland_pointer*>(data);
+    pointer->last_serial = serial;
+
+    log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
+
+    switch (state) {
+        break;case WL_POINTER_BUTTON_STATE_PRESSED:  pointer->press(button);
+        break;case WL_POINTER_BUTTON_STATE_RELEASED: pointer->release(button);
     }
 }
 
 static
-void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 /* time */, u32 button, u32 state)
-{
-    auto* pointer = static_cast<wroc_wayland_pointer*>(data);
-    pointer->last_serial = serial;
-    log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
-    update_pointer_button_state(pointer, button, state == WL_POINTER_BUTTON_STATE_PRESSED);
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_button,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .button { .button = button, .pressed = state == WL_POINTER_BUTTON_STATE_PRESSED },
-    });
-}
-
-static
-void wroc_listen_wl_pointer_axis(void* data, wl_pointer*, u32 /* time */, u32 axis, wl_fixed_t value)
+void wroc_listen_wl_pointer_axis(void* data, wl_pointer*, u32 time, u32 axis, wl_fixed_t value)
 {
     log_debug("pointer_axis(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), wl_fixed_to_double(value));
 }
 
 static
-void wroc_listen_wl_pointer_frame(void* /* data */, wl_pointer*)
+void wroc_listen_wl_pointer_frame(void* data, wl_pointer*)
 {
     // log_info("pointer_frame");
 }
 
 static
-void wroc_listen_wl_pointer_axis_source(void* /* data */, wl_pointer*, u32 axis_source)
+void wroc_listen_wl_pointer_axis_source(void* data, wl_pointer*, u32 axis_source)
 {
     log_debug("pointer_axis_source({})", magic_enum::enum_name(wl_pointer_axis_source(axis_source)));
 }
 
 static
-void wroc_listen_wl_pointer_axis_stop(void* /* data */, wl_pointer*, u32 /* time */, u32 axis)
+void wroc_listen_wl_pointer_axis_stop(void* data, wl_pointer*, u32 time, u32 axis)
 {
     log_debug("pointer_axis_stop({})", magic_enum::enum_name(wl_pointer_axis(axis)));
 }
 
 static
-void wroc_listen_wl_pointer_axis_discrete(void* /* data */, wl_pointer*, u32 axis, i32 discrete)
+void wroc_listen_wl_pointer_axis_discrete(void* data, wl_pointer*, u32 axis, i32 discrete)
 {
     log_debug("pointer_axis_discrete(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), discrete);
 }
@@ -122,21 +96,15 @@ void wroc_listen_wl_pointer_axis_value120(void* data, wl_pointer*, u32 axis, i32
     log_debug("pointer_axis_value120(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), value120);
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_axis,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .axis {
-            .delta = {
-                axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? (value120 / 120.0) : 0.0,
-                axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? (value120 / 120.0) : 0.0,
-            }
-        },
+
+    pointer->scroll({
+        axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL ? (value120 / 120.0) : 0.0,
+        axis == WL_POINTER_AXIS_VERTICAL_SCROLL   ? (value120 / 120.0) : 0.0,
     });
 }
 
 static
-void wroc_listen_wl_pointer_axis_relative_direction(void* /* data */, wl_pointer*, u32 axis, u32 direction)
+void wroc_listen_wl_pointer_axis_relative_direction(void* data, wl_pointer*, u32 axis, u32 direction)
 {
     log_debug("pointer_axis_relative_direction(axis = {}, direction = {})",
         magic_enum::enum_name(wl_pointer_axis(axis)),
@@ -178,10 +146,8 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
     pointer->server = backend->server;
 
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_added,
-        .pointer = pointer,
-    });
+
+    backend->server->seat->pointer->attach(pointer);
 }
 
 // -----------------------------------------------------------------------------
@@ -288,7 +254,7 @@ void wroc_listen_wl_seat_capabilities(void* data, wl_seat* seat, u32 capabilitie
 }
 
 static
-void wroc_listen_wl_seat_name(void* /* data */, struct wl_seat*, const char* name)
+void wroc_listen_wl_seat_name(void* data, struct wl_seat*, const char* name)
 {
     log_debug("wl_seat::name({})", name);
 }

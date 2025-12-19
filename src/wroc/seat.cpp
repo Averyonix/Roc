@@ -22,7 +22,7 @@ void wroc_wl_seat_get_pointer(wl_client* client, wl_resource* resource, u32 id)
     auto* new_resource = wl_resource_create(client, &wl_pointer_interface, wl_resource_get_version(resource), id);
     wroc_debug_track_resource(new_resource);
     seat->pointer->resources.emplace_back(new_resource);
-    wroc_resource_set_implementation(new_resource, &wroc_wl_pointer_impl, seat->pointer);
+    wroc_resource_set_implementation(new_resource, &wroc_wl_pointer_impl, seat->pointer.get());
 }
 
 const struct wl_seat_interface wroc_wl_seat_impl = {
@@ -39,10 +39,10 @@ const struct wl_keyboard_interface wroc_wl_keyboard_impl = {
 static
 void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 serial, wl_resource* wl_surface, i32 x, i32 y)
 {
-    auto* pointer = wroc_get_userdata<wroc_pointer>(resource);
+    auto* pointer = wroc_get_userdata<wroc_seat_pointer>(resource);
     auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);
 
-    wroc_cursor_set(pointer->server->cursor.get(), client, surface, {x, y});
+    wroc_cursor_set(pointer->seat->server->cursor.get(), client, surface, {x, y});
 }
 
 const struct wl_pointer_interface wroc_wl_pointer_impl = {
@@ -60,9 +60,7 @@ void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id
     if (version >= WL_SEAT_NAME_SINCE_VERSION) {
         wl_seat_send_name(new_resource, seat->name.c_str());
     }
-    u32 caps = {};
-    if (seat->keyboard) caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-    if (seat->pointer)  caps |= WL_SEAT_CAPABILITY_POINTER;
+    u32 caps = WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER;
     wl_seat_send_capabilities(new_resource, caps);
 };
 
@@ -73,4 +71,5 @@ void wroc_seat_init(wroc_server* server)
     server->seat->server = server;
 
     wroc_seat_init_keyboard(server->seat.get());
+    wroc_seat_init_pointer(server->seat.get());
 }

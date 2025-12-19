@@ -208,21 +208,21 @@ void wroc_render_frame(wroc_output* output)
     }
 
     if (!imgui_wants_mouse) {
-        if (auto* pointer = server->seat->pointer) {
-            // TODO: Move this to cursor.cpp
-            if (pointer->focused_surface && pointer->focused_surface->cursor) {
-                // If surface is focused and has cursor set, render cursor surface (possibly hidden)
-                if (auto* cursor_surface = pointer->focused_surface->cursor->get()) {
-                    auto pos = vec2i32(pointer->layout_position) - cursor_surface->hotspot;
-                    draw_surface(cursor_surface->surface.get(), pos);
-                }
-            } else {
-                // ... else fall back to default cursor
-                auto* cursor = server->cursor.get();
-                auto& fallback = cursor->fallback;
-                auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
-                draw(fallback.image.get(), pos, fallback.image->extent);
+        auto* pointer = server->seat->pointer.get();
+
+        // TODO: Move this to cursor.cpp
+        if (pointer->focused_surface && pointer->focused_surface->cursor) {
+            // If surface is focused and has cursor set, render cursor surface (possibly hidden)
+            if (auto* cursor_surface = pointer->focused_surface->cursor->get()) {
+                auto pos = vec2i32(pointer->layout_position) - cursor_surface->hotspot;
+                draw_surface(cursor_surface->surface.get(), pos);
             }
+        } else {
+            // ... else fall back to default cursor
+            auto* cursor = server->cursor.get();
+            auto& fallback = cursor->fallback;
+            auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
+            draw(fallback.image.get(), pos, fallback.image->extent);
         }
     }
 
@@ -255,23 +255,22 @@ void wroc_render_frame(wroc_output* output)
     output->server->toplevel_under_cursor = {};
     output->server->surface_under_cursor = {};
     if (!imgui_wants_mouse) {
-        if (auto* pointer = output->server->seat->pointer) {
-            for (auto* surface : output->server->surfaces | std::views::reverse) {
-                if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-                    auto surface_pos = wroc_xdg_surface_get_position(toplevel->base());
-                    if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
-                        output->server->toplevel_under_cursor = toplevel;
-                        output->server->surface_under_cursor = surface_under_cursor;
-                        break;
-                    }
+        auto* pointer = output->server->seat->pointer.get();
+        for (auto* surface : output->server->surfaces | std::views::reverse) {
+            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+                auto surface_pos = wroc_xdg_surface_get_position(toplevel->base());
+                if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
+                    output->server->toplevel_under_cursor = toplevel;
+                    output->server->surface_under_cursor = surface_under_cursor;
+                    break;
                 }
-                if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
-                    auto surface_pos = wroc_xdg_surface_get_position(popup->base());
-                    if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
-                        output->server->toplevel_under_cursor = popup->root_toplevel;
-                        output->server->surface_under_cursor = surface_under_cursor;
-                        break;
-                    }
+            }
+            if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
+                auto surface_pos = wroc_xdg_surface_get_position(popup->base());
+                if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
+                    output->server->toplevel_under_cursor = popup->root_toplevel;
+                    output->server->surface_under_cursor = surface_under_cursor;
+                    break;
                 }
             }
         }

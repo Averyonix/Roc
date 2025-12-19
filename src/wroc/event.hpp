@@ -9,7 +9,6 @@ enum class wroc_event_type
     keyboard_key,
     keyboard_modifiers,
 
-    pointer_added,
     pointer_button,
     pointer_motion,
     pointer_axis,
@@ -67,8 +66,8 @@ struct wroc_pointer_event : wroc_event
 {
     WROC_EVENT_BASE
 
-    wroc_pointer* pointer;
-    wroc_output* output;
+    wroc_seat_pointer* pointer;
+    // wroc_output* output;
 
     union {
         struct {

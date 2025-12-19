@@ -11,7 +11,7 @@ wroc_input_device::~wroc_input_device()
 // -----------------------------------------------------------------------------
 
 static
-void device_init_keyboard(wroc_input_device* device)
+bool device_init_keyboard(wroc_input_device* device)
 {
     auto* server = device->backend->server;
 
@@ -20,6 +20,8 @@ void device_init_keyboard(wroc_input_device* device)
     device->keyboard->base = device;
 
     server->seat->keyboard->attach(device->keyboard.get());
+
+    return true;
 }
 
 static
@@ -47,7 +49,7 @@ void wroc_libinput_keyboard::update_leds(libinput_led leds)
 // -----------------------------------------------------------------------------
 
 static
-void device_init_pointer(wroc_input_device* device)
+bool device_init_pointer(wroc_input_device* device)
 {
     device->pointer = wrei_create<wroc_libinput_pointer>();
     device->pointer->server = device->backend->server;
@@ -64,49 +66,20 @@ void device_init_pointer(wroc_input_device* device)
 
     auto* pointer = device->pointer.get();
 
-    wroc_post_event(device->backend->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_added,
-        .pointer = pointer,
-    });
+    device->backend->server->seat->pointer->attach(pointer);
 
-    // TODO: Generic cursor state management
-    auto* output = device->backend->outputs.front().get();
-    pointer->layout_position = vec2f64(output->size) / 2.0;
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_motion,
-        .pointer = pointer,
-        .output = output,
-        .motion = {},
-    });
-}
-
-// TODO: Factor me out!
-static
-void update_pointer_button_state(wroc_pointer* pointer, u32 button, bool state)
-{
-    if (!state) {
-        std::erase(pointer->pressed, button);
-    } else if (std::ranges::find(pointer->pressed, button) == pointer->pressed.end()) {
-        pointer->pressed.emplace_back(button);
-    }
+    return true;
 }
 
 static
 void handle_pointer_button(wroc_input_device* device, libinput_event_pointer* event)
 {
-    auto* pointer = device->pointer.get();
-
     auto button = libinput_event_pointer_get_button(event);
-    auto state = libinput_event_pointer_get_button_state(event);
 
-    update_pointer_button_state(pointer, button, state == LIBINPUT_BUTTON_STATE_PRESSED);
-
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_button,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .button = { .button = button, .pressed = state == LIBINPUT_BUTTON_STATE_PRESSED },
-    });
+    switch (libinput_event_pointer_get_button_state(event)) {
+        break;case LIBINPUT_BUTTON_STATE_PRESSED:  device->pointer->press(button);
+        break;case LIBINPUT_BUTTON_STATE_RELEASED: device->pointer->release(button);
+    }
 }
 
 static
@@ -116,27 +89,7 @@ void handle_pointer_motion(wroc_input_device* device, libinput_event_pointer* ev
 
     vec2f64 delta = {libinput_event_pointer_get_dx(event), libinput_event_pointer_get_dy(event)};
 
-    // TODO: Generic cursor state management
-    auto* output = pointer->current_output;
-    auto pos = device->pointer->layout_position + delta;
-    if (pos.x < 0) pos.x = 0;
-    if (pos.y < 0) pos.y = 0;
-    if (pos.x >= output->size.x) pos.x = output->size.x - 1;
-    if (pos.y >= output->size.y) pos.y = output->size.y - 1;
-
-    // log_warn("motion ({}, {}) - ({}, {}) -> ({}, {})",
-    //     delta.x, delta.y,
-    //     device->pointer->layout_position.x, device->pointer->layout_position.y,
-    //     pos.x, pos.y);
-
-    device->pointer->layout_position = pos;
-
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_motion,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .motion = {},
-    });
+    pointer->relative(delta);
 }
 
 static
@@ -151,15 +104,7 @@ void handle_pointer_scroll_wheel(wroc_input_device* device, libinput_event_point
     double dx = get(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
     double dy = get(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
 
-    auto* pointer = device->pointer.get();
-    wroc_post_event(pointer->server, wroc_pointer_event {
-        .type = wroc_event_type::pointer_axis,
-        .pointer = pointer,
-        .output = pointer->current_output,
-        .axis {
-            .delta = { dx, dy },
-        },
-    });
+    device->pointer->scroll({ dx, dy });
 }
 
 // -----------------------------------------------------------------------------
@@ -181,18 +126,12 @@ void handle_device_added(wroc_direct_backend* backend, struct libinput_device* l
     bool want_device = false;
     if (libinput_device_has_capability(libinput_device, LIBINPUT_DEVICE_CAP_KEYBOARD)) {
         log_debug("  has keyboard capability");
-        device_init_keyboard(device.get());
-        want_device = true;
+        want_device = device_init_keyboard(device.get());
     }
 
     if (libinput_device_has_capability(libinput_device, LIBINPUT_DEVICE_CAP_POINTER)) {
         log_debug("  has pointer capability");
-        if ("Glorious Model O"sv == name) {
-            device_init_pointer(device.get());
-            want_device = true;
-        } else {
-            log_warn("  TODO: Support multiple pointers");
-        }
+        want_device = device_init_pointer(device.get());
     }
 
     if (want_device) {

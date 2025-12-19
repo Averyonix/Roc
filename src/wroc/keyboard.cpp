@@ -5,13 +5,8 @@
 
 #include "wroc/event.hpp"
 
-static void wroc_seat_keyboard_update_state(wroc_seat_keyboard*, wroc_key_action, std::span<const u32> keys);
+static void wroc_seat_keyboard_update_state(wroc_seat_keyboard*, wroc_key_action, std::span<const u32> actioned_keys);
 static libinput_led wroc_seat_keyboard_get_leds(wroc_seat_keyboard*);
-
-bool wroc_keyboard::is_down(u32 keycode) const
-{
-    return pressed.contains(keycode);
-}
 
 void wroc_keyboard::press(u32 keycode)
 {
@@ -32,8 +27,7 @@ void wroc_keyboard::enter(std::span<const u32> keycodes)
     std::vector<u32> filtered;
 
     for (auto& keycode : keycodes) {
-        if (!is_down(keycode)) {
-            pressed.insert(keycode);
+        if (pressed.insert(keycode).second) {
             filtered.emplace_back(keycode);
         }
     }
@@ -61,6 +55,8 @@ wroc_keyboard::~wroc_keyboard()
 
 void wroc_seat_keyboard::attach(wroc_keyboard* kb)
 {
+    assert(!kb->target && "wroc_keyboard already attached to seat keyboard");
+
     sources.emplace_back(kb);
     kb->target = this;
 
