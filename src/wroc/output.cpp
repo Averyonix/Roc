@@ -162,16 +162,18 @@ void wroc_output_added(wroc_output* output)
     }
 }
 
+wroc_output::~wroc_output()
+{
+    auto* wren = server->renderer->wren.get();
+
+    wren->vk.DestroySemaphore(server->renderer->wren->device, timeline, nullptr);
+    if (swapchain) vkwsi_swapchain_destroy(swapchain);
+    wren->vk.DestroySurfaceKHR(wren->instance, vk_surface, nullptr);
+}
+
 static
 void wroc_output_removed(wroc_output* output)
 {
-    if (output->timeline) {
-        output->server->renderer->wren->vk.DestroySemaphore(output->server->renderer->wren->device, output->timeline, nullptr);
-    }
-    if (output->swapchain) {
-        vkwsi_swapchain_destroy(output->swapchain);
-    }
-
     std::erase(output->server->outputs, output);
 
     if (output->global) {

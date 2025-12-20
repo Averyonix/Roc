@@ -133,11 +133,6 @@ void wroc_listen_toplevel_close(void* data, xdg_toplevel*)
 
     log_debug("xdg_toplevel::close");
 
-    wroc_post_event(output->server, wroc_output_event {
-        .type = wroc_event_type::output_removed,
-        .output = output,
-    });
-
     auto* server = output->server;
 
     auto* backend = static_cast<wroc_wayland_backend*>(output->server->backend.get());
@@ -240,8 +235,6 @@ void wroc_wayland_backend::create_output()
 
 wroc_wayland_output::~wroc_wayland_output()
 {
-    if (vk_surface) server->renderer->wren->vk.DestroySurfaceKHR(server->renderer->wren->instance, vk_surface, nullptr);
-
     if (decoration)  zxdg_toplevel_decoration_v1_destroy(decoration);
     if (toplevel)    xdg_toplevel_destroy(toplevel);
     if (xdg_surface) xdg_surface_destroy(xdg_surface);
@@ -252,6 +245,10 @@ wroc_wayland_output::~wroc_wayland_output()
 
 void wroc_wayland_backend::destroy_output(wroc_output* output)
 {
+    wroc_post_event(output->server, wroc_output_event {
+        .type = wroc_event_type::output_removed,
+        .output = output,
+    });
+
     std::erase_if(outputs, [&](auto& o) { return o.get() == output; });
-    wrei_remove_ref(output);
 }

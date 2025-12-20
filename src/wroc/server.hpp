@@ -73,6 +73,8 @@ struct wroc_output : wrei_object
     std::string name;
     std::string description;
     wroc_output_mode mode;
+
+    ~wroc_output();
 };
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
@@ -203,6 +205,36 @@ T* wroc_surface_get_or_create_addon(wroc_surface* surface, bool* created = nullp
     if (created) *created = true;
     return addon.get();
 }
+
+// -----------------------------------------------------------------------------
+
+enum class wroc_viewport_committed_state : u32
+{
+    none,
+
+    source      = 1 << 0,
+    destination = 1 << 1,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_viewport_committed_state)
+
+struct wroc_viewport_state
+{
+    wroc_viewport_committed_state committed;
+    rect2f32 source;
+    vec2i32 destination;
+};
+
+struct wroc_viewport : wroc_surface_addon
+{
+    weak<wroc_surface> parent;
+
+    wroc_resource resource;
+
+    wroc_viewport_state pending;
+    wroc_viewport_state current;
+
+    virtual void on_commit(wroc_surface_commit_flags) final override;
+};
 
 // -----------------------------------------------------------------------------
 
@@ -544,6 +576,13 @@ struct wroc_seat_keyboard : wrei_object
 
     // Aggregate of sources[...]->pressed
     ankerl::unordered_dense::map<u32, u32> keys;
+
+    auto pressed() const
+    {
+        return keys
+            | std::views::filter(   [](const auto& entry) { return entry.second; })
+            | std::views::transform([](const auto& entry) { return entry.first;  });
+    }
 
     wroc_resource_list resources;
     weak<wroc_surface> focused_surface;

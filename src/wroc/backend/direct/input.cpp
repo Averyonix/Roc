@@ -190,11 +190,14 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
 
 void wroc_backend_deinit_libinput(wroc_direct_backend* backend)
 {
-    libseat_close_seat(backend->seat);
+    backend->input_devices.clear();
+
     libinput_unref(backend->libinput);
+    libseat_close_seat(backend->seat);
+    udev_unref(backend->udev);
 
     if (backend->libseat_event_source) {
-        wl_event_source_remove(backend->libinput_event_source);
+        wl_event_source_remove(backend->libseat_event_source);
     }
 
     if (backend->libinput_event_source) {

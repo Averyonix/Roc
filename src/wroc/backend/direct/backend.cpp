@@ -23,4 +23,6 @@ void wroc_direct_backend_init(wroc_server* server)
 wroc_direct_backend::~wroc_direct_backend()
 {
     wroc_backend_deinit_libinput(this);
+
+    outputs.clear();
 }

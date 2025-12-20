@@ -103,13 +103,16 @@ void wroc_run(int argc, char* argv[])
     WROC_SERVER_GLOBAL(server, xdg_wm_base);
     WROC_SERVER_GLOBAL(server, wl_seat, server->seat.get());
     WROC_SERVER_GLOBAL(server, zwp_pointer_gestures_v1);
+    WROC_SERVER_GLOBAL(server, wp_viewporter);
 
     // Run
 
     log_warn("Setting WAYLAND_DISPLAY={}", socket);
     setenv("WAYLAND_DISPLAY", socket, true);
-    setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, true);
     unsetenv("DISPLAY");
+    if (backend_type == wroc_backend_type::direct) {
+        setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, true);
+    }
 
     log_info("Running compositor on: {}", socket);
 
@@ -119,9 +122,7 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Compositor shutting down");
 
-    if (server->backend) {
-        server->backend = nullptr;
-    }
+    server->backend = nullptr;
 
     wl_display_destroy_clients(server->display);
 

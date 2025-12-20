@@ -83,10 +83,6 @@ extern "C" {
 
 // -----------------------------------------------------------------------------
 
-#include <sol/sol.hpp>
-
-// -----------------------------------------------------------------------------
-
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
@@ -116,6 +112,7 @@ extern "C" {
 #include <xdg-shell-protocol.h>
 #include <linux-dmabuf-v1-protocol.h>
 #include <pointer-gestures-unstable-v1-protocol.h>
+#include <viewporter-protocol.h>
 
 // -----------------------------------------------------------------------------
 

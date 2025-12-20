@@ -51,11 +51,15 @@ void wroc_cursor_create(wroc_server* server)
 
     log_info("Using theme: {}", theme ?: "<xcursor-fallback>");
 
+    static constexpr int xcursor_size = 24;
+
+    setenv("XCURSOR_SIZE", std::to_string(xcursor_size).c_str(), true);
+
     if (theme) {
         setenv("XCURSOR_THEME", theme, true);
     }
 
-    XcursorImage* image = XcursorLibraryLoadImage("default", theme, 24);
+    XcursorImage* image = XcursorLibraryLoadImage("default", theme, xcursor_size);
     defer {
         XcursorImageDestroy(image);
     };

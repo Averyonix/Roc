@@ -77,10 +77,6 @@ def cmake_build(src_dir: Path, build_dir: Path, install_dir, opts: list[str]):
 
 # -----------------------------------------------------------------------------
 
-git_fetch(vendor_dir / "backward-cpp", "https://github.com/bombela/backward-cpp.git", "master")
-
-# -----------------------------------------------------------------------------
-
 git_fetch(vendor_dir / "magic-enum", "https://github.com/Neargye/magic_enum.git", "master")
 
 # -----------------------------------------------------------------------------
@@ -109,24 +105,6 @@ git_fetch(vendor_dir/ "vkwsi", "https://github.com/Darianopolis/vk-wsi.git", "ma
 
 # -----------------------------------------------------------------------------
 
-git_fetch(vendor_dir / "sol2", "https://github.com/ThePhD/sol2.git", "develop")
-
-def build_luajit():
-    source_dir = vendor_dir / "luajit"
-
-    git_fetch(source_dir, "https://luajit.org/git/luajit.git", "v2.1", dumb=True)
-
-    if not (source_dir / "src/libluajit.a").exists() or args.update:
-        subprocess.run(["make", "-j"], cwd = source_dir)
-
-build_luajit()
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "wayland-protocol", "https://gitlab.freedesktop.org/wayland/wayland.git", "main")
-
-# -----------------------------------------------------------------------------
-
 def build_slang() -> Path:
     source_dir  = git_fetch(vendor_dir / "slang", "https://github.com/shader-slang/slang.git", "master")
     build_dir   =           vendor_dir / "slang-build"
@@ -142,7 +120,21 @@ else:
 
 # -----------------------------------------------------------------------------
 
-git_fetch(vendor_dir / "wlr-protocols", "https://gitlab.freedesktop.org/wlroots/wlr-protocols.git", "master")
+xwayland_satellite_dir = vendor_dir / "xwayland-satellite"
+xwayland_satellite_bin = xwayland_satellite_dir / "target/release/xwayland-satellite"
+
+def build_xwayland_satellite():
+
+    git_fetch(xwayland_satellite_dir, "https://github.com/Supreeeme/xwayland-satellite.git", "main")
+
+    if not xwayland_satellite_bin.exists() or args.update:
+        subprocess.run(["cargo", "build", "--release"], cwd=xwayland_satellite_dir)
+
+build_xwayland_satellite()
+
+# -----------------------------------------------------------------------------
+
+# git_fetch(vendor_dir / "wlr-protocols", "https://gitlab.freedesktop.org/wlroots/wlr-protocols.git", "master")
 
 # -----------------------------------------------------------------------------
 
@@ -152,6 +144,7 @@ def list_wayland_protocols():
 
     wayland_protocols.append((system_protocol_dir / "stable/xdg-shell/xdg-shell.xml", "xdg-shell"))
     wayland_protocols.append((system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml", "linux-dmabuf-v1"))
+    wayland_protocols.append((system_protocol_dir / "stable/viewporter/viewporter.xml", "viewporter"))
     wayland_protocols.append((system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "xdg-decoration-unstable-v1"))
     wayland_protocols.append((system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml", "pointer-gestures-unstable-v1"))
 
@@ -293,7 +286,10 @@ c_compiler   = "clang"
 cxx_compiler = "clang++"
 linker_type  = "MOLD"
 
-cmake_dir = build_dir / build_type.lower()
+build_name = build_type.lower()
+if args.asan:
+    build_name += "-asan"
+cmake_dir = build_dir / build_name
 
 configure_ok = True
 
@@ -326,6 +322,7 @@ if args.install:
 
     def install_for(program_name):
         install_file(cmake_dir / program_name, local_bin_dir / program_name)
-        # install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")
+        install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")
 
     install_for("wroc")
+    install_file(xwayland_satellite_bin, local_bin_dir / "xwayland-satellite")

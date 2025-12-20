@@ -130,9 +130,6 @@ found_plane:
 wroc_drm_output::~wroc_drm_output()
 {
     wl_event_source_remove(timer);
-
-    auto* wren = server->renderer->wren.get();
-    wren->vk.DestroySurfaceKHR(wren->instance, vk_surface, nullptr);
 }
 
 void wroc_direct_backend::create_output()
@@ -142,6 +139,10 @@ void wroc_direct_backend::create_output()
 
 void wroc_direct_backend::destroy_output(wroc_output* output)
 {
+    wroc_post_event(output->server, wroc_output_event {
+        .type = wroc_event_type::output_removed,
+        .output = output,
+    });
+
     std::erase_if(outputs, [&](auto& o) { return o.get() == output; });
-    wrei_remove_ref(output);
 }

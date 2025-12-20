@@ -285,12 +285,19 @@ static
 void draw_debug_window(wroc_server* server)
 {
     defer { ImGui::End(); };
-    ImGui::Begin("Roc");
+    bool dont_quit = true;
+    ImGui::Begin("Roc", &dont_quit);
+
+    if (!dont_quit) {
+        wroc_terminate(server);
+    }
+
+    static constexpr float second_column_offset = 113.f;
 
     // Window toggles
 
     ImGui::Checkbox("Show Log", &show_log_window);
-    ImGui::SameLine(113.f);
+    ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Show Demo", &show_demo_window);
 
     ImGui::Separator();
@@ -348,12 +355,17 @@ void draw_debug_window(wroc_server* server)
         }
 
         ImGui_Text("Surfaces:      {}", server->surfaces.size());
-        if (auto c = counts[wroc_surface_role::none])         ImGui_Text("  Unassigned:  {}", c);
-        if (auto c = counts[wroc_surface_role::cursor])       ImGui_Text("  Cursor:      {}", c);
-        if (auto c = counts[wroc_surface_role::drag_icon])    ImGui_Text("  Drag Icon:   {}", c);
-        if (auto c = counts[wroc_surface_role::subsurface])   ImGui_Text("  Subsurface:  {}", c);
-        if (auto c = counts[wroc_surface_role::xdg_toplevel]) ImGui_Text("  Toplevel:    {}", c);
-        if (auto c = counts[wroc_surface_role::xdg_popup])    ImGui_Text("  Popup:       {}", c);
+        for (auto[role, str] : {
+            std::make_pair(wroc_surface_role::none,         "Unassigned:"),
+            std::make_pair(wroc_surface_role::cursor,       "Cursor:    "),
+            std::make_pair(wroc_surface_role::drag_icon,    "Drag Icon: "),
+            std::make_pair(wroc_surface_role::subsurface,   "Subsurface:"),
+            std::make_pair(wroc_surface_role::xdg_toplevel, "Toplevel:  "),
+            std::make_pair(wroc_surface_role::xdg_popup,    "Popup:     "),
+        }) {
+            if (auto count = counts[role]) ImGui_Text("  {}  {}", str, count);
+            else                           ImGui_Text("  {}",     str);
+        }
     }
 
     ImGui::Separator();
@@ -376,13 +388,43 @@ void draw_debug_window(wroc_server* server)
     // Application launch
 
     static std::string launch_text = "konsole";
+    static std::string x11_socket = ":2";
+    static constexpr int x11_disabled = 0;
+    static constexpr int x11_enabled = 1;
+    static constexpr int x11_forced = 2;
+    static int x11_mode = x11_disabled;
+
+    ImGui::SetNextItemWidth(30.f);
+    ImGui::InputText("DISPLAY##x11-socket", &x11_socket);
+    ImGui::SameLine(second_column_offset);
+
+    ImGui::SetNextItemWidth(76.f);
+    ImGui::Combo("X11", &x11_mode, "Disable\0Enable\0Force");
+
     bool run = ImGui::InputText("##launch", &launch_text, ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
     if (ImGui::Button("Run") || run) {
+
         log_info("Launching: [{}]", launch_text.c_str());
-        log_debug("  WAYLAND_DISPLAY={}", getenv("WAYLAND_DISPLAY"));
+        if (x11_mode != x11_forced) {
+            log_debug("  WAYLAND_DISPLAY={}", getenv("WAYLAND_DISPLAY") ?: "");
+        }
+        if (x11_mode >= x11_enabled) {
+            log_debug("  DISPLAY={}", x11_socket);
+        }
+
         if (fork() == 0) {
-            execlp(launch_text.c_str(), launch_text.c_str(), nullptr);
+            if (x11_mode >= x11_enabled) {
+                setenv("DISPLAY", x11_socket.c_str(), true);
+            }
+
+            if (x11_mode == x11_forced) {
+                // Clear instead of unsetting for compatibility with certain toolkits
+                setenv("WAYLAND_DISPLAY", "", true);
+            }
+
+            execlp("sh", "sh", "-c", launch_text.c_str(), nullptr);
+            _Exit(1);
         }
     }
 }

@@ -242,6 +242,10 @@ wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_seat_keyboard* kb)
         if (xkb_mods & kb->mod_masks[mod]) down |= mod;
     }
 
+    if (down >= kb->seat->server->main_mod) {
+        down |= wroc_modifiers::mod;
+    }
+
     return down;
 }
 
@@ -269,7 +273,7 @@ void wroc_keyboard_clear_focus(wroc_seat_keyboard* kb)
 
         for (auto* resource : kb->resources) {
             if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
-            for (auto[keycode, _] : kb->keys) {
+            for (auto keycode : kb->pressed()) {
                 wl_keyboard_send_key(resource,
                     serial,
                     wroc_get_elapsed_milliseconds(kb->seat->server),
@@ -305,7 +309,7 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
         wroc_data_manager_offer_selection(kb->seat->server, wroc_resource_get_client(resource));
 
         std::vector<u32> pressed;
-        for (auto[key, _] : kb->keys) pressed.emplace_back(key);
+        for (auto key : kb->pressed()) pressed.emplace_back(key);
 
         wl_keyboard_send_enter(resource,
             serial,

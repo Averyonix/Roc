@@ -29,10 +29,6 @@ target_include_directories(pixman INTERFACE /usr/include/pixman-1)
 
 # ------------------------------------------------------------------------------
 
-add_subdirectory(${VENDOR_DIR}/backward-cpp EXCLUDE_FROM_ALL)
-
-# ------------------------------------------------------------------------------
-
 add_subdirectory(${VENDOR_DIR}/magic-enum EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
@@ -79,16 +75,6 @@ target_generated_source(   vma-object PRIVATE vk_mem_alloc.cpp "#define VMA_IMPL
 target_compile_options(    vma-object PRIVATE -w)
 target_link_libraries(     vma-object PUBLIC GPUOpen::VulkanMemoryAllocator)
 target_compile_definitions(vma-object PUBLIC "VMA_STATIC_VULKAN_FUNCTIONS=0" "VMA_DYNAMIC_VULKAN_FUNCTIONS=1")
-
-# ------------------------------------------------------------------------------
-
-add_subdirectory(${VENDOR_DIR}/sol2 EXCLUDE_FROM_ALL)
-
-# ------------------------------------------------------------------------------
-
-add_library(               luajit INTERFACE)
-target_link_libraries(     luajit INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/${VENDOR_DIR}/luajit/src/libluajit.a)
-target_include_directories(luajit INTERFACE ${VENDOR_DIR}/luajit/src)
 
 # ------------------------------------------------------------------------------
 
@@ -147,10 +133,7 @@ target_link_libraries(wrei PUBLIC
     input
     evdev
     stdc++exp
-    Backward::Object
     magic_enum::magic_enum
-    sol2::sol2
-    luajit
     Vulkan::Headers
     Vulkan::UtilityHeaders
     vma-object
@@ -202,6 +185,7 @@ target_sources(wroc PUBLIC
     src/wroc/interaction.cpp
     src/wroc/gestures.cpp
     src/wroc/xdg_shell.cpp
+    src/wroc/viewporter.cpp
     src/wroc/data.cpp
     src/wroc/cursor.cpp
     src/wroc/imgui.cpp

@@ -100,6 +100,9 @@ extern const struct zwp_pointer_gesture_swipe_v1_interface wroc_zwp_pointer_gest
 extern const struct zwp_pointer_gesture_pinch_v1_interface wroc_zwp_pointer_gesture_pinch_v1_impl;
 extern const struct zwp_pointer_gesture_hold_v1_interface  wroc_zwp_pointer_gesture_hold_v1_impl;
 
+extern const struct wp_viewporter_interface wroc_wp_viewporter_impl;
+extern const struct wp_viewport_interface   wroc_wp_viewport_impl;
+
 extern const u32 wroc_wl_compositor_version;
 extern const u32 wroc_wl_subcompositor_version;
 extern const u32 wroc_wl_shm_version;
@@ -109,6 +112,7 @@ extern const u32 wroc_wl_output_version;
 extern const u32 wroc_wl_data_device_manager_version;
 extern const u32 wroc_zwp_linux_dmabuf_v1_version;
 extern const u32 wroc_zwp_pointer_gestures_v1_version;
+extern const u32 wroc_wp_viewporter_version;
 
 void wroc_wl_compositor_bind_global(          wl_client*, void*, u32 version, u32 id);
 void wroc_wl_subcompositor_bind_global(       wl_client*, void*, u32 version, u32 id);
@@ -119,3 +123,4 @@ void wroc_wl_output_bind_global(              wl_client*, void*, u32 version, u3
 void wroc_wl_data_device_manager_bind_global( wl_client*, void*, u32 version, u32 id);
 void wroc_zwp_linux_dmabuf_v1_bind_global(    wl_client*, void*, u32 version, u32 id);
 void wroc_zwp_pointer_gestures_v1_bind_global(wl_client*, void*, u32 version, u32 id);
+void wroc_wp_viewporter_bind_global(          wl_client*, void*, u32 version, u32 id);
