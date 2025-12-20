@@ -145,6 +145,7 @@ target_link_libraries(wrei PUBLIC
     udev
     seat
     imgui
+    cap
     )
 
 # ------------------------------------------------------------------------------

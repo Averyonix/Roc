@@ -4,6 +4,14 @@
 
 #include <sys/sysmacros.h>
 
+static
+void drop_capabilities()
+{
+    cap_t caps = cap_init();
+    cap_set_proc(caps);
+    cap_free(caps);
+}
+
 ref<wren_context> wren_create(wren_features features)
 {
     auto ctx = wrei_create<wren_context>();
@@ -31,6 +39,7 @@ ref<wren_context> wren_create(wren_features features)
         VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
         VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
         VK_KHR_DISPLAY_EXTENSION_NAME,
+        VK_EXT_DISPLAY_SURFACE_COUNTER_EXTENSION_NAME,
     };
 
     wren_check(ctx->vk.CreateInstance(wrei_ptr_to(VkInstanceCreateInfo {
@@ -103,6 +112,8 @@ ref<wren_context> wren_create(wren_features features)
         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
         VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
         VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+        VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME,
+        VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
     };
 
     if (features >= wren_features::dmabuf) {
@@ -134,60 +145,81 @@ ref<wren_context> wren_create(wren_features features)
         }
     }
 
-    wren_check(ctx->vk.CreateDevice(ctx->physical_device, wrei_ptr_to(VkDeviceCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = wren_vk_make_chain_in({
-            wrei_ptr_to(VkPhysicalDeviceFeatures2 {
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-                .features = {
-                    .shaderInt64 = true,
-                    .shaderInt16 = true,
-                },
+    auto create_device = [&](bool global_priority) {
+        return wren_check(ctx->vk.CreateDevice(ctx->physical_device, wrei_ptr_to(VkDeviceCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pNext = wren_vk_make_chain_in({
+                wrei_ptr_to(VkPhysicalDeviceFeatures2 {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+                    .features = {
+                        .shaderInt64 = true,
+                        .shaderInt16 = true,
+                    },
+                }),
+                wrei_ptr_to(VkPhysicalDeviceVulkan11Features {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+                    .storagePushConstant16 = true,
+                    .samplerYcbcrConversion = true,
+                    .shaderDrawParameters = true,
+                }),
+                wrei_ptr_to(VkPhysicalDeviceVulkan12Features {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+                    .storagePushConstant8 = true,
+                    .shaderInt8 = true,
+                    .descriptorIndexing = true,
+                    .shaderSampledImageArrayNonUniformIndexing = true,
+                    .descriptorBindingSampledImageUpdateAfterBind = true,
+                    .descriptorBindingUpdateUnusedWhilePending = true,
+                    .descriptorBindingPartiallyBound = true,
+                    .runtimeDescriptorArray = true,
+                    .scalarBlockLayout = true,
+                    .timelineSemaphore = true,
+                    .bufferDeviceAddress = true,
+                }),
+                wrei_ptr_to(VkPhysicalDeviceVulkan13Features {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+                    .synchronization2 = true,
+                    .dynamicRendering = true,
+                }),
+                wrei_ptr_to(VkPhysicalDeviceMaintenance5Features {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES,
+                    .maintenance5 = true,
+                }),
+                wrei_ptr_to(VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
+                    .swapchainMaintenance1 = true,
+                }),
             }),
-            wrei_ptr_to(VkPhysicalDeviceVulkan11Features {
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-                .storagePushConstant16 = true,
-                .samplerYcbcrConversion = true,
-                .shaderDrawParameters = true,
+            .queueCreateInfoCount = 1,
+            .pQueueCreateInfos = wrei_ptr_to(VkDeviceQueueCreateInfo {
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .pNext =
+                    global_priority
+                        ? wrei_ptr_to(VkDeviceQueueGlobalPriorityCreateInfoKHR {
+                            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO,
+                            .globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH,
+                        })
+                        : nullptr,
+                .queueFamilyIndex = ctx->queue_family,
+                .queueCount = 1,
+                .pQueuePriorities = wrei_ptr_to(1.f),
             }),
-            wrei_ptr_to(VkPhysicalDeviceVulkan12Features {
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-                .storagePushConstant8 = true,
-                .shaderInt8 = true,
-                .descriptorIndexing = true,
-                .shaderSampledImageArrayNonUniformIndexing = true,
-                .descriptorBindingSampledImageUpdateAfterBind = true,
-                .descriptorBindingUpdateUnusedWhilePending = true,
-                .descriptorBindingPartiallyBound = true,
-                .runtimeDescriptorArray = true,
-                .scalarBlockLayout = true,
-                .timelineSemaphore = true,
-                .bufferDeviceAddress = true,
-            }),
-            wrei_ptr_to(VkPhysicalDeviceVulkan13Features {
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-                .synchronization2 = true,
-                .dynamicRendering = true,
-            }),
-            wrei_ptr_to(VkPhysicalDeviceMaintenance5Features {
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES,
-                .maintenance5 = true,
-            }),
-            wrei_ptr_to(VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR {
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
-                .swapchainMaintenance1 = true,
-            }),
-        }),
-        .queueCreateInfoCount = 1,
-        .pQueueCreateInfos = wrei_ptr_to(VkDeviceQueueCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = ctx->queue_family,
-            .queueCount = 1,
-            .pQueuePriorities = wrei_ptr_to(1.f),
-        }),
-        .enabledExtensionCount = u32(device_extensions.size()),
-        .ppEnabledExtensionNames = device_extensions.data(),
-    }), nullptr, &ctx->device));
+            .enabledExtensionCount = u32(device_extensions.size()),
+            .ppEnabledExtensionNames = device_extensions.data(),
+        }), nullptr, &ctx->device), VK_ERROR_NOT_PERMITTED);
+    };
+
+    if (create_device(true) == VK_ERROR_NOT_PERMITTED) {
+        log_warn("Failed to acquire global queue priority, falling back to normal queue priorities");
+        create_device(false);
+    }
+
+    // Drop CAP_SYS_NICE that was used to acquire global queue priority
+    //
+    // TODO: As is this prevents us from recreating the device on failure.
+    //       We should keep capabilities and instead run a separate daemon for
+    //       spawning subprocesses
+    drop_capabilities();
 
     wren_load_device_functions(ctx.get());
 

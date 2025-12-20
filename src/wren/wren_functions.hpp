@@ -93,6 +93,7 @@
     DO(GetMemoryFdPropertiesKHR) \
     DO(GetImageMemoryRequirements2) \
     DO(BindImageMemory2) \
+    DO(RegisterDisplayEventEXT) \
 
 #define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

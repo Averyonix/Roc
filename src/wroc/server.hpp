@@ -10,6 +10,8 @@
 
 #include "wren/wren.hpp"
 
+#define WROC_NOISY_FRAME_TIME 0
+
 // -----------------------------------------------------------------------------
 
 struct wroc_server;
@@ -62,6 +64,9 @@ struct wroc_output : wrei_object
     u64 timeline_value = 0;
     VkSurfaceFormatKHR format;
     vkwsi_swapchain* swapchain;
+
+    std::chrono::steady_clock::time_point acquire_time;
+    std::chrono::steady_clock::time_point present_time;
 
     vec2i32 position;
     i32 scale = 1;

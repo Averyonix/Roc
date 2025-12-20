@@ -23,6 +23,7 @@
 #include <random>
 #include <stacktrace>
 #include <flat_set>
+#include <mutex>
 
 #include <cstring>
 #include <csignal>
@@ -39,6 +40,9 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/poll.h>
+#include <sys/eventfd.h>
+#include <sys/capability.h>
+#include <sys/prctl.h>
 
 #include <drm/drm_fourcc.h>
 #include <xf86drm.h>

@@ -16,5 +16,6 @@ An experiment in writing a simple opinionated independent Wayland compositor.
 #### Quickstart
 
 ```
-python build.py -I
+$ python build.py -BI                           build + install
+# setcap cap_sys_nice+ep ~/.local/bin/wroc      give NICE capability for global queue priority
 ```

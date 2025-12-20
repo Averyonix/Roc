@@ -24,7 +24,11 @@ struct wrei_log_entry
     wrei_log_level level;
     std::string message;
 };
-std::span<const wrei_log_entry> wrei_log_get_history();
+struct wrei_log_history : std::span<const wrei_log_entry>
+{
+    std::unique_lock<std::recursive_mutex> mutex;
+};
+wrei_log_history wrei_log_get_history();
 void wrei_log_set_history_enabled(bool enabled);
 bool wrei_log_is_history_enabled();
 void wrei_log_clear_history();

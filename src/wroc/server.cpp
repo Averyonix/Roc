@@ -18,7 +18,9 @@ wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface
 void wroc_run(int argc, char* argv[])
 {
     wroc_render_options render_options = {};
-    wroc_backend_type backend_type = wroc_backend_type::wayland;
+    wroc_backend_type backend_type = getenv("WAYLAND_DISPLAY")
+        ? wroc_backend_type::wayland
+        : wroc_backend_type::direct;
     wroc_options options = wroc_options::none;
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
@@ -26,9 +28,6 @@ void wroc_run(int argc, char* argv[])
             render_options |= wroc_render_options::no_dmabuf;
         } else if (arg == "--separate-draws") {
             render_options |= wroc_render_options::separate_draws;
-        } else if (arg == "--direct") {
-            // TODO: Auto detect backend
-            backend_type = wroc_backend_type::direct;
         } else if (arg == "--imgui") {
             options |= wroc_options::imgui;
             wrei_log_set_history_enabled(true);

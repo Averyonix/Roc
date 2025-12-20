@@ -15,7 +15,12 @@ struct wroc_device : wrei_object
 
 struct wroc_drm_output : wroc_output
 {
-    wl_event_source* timer;
+    VkDisplayKHR vk_display;
+
+    int eventfd;
+    wl_event_source* scanout;
+    std::jthread scanout_thread;
+    std::atomic<std::chrono::steady_clock::time_point> scanout_time;
 
     ~wroc_drm_output();
 };

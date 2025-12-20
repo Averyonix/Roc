@@ -11,6 +11,7 @@ static struct {
     MessageConnection* ipc_sink = {};
     std::vector<wrei_log_entry> history;
     bool history_enabled;
+    std::recursive_mutex mutex;
 } wrei_log_state = {};
 
 void wrei_log_set_message_sink(struct MessageConnection* conn)
@@ -30,26 +31,35 @@ bool wrei_is_log_level_enabled(wrei_log_level level)
 
 bool wrei_log_is_history_enabled()
 {
+    std::scoped_lock _ { wrei_log_state.mutex };
+
     return wrei_log_state.history_enabled;
 }
 
 void wrei_log_set_history_enabled(bool enabled)
 {
+    std::scoped_lock _ { wrei_log_state.mutex };
+
     wrei_log_state.history_enabled = enabled;
 }
 
 void wrei_log_clear_history()
 {
+    std::scoped_lock _ { wrei_log_state.mutex };
+
     wrei_log_state.history.clear();
 }
 
-std::span<const wrei_log_entry> wrei_log_get_history()
+wrei_log_history wrei_log_get_history()
 {
-    return wrei_log_state.history;
+    std::unique_lock lock { wrei_log_state.mutex };
+    return { {wrei_log_state.history}, std::move(lock) };
 }
 
 void wrei_log(wrei_log_level level, std::string_view message)
 {
+    std::scoped_lock _ { wrei_log_state.mutex };
+
     if (wrei_log_state.log_level > level) return;
 
     if (wrei_log_state.history_enabled) {

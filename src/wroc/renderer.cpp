@@ -53,7 +53,14 @@ void wroc_render_frame(wroc_output* output)
     auto* wren = renderer->wren.get();
     auto cmd = wren_begin_commands(wren);
 
+#if WROC_NOISY_FRAME_TIME
+    log_trace("Acquire 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
     auto current = wroc_output_acquire_image(output);
+    output->acquire_time = std::chrono::steady_clock::now();
+#if WROC_NOISY_FRAME_TIME
+    log_trace("Acquire 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(output->acquire_time.time_since_epoch()).count());
+#endif
     auto current_extent = vec2f32(current.extent.width, current.extent.height);
 
     wren_transition(wren, cmd, current.image,
@@ -332,14 +339,26 @@ void wroc_render_frame(wroc_output* output)
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
+#if WROC_NOISY_FRAME_TIME
+    log_info("Submit    [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
+
     wren_submit_commands(wren, cmd);
 
+#if WROC_NOISY_FRAME_TIME
+    log_warn("Present 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
     wren_check(vkwsi_swapchain_present(&output->swapchain, 1, wren->queue, nullptr, 0, false));
+    output->present_time = std::chrono::steady_clock::now();
+#if WROC_NOISY_FRAME_TIME
+    log_warn("Present 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(output->present_time.time_since_epoch()).count());
+#endif
 
     // Send frame callbacks
 
     auto elapsed = wroc_get_elapsed_milliseconds(output->server);
 
+    // TODO: Track latency per application and dispatch done events for optimal pacing
     for (wroc_surface* surface : output->server->surfaces) {
         while (auto* callback = surface->current.frame_callbacks.front()) {
             // log_trace("Sending frame callback: {}", (void*)callback);

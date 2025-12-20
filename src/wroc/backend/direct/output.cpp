@@ -3,10 +3,53 @@
 #include <wroc/event.hpp>
 
 static
-int handle_output_timer(void* data)
+void scanout_thread(std::stop_token stop, wren_context* wren, wroc_drm_output* output)
+{
+    for (;;) {
+        VkFence fence;
+        wren_check(wren->vk.RegisterDisplayEventEXT(wren->device, output->vk_display, wrei_ptr_to(VkDisplayEventInfoEXT {
+            .sType = VK_STRUCTURE_TYPE_DISPLAY_EVENT_INFO_EXT,
+            .displayEvent = VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT,
+        }), nullptr, &fence));
+
+        wren_check(wren->vk.WaitForFences(wren->device, 1, &fence, true, UINT64_MAX));
+
+        auto now = std::chrono::steady_clock::now();
+        output->scanout_time = now;
+#if WROC_NOISY_FRAME_TIME
+        log_debug("Scanout 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(now.time_since_epoch()).count());
+#endif
+
+        wren->vk.DestroyFence(wren->device, fence, nullptr);
+
+        if (stop.stop_requested()) {
+            return;
+        }
+
+        u64 inc = 1;
+        write(output->eventfd, &inc, sizeof(inc));
+    }
+}
+
+static
+int handle_display_scanout(int fd, u32 mask, void* data)
 {
     auto* output = static_cast<wroc_drm_output*>(data);
-    wl_event_source_timer_update(output->timer, 1000 / 144);
+
+    if (!(mask & WL_EVENT_READABLE)) return 0;
+
+    u64 value = 0;
+    while (read(fd, &value, sizeof(value)) > 0)
+        ;
+
+#if WROC_NOISY_FRAME_TIME
+    log_debug("Scanout 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
+    if (output->scanout_time.load() < output->acquire_time) {
+        log_warn("Scanout from earlier frame, skipping..");
+        return 0;
+    }
 
     wroc_post_event(output->server, wroc_output_event {
         .type = wroc_event_type::output_frame,
@@ -93,6 +136,8 @@ found_plane:
 
     auto output = wrei_create<wroc_drm_output>();
 
+    output->vk_display = display;
+
     output->physical_size_mm = {display_props.physicalDimensions.width, display_props.physicalDimensions.height};
     output->model = "Unknown";
     output->make = "Unknown";
@@ -123,13 +168,19 @@ found_plane:
         .output = output.get(),
     });
 
-    output->timer = wl_event_loop_add_timer(wl_display_get_event_loop(backend->server->display), handle_output_timer, output.get());
-    handle_output_timer(output.get());
+    output->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    output->scanout = wl_event_loop_add_fd(wl_display_get_event_loop(backend->server->display), output->eventfd, WL_EVENT_READABLE, handle_display_scanout, output.get());
+
+    output->scanout_thread = std::jthread{[wren = wren.get(), output = output.get()](std::stop_token stop) {
+        scanout_thread(stop, wren, output);
+    }};
 }
 
 wroc_drm_output::~wroc_drm_output()
 {
-    wl_event_source_remove(timer);
+    close(eventfd);
+    wl_event_source_remove(scanout);
+    scanout_thread.get_stop_source().request_stop();
 }
 
 void wroc_direct_backend::create_output()
