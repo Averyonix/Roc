@@ -57,10 +57,10 @@ T* wrei_create_unsafe()
     return t;
 }
 
-inline
-void wrei_destroy(wrei_object* object, wrei_object_version version)
+template<typename T>
+void wrei_destroy(T* object, wrei_object_version version)
 {
-    wrei_registry.free(object, version);
+    wrei_registry.free(wrei_object_to_base(object), version);
 }
 
 // -----------------------------------------------------------------------------

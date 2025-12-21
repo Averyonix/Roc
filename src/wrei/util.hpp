@@ -78,8 +78,43 @@ struct wrei_enum_map
 
 // -----------------------------------------------------------------------------
 
+#include <flat_map>
+
+template<typename T>
+struct wrei_counting_set
+{
+    using value_type = T;
+
+    std::flat_map<T, u32> counts;
+
+    bool inc(auto&& t)
+    {
+        return !counts[t]++;
+    }
+
+    bool dec(auto&& t)
+    {
+        auto iter = counts.find(t);
+        assert(iter != counts.end());
+        if (!--iter->second) {
+            counts.erase(iter);
+            return true;
+        }
+        return false;
+    }
+
+    auto begin() const { return counts.keys().begin(); }
+    auto   end() const { return counts.keys().end();   }
+
+    bool contains(const T& t) const { return counts.contains(t); }
+    usz      size()           const { return counts.size();      }
+    bool    empty()           const { return counts.empty();     }
+};
+
+// -----------------------------------------------------------------------------
+
 constexpr vec2f64 wrei_copysign(     vec2f64 v, vec2f64 s) { return vec2f64(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
-constexpr vec2f64 wrei_round_to_zero(vec2f64 v)         { return wrei_copysign(glm::floor(glm::abs(v)), v);                   }
+constexpr vec2f64 wrei_round_to_zero(vec2f64 v)            { return wrei_copysign(glm::floor(glm::abs(v)), v);                 }
 
 // -----------------------------------------------------------------------------
 

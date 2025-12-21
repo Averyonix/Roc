@@ -156,7 +156,7 @@ void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resourc
 
     // TODO: Use seat to select pointer
     auto* pointer = toplevel->surface->server->seat->pointer.get();
-    if (!pointer->is_pressed(BTN_LEFT)) {
+    if (!pointer->pressed.contains(BTN_LEFT)) {
         log_warn("toplevel attempted to initiate move but left button was not pressed");
         return;
     }
@@ -173,7 +173,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
 
     // TODO: Use seat to select pointer
     auto* pointer = toplevel->surface->server->seat->pointer.get();
-    if (!pointer->is_pressed(BTN_LEFT)) {
+    if (!pointer->pressed.contains(BTN_LEFT)) {
         log_warn("toplevel attempted to initiate resize but left button was not pressed");
         return;
     }

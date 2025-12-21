@@ -23,6 +23,7 @@
 #include <random>
 #include <stacktrace>
 #include <flat_set>
+#include <flat_map>
 #include <mutex>
 
 #include <cstring>

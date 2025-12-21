@@ -102,17 +102,6 @@ void wroc_seat_pointer::attach(wroc_pointer* kb)
     wroc_seat_pointer_update_state(this, wroc_key_action::enter, kb->pressed);
 }
 
-bool wroc_seat_pointer::is_pressed(u32 button) const
-{
-    auto iter = buttons.find(button);
-    return iter != buttons.end() && iter->second;
-}
-
-u32 wroc_seat_pointer::num_pressed() const
-{
-    return std::ranges::count_if(buttons, [](const auto& e) { return e.second > 0; });
-}
-
 void wroc_seat_init_pointer(wroc_seat* seat)
 {
     seat->pointer = wrei_create<wroc_seat_pointer>();
@@ -122,14 +111,9 @@ void wroc_seat_init_pointer(wroc_seat* seat)
 static
 void wroc_seat_pointer_update_state(wroc_seat_pointer* pointer, wroc_key_action action, std::span<const u32> actioned_buttons)
 {
-    auto changed = [&](auto& count) {
-        return action == wroc_key_action::release ? !--count : !count++;
-    };
-
     for (auto button : actioned_buttons) {
-        log_trace("button {} - {} - previous({})", libevdev_event_code_get_name(EV_KEY, button), magic_enum::enum_name(action), pointer->buttons[button]);
-
-        if (changed(pointer->buttons[button])) {
+        if (action == wroc_key_action::release ? pointer->pressed.dec(button) : pointer->pressed.inc(button)) {
+            log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), magic_enum::enum_name(action));
             if (action != wroc_key_action::enter) {
                 wroc_post_event(pointer->seat->server, wroc_pointer_event {
                     .type = wroc_event_type::pointer_button,
@@ -211,7 +195,7 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
     }
 
     if (server->surface_under_cursor) {
-        if (pressed && pointer->num_pressed() == 1) {
+        if (pressed && pointer->pressed.size() == 1) {
             log_info("Starting implicit grab");
             server->implicit_grab_surface = server->surface_under_cursor;
         }
@@ -228,7 +212,7 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
         wroc_pointer_send_frame(resources);
     }
 
-    if (!pressed && !pointer->num_pressed() && server->implicit_grab_surface) {
+    if (!pressed && pointer->pressed.empty() && server->implicit_grab_surface) {
         log_info("Ending implicit grab");
         wroc_data_manager_finish_drag(server);
         server->implicit_grab_surface = {};

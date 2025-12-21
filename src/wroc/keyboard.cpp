@@ -206,18 +206,10 @@ void wroc_seat_keyboard::set_locked(wroc_modifiers mod, bool locked)
 static
 void wroc_seat_keyboard_update_state(wroc_seat_keyboard* kb, wroc_key_action action, std::span<const u32> actioned_keys)
 {
-    auto changed = [&](auto& count) {
-        return action == wroc_key_action::release ? !--count : !count++;
-    };
-
     xkb_state_component updated = {};
 
     for (auto key : actioned_keys) {
-        // log_trace("key {} - {} - previous({})", libevdev_event_code_get_name(EV_KEY, key), magic_enum::enum_name(action), kb->keys[key]);
-
-        if (changed(kb->keys[key])) {
-            // TODO: Handle passing "enter" events through to clients?
-            //       Could be implemented by leaving and re-entering keyboard
+        if (action == wroc_key_action::release ? kb->pressed.dec(key) : kb->pressed.inc(key)) {
             if (action != wroc_key_action::enter) {
                 wroc_post_event(kb->seat->server, wroc_keyboard_event {
                     .type = wroc_event_type::keyboard_key,
@@ -273,7 +265,7 @@ void wroc_keyboard_clear_focus(wroc_seat_keyboard* kb)
 
         for (auto* resource : kb->resources) {
             if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
-            for (auto keycode : kb->pressed()) {
+            for (auto keycode : kb->pressed) {
                 wl_keyboard_send_key(resource,
                     serial,
                     wroc_get_elapsed_milliseconds(kb->seat->server),
@@ -308,12 +300,9 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
 
         wroc_data_manager_offer_selection(kb->seat->server, wroc_resource_get_client(resource));
 
-        std::vector<u32> pressed;
-        for (auto key : kb->pressed()) pressed.emplace_back(key);
-
         wl_keyboard_send_enter(resource,
             serial,
-            surface->resource, wrei_ptr_to(wroc_to_wl_array<u32>(pressed)));
+            surface->resource, wrei_ptr_to(wroc_to_wl_array<const u32>(kb->pressed)));
 
         wl_keyboard_send_modifiers(resource,
             serial,

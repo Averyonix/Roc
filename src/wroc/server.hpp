@@ -580,14 +580,7 @@ struct wroc_seat_keyboard : wrei_object
     std::vector<wroc_keyboard*> sources;
 
     // Aggregate of sources[...]->pressed
-    ankerl::unordered_dense::map<u32, u32> keys;
-
-    auto pressed() const
-    {
-        return keys
-            | std::views::filter(   [](const auto& entry) { return entry.second; })
-            | std::views::transform([](const auto& entry) { return entry.first;  });
-    }
+    wrei_counting_set<u32> pressed;
 
     wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
@@ -649,15 +642,12 @@ struct wroc_seat_pointer : wrei_object
     std::vector<wroc_pointer*> sources;
 
     // Aggregate of sources[...]->pressed
-    ankerl::unordered_dense::map<u32, u32> buttons = {};
+    wrei_counting_set<u32> pressed;
 
     wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
 
     vec2f64 layout_position;
-
-    bool is_pressed(u32 button) const;
-    u32 num_pressed() const;
 
     void attach(wroc_pointer*);
 };
