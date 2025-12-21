@@ -819,9 +819,24 @@ struct alignas(u64) wroc_imgui_texture
     operator ImTextureID() const { return std::bit_cast<ImTextureID>(*this); }
 };
 
+template<typename ...Args>
+void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
+{
+    ImGui::TextUnformatted(std::vformat(fmt.get(), std::make_format_args(args...)).c_str());
+}
+
 void wroc_imgui_init(wroc_server*);
 void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer, bool* wants_mouse);
 bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
+
+// -----------------------------------------------------------------------------
+
+struct wroc_launcher;
+WREI_OBJECT_EXPLICIT_DECLARE(wroc_launcher);
+
+void wroc_launcher_init(wroc_server*);
+void wroc_launcher_frame(wroc_launcher*, vec2u32 extent);
+bool wroc_launcher_handle_event(wroc_launcher*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------
 
@@ -854,6 +869,7 @@ struct wroc_server : wrei_object
     ref<wroc_seat>     seat;
 
     ref<wroc_imgui> imgui;
+    ref<wroc_launcher> launcher;
 
     wroc_options options;
 

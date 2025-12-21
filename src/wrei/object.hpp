@@ -66,17 +66,47 @@ void wrei_destroy(wrei_object* object, wrei_object_version version)
 // -----------------------------------------------------------------------------
 
 template<typename T>
+T* wrei_object_from_base(wrei_object* base)
+{
+    return static_cast<T*>(base);
+}
+
+template<typename T>
+wrei_object* wrei_object_to_base(T* object)
+{
+    return static_cast<wrei_object*>(object);
+}
+
+#define WREI_OBJECT_EXPLICIT_DECLARE(Type) \
+    template<> Type* wrei_object_from_base(wrei_object* base); \
+    template<> wrei_object* wrei_object_to_base(Type* base)
+
+#define WREI_OBJECT_EXPLICIT_DEFINE(Type) \
+    template<> Type* wrei_object_from_base(wrei_object* base) \
+    { \
+        return static_cast<Type*>(base); \
+    } \
+    template<> wrei_object* wrei_object_to_base(Type* object) \
+    { \
+        return static_cast<wrei_object*>(object); \
+    }
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
 T* wrei_add_ref(T* t)
 {
-    if (t) static_cast<wrei_object*>(t)->wrei.ref_count++;
+    if (t) wrei_object_to_base(t)->wrei.ref_count++;
     return t;
 }
 
 template<typename T>
 void wrei_remove_ref(T* t)
 {
-    if (t && !--static_cast<wrei_object*>(t)->wrei.ref_count) {
-        wrei_destroy(t, t->wrei.version);
+    if (!t) return;
+    auto b = wrei_object_to_base(t);
+    if (!--b->wrei.ref_count) {
+        wrei_destroy(b, b->wrei.version);
     }
 }
 
@@ -87,7 +117,7 @@ struct wrei_ref_adopt_tag {};
 template<typename T>
 struct wrei_ref
 {
-    T* value;
+    wrei_object* value;
 
     wrei_ref() = default;
 
@@ -97,21 +127,21 @@ struct wrei_ref
     }
 
     wrei_ref(T* t)
-        : value(t)
+        : value(wrei_object_to_base(t))
     {
-        wrei_add_ref(t);
+        wrei_add_ref(value);
     }
 
     wrei_ref(T* t, wrei_ref_adopt_tag)
-        : value(t)
+        : value(wrei_object_to_base(t))
     {}
 
     void reset(T* t = nullptr)
     {
-        auto* v = value;
-        if (t == v) return;
-        wrei_remove_ref(v);
-        value = wrei_add_ref(t);
+        auto* b = wrei_object_to_base(t);
+        if (b == value) return;
+        wrei_remove_ref(value);
+        value = wrei_add_ref(b);
     }
 
     wrei_ref& operator=(T* t)
@@ -148,13 +178,13 @@ struct wrei_ref
 
     operator bool() const { return value; }
 
-    T* get() const { return value; }
+    T* get() const { return wrei_object_from_base<T>(value); }
 
-    T* operator->() const { return value; }
+    T* operator->() const { return get(); }
 
     template<typename T2>
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
-    operator wrei_ref<T2>() { return wrei_ref<T2>(value); }
+    operator wrei_ref<T2>() { return wrei_ref<T2>(get()); }
 };
 
 template<typename T>
@@ -186,9 +216,9 @@ struct wrei_weak
 
     void reset(T* t = nullptr)
     {
-        value = t;
-        if (t) {
-            version = t->wrei.version;
+        value = wrei_object_to_base(t);
+        if (value) {
+            version = value->wrei.version;
             assert(version != 0);
         }
     }
@@ -199,14 +229,18 @@ struct wrei_weak
         return *this;
     }
 
-    constexpr bool operator==(const wrei_weak<T>& other) { return get() == other.get(); }
-    constexpr bool operator!=(const wrei_weak<T>& other) { return get() != other.get(); }
+private:
+    wrei_object* base() const { return *this ? value : nullptr; }
+
+public:
+    constexpr bool operator==(const wrei_weak<T>& other) { return base() == other.base(); }
+    constexpr bool operator!=(const wrei_weak<T>& other) { return base() != other.base(); }
 
     operator bool() const { return value && value->wrei.version == version;  }
 
-    T* get() const { return *this ? static_cast<T*>(value) : nullptr; }
+    T* get() const { return *this ? wrei_object_from_base<T>(value) : nullptr; }
 
-    T* operator->() const { return static_cast<T*>(value); }
+    T* operator->() const { return wrei_object_from_base<T>(value); }
 
     template<typename T2>
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>

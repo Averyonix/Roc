@@ -3,6 +3,10 @@
 static
 void wroc_handle_event(wroc_server* server, const wroc_event& base_event)
 {
+    if (server->launcher && wroc_launcher_handle_event(server->launcher.get(), base_event)) {
+        return;
+    }
+
     if (server->imgui && wroc_imgui_handle_event(server->imgui.get(), base_event)) {
         return;
     }

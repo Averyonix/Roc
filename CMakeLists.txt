@@ -23,6 +23,17 @@ target_include_directories(libevdev INTERFACE /usr/include/libevdev-1.0)
 
 # ------------------------------------------------------------------------------
 
+# TODO: Helper function for pkg config dependencies
+add_library(               libgio2 INTERFACE)
+target_include_directories(libgio2 INTERFACE /usr/include/glib-2.0
+                                             /usr/include/gio-unix-2.0
+                                             /usr/lib/glib-2.0/include)
+target_link_libraries(     libgio2 INTERFACE /usr/lib/libgio-2.0.so
+                                             /usr/lib/libglib-2.0.so
+                                             /usr/lib/libgobject-2.0.so)
+
+# ------------------------------------------------------------------------------
+
 add_library(               pixman INTERFACE)
 target_link_libraries(     pixman INTERFACE pixman-1)
 target_include_directories(pixman INTERFACE /usr/include/pixman-1)
@@ -146,6 +157,7 @@ target_link_libraries(wrei PUBLIC
     seat
     imgui
     cap
+    libgio2
     )
 
 # ------------------------------------------------------------------------------
@@ -190,6 +202,8 @@ target_sources(wroc PUBLIC
     src/wroc/data.cpp
     src/wroc/cursor.cpp
     src/wroc/imgui.cpp
+
+    src/wroc/applets/launcher.cpp
 
     src/main.cpp
 

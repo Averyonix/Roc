@@ -603,7 +603,9 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
         };
         log_trace("  num_planes = {}", params.planes.size());
         log_trace("  plane[0].fd = {}", params.planes.front().fd);
-        log_trace("  plane[0].modifier = {}", drmGetFormatModifierName(params.planes.front().drm_modifier));
+        auto mod_name = drmGetFormatModifierName(params.planes.front().drm_modifier);
+        defer { free(mod_name); };
+        log_trace("  plane[0].modifier = {}", mod_name);
         log_trace("  ctx->vk.GetMemoryFdPropertiesKHR = {}", (void*)ctx->vk.GetMemoryFdPropertiesKHR);
         wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, htype, params.planes.front().fd, &fdp));
 

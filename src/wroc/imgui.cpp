@@ -37,6 +37,8 @@ void wroc_imgui_init(wroc_server* server)
 
         io.Fonts->SetTexID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get()));
     }
+
+    wroc_launcher_init(server);
 }
 
 static
@@ -272,12 +274,6 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
     return false;
 }
 
-template<typename ...Args>
-void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
-{
-    ImGui::TextUnformatted(std::vformat(fmt.get(), std::make_format_args(args...)).c_str());
-}
-
 static bool show_log_window = true;
 static bool show_demo_window = false;
 
@@ -434,7 +430,7 @@ void draw_log_window()
 {
     if (!show_log_window) return;
     defer { ImGui::End(); };
-    if (!ImGui::Begin("Log", &show_log_window)) return;
+    if (!ImGui::Begin("Log", &show_log_window, ImGuiWindowFlags_NoCollapse)) return;
 
     auto scroll_to_bottom = ImGui::Button("Follow");
 
@@ -509,6 +505,7 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bo
     if (show_demo_window) {
         ImGui::ShowDemoWindow(&show_demo_window);
     }
+    wroc_launcher_frame(imgui->server->launcher.get(), extent);
 
     ImGui::Render();
 
