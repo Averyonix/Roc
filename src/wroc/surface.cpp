@@ -236,6 +236,14 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
         }
     }
 
+    // Buffer rects
+
+    if (apply && surface->current.buffer) {
+        surface->buffer_src = {{}, surface->current.buffer->extent};
+        // TODO: inverse buffer_transform
+        surface->buffer_dst.extent = vec2f64(surface->current.buffer->extent) / surface->current.buffer_scale;
+    }
+
     // Commit addons
 
     for (auto& addon : surface->addons) {
@@ -246,19 +254,9 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
         return;
     }
 
-    // Set output
+    // Update output states
 
-    if (surface->current.buffer) {
-        if (!surface->output) {
-            // TODO: Proper selection of output to bind to
-            for (auto* output : surface->server->outputs) {
-                wroc_surface_set_output(surface, output);
-                break;
-            }
-        }
-    } else if (surface->output) {
-        wroc_surface_set_output(surface, nullptr);
-    }
+    wroc_output_layout_update_surface(surface->server->output_layout.get(), surface);
 
     // Update subsurfaces
 
@@ -311,20 +309,20 @@ wroc_surface::~wroc_surface()
     log_warn("wroc_surface DESTROY, this = {}", (void*)this);
 }
 
-bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 point)
+bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 surface_pos)
 {
     rect2f64 buffer_rect = {};
     if (surface->current.buffer) {
         buffer_rect.extent = vec2f64{surface->current.buffer->extent} / surface->current.buffer_scale;
     }
 
-    // log_debug("buffer_rect = (({}, {}), ({}, {}))", buffer_rect.origin.x, buffer_rect.origin.y, buffer_rect.extent.x, buffer_rect.extent.y);
+    // log_debug("buffer_rect = {}", wrei_to_string(buffer_rect));
 
-    if (!wrei_rect_contains(buffer_rect, point)) return false;
+    if (!wrei_rect_contains(buffer_rect, surface_pos)) return false;
 
-    auto accepts_input = surface->current.input_region.contains(point);
+    auto accepts_input = surface->current.input_region.contains(surface_pos);
 
-    // log_trace("input_region.contains({}, {}) = {}", point.x, point.y, accepts_input);
+    // log_trace("input_region.contains{} = {}", wrei_to_string(point), accepts_input);
 
     return accepts_input;
 }
@@ -340,6 +338,32 @@ void wroc_surface_raise(wroc_surface* surface)
 
     auto i = std::ranges::find(surface->server->surfaces, surface);
     std::rotate(i, i + 1, surface->server->surfaces.end());
+}
+
+vec2f64 wroc_surface_get_position(wroc_surface* surface)
+{
+    switch (surface->role) {
+        break;case wroc_surface_role::none:
+            ;
+        break;case wroc_surface_role::cursor:
+              case wroc_surface_role::drag_icon:
+            return surface->server->seat->pointer->position;
+        break;case wroc_surface_role::subsurface:
+            if (auto* subsurface = static_cast<wroc_subsurface*>(surface->role_addon.get())) {
+                return wroc_surface_get_position(subsurface->parent.get()) + vec2f64(subsurface->current.position);
+            }
+        break;case wroc_surface_role::xdg_toplevel:
+              case wroc_surface_role::xdg_popup:
+            if (auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface)) {
+                auto geom = wroc_xdg_surface_get_geometry(xdg_surface);
+                return xdg_surface->anchor.position
+                    - vec2f64(geom.extent * xdg_surface->anchor.relative)
+                    - vec2f64(geom.origin);
+            }
+    }
+
+    log_warn("Surface has no valid position!");
+    return {};
 }
 
 // -----------------------------------------------------------------------------

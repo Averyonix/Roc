@@ -46,6 +46,14 @@ template<typename T>
 struct wrei_rect
 {
     wrei_vec<2, T> origin, extent;
+
+    template<typename T2>
+    operator wrei_rect<T2>() const
+    {
+        return {origin, extent};
+    }
+
+    bool operator==(const wrei_rect<T>& other) const = default;
 };
 
 using rect2i32 = wrei_rect<i32>;

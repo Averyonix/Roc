@@ -39,9 +39,6 @@ void wroc_wp_viewport_set_source(wl_client* client, wl_resource* resource, wl_fi
     auto* viewport = wroc_get_userdata<wroc_viewport>(resource);
     viewport->pending.committed |= wroc_viewport_committed_state::source;
     viewport->pending.source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}};
-    log_error("wp_viewport::set_source({}, {}, {}, {})",
-        viewport->pending.source.origin.x, viewport->pending.source.origin.y,
-        viewport->pending.source.extent.x, viewport->pending.source.extent.y);
 }
 
 static
@@ -50,7 +47,6 @@ void wroc_wp_viewport_set_destination(wl_client* client, wl_resource* resource, 
     auto* viewport = wroc_get_userdata<wroc_viewport>(resource);
     viewport->pending.committed |= wroc_viewport_committed_state::destination;
     viewport->pending.destination = {width, height};
-    log_error("wp_viewport::set_destination({}, {})", viewport->pending.destination.x, viewport->pending.destination.y);
 }
 
 const struct wp_viewport_interface wroc_wp_viewport_impl
@@ -63,13 +59,37 @@ const struct wp_viewport_interface wroc_wp_viewport_impl
 void wroc_viewport::on_commit(wroc_surface_commit_flags)
 {
     if (pending.committed >= wroc_viewport_committed_state::source) {
-        current.source = pending.source;
+        if (pending.source == rect2f64{{-1, -1}, {-1, -1}}) {
+            log_debug("wp_viewport source unset");
+            current.committed -= wroc_viewport_committed_state::source;
+        } else {
+            log_debug("wp_viewport source = {}", wrei_to_string(pending.source));
+            current.source = pending.source;
+            current.committed |= wroc_viewport_committed_state::source;
+        }
     }
 
     if (pending.committed >= wroc_viewport_committed_state::destination) {
-        current.destination = pending.destination;
+        if (pending.destination == vec2i32{-1, -1}) {
+            log_debug("wp_viewport destination unset");
+            current.committed -= wroc_viewport_committed_state::destination;
+        } else {
+            log_debug("wp_viewport destination = {}", wrei_to_string(pending.destination));
+            current.destination = pending.destination;
+            current.committed |= wroc_viewport_committed_state::destination;
+        }
     }
 
-    current.committed |= pending.committed;
-    pending = {};
+    pending.committed = {};
+
+    if (current.committed >= wroc_viewport_committed_state::source) {
+        surface->buffer_src = current.source;
+    }
+    if (current.committed >= wroc_viewport_committed_state::destination) {
+        surface->buffer_dst.extent = current.destination;
+    } else if (current.committed >= wroc_viewport_committed_state::source) {
+        surface->buffer_dst.extent = current.source.extent;
+    }
+
+    // log_debug("buffer src = {}, dst = {}", wrei_to_string(surface->buffer_src), wrei_to_string(surface->buffer_dst));
 }

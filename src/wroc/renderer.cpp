@@ -104,17 +104,21 @@ void wroc_render_frame(wroc_output* output)
 
     renderer->rects_cpu.clear();
 
-    auto draw = [&](wren_image* image, vec2f32 offset, vec2f32 extent) {
+    auto draw = [&](wren_image* image, rect2f64 dest, rect2f64 source) {
 
         // TODO: Async buffer waits
         // wren_image_wait(image);
 
+        // log_warn("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
+
+        auto pixel_dst = wroc_output_get_pixel_rect(output, dest);
+
         rect_id++;
         renderer->rects_cpu.emplace_back(wroc_shader_rect {
             .image = image4f32{image, renderer->sampler.get()},
-            .image_rect = { {}, image->extent },
+            .image_rect = { source.origin, source.extent },
             .image_has_alpha = image->format->has_alpha,
-            .rect = { offset, extent },
+            .rect = { pixel_dst.origin, pixel_dst.extent },
             .opacity = 1.f,
         });
     };
@@ -155,9 +159,9 @@ void wroc_render_frame(wroc_output* output)
 
     start_draws();
 
-    draw(output->server->renderer->background.get(), {}, current_extent);
+    draw(server->renderer->background.get(), output->layout_rect, {{}, server->renderer->background->extent});
 
-    auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2i32 pos) -> void {
+    auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos) -> void {
         if (!surface) return;
 
         // log_trace("drawing surface: {} (stack.size = {})", (void*)surface, surface->current.surface_stack.size());
@@ -167,15 +171,17 @@ void wroc_render_frame(wroc_output* output)
 
         for (auto& s : surface->current.surface_stack) {
             if (s.get() == surface) {
-                s->position = pos;
+                // s->position = pos;
 
                 // Draw self
-                draw(buffer->image.get(), pos, buffer->extent);
+                auto dst = surface->buffer_dst;
+                dst.origin += pos;
+                draw(buffer->image.get(), dst, surface->buffer_src);
 
             } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
 
                 // Draw subsurface
-                draw_surface(s.get(), pos + subsurface->current.position);
+                draw_surface(s.get(), pos + vec2f64(subsurface->current.position));
             }
         }
     };
@@ -185,7 +191,7 @@ void wroc_render_frame(wroc_output* output)
     for (auto* surface : output->server->surfaces) {
         auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
         if (!xdg_surface) continue;
-        auto pos = wroc_xdg_surface_get_position(xdg_surface);
+        auto pos = wroc_surface_get_position(xdg_surface->surface.get());
 
         // log_debug("Drawing toplevel");
         draw_surface(surface, pos);
@@ -193,43 +199,35 @@ void wroc_render_frame(wroc_output* output)
 
     // Draw ImGui
 
-    bool imgui_wants_mouse = false;
-    if (server->imgui) {
+    if (server->imgui && server->imgui->output == output) {
         flush_draws();
-        wroc_imgui_frame(server->imgui.get(), current_extent, cmd, &imgui_wants_mouse);
+        wroc_imgui_frame(server->imgui.get(), current_extent, cmd);
         start_draws();
+    }
+
+    // Draw drag icon
+
+    if (auto& icon = server->data_manager.drag.icon) {
+        draw_surface(icon->surface.get(), server->seat->pointer->position);
     }
 
     // Draw cursor
 
-    if (server->data_manager.drag.source) {
-        if (auto* icon = server->data_manager.drag.icon.get()) {
-            if (auto* buffer = icon->surface->current.buffer.get()) {
-                if (buffer->image) {
-                    draw(buffer->image.get(),
-                        glm::ceil(server->seat->pointer->layout_position) + vec2f64(icon->offset),
-                        buffer->extent);
-                }
-            }
-        }
-    }
-
-    if (!imgui_wants_mouse) {
+    if (!server->imgui->wants_mouse) {
         auto* pointer = server->seat->pointer.get();
 
         // TODO: Move this to cursor.cpp
         if (pointer->focused_surface && pointer->focused_surface->cursor) {
             // If surface is focused and has cursor set, render cursor surface (possibly hidden)
             if (auto* cursor_surface = pointer->focused_surface->cursor->get()) {
-                auto pos = vec2i32(pointer->layout_position) - cursor_surface->hotspot;
-                draw_surface(cursor_surface->surface.get(), pos);
+                draw_surface(cursor_surface->surface.get(), pointer->position);
             }
         } else {
             // ... else fall back to default cursor
             auto* cursor = server->cursor.get();
             auto& fallback = cursor->fallback;
-            auto pos = vec2i32(pointer->layout_position) - fallback.hotspot;
-            draw(fallback.image.get(), pos, fallback.image->extent);
+            auto pos = pointer->position - vec2f64(fallback.hotspot);
+            draw(fallback.image.get(), {pos, fallback.image->extent}, {{}, fallback.image->extent});
         }
     }
 
@@ -239,49 +237,7 @@ void wroc_render_frame(wroc_output* output)
 
     wren->vk.CmdEndRendering(cmd);
 
-    // Compute toplevel-under-cursor
-    // TODO: Derive this from render readback
-
-    auto surface_accepts_input = [&](this auto&& surface_accepts_input, wroc_surface* surface, vec2i32 surface_pos, vec2f64 cursor_pos) -> wroc_surface* {
-        if (!surface) return nullptr;
-        if (!surface->current.buffer) return nullptr;
-        for (auto& s : surface->current.surface_stack | std::views::reverse) {
-            if (s.get() == surface) {
-                if (wroc_surface_point_accepts_input(s.get(), cursor_pos - vec2f64(surface_pos))) {
-                    return s.get();
-                }
-            } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
-                if (auto* under = surface_accepts_input(s.get(), surface_pos + subsurface->current.position, cursor_pos)) {
-                    return under;
-                }
-            }
-        }
-        return nullptr;
-    };
-
-    output->server->toplevel_under_cursor = {};
-    output->server->surface_under_cursor = {};
-    if (!imgui_wants_mouse) {
-        auto* pointer = output->server->seat->pointer.get();
-        for (auto* surface : output->server->surfaces | std::views::reverse) {
-            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-                auto surface_pos = wroc_xdg_surface_get_position(toplevel->base());
-                if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
-                    output->server->toplevel_under_cursor = toplevel;
-                    output->server->surface_under_cursor = surface_under_cursor;
-                    break;
-                }
-            }
-            if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
-                auto surface_pos = wroc_xdg_surface_get_position(popup->base());
-                if (auto* surface_under_cursor = surface_accepts_input(surface, surface_pos, pointer->layout_position)) {
-                    output->server->toplevel_under_cursor = popup->root_toplevel;
-                    output->server->surface_under_cursor = surface_under_cursor;
-                    break;
-                }
-            }
-        }
-    }
+    // Screenshot
 
     if (renderer->screenshot_queued) {
         renderer->screenshot_queued = false;
@@ -294,7 +250,7 @@ void wroc_render_frame(wroc_output* output)
         auto row_stride = current.extent.width * 4;
         auto byte_size = row_stride * current.extent.height;
 
-        log_warn("Saving screen ({}, {})", current.extent.width, current.extent.height);
+        log_warn("Saving screen {}", current.extent.width, current.extent.height);
         log_warn("  row_stride = {}", row_stride);
         log_warn("  row_stride = {}", byte_size);
 
@@ -334,6 +290,8 @@ void wroc_render_frame(wroc_output* output)
         cmd = wren_begin_commands(wren);
     }
 
+    // Submit
+
     wren_transition(wren, cmd, current.image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
@@ -344,6 +302,8 @@ void wroc_render_frame(wroc_output* output)
 #endif
 
     wren_submit_commands(wren, cmd);
+
+    // Present
 
 #if WROC_NOISY_FRAME_TIME
     log_warn("Present 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());

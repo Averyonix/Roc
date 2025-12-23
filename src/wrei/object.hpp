@@ -244,7 +244,7 @@ public:
 
     template<typename T2>
         requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
-    operator wrei_weak<T2>() { return wrei_weak<T2>{value, version}; }
+    operator wrei_weak<T2>() { return wrei_weak<T2>{get()}; }
 };
 
 // -----------------------------------------------------------------------------

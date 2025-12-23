@@ -108,7 +108,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->extent = {width, height};
     buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), params->params);
 
-    log_warn("dma buffer created ({}, {}), format = {}", width, height, format->name);
+    log_warn("dma buffer created {}, format = {}", wrei_to_string(buffer->extent), format->name);
 
     return buffer;
 }

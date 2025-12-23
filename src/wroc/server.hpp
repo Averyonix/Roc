@@ -68,7 +68,7 @@ struct wroc_output : wrei_object
     std::chrono::steady_clock::time_point acquire_time;
     std::chrono::steady_clock::time_point present_time;
 
-    vec2i32 position;
+    rect2f64 layout_rect;
     i32 scale = 1;
 
     vec2i32 physical_size_mm;
@@ -83,6 +83,24 @@ struct wroc_output : wrei_object
 };
 
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
+
+vec2i32 wroc_output_get_pixel(wroc_output*, vec2f64 global_pos, vec2f64* remainder = nullptr);
+rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 rect, rect2f64* remainder = nullptr);
+
+struct wroc_output_layout : wrei_object
+{
+    wroc_server* server;
+
+    std::vector<weak<wroc_output>> outputs;
+};
+
+struct wroc_surface;
+
+void wroc_output_layout_init(wroc_server*);
+void wroc_output_layout_add_output(wroc_output_layout*, wroc_output*);
+void wroc_output_layout_remove_output(wroc_output_layout*, wroc_output*);
+void wroc_output_layout_update_surface(wroc_output_layout*, wroc_surface*);
+vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos);
 
 // -----------------------------------------------------------------------------
 
@@ -175,17 +193,19 @@ struct wroc_surface : wrei_object
     weak<wroc_surface_addon> role_addon;
     std::vector<ref<wroc_surface_addon>> addons;
 
-    weak<wroc_output> output;
-
-    vec2i32 position;
+    std::vector<weak<wroc_output>> outputs;
 
     std::optional<weak<wroc_cursor_surface>> cursor;
+
+    rect2i32 buffer_dst; // in surface coordinates, origin represents "offset" surface property
+    rect2f64 buffer_src; // in buffer coordinates
 
     ~wroc_surface();
 };
 
-bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 point);
-void wroc_surface_set_output(wroc_surface*, wroc_output*);
+vec2f64 wroc_surface_get_position(wroc_surface* surface);
+
+bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 surface_pos);
 bool wroc_surface_is_synchronized(wroc_surface*);
 
 void wroc_surface_raise(wroc_surface*);
@@ -225,7 +245,7 @@ WREI_DECORATE_FLAG_ENUM(wroc_viewport_committed_state)
 struct wroc_viewport_state
 {
     wroc_viewport_committed_state committed;
-    rect2f32 source;
+    rect2f64 source;
     vec2i32 destination;
 };
 
@@ -297,7 +317,7 @@ struct wroc_xdg_surface : wroc_surface_addon
     wrox_xdg_surface_state current;
 
     struct {
-        vec2i32 position;
+        vec2f64 position;
         vec2i32 relative;
     } anchor;
 
@@ -308,7 +328,7 @@ struct wroc_xdg_surface : wroc_surface_addon
 };
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface*);
-vec2i32  wroc_xdg_surface_get_position(wroc_xdg_surface*, rect2i32* p_geom = nullptr);
+// vec2f64  wroc_xdg_surface_get_position(wroc_xdg_surface*, rect2i32* p_geom = nullptr);
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface*);
 
 // -----------------------------------------------------------------------------
@@ -627,7 +647,7 @@ struct wroc_pointer : wrei_object
     void press(u32);
     void release(u32);
 
-    void absolute(vec2f64 layout_position);
+    void absolute(wroc_output*, vec2f64 offset);
     void relative(vec2f64 delta);
 
     void scroll(vec2f64 delta);
@@ -647,7 +667,8 @@ struct wroc_seat_pointer : wrei_object
     wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
 
-    vec2f64 layout_position;
+    weak<wroc_output> output;
+    vec2f64 position;
 
     void attach(wroc_pointer*);
 };
@@ -705,8 +726,6 @@ void wroc_data_manager_finish_drag(wroc_server*);
 
 struct wroc_drag_icon : wroc_surface_addon
 {
-    vec2i32 offset;
-
     virtual void on_commit(wroc_surface_commit_flags) final override;
 
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::drag_icon; }
@@ -716,8 +735,6 @@ struct wroc_drag_icon : wroc_surface_addon
 
 struct wroc_cursor_surface : wroc_surface_addon
 {
-    vec2i32 hotspot;
-
     virtual void on_commit(wroc_surface_commit_flags) final override;
 
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::cursor; }
@@ -788,12 +805,17 @@ struct wroc_imgui : wrei_object
 
     ImGuiContext* context;
 
+    weak<wroc_output> output;
+
     ref<wren_pipeline> pipeline;
 
     wren_array<ImDrawIdx> indices;
     wren_array<ImDrawVert> vertices;
 
     ref<wren_image> font_image;
+
+    bool wants_mouse;
+    bool wants_keyboard;
 };
 
 struct alignas(u64) wroc_imgui_texture
@@ -816,7 +838,7 @@ void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
 }
 
 void wroc_imgui_init(wroc_server*);
-void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer, bool* wants_mouse);
+void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer);
 bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------
@@ -870,12 +892,10 @@ struct wroc_server : wrei_object
     wl_display*    display;
     wl_event_loop* event_loop;
 
-    std::vector<wroc_output*>  outputs;
+    ref<wroc_output_layout> output_layout;
     std::vector<wroc_surface*> surfaces;
 
-    weak<wroc_toplevel> toplevel_under_cursor;
-    weak<wroc_surface>      surface_under_cursor;
-    weak<wroc_surface>      implicit_grab_surface;
+    weak<wroc_surface>  implicit_grab_surface;
 
     wroc_interaction_mode interaction_mode;
 
@@ -885,7 +905,7 @@ struct wroc_server : wrei_object
     struct {
         weak<wroc_toplevel> grabbed_toplevel;
         vec2f64 pointer_grab;
-        vec2i32 surface_grab;
+        vec2f64 surface_grab;
         wroc_directions directions;
     } movesize;
 
@@ -913,3 +933,5 @@ wroc_modifiers wroc_get_active_modifiers(wroc_server*);
 
 void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_directions);
 void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, vec2i32 anchor_rel, wroc_directions);
+
+wroc_surface* wroc_get_surface_under_cursor(wroc_server* server, wroc_toplevel** toplevel = nullptr);

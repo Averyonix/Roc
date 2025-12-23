@@ -310,8 +310,8 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
                 continue;
             }
 
-            auto pos = server->seat->pointer->layout_position - vec2f64(target_surface->position);
-            log_warn("Drag moved in {} - ({}, {}) [{}]", (void*)target_surface, pos.x, pos.y, time);
+            auto pos = server->seat->pointer->position - wroc_surface_get_position(target_surface);
+            log_warn("Drag moved in {} - {} [{}]", (void*)target_surface, wrei_to_string(pos), time);
             wl_data_device_send_motion(device->resource,
                 time,
                 wl_fixed_from_double(pos.x),
@@ -335,8 +335,8 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
         for (auto* device : server->data_manager.devices) {
             if (wroc_resource_get_client(device->resource) != wroc_resource_get_client(target_surface->resource)) continue;
 
-            auto pos = server->seat->pointer->layout_position - vec2f64(target_surface->position);
-            log_warn("Drag entered {} at ({}, {})", (void*)target_surface, pos.x, pos.y);
+            auto pos = server->seat->pointer->position - wroc_surface_get_position(target_surface);
+            log_warn("Drag entered {} at {}", (void*)target_surface, wrei_to_string(pos));
             auto* offer_resource = wroc_data_device_offer(device, drag.source.get());
             wl_data_device_send_enter(device->resource,
                 wl_display_next_serial(server->display),
@@ -387,7 +387,7 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     auto* drag_surface = wroc_get_userdata<wroc_surface>(icon);
 
     auto drag_icon = wroc_surface_get_or_create_addon<wroc_drag_icon>(drag_surface);
-    drag_icon->offset = {};
+    drag_surface->buffer_dst.origin = {};
 
     auto* server = data_device->server;
 
@@ -399,15 +399,18 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     server->data_manager.drag.offered_surface = nullptr;
     server->data_manager.drag.offer = nullptr;
 
-    wroc_data_manager_update_drag(server, server->surface_under_cursor.get());
+    auto surface_under_cursor = wroc_get_surface_under_cursor(server);
+
+    wroc_data_manager_update_drag(server, surface_under_cursor);
 }
 
 void wroc_drag_icon::on_commit(wroc_surface_commit_flags)
 {
     if (surface->current.committed >= wroc_surface_committed_state::offset) {
-        offset += surface->current.delta;
+        surface->buffer_dst.origin += surface->current.delta;
 
-        log_debug("drag_icon_commit, delta = ({}, {}), offset = ({}, {})", surface->current.delta.x, surface->current.delta.y, offset.x, offset.y);
+        log_debug("drag_icon_commit, delta = {}, offset = {}",
+            wrei_to_string(surface->current.delta), wrei_to_string(surface->buffer_dst.origin));
     }
 }
 

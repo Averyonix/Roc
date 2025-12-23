@@ -59,26 +59,17 @@ int handle_display_scanout(int fd, u32 mask, void* data)
     return 0;
 }
 
-void wroc_backend_init_drm(wroc_direct_backend* backend)
+static
+void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& display_props)
 {
-    auto wren = backend->server->renderer->wren;
-
-    std::vector<VkDisplayPropertiesKHR> displays;
-    wren_vk_enumerate(displays, wren->vk.GetPhysicalDeviceDisplayPropertiesKHR, wren->physical_device);
-
-    if (displays.empty()) {
-        log_error("No valid display properties");
-        return;
-    }
-
-    auto display_props = displays.front();
+    auto* wren  =backend->server->renderer->wren.get();
     auto display = display_props.display;
-    log_info("Selecting display: {}", display_props.displayName);
 
     std::vector<VkDisplayModePropertiesKHR> modes;
     wren_vk_enumerate(modes, wren->vk.GetDisplayModePropertiesKHR, wren->physical_device, display);
     if (modes.empty()) {
         log_error("Cannot find any mode for display");
+        return;
     }
 
     auto mode_props = modes.front();
@@ -92,9 +83,10 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 
     if (planes.empty()) {
         log_error("Cannot find any plane!");
+        return;
     }
 
-    u32 plane_index;
+    u32 plane_index = ~0u;
 
     for (auto[i, plane_props] : planes | std::views::enumerate) {
 
@@ -108,13 +100,15 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
             if (d == display) {
                 log_error("Found plane: {}", i);
                 plane_index = i;
-                goto found_plane;
+                break;
             }
         }
     }
-    log_error("Could not find plane");
-    return;
-found_plane:
+
+    if (plane_index == ~0u) {
+        log_error("Could not find plane");
+        return;
+    }
 
     VkDisplayPlaneCapabilitiesKHR plane_caps;
     wren_check(wren->vk.GetDisplayPlaneCapabilitiesKHR(wren->physical_device, mode_props.displayMode, plane_index, &plane_caps));
@@ -171,9 +165,30 @@ found_plane:
     output->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     output->scanout = wl_event_loop_add_fd(wl_display_get_event_loop(backend->server->display), output->eventfd, WL_EVENT_READABLE, handle_display_scanout, output.get());
 
-    output->scanout_thread = std::jthread{[wren = wren.get(), output = output.get()](std::stop_token stop) {
+    output->scanout_thread = std::jthread{[wren = wren, output = output.get()](std::stop_token stop) {
         scanout_thread(stop, wren, output);
     }};
+}
+
+void wroc_backend_init_drm(wroc_direct_backend* backend)
+{
+    auto wren = backend->server->renderer->wren;
+
+    std::vector<VkDisplayPropertiesKHR> displays;
+    wren_vk_enumerate(displays, wren->vk.GetPhysicalDeviceDisplayPropertiesKHR, wren->physical_device);
+
+    if (displays.empty()) {
+        log_error("No valid display properties");
+        return;
+    }
+
+    // auto display_props = displays.front();
+    // auto display = display_props.display;
+    // log_info("Selecting display: {}", display_props.displayName);
+
+    for (auto& display : displays) {
+        create_output(backend, display);
+    }
 }
 
 wroc_drm_output::~wroc_drm_output()

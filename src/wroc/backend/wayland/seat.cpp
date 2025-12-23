@@ -9,8 +9,9 @@
 static
 void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx, wl_fixed_t sy)
 {
-    vec2f64 surface_pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
-    pointer->absolute(surface_pos + vec2f64(pointer->current_output->position));
+    vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    // TODO: To logical coordinates
+    pointer->absolute(pointer->current_output.get(), pos);
 }
 
 static

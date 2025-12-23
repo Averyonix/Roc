@@ -202,6 +202,7 @@ target_sources(wroc PUBLIC
     src/wroc/data.cpp
     src/wroc/cursor.cpp
     src/wroc/imgui.cpp
+    src/wroc/scene.cpp
 
     src/wroc/applets/launcher.cpp
 

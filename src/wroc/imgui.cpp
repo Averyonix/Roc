@@ -48,9 +48,11 @@ bool wroc_imgui_handle_pointer_event(wroc_imgui* imgui, const wroc_pointer_event
 
     switch (wroc_event_get_type(event)) {
         break;case wroc_event_type::pointer_motion: {
-            auto cursor_pos = imgui->server->seat->pointer->layout_position;
-            auto pos = cursor_pos + event.motion.delta;
-            io.AddMousePosEvent(pos.x, pos.y);
+            if (imgui->output) {
+                vec2f64 subpixel;
+                auto pos = wroc_output_get_pixel(imgui->output.get(), event.pointer->position, &subpixel);
+                io.AddMousePosEvent(pos.x + subpixel.x, pos.y + subpixel.y);
+            }
             // Never consume motion events (for now)
             return false;
         }
@@ -479,7 +481,7 @@ void draw_log_window()
     }
 }
 
-void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bool* wants_mouse)
+void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd)
 {
     auto* wren = imgui->server->renderer->wren.get();
 
@@ -509,7 +511,8 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd, bo
 
     ImGui::Render();
 
-    *wants_mouse = io.WantCaptureMouse;
+    imgui->wants_mouse = io.WantCaptureMouse;
+    imgui->wants_keyboard = io.WantCaptureKeyboard;
 
     auto data = ImGui::GetDrawData();
     if (!data->TotalIdxCount) return;

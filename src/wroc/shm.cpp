@@ -73,9 +73,9 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
-    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), {width, height}, shm_buffer->format);
+    shm_buffer->image = wren_image_create(shm_buffer->server->renderer->wren.get(), shm_buffer->extent, shm_buffer->format);
 
-    log_warn("shm buffer created ({}, {}), format = {}", width, height, shm_buffer->format->name);
+    log_warn("shm buffer created {}, format = {}", wrei_to_string(shm_buffer->extent), shm_buffer->format->name);
 }
 
 static
@@ -106,6 +106,6 @@ void wroc_shm_buffer::on_commit()
 {
     lock();
     wren_image_update(image.get(), static_cast<char*>(pool->data) + offset);
-    // log_debug("buffer updated ({}, {})", extent.x, extent.y);
+    // log_debug("buffer updated {}", wrei_to_string(extent));
     unlock();
 }

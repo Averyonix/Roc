@@ -110,23 +110,9 @@ const struct xdg_surface_interface wroc_xdg_surface_impl = {
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
 {
-    rect2i32 geom = {};
-    if (xdg_surface->current.committed >= wroc_xdg_surface_committed_state::geometry) {
-        geom = xdg_surface->current.geometry;
-    } else if (xdg_surface->surface->current.buffer) {
-        auto* buffer = xdg_surface->surface->current.buffer.get();
-        geom.extent = { buffer->extent.x, buffer->extent.y };
-    }
-    return geom;
-}
-
-vec2i32 wroc_xdg_surface_get_position(wroc_xdg_surface* xdg_surface, rect2i32* p_geom)
-{
-    auto geom = wroc_xdg_surface_get_geometry(xdg_surface);
-    if (p_geom) *p_geom = geom;
-
-    auto geom_origin_pos = xdg_surface->anchor.position - (geom.extent * xdg_surface->anchor.relative);
-    return geom_origin_pos - geom.origin;
+    return (xdg_surface->current.committed >= wroc_xdg_surface_committed_state::geometry)
+        ? xdg_surface->current.geometry
+        : xdg_surface->surface->buffer_dst;
 }
 
 // -----------------------------------------------------------------------------
@@ -210,7 +196,7 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
         })));
     }
 
-    xdg_surface_send_configure(toplevel->base()->resource, wl_display_next_serial(toplevel->surface->server->display));
+    wroc_xdg_surface_flush_configure(toplevel->base());
 }
 
 void wroc_toplevel::on_commit(wroc_surface_commit_flags)
@@ -222,7 +208,7 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
     else if (!initial_size_receieved) {
         initial_size_receieved = true;
         auto geom = wroc_xdg_surface_get_geometry(base());
-        log_debug("Initial surface size: ({}, {})", geom.extent.x, geom.extent.y);
+        log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
         wroc_xdg_toplevel_set_size(this, geom.extent);
         wroc_xdg_toplevel_flush_configure(this);
     }
@@ -397,8 +383,8 @@ static
 wroc_axis_region wroc_xdg_positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rules, wroc_axis_region constraint)
 {
     log_debug("wroc_xdg_position_apply_axis");
-    log_debug("  constraint = ({}, {})", constraint.pos, constraint.size);
-    log_debug("  anchor = ({}, {})", rules.anchor.pos, rules.anchor.size);
+    log_debug("  constraint = ({} ; {})", constraint.pos, constraint.size);
+    log_debug("  anchor = ({} ; {})", rules.anchor.pos, rules.anchor.size);
     log_debug("  size, gravity  = {}, {}", rules.size, rules.gravity);
     log_debug("  flip   = {}", rules.flip);
     log_debug("  slide  = {}", rules.slide);
@@ -418,7 +404,7 @@ wroc_axis_region wroc_xdg_positioner_apply_axis(const wroc_xdg_positioner_axis_r
     };
 
     auto region = get_position(rules);
-    log_debug("  position = ({}, {})", region.pos, region.size);
+    log_debug("  position = ({} ; {})", region.pos, region.size);
 
     if (is_unconstrained(region)) {
         log_debug("  already unconstrained!");
@@ -432,7 +418,7 @@ wroc_axis_region wroc_xdg_positioner_apply_axis(const wroc_xdg_positioner_axis_r
         flipped_rules.anchor.pos = rules.anchor.size - rules.anchor.pos;
         flipped_rules.gravity = rules.size - rules.gravity;
         auto flipped = get_position(flipped_rules);
-        log_debug("  flipped = ({}, {})", flipped.pos, flipped.size);
+        log_debug("  flipped = ({} ; {})", flipped.pos, flipped.size);
         if (is_unconstrained(flipped)) {
             log_debug("  unconstrained by flip!");
             return flipped;
@@ -589,10 +575,8 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 
     auto& rules = xdg_positioner->rules;
     log_error("xdg_popup<{}> created:", (void*)popup);
-    log_error("  size = ({}, {})", rules.size.x, rules.size.y);
-    log_error("  anchor_rect = ({}, {}) ({}, {})",
-        rules.anchor_rect.origin.x, rules.anchor_rect.origin.y,
-        rules.anchor_rect.extent.x, rules.anchor_rect.extent.y);
+    log_error("  size = {}", wrei_to_string(rules.size));
+    log_error("  anchor_rect = {}", wrei_to_string(rules.anchor_rect));
     log_error("  anchor = {}", magic_enum::enum_name(rules.anchor));
     log_error("  gravity = {}", magic_enum::enum_name(rules.gravity));
     u32 adjustment = rules.constraint_adjustment;
@@ -601,9 +585,9 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
         log_error("  adjustment |= {}", magic_enum::enum_name(xdg_positioner_constraint_adjustment(lsb)));
         adjustment &= ~lsb;
     }
-    log_error("  offset = ({}, {})", rules.offset.x, rules.offset.y);
+    log_error("  offset = {}", wrei_to_string(rules.offset));
     log_error("  reactive = {}", rules.reactive);
-    log_error("  parent_size = ({}, {})", rules.parent_size.x, rules.parent_size.y);
+    log_error("  parent_size = {}", wrei_to_string(rules.parent_size));
     log_error("  parent_configure = {}", rules.parent_configure);
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_popup_impl, popup);
@@ -612,21 +596,24 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 static
 void wroc_xdg_popup_position(wroc_popup* popup)
 {
-    auto parent_origin = popup->parent->surface->position + wroc_xdg_surface_get_geometry(popup->parent.get()).origin;
+    auto parent_pos = wroc_surface_get_position(popup->parent->surface.get());
+    auto parent_origin = parent_pos + vec2f64(wroc_xdg_surface_get_geometry(popup->parent.get()).origin);
 
     auto* base = popup->base();
 
     rect2i32 constraint {
         .origin = -parent_origin,
     };
-    for (auto* output : popup->surface->server->outputs) {
+    // TODO: Use "primary" output of popup
+    // for (auto& output : popup->surface->outputs) {
+    for (auto& output : popup->surface->server->output_layout->outputs) {
         constraint.extent = output->size;
         break;
     }
     auto geometry = wroc_xdg_positioner_apply(popup->positioner->rules, constraint);
 
     base->anchor.relative = {};
-    base->anchor.position = parent_origin + geometry.origin;
+    base->anchor.position = parent_origin + vec2f64(geometry.origin);
 
     if (popup->reposition_token) {
         xdg_popup_send_repositioned(popup->resource, *popup->reposition_token);
@@ -634,7 +621,7 @@ void wroc_xdg_popup_position(wroc_popup* popup)
     }
 
     xdg_popup_send_configure(popup->resource, geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
-    xdg_surface_send_configure(base->resource, wl_display_next_serial(base->surface->server->display));
+    wroc_xdg_surface_flush_configure(base);
 }
 
 void wroc_popup::on_commit(wroc_surface_commit_flags)

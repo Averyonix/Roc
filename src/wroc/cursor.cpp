@@ -76,8 +76,8 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
     bool created;
     auto* cursor_surface = surface ? wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created) : nullptr;
     if (cursor_surface) {
-        log_debug("wroc_cursor_surface {}, hotspot = ({}, {})", created ? "created" : "reused", hotspot.x, hotspot.y);
-        cursor_surface->hotspot = hotspot;
+        log_debug("wroc_cursor_surface {}, hotspot = {}", created ? "created" : "reused", wrei_to_string(hotspot));
+        surface->buffer_dst.origin = -hotspot;
     }
 
     // TODO: Track and update only last focused surface
@@ -99,10 +99,10 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
 void wroc_cursor_surface::on_commit(wroc_surface_commit_flags)
 {
     if (surface->current.committed >= wroc_surface_committed_state::offset) {
-        hotspot -= surface->current.delta;
+        surface->buffer_dst.origin += surface->current.delta;
 
-        log_debug("wroc_cursor_surface, delta = ({}, {}), hotspot = ({}, {})",
-            surface->current.delta.x,surface->current.delta.y,
-            hotspot.x, hotspot.y);
+        log_debug("wroc_cursor_surface, delta = {}, hotspot = {}",
+            wrei_to_string(surface->current.delta),
+            wrei_to_string(-surface->buffer_dst.origin));
     }
 }

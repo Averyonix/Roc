@@ -64,6 +64,10 @@ void wroc_run(int argc, char* argv[])
 
     const char* socket = wl_display_add_socket_auto(server->display);
 
+    // Output layout
+
+    wroc_output_layout_init(server);
+
     // Renderer
 
     log_warn("Initializing renderer");

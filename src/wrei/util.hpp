@@ -276,11 +276,52 @@ struct wrei_unix_check_helper
 
 // -----------------------------------------------------------------------------
 
+template<typename T> std::string wrei_to_string(const wrei_vec<2, T>& vec) { return std::format("({}, {})",         vec.x, vec.y);               }
+template<typename T> std::string wrei_to_string(const wrei_vec<3, T>& vec) { return std::format("({}, {}, {})",     vec.x, vec.y, vec.z);        }
+template<typename T> std::string wrei_to_string(const wrei_vec<4, T>& vec) { return std::format("({}, {}, {}, {})", vec.x, vec.y, vec.z, vec.w); }
+
+template<typename T>
+std::string wrei_to_string(const wrei_rect<T>& rect)
+{
+    return std::format("([{}, {}] [{}, {}])", rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
+}
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+wrei_vec<2, T> wrei_rect_clamp_point(const wrei_rect<T>& rect, wrei_vec<2, T> point)
+{
+    return glm::clamp(point, rect.origin, rect.origin + rect.extent);
+}
+
 template<typename T>
 bool wrei_rect_contains(const wrei_rect<T>& rect, wrei_vec<2, T> point)
 {
     return point.x >= rect.origin.x && point.x <= rect.origin.x + rect.extent.x
         && point.y >= rect.origin.y && point.y <= rect.origin.y + rect.extent.y;
+}
+
+template<typename T>
+bool wrei_rect_intersects(const wrei_rect<T>& a, const wrei_rect<T>& b, wrei_rect<T>* intersection = nullptr)
+{
+    auto a_max = a.origin + a.extent;
+    auto b_max = b.origin + b.extent;
+
+    auto i_min = glm::max(a.origin, b.origin);
+    auto i_max = glm::min(a_max, b_max);
+
+    if (i_max.x <= i_min.x || i_max.y <= i_min.y) {
+        if (intersection) *intersection = {};
+        return false;
+    } else {
+        if (intersection) {
+            *intersection = {
+                i_min,
+                i_max - i_min,
+            };
+        }
+        return true;
+    }
 }
 
 // -----------------------------------------------------------------------------

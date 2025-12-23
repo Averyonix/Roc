@@ -40,9 +40,10 @@ void wroc_pointer::leave()
     pressed.clear();
 }
 
-void wroc_pointer::absolute(vec2f64 layout_position)
+void wroc_pointer::absolute(wroc_output* output, vec2f64 offset)
 {
-    target->layout_position = layout_position;
+    target->output = output;
+    target->position = output->layout_rect.origin + offset;
 
     wroc_post_event(server, wroc_pointer_event {
         .type = wroc_event_type::pointer_motion,
@@ -53,15 +54,9 @@ void wroc_pointer::absolute(vec2f64 layout_position)
 
 void wroc_pointer::relative(vec2f64 delta)
 {
-    // TODO: Output layouts
-    auto* output = server->outputs.front();
-    auto pos = target->layout_position + delta;
-    if (pos.x < 0) pos.x = 0;
-    if (pos.y < 0) pos.y = 0;
-    if (pos.x >= output->size.x) pos.x = output->size.x - 1;
-    if (pos.y >= output->size.y) pos.y = output->size.y - 1;
+    target->position = wroc_output_layout_clamp_position(server->output_layout.get(), target->position + delta);
 
-    target->layout_position = pos;
+    // TODO: Update target->output
 
     // TODO: Separate absolute and relative motion events?
     wroc_post_event(server, wroc_pointer_event {
@@ -162,7 +157,7 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
 
             pointer->focused_surface = focused_surface;
 
-            auto pos = pointer->layout_position - vec2f64(focused_surface->position);
+            auto pos = pointer->position - wroc_surface_get_position(focused_surface);
             auto serial = wl_display_next_serial(pointer->seat->server->display);
 
             for (auto* resource : pointer->resources) {
@@ -185,19 +180,22 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
     auto* seat = pointer->seat;
     auto* server = seat->server;
 
+    wroc_toplevel* toplevel_under_cursor;
+    auto surface_under_cursor = wroc_get_surface_under_cursor(pointer->seat->server, &toplevel_under_cursor);
+
     if (seat->keyboard && pressed) {
-        if (server->toplevel_under_cursor) {
+        if (toplevel_under_cursor) {
             log_debug("trying to enter keyboard...");
-            wroc_keyboard_enter(seat->keyboard.get(), server->toplevel_under_cursor->surface.get());
+            wroc_keyboard_enter(seat->keyboard.get(), toplevel_under_cursor->surface.get());
         } else {
             wroc_keyboard_clear_focus(seat->keyboard.get());
         }
     }
 
-    if (server->surface_under_cursor) {
+    if (surface_under_cursor) {
         if (pressed && pointer->pressed.size() == 1) {
             log_info("Starting implicit grab");
-            server->implicit_grab_surface = server->surface_under_cursor;
+            server->implicit_grab_surface = surface_under_cursor;
         }
     }
 
@@ -216,7 +214,7 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
         log_info("Ending implicit grab");
         wroc_data_manager_finish_drag(server);
         server->implicit_grab_surface = {};
-        wroc_pointer_update_focus(pointer, server->surface_under_cursor.get());
+        wroc_pointer_update_focus(pointer, surface_under_cursor);
     }
 }
 
@@ -225,10 +223,12 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
-    auto* server = pointer->seat->server;
-    auto* focused_surface = server->implicit_grab_surface ? server->implicit_grab_surface.get() : server->surface_under_cursor.get();
+    auto surface_under_cursor = wroc_get_surface_under_cursor(pointer->seat->server);
 
-    wroc_data_manager_update_drag(server, server->surface_under_cursor.get());
+    auto* server = pointer->seat->server;
+    auto* focused_surface = server->implicit_grab_surface ? server->implicit_grab_surface.get() : surface_under_cursor;
+
+    wroc_data_manager_update_drag(server, surface_under_cursor);
 
     // log_trace("motion, grab = {}", (void*)server->implicit_grab_surface.surface.get());
     wroc_pointer_update_focus(pointer, focused_surface);
@@ -236,7 +236,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
     if (focused_surface && focused_surface->resource) {
 
         auto time = wroc_get_elapsed_milliseconds(server);
-        auto pos = pointer->layout_position - vec2f64(focused_surface->position);
+        auto pos = pointer->position - wroc_surface_get_position(focused_surface);
 
         // log_trace("sending motion to surface: {} ({:.2f}, {:.2f}) [{}]", (void*)focused_surface, pos.x, pos.y, time);
 
@@ -267,6 +267,11 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
         if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
 
         auto version = wl_resource_get_version(resource);
+
+        if (version >= WL_POINTER_AXIS_SOURCE_SINCE_VERSION) {
+            wl_pointer_send_axis_source(resource, WL_POINTER_AXIS_SOURCE_WHEEL);
+        }
+
         if (version >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION) {
             if (rel.x) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x * 120));
             if (rel.y) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y * 120));
