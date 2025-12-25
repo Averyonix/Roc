@@ -42,6 +42,10 @@ void wroc_listen_registry_global(void *data, wl_registry*, u32 name, const char*
         IF_BIND_INTERFACE(wl_seat_interface, seat, {
             wl_seat_add_listener(backend->seat, &wroc_wl_seat_listener, backend);
         })
+#if WROC_BACKEND_RELATIVE_POINTER
+        IF_BIND_INTERFACE(zwp_relative_pointer_manager_v1_interface, relative_pointer_manager);
+        IF_BIND_INTERFACE(zwp_pointer_constraints_v1_interface, pointer_constraints);
+#endif
 
         log_trace("wl_registry::global(name = {:2}, interface = {:41}, version = {:2})", name, interface, version);
     } while (false);
@@ -114,6 +118,11 @@ wroc_wayland_backend::~wroc_wayland_backend()
     if (pointer)  pointer = nullptr;
 
     outputs.clear();
+
+#if WROC_BACKEND_RELATIVE_POINTER
+    zwp_relative_pointer_manager_v1_destroy(relative_pointer_manager);
+    zwp_pointer_constraints_v1_destroy(pointer_constraints);
+#endif
 
     zxdg_decoration_manager_v1_destroy(decoration_manager);
     wl_compositor_destroy(wl_compositor);

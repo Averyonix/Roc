@@ -1,6 +1,7 @@
 # Development
 .cache/
 .vscode/
+.local/
 
 # Artifacts
 .build/

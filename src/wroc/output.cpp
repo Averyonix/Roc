@@ -63,12 +63,6 @@ void wroc_output_update(wroc_output_layout* layout)
     }
 }
 
-template<typename T>
-bool weak_container_contains(const auto& container, T* needle)
-{
-    return std::ranges::contains(container, needle, &wrei_weak<T>::get);
-}
-
 void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* output)
 {
     if (!weak_container_contains(layout->outputs, output)) {

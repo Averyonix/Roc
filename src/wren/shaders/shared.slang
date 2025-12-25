@@ -81,6 +81,11 @@ struct wren_image_handle<T : ITexelElement>
         this.sampler = sampler;
     }
 
+    bool valid()
+    {
+        return image != 0 && sampler != 0;
+    }
+
     vec2u32 get_dimensions()
     {
         u32 width, height;

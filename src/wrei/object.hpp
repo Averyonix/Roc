@@ -247,6 +247,12 @@ public:
     operator wrei_weak<T2>() { return wrei_weak<T2>{get()}; }
 };
 
+template<typename T>
+bool weak_container_contains(const auto& haystack, T* needle)
+{
+    return std::ranges::contains(haystack, needle, &wrei_weak<T>::get);
+}
+
 // -----------------------------------------------------------------------------
 
 template<typename T>

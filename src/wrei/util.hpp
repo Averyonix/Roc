@@ -350,6 +350,8 @@ struct wrei_region
 
     bool contains(vec2i32 point) const;
     bool contains(rect2i32 rect) const;
+
+    vec2f64 constrain(vec2f64 point) const;
 };
 
 // -----------------------------------------------------------------------------

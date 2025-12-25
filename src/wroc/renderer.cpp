@@ -104,7 +104,7 @@ void wroc_render_frame(wroc_output* output)
 
     renderer->rects_cpu.clear();
 
-    auto draw = [&](wren_image* image, rect2f64 dest, rect2f64 source) {
+    auto draw = [&](wren_image* image, rect2f64 dest, rect2f64 source, vec4f32 color = {1, 1, 1, 1}) {
 
         // TODO: Async buffer waits
         // wren_image_wait(image);
@@ -115,11 +115,12 @@ void wroc_render_frame(wroc_output* output)
 
         rect_id++;
         renderer->rects_cpu.emplace_back(wroc_shader_rect {
-            .image = image4f32{image, renderer->sampler.get()},
+            .image = image ? image4f32{image, renderer->sampler.get()} : image4f32 {},
             .image_rect = { source.origin, source.extent },
-            .image_has_alpha = image->format->has_alpha,
+            .image_has_alpha = image ? image->format->has_alpha : false,
             .rect = { pixel_dst.origin, pixel_dst.extent },
             .opacity = 1.f,
+            .color = color,
         });
     };
 
@@ -229,6 +230,24 @@ void wroc_render_frame(wroc_output* output)
             auto pos = pointer->position - vec2f64(fallback.hotspot);
             draw(fallback.image.get(), {pos, fallback.image->extent}, {{}, fallback.image->extent});
         }
+    }
+
+    if (renderer->show_debug_cursor) {
+
+        // Debug cursor crosshair
+
+        auto* pointer = server->seat->pointer.get();
+        auto pos = pointer->position;
+
+        vec4f32 color = {0.5, 0, 0, 0.5};
+        auto length = 24;
+        auto width = 2;
+
+        auto hlength = length / 2;
+        auto hwidth = width / 2;
+
+        draw(nullptr, {pos - vec2f64{hwidth, hlength}, vec2f64{width, length}}, {}, color);
+        draw(nullptr, {pos - vec2f64{hlength, hwidth}, vec2f64{length, width}}, {}, color);
     }
 
     // Finish

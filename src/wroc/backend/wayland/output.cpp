@@ -188,6 +188,28 @@ const zxdg_toplevel_decoration_v1_listener wroc_zxdg_toplevel_decoration_v1_list
 
 // -----------------------------------------------------------------------------
 
+#if WROC_BACKEND_RELATIVE_POINTER
+void wroc_wayland_backend_update_pointer_constraint(wroc_wayland_output* output)
+{
+    if (output->locked_pointer) return;
+
+    auto* backend = static_cast<wroc_wayland_backend*>(output->server->backend.get());
+    if (!backend->pointer) {
+        log_warn("Could not create pointer constraint, pointer not acquired yet");
+        return;
+    }
+
+    log_info("Locking pointer...");
+
+    output->locked_pointer = zwp_pointer_constraints_v1_lock_pointer(
+        backend->pointer_constraints,
+        output->wl_surface,
+        backend->pointer->wl_pointer,
+        nullptr,
+        ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
+}
+#endif
+
 void wroc_wayland_backend::create_output()
 {
     if (!wl_compositor) {
@@ -230,11 +252,19 @@ void wroc_wayland_backend::create_output()
         log_warn("Server side decorations are not supported, backend outputs will remain undecorated");
     }
 
+#if WROC_BACKEND_RELATIVE_POINTER
+    wroc_wayland_backend_update_pointer_constraint(output.get());
+#endif
+
     wl_surface_commit(output->wl_surface);
 }
 
 wroc_wayland_output::~wroc_wayland_output()
 {
+#if WROC_BACKEND_RELATIVE_POINTER
+    if (locked_pointer) zwp_locked_pointer_v1_destroy(locked_pointer);
+#endif
+
     if (decoration)  zxdg_toplevel_decoration_v1_destroy(decoration);
     if (toplevel)    xdg_toplevel_destroy(toplevel);
     if (xdg_surface) xdg_surface_destroy(xdg_surface);

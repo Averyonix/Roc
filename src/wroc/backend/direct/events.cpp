@@ -54,14 +54,10 @@ bool device_init_pointer(wroc_input_device* device)
     device->pointer = wrei_create<wroc_libinput_pointer>();
     device->pointer->server = device->backend->server;
     device->pointer->base = device;
-    if (device->backend->outputs.empty()) {
-        log_error("NO OUTPUTS FOUND!");
-    }
-    device->pointer->current_output = device->backend->outputs.front().get();
 
     if (libinput_device_config_accel_is_available(device->handle)) {
         libinput_device_config_accel_set_profile(device->handle, LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT);
-        libinput_device_config_accel_set_speed(  device->handle, -0.6);
+        libinput_device_config_accel_set_speed(  device->handle, 0);
     }
 
     auto* pointer = device->pointer.get();

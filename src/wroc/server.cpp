@@ -51,7 +51,7 @@ void wroc_run(int argc, char* argv[])
 
     // Init libwayland
 
-    if (getenv("WROC_WAYLAND_DEBUG_SERVER")) {
+    if ((getenv("WROC_WAYLAND_DEBUG_SERVER")?:"")[0]!=0) {
         setenv("WAYLAND_DEBUG", "1", true);
     } else {
         unsetenv("WAYLAND_DEBUG");
@@ -107,6 +107,8 @@ void wroc_run(int argc, char* argv[])
     WROC_SERVER_GLOBAL(server, wl_seat, server->seat.get());
     WROC_SERVER_GLOBAL(server, zwp_pointer_gestures_v1);
     WROC_SERVER_GLOBAL(server, wp_viewporter);
+    WROC_SERVER_GLOBAL(server, zwp_relative_pointer_manager_v1);
+    WROC_SERVER_GLOBAL(server, zwp_pointer_constraints_v1);
 
     // Run
 

@@ -96,3 +96,29 @@ bool wrei_region::contains(rect2i32 rect) const
 
     return overlap == PIXMAN_REGION_IN;
 }
+
+vec2f64 wrei_region::constrain(vec2f64 point) const
+{
+    double closest_dist = INFINITY;
+    vec2f64 closest = {};
+
+    i32 nrects;
+    auto* rects = pixman_region32_rectangles(&region, &nrects);
+
+    for (i32 i = 0; i < nrects; ++i) {
+        auto& _rect = rects[i];
+        auto rect = rect2f64{{_rect.x1, _rect.y1}, {_rect.x2 - _rect.x1 - 1, _rect.y2 - _rect.y1 - 1}};
+        if (wrei_rect_contains(rect, point)) {
+            return point;
+        } else {
+            auto pos = wrei_rect_clamp_point(rect, point);
+            auto dist = glm::distance(pos, point);
+            if (dist < closest_dist) {
+                closest = pos;
+                closest_dist = dist;
+            }
+        }
+    }
+
+    return closest;
+}

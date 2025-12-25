@@ -291,12 +291,19 @@ void draw_debug_window(wroc_server* server)
     }
 
     static constexpr float second_column_offset = 113.f;
+    static constexpr float third_column_offset = 226.f;
 
     // Window toggles
 
     ImGui::Checkbox("Show Log", &show_log_window);
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Show Demo", &show_demo_window);
+    ImGui::Checkbox("Show Cursor", &server->renderer->show_debug_cursor);
+
+    ImGui::SameLine(third_column_offset);
+
+    if (ImGui::Button("New Output")) {
+        server->backend->create_output();
+    }
 
     ImGui::Separator();
 

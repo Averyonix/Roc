@@ -35,8 +35,6 @@ struct wroc_libinput_keyboard : wroc_keyboard
 struct wroc_libinput_pointer : wroc_pointer
 {
     wroc_input_device* base;
-
-    wroc_drm_output* current_output = {};
 };
 
 struct wroc_input_device : wrei_object

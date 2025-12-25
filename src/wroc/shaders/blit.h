@@ -11,6 +11,7 @@ struct wroc_shader_rect
     rect2f32 rect;
 
     float opacity;
+    vec4f32 color;
 };
 
 struct wroc_shader_rect_input

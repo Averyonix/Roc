@@ -147,6 +147,8 @@ def list_wayland_protocols():
     wayland_protocols.append((system_protocol_dir / "stable/viewporter/viewporter.xml", "viewporter"))
     wayland_protocols.append((system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "xdg-decoration-unstable-v1"))
     wayland_protocols.append((system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml", "pointer-gestures-unstable-v1"))
+    wayland_protocols.append((system_protocol_dir / "unstable/relative-pointer/relative-pointer-unstable-v1.xml", "relative-pointer-unstable-v1"))
+    wayland_protocols.append((system_protocol_dir / "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"))
 
     return wayland_protocols
 
@@ -160,43 +162,41 @@ def generate_wayland_protocols():
     cmake_target_name = "wayland-header"
     cmake_file = wayland_dir / "CMakeLists.txt"
 
-    if cmake_file.exists() and not args.update:
-        return
+    cmake = f"add_library({cmake_target_name}\n"
 
-    with open(cmake_file, "w") as cmakelists:
-        cmakelists.write(f"add_library({cmake_target_name}\n")
+    for xml_path, name in list_wayland_protocols():
 
-        for xml_path, name in list_wayland_protocols():
+        # Generate client header
+        header_name = f"{name}-client-protocol.h"
+        header_path = wayland_include / header_name
+        if not header_path.exists():
+            cmd = [wayland_scanner, "client-header", xml_path, header_name]
+            print(f"Generating wayland client header: {header_name}")
+            subprocess.run(cmd, cwd = wayland_include)
 
-            # Generate client header
-            header_name = f"{name}-client-protocol.h"
-            header_path = wayland_include / header_name
-            if not header_path.exists():
-                cmd = [wayland_scanner, "client-header", xml_path, header_name]
-                print(f"Generating wayland client header: {header_name}")
-                subprocess.run(cmd, cwd = wayland_include)
+        # Generate server header
+        header_name = f"{name}-protocol.h"
+        header_path = wayland_include / header_name
+        if not header_path.exists():
+            cmd = [wayland_scanner, "server-header", xml_path, header_name]
+            print(f"Generating wayland server header: {header_name}")
+            subprocess.run(cmd, cwd = wayland_include)
 
-            # Generate server header
-            header_name = f"{name}-protocol.h"
-            header_path = wayland_include / header_name
-            if not header_path.exists():
-                cmd = [wayland_scanner, "server-header", xml_path, header_name]
-                print(f"Generating wayland server header: {header_name}")
-                subprocess.run(cmd, cwd = wayland_include)
+        # Generate source
+        source_name = f"{name}-protocol.c"
+        source_path = wayland_src / source_name
+        if not source_path.exists():
+            cmd = [wayland_scanner, "private-code", xml_path, source_name]
+            print(f"Generating wayland source: {source_name}")
+            subprocess.run(cmd, cwd = wayland_src)
 
-            # Generate source
-            source_name = f"{name}-protocol.c"
-            source_path = wayland_src / source_name
-            if not source_path.exists():
-                cmd = [wayland_scanner, "private-code", xml_path, source_name]
-                print(f"Generating wayland source: {source_name}")
-                subprocess.run(cmd, cwd = wayland_src)
+        # Add source to CMakeLists
+        cmake += f"    \"src/{source_name}\"\n"
 
-            # Add source to CMakeLists
-            cmakelists.write(f"    \"src/{source_name}\"\n")
+    cmake += "    )\n"
+    cmake += f"target_include_directories({cmake_target_name} PUBLIC include)\n"
 
-        cmakelists.write("    )\n")
-        cmakelists.write(f"target_include_directories({cmake_target_name} PUBLIC include)\n")
+    write_file_lazy(cmake_file, cmake)
 
 generate_wayland_protocols()
 

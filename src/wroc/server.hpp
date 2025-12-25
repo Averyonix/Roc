@@ -655,6 +655,8 @@ struct wroc_pointer : wrei_object
     ~wroc_pointer();
 };
 
+struct wroc_pointer_constraint;
+
 struct wroc_seat_pointer : wrei_object
 {
     wroc_seat* seat;
@@ -665,12 +667,58 @@ struct wroc_seat_pointer : wrei_object
     wrei_counting_set<u32> pressed;
 
     wroc_resource_list resources;
+    wroc_resource_list relative_pointers;
     weak<wroc_surface> focused_surface;
 
-    weak<wroc_output> output;
     vec2f64 position;
 
+    weak<wroc_pointer_constraint> active_constraint;
+
     void attach(wroc_pointer*);
+};
+
+// -----------------------------------------------------------------------------
+
+enum class wroc_pointer_constraint_committed_state
+{
+    none,
+
+    position_hint = 1 << 0,
+    region        = 1 << 1,
+    region_unset  = 1 << 2,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_pointer_constraint_committed_state)
+
+struct wroc_pointer_constraint_state
+{
+    wroc_pointer_constraint_committed_state committed;
+    vec2f64 position_hint;
+    wrei_region region;
+};
+
+enum class wroc_pointer_constraint_type
+{
+    locked,
+    confined,
+};
+
+struct wroc_pointer_constraint : wroc_surface_addon
+{
+    wroc_resource resource;
+
+    wroc_pointer_constraint_type type;
+    weak<wroc_seat_pointer> pointer;
+    zwp_pointer_constraints_v1_lifetime lifetime;
+
+    wroc_pointer_constraint_state pending;
+    wroc_pointer_constraint_state current;
+
+    virtual void on_commit(wroc_surface_commit_flags) final override;
+
+    void activate();
+    void deactivate();
+
+    ~wroc_pointer_constraint();
 };
 
 // -----------------------------------------------------------------------------
@@ -787,6 +835,8 @@ struct wroc_renderer : wrei_object
 
     ref<wren_image> background;
     ref<wren_sampler> sampler;
+
+    bool show_debug_cursor = false;
 
     bool screenshot_queued = false;
 };

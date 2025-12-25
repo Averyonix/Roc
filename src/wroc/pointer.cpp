@@ -2,6 +2,259 @@
 
 #include "wroc/event.hpp"
 
+const u32 wroc_zwp_relative_pointer_manager_v1_version = 1;
+
+void wroc_zwp_relative_pointer_manager_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
+{
+    auto* server = static_cast<wroc_server*>(data);
+    auto new_resource = wl_resource_create(client, &zwp_relative_pointer_manager_v1_interface, version, id);
+    wroc_debug_track_resource(new_resource);
+    wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_manager_v1_impl, server);
+
+    log_error("RELATIVE POINTER MANAGER CREATED");
+}
+
+static
+void get_relative_pointer(wl_client* client, wl_resource* resource, uint32_t id, wl_resource* _pointer)
+{
+    auto new_resource = wl_resource_create(client, &zwp_relative_pointer_v1_interface, wl_resource_get_version(resource), id);
+    wroc_debug_track_resource(new_resource);
+    auto* pointer = wroc_get_userdata<wroc_seat_pointer>(_pointer);
+    pointer->relative_pointers.emplace_back(new_resource);
+    wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_v1_impl, pointer);
+
+    log_error("RELATIVE POINTER CREATED");
+}
+
+const struct zwp_relative_pointer_manager_v1_interface wroc_zwp_relative_pointer_manager_v1_impl {
+    .destroy = wroc_simple_resource_destroy_callback,
+    .get_relative_pointer = get_relative_pointer,
+};
+
+const struct zwp_relative_pointer_v1_interface wroc_zwp_relative_pointer_v1_impl {
+    .destroy = wroc_simple_resource_destroy_callback,
+};
+
+// -----------------------------------------------------------------------------
+
+const u32 wroc_zwp_pointer_constraints_v1_version = 1;
+
+void wroc_zwp_pointer_constraints_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
+{
+    auto* server = static_cast<wroc_server*>(data);
+    auto* new_resource = wl_resource_create(client, &zwp_pointer_constraints_v1_interface, version, id);
+    wroc_debug_track_resource(new_resource);
+    wroc_resource_set_implementation(new_resource, &wroc_zwp_pointer_constraints_v1_impl, server);
+
+    log_error("POINTER CONSTRAINT INTERFACE BOUND");
+}
+
+static
+void constrain_pointer(
+    wroc_pointer_constraint_type type,
+    wl_client* client,
+    wl_resource* resource,
+    u32 id,
+    wl_resource* _surface,
+    wl_resource* _pointer,
+    wl_resource* _region,
+    u32 lifetime)
+{
+    log_error("POINTER CONSTRAINT CREATED: type = {}, lifetime = {}",
+        magic_enum::enum_name(type),
+        magic_enum::enum_name(zwp_pointer_constraints_v1_lifetime(lifetime)));
+
+    auto* surface = wroc_get_userdata<wroc_surface>(_surface);
+    auto* pointer = wroc_get_userdata<wroc_seat_pointer>(_pointer);
+
+    const wl_interface* interface;
+    const void* implementation;
+    switch (type) {
+        break;case wroc_pointer_constraint_type::locked:
+            interface = &zwp_locked_pointer_v1_interface;
+            implementation = &wroc_zwp_locked_pointer_v1_impl;
+        break;case wroc_pointer_constraint_type::confined:
+            interface = &zwp_confined_pointer_v1_interface;
+            implementation = &wroc_zwp_confined_pointer_v1_impl;
+    }
+
+    auto* new_resource = wl_resource_create(client, interface, wl_resource_get_version(resource), id);
+    wroc_debug_track_resource(new_resource);
+    auto* constraint = wrei_create_unsafe<wroc_pointer_constraint>();
+    wroc_resource_set_implementation_refcounted(new_resource, implementation, constraint);
+    constraint->type = type;
+    constraint->pointer = pointer;
+    constraint->resource = new_resource;
+    constraint->lifetime = zwp_pointer_constraints_v1_lifetime(lifetime);
+    wroc_surface_put_addon(surface, constraint);
+
+    if (_region) {
+        // TODO: Do we apply this immediately, or add it to pending as with set_region requests?
+        auto* region = wroc_get_userdata<wroc_region>(_region);
+        constraint->current.region = region->region;
+        constraint->current.committed |= wroc_pointer_constraint_committed_state::region;
+    }
+}
+
+static
+void lock_pointer(auto ...args)
+{
+    constrain_pointer(wroc_pointer_constraint_type::locked, args...);
+}
+
+static
+void confine_pointer(auto ...args)
+{
+    constrain_pointer(wroc_pointer_constraint_type::confined, args...);
+}
+
+void wroc_pointer_constraint::on_commit(wroc_surface_commit_flags)
+{
+    if (pending.committed >= wroc_pointer_constraint_committed_state::region) {
+        current.region = std::move(pending.region);
+        current.committed |= wroc_pointer_constraint_committed_state::region;
+    } else if (pending.committed >= wroc_pointer_constraint_committed_state::region_unset) {
+        current.committed -= wroc_pointer_constraint_committed_state::region;
+    }
+
+    if (pending.committed >= wroc_pointer_constraint_committed_state::position_hint) {
+        current.position_hint = pending.position_hint;
+        current.committed |= wroc_pointer_constraint_committed_state::position_hint;
+    }
+
+    current.committed |= pending.committed;
+    pending = {};
+}
+
+void wroc_pointer_constraint::activate()
+{
+    if (pointer->active_constraint == this) {
+        // Already active
+        return;
+    } else if (pointer->active_constraint) {
+        // Replace existing
+        pointer->active_constraint->deactivate();
+    }
+
+    log_error("POINTER CONSTRAINT {} ACTIVATED", magic_enum::enum_name(type));
+
+    pointer->active_constraint = this;
+
+    switch (type) {
+        break;case wroc_pointer_constraint_type::locked:
+            zwp_locked_pointer_v1_send_locked(resource);
+        break;case wroc_pointer_constraint_type::confined:
+            zwp_confined_pointer_v1_send_confined(resource);
+    }
+}
+
+void wroc_pointer_constraint::deactivate()
+{
+    if (pointer->active_constraint != this) {
+        // Not currently active
+        return;
+    }
+
+    pointer->active_constraint = nullptr;
+
+    log_error("POINTER CONSTRAINT DEACTIVATED");
+
+    switch (type) {
+        break;case wroc_pointer_constraint_type::locked:
+            zwp_locked_pointer_v1_send_unlocked(resource);
+        break;case wroc_pointer_constraint_type::confined:
+            zwp_confined_pointer_v1_send_unconfined(resource);
+    }
+}
+
+wroc_pointer_constraint::~wroc_pointer_constraint()
+{
+    log_error("POINTER CONSTRIANT DESTROYED, deactivating");
+    if (pointer->active_constraint == this) {
+        pointer->active_constraint = nullptr;
+    }
+}
+
+static
+void pointer_constraints_set_region(wl_client* client, wl_resource* resource, wl_resource* _region)
+{
+    auto* constraint = wroc_get_userdata<wroc_pointer_constraint>(resource);
+    if (_region) {
+        auto* region = wroc_get_userdata<wroc_region>(_region);
+        constraint->pending.region = region->region;
+        constraint->pending.committed |= wroc_pointer_constraint_committed_state::region;
+        constraint->pending.committed -= wroc_pointer_constraint_committed_state::region_unset;
+    } else {
+        constraint->pending.committed |= wroc_pointer_constraint_committed_state::region_unset;
+        constraint->pending.committed -= wroc_pointer_constraint_committed_state::region;
+    }
+
+    log_error("CONSTRAINT SET REGION: {}", (void*)_region);
+}
+
+static
+void pointer_constraints_set_cursor_position_hint(wl_client* client, wl_resource* resource, wl_fixed_t sx, wl_fixed_t sy)
+{
+    auto* constraint = wroc_get_userdata<wroc_pointer_constraint>(resource);
+    constraint->pending.position_hint = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    constraint->pending.committed |= wroc_pointer_constraint_committed_state::position_hint;
+
+    log_error("CONSTRAINT SET CURSOR POSITION HINT: {}", wrei_to_string(constraint->pending.position_hint));
+}
+
+const struct zwp_pointer_constraints_v1_interface wroc_zwp_pointer_constraints_v1_impl {
+    .destroy = wroc_simple_resource_destroy_callback,
+    .lock_pointer = lock_pointer,
+    .confine_pointer = confine_pointer,
+};
+
+const struct zwp_locked_pointer_v1_interface wroc_zwp_locked_pointer_v1_impl {
+    .destroy = wroc_surface_addon_destroy,
+    .set_cursor_position_hint = pointer_constraints_set_cursor_position_hint,
+    .set_region = pointer_constraints_set_region,
+};
+
+const struct zwp_confined_pointer_v1_interface wroc_zwp_confined_pointer_v1_impl {
+    .destroy = wroc_surface_addon_destroy,
+    .set_region = pointer_constraints_set_region,
+};
+
+static
+vec2f64 apply_constraint(wroc_pointer_constraint* constraint, vec2f64 old_pos, vec2f64 pos, bool* in_constriant = nullptr)
+{
+    auto surface_origin = wroc_surface_get_position(constraint->surface.get());
+    vec2f64 original;
+    switch (constraint->type) {
+        break;case wroc_pointer_constraint_type::locked:   original = old_pos;
+        break;case wroc_pointer_constraint_type::confined: original = pos;
+    }
+    original -= surface_origin;
+    vec2f64 constrained = original;
+
+    // Constrain to initial surface rectangle
+    auto surface_rect = rect2f64(constraint->surface->buffer_dst);
+    static constexpr double epsilon = 0.0001;
+    surface_rect.origin += epsilon;
+    surface_rect.extent -= epsilon * 2;
+    constrained = wrei_rect_clamp_point(surface_rect, constrained);
+
+    // Constrain to surface input region
+    if (!constraint->surface->current.input_region.empty()) {
+        constrained = constraint->surface->current.input_region.constrain(constrained);
+    }
+
+    // Constrain to constraint region
+    if (!constraint->current.region.empty()) {
+        constrained = constraint->current.region.constrain(constrained);
+    }
+
+    if (in_constriant) *in_constriant = (constrained == original);
+
+    return surface_origin + constrained;
+}
+
+// -----------------------------------------------------------------------------
+
 static void wroc_seat_pointer_update_state(wroc_seat_pointer*, wroc_key_action, std::span<const u32> actioned_buttons);
 
 void wroc_pointer::press(u32 keycode)
@@ -42,7 +295,6 @@ void wroc_pointer::leave()
 
 void wroc_pointer::absolute(wroc_output* output, vec2f64 offset)
 {
-    target->output = output;
     target->position = output->layout_rect.origin + offset;
 
     wroc_post_event(server, wroc_pointer_event {
@@ -54,15 +306,22 @@ void wroc_pointer::absolute(wroc_output* output, vec2f64 offset)
 
 void wroc_pointer::relative(vec2f64 delta)
 {
+    static constexpr double rate = 0.3;
+    delta *= rate;
+
+    auto old_pos = target->position;
     target->position = wroc_output_layout_clamp_position(server->output_layout.get(), target->position + delta);
 
-    // TODO: Update target->output
+    if (auto* constraint = server->seat->pointer->active_constraint.get()) {
+        target->position = apply_constraint(constraint, old_pos, target->position);
+    }
 
-    // TODO: Separate absolute and relative motion events?
     wroc_post_event(server, wroc_pointer_event {
         .type = wroc_event_type::pointer_motion,
         .pointer = target.get(),
-        .motion = {},
+        .motion = {
+            .delta = delta,
+        },
     });
 }
 
@@ -142,6 +401,10 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
     auto* server = pointer->seat->server;
     if (focused_surface != pointer->focused_surface.get()) {
         if (auto* old_surface = pointer->focused_surface.get(); old_surface && old_surface->resource) {
+            log_info("Leaving surface: {}", (void*)pointer->focused_surface.get());
+            if (auto* constraint = wroc_surface_get_addon<wroc_pointer_constraint>(focused_surface)) {
+                constraint->deactivate();
+            }
             auto serial = wl_display_next_serial(server->display);
             for (auto* resource : pointer->resources) {
                 if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
@@ -149,7 +412,6 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
                 wroc_pointer_send_frame(resource);
             }
         }
-        log_info("Leaving surface: {}", (void*)pointer->focused_surface.get());
         pointer->focused_surface = nullptr;
 
         if (focused_surface) {
@@ -228,10 +490,40 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
     auto* server = pointer->seat->server;
     auto* focused_surface = server->implicit_grab_surface ? server->implicit_grab_surface.get() : surface_under_cursor;
 
+    if (focused_surface && focused_surface->resource) {
+        for (auto* resource : pointer->relative_pointers) {
+            if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
+
+            if (wroc_is_client_behind(wroc_resource_get_client(resource))) {
+                log_warn("[{}], client is running behind, skipping pointer relative event...", wroc_get_elapsed_milliseconds(server));
+                continue;
+            }
+
+            auto time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
+            auto time_us = time.count();
+
+            // log_warn("relative[{}:{}] - {}", time_us >> 32, time_us & 0xFFFF'FFFF, wrei_to_string(delta));
+
+            zwp_relative_pointer_v1_send_relative_motion(resource,
+                time_us >> 32, time_us & 0xFFFF'FFFF,
+                wl_fixed_from_double(delta.x), wl_fixed_from_double(delta.y),
+                wl_fixed_from_double(delta.x), wl_fixed_from_double(delta.y));
+        }
+    }
+
     wroc_data_manager_update_drag(server, surface_under_cursor);
 
     // log_trace("motion, grab = {}", (void*)server->implicit_grab_surface.surface.get());
     wroc_pointer_update_focus(pointer, focused_surface);
+
+    if (auto* constraint = wroc_surface_get_addon<wroc_pointer_constraint>(focused_surface)) {
+        constraint->activate();
+    }
+
+    if (pointer->active_constraint && pointer->active_constraint->type == wroc_pointer_constraint_type::locked) {
+        // Don't send any further pointer motion events with active locked constraint
+        return;
+    }
 
     if (focused_surface && focused_surface->resource) {
 
@@ -272,6 +564,11 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
             wl_pointer_send_axis_source(resource, WL_POINTER_AXIS_SOURCE_WHEEL);
         }
 
+        // TODO: We shouldn't have to send this for higher version clients
+        constexpr double discrete_to_pixels = 15;
+        if (rel.x) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(rel.x * discrete_to_pixels));
+        if (rel.y) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(rel.y * discrete_to_pixels));
+
         if (version >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION) {
             if (rel.x) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x * 120));
             if (rel.y) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y * 120));
@@ -279,10 +576,6 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
             // TODO: Accumulate fractional values
             if (rel.x) wl_pointer_send_axis_discrete(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x));
             if (rel.y) wl_pointer_send_axis_discrete(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y));
-        } else {
-            constexpr double discrete_to_pixels = 15;
-            if (rel.x) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(rel.x * discrete_to_pixels));
-            if (rel.y) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(rel.y * discrete_to_pixels));
         }
 
         if (version >= WL_POINTER_FRAME_SINCE_VERSION) {
