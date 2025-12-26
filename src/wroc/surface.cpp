@@ -33,6 +33,9 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     surface->pending.committed |= wroc_surface_committed_state::surface_stack;
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_surface_impl, surface);
+
+    // Enter primary display unconditionally
+    wroc_output_enter_surface(server->output_layout->primary.get(), surface);
 }
 
 const struct wl_compositor_interface wroc_wl_compositor_impl = {
@@ -253,10 +256,6 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
     if (!apply) {
         return;
     }
-
-    // Update output states
-
-    wroc_output_layout_update_surface(surface->server->output_layout.get(), surface);
 
     // Update subsurfaces
 

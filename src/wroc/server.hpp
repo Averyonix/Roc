@@ -12,20 +12,25 @@
 
 #define WROC_NOISY_FRAME_TIME 0
 
+struct wroc_server;
+struct wren_renderer;
+struct wroc_output;
+struct wroc_surface;
+struct wroc_buffer;
+struct wroc_cursor_surface;
+struct wroc_seat_keyboard;
+struct wroc_seat_pointer;
+struct wroc_pointer_constraint;
+struct wroc_data_offer;
+struct wroc_data_device;
+
 // -----------------------------------------------------------------------------
 
 struct wroc_server;
-
 void wroc_run(int argc, char* argv[]);
 void wroc_terminate(wroc_server*);
 
 // -----------------------------------------------------------------------------
-
-struct wren_renderer;
-
-// -----------------------------------------------------------------------------
-
-struct wroc_output;
 
 struct wroc_backend : wrei_object
 {
@@ -43,21 +48,63 @@ void wroc_backend_init(wroc_server*, wroc_backend_type);
 
 // -----------------------------------------------------------------------------
 
+enum class wroc_output_mode_flags
+{
+    none,
+
+    current   = 1 << 0,
+    preferred = 1 << 1,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_output_mode_flags)
+
 struct wroc_output_mode
 {
-    wl_output_mode flags;
+    wroc_output_mode_flags flags;
     vec2i32 size;
-    f32 refresh;
+    f64 refresh;
 };
 
-struct wroc_output : wrei_object
+/*
+ * Describes an output state. Only represents a current state,
+ */
+struct wroc_output_desc
+{
+    std::string make;
+    std::string model;
+    std::string name;
+    std::string description;
+    vec2f64 physical_size_mm;
+    wl_output_subpixel subpixel = WL_OUTPUT_SUBPIXEL_UNKNOWN;
+    wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
+    f64 scale;
+
+    std::vector<wroc_output_mode> modes;
+};
+
+/*
+ * Represents a wl_output protocol object. This may or may
+ * not correspond to any actual output made available by the backend.
+ */
+struct wroc_wl_output : wrei_object
 {
     wroc_server* server;
 
     wl_global* global;
     wroc_resource_list resources;
 
-    vec2i32 size;
+    wroc_output_desc desc;
+    vec2i32 position;
+};
+
+void wroc_output_desc_update(wroc_wl_output*);
+void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
+
+/*
+ * A backend output that can be displayed to
+ */
+struct wroc_output : wrei_object
+{
+    wroc_server* server;
 
     VkSurfaceKHR vk_surface;
     VkSemaphore timeline;
@@ -68,16 +115,10 @@ struct wroc_output : wrei_object
     std::chrono::steady_clock::time_point acquire_time;
     std::chrono::steady_clock::time_point present_time;
 
+    vec2i32 size;
     rect2f64 layout_rect;
-    i32 scale = 1;
 
-    vec2i32 physical_size_mm;
-    wl_output_subpixel subpixel_layout = WL_OUTPUT_SUBPIXEL_UNKNOWN;
-    std::string make;
-    std::string model;
-    std::string name;
-    std::string description;
-    wroc_output_mode mode;
+    wroc_output_desc desc;
 
     ~wroc_output();
 };
@@ -91,15 +132,14 @@ struct wroc_output_layout : wrei_object
 {
     wroc_server* server;
 
+    // TODO: Support multi output description for clients
+    ref<wroc_wl_output> primary;
     std::vector<weak<wroc_output>> outputs;
 };
-
-struct wroc_surface;
 
 void wroc_output_layout_init(wroc_server*);
 void wroc_output_layout_add_output(wroc_output_layout*, wroc_output*);
 void wroc_output_layout_remove_output(wroc_output_layout*, wroc_output*);
-void wroc_output_layout_update_surface(wroc_output_layout*, wroc_surface*);
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos);
 
 // -----------------------------------------------------------------------------
@@ -112,8 +152,6 @@ struct wroc_region : wrei_object
 
     wrei_region region;
 };
-
-struct wroc_buffer;
 
 // -----------------------------------------------------------------------------
 
@@ -133,8 +171,6 @@ enum class wroc_surface_commit_flags
     from_parent = 1 << 0,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_commit_flags)
-
-struct wroc_surface;
 
 struct wroc_surface_addon : wrei_object
 {
@@ -174,8 +210,6 @@ struct wroc_surface_state
     std::vector<weak<wroc_surface>> surface_stack;
 };
 
-struct wroc_cursor_surface;
-
 struct wroc_surface : wrei_object
 {
     wroc_server* server = {};
@@ -192,8 +226,6 @@ struct wroc_surface : wrei_object
     wroc_surface_role role = wroc_surface_role::none;
     weak<wroc_surface_addon> role_addon;
     std::vector<ref<wroc_surface_addon>> addons;
-
-    std::vector<weak<wroc_output>> outputs;
 
     std::optional<weak<wroc_cursor_surface>> cursor;
 
@@ -519,9 +551,6 @@ struct wroc_dma_buffer : wroc_buffer
 
 // -----------------------------------------------------------------------------
 
-struct wroc_seat_keyboard;
-struct wroc_seat_pointer;
-
 struct wroc_seat : wrei_object
 {
     wroc_server* server;
@@ -655,8 +684,6 @@ struct wroc_pointer : wrei_object
     ~wroc_pointer();
 };
 
-struct wroc_pointer_constraint;
-
 struct wroc_seat_pointer : wrei_object
 {
     wroc_seat* seat;
@@ -724,9 +751,6 @@ struct wroc_pointer_constraint : wroc_surface_addon
 // -----------------------------------------------------------------------------
 
 WREI_DECORATE_FLAG_ENUM(wl_data_device_manager_dnd_action)
-
-struct wroc_data_offer;
-struct wroc_data_device;
 
 struct wroc_data_source : wrei_object
 {

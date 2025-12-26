@@ -60,6 +60,7 @@ struct wroc_wayland_backend : wroc_backend
 
     struct wl_seat* seat = {};
 
+    u32 next_window_id = 1;
     std::vector<ref<wroc_wayland_output>> outputs;
 
     ref<wroc_wayland_keyboard> keyboard = {};

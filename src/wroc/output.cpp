@@ -9,14 +9,46 @@ const u32 wroc_wl_output_version = 4;
 
 // -----------------------------------------------------------------------------
 
-static void wroc_output_send_configuration(wroc_output*, wl_resource* client_resource, bool initial);
+static void wroc_output_send_configuration(wroc_wl_output*, wl_resource* client_resource, bool initial);
 
 // -----------------------------------------------------------------------------
 
 void wroc_output_layout_init(wroc_server* server)
 {
-    server->output_layout = wrei_create<wroc_output_layout>();
-    server->output_layout->server = server;
+    auto* layout = (server->output_layout = wrei_create<wroc_output_layout>()).get();
+    layout->server = server;
+
+    auto* primary = (layout->primary = wrei_create<wroc_wl_output>()).get();
+
+    primary->server = server;
+
+    // TODO: Configuration
+    static constexpr auto name = "DP-1";
+    static constexpr vec2i32 size = {3840, 2160};
+    static constexpr f64 refresh = 144;
+    static constexpr f64 dpi = 137.68;
+
+    static constexpr f64 mm_per_inch = 25.4;
+    vec2f64 physical_size_mm = glm::round(vec2f64(size) * (mm_per_inch / dpi));
+
+    primary->desc = {
+        .make  = "Roc",
+        .model = "Display",
+        .name  = name,
+        .description = std::format("{} {}x{} @ {:.2f}Hz", name, size.x, size.y, refresh),
+        .physical_size_mm = physical_size_mm,
+        .subpixel = WL_OUTPUT_SUBPIXEL_UNKNOWN,
+        .scale = 1.0,
+        .modes = {
+            {
+                .flags = wroc_output_mode_flags::current | wroc_output_mode_flags::preferred,
+                .size = size,
+                .refresh = refresh,
+            }
+        }
+    };
+
+    primary->global = WROC_SERVER_GLOBAL(server, wl_output, primary);
 }
 
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 global_pos)
@@ -45,6 +77,8 @@ void wroc_output_update(wroc_output_layout* layout)
 {
     // TODO: Proper output layout rules
 
+    log_info("Output layout:");
+
     bool first = true;
     float x = 0;
     for (auto& output : layout->outputs) {
@@ -55,11 +89,8 @@ void wroc_output_update(wroc_output_layout* layout)
         output->layout_rect.origin = {x, 0};
         output->layout_rect.extent = output->size;
 
-        log_error("Output layout rect {}", wrei_to_string(output->layout_rect));
-    }
-
-    for (auto* surface : layout->server->surfaces) {
-        wroc_output_layout_update_surface(layout, surface);
+        log_info("  Output: {}", output->desc.name);
+        log_info("    Rect: {}", wrei_to_string(output->layout_rect));
     }
 }
 
@@ -71,16 +102,6 @@ void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* outp
     }
 
     auto* server = layout->server;
-
-    if (output->global) {
-        log_debug("Output reconfigured");
-        for (auto* client_resource : output->resources) {
-            wroc_output_send_configuration(output, client_resource, false);
-        }
-    } else {
-        log_debug("Output added");
-        output->global = WROC_SERVER_GLOBAL(server, wl_output, output);
-    }
 
     if (server->imgui && !server->imgui->output) {
         // TODO: This should be set to the PRIMARY output, instead of the first output
@@ -95,79 +116,6 @@ void wroc_output_layout_remove_output(wroc_output_layout* layout, wroc_output* o
     std::erase(layout->outputs, output);
 
     wroc_output_update(layout);
-
-    if (output->global) {
-        log_debug("Output removed");
-        wl_global_remove(output->global);
-    }
-}
-
-void wroc_output_layout_update_surface(wroc_output_layout* layout, wroc_surface* surface)
-{
-    auto enter = [&](wroc_output* output) {
-        auto* client = wl_resource_get_client(surface->resource);
-        for (auto res : output->resources) {
-            if (wroc_resource_get_client(res) == client) {
-                log_error("Surface {} entered output: {}", (void*)surface, (void*)res);
-                wl_surface_send_enter(surface->resource, res);
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    auto leave = [&](wroc_output* output) {
-        auto* client = wl_resource_get_client(surface->resource);
-        for (auto res : output->resources) {
-            if (wroc_resource_get_client(res) == client) {
-                log_error("Surface {} left output: {}", (void*)surface, (void*)res);
-                wl_surface_send_leave(surface->resource, res);
-            }
-        }
-    };
-
-    // TODO: Use derived "mapped" state to track surface visibility
-    if (!surface->current.buffer) {
-        // No surface buffer, leave any outputs that we might be in
-        for (auto& output : surface->outputs) {
-            leave(output.get());
-        }
-        surface->outputs.clear();
-        return;
-    }
-
-    rect2f64 rect = surface->buffer_dst;
-    // TODO: Account for xdg_surface geometry
-    rect.origin += wroc_surface_get_position(surface);
-
-    // Find new outputs
-    for (auto& output : layout->outputs) {
-        // log_warn("Checking if rects intersect");
-        // log_warn("  output:  {}", wrei_to_string(output->layout_rect));
-        // log_warn("  surface: {}", wrei_to_string(rect));
-        // log_warn("  = {}", wrei_rect_intersects(output->layout_rect, rect));
-        if (wrei_rect_intersects(output->layout_rect, rect)) {
-            if (!weak_container_contains(surface->outputs, output.get())) {
-                if (enter(output.get())) {
-                    // Only add the output if the client has bound the wl_output global
-                    surface->outputs.emplace_back(output);
-                }
-            }
-        } else if (weak_container_contains(surface->outputs, output.get())) {
-            std::erase(surface->outputs, output.get());
-            leave(output.get());
-        }
-    }
-
-    // Erase removed outputs
-    std::erase_if(surface->outputs, [&](const auto& output) {
-        if (!weak_container_contains(layout->outputs, output.get())) {
-            leave(output.get());
-            return true;
-        }
-        return false;
-    });
 }
 
 // -----------------------------------------------------------------------------
@@ -187,6 +135,7 @@ vec2f64 wroc_output_get_pixel_float(wroc_output* output, vec2f64 global_pos)
 vec2i32 wroc_output_get_pixel(wroc_output* output, vec2f64 global_pos, vec2f64* remainder)
 {
     auto pos = wroc_output_get_pixel_float(output, global_pos);
+    // For individual pixels, we floor to treat the position as any point within a given pixel
     auto rounded = glm::floor(pos);
     if (remainder) *remainder = pos - rounded;
     return rounded;
@@ -196,8 +145,9 @@ rect2i32 wroc_output_get_pixel_rect(wroc_output* output, rect2f64 rect, rect2f64
 {
     auto min = wroc_output_get_pixel_float(output, rect.origin);
     auto max = wroc_output_get_pixel_float(output, rect.origin + rect.extent);
+    // For rects, we round as the min and max are treated as pixel boundaries
     auto extent = glm::round(max - min);
-    auto origin = glm::floor(min);
+    auto origin = glm::round(min);
     if (remainder) {
         *remainder = {
             min - origin,
@@ -255,50 +205,65 @@ void wroc_output_init_swapchain(wroc_output* output)
     vkwsi_swapchain_set_info(output->swapchain, &sw_info);
 }
 
+void wroc_output_enter_surface(wroc_wl_output* wl_output, wroc_surface* surface)
+{
+    for (auto* resource : wl_output->resources) {
+        if (wl_resource_get_client(resource) == wl_resource_get_client(surface->resource)) {
+            wl_surface_send_enter(surface->resource, resource);
+        }
+    }
+}
+
 static
-void wroc_output_send_configuration(wroc_output* output, wl_resource* client_resource, bool initial)
+void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* client_resource, bool initial)
 {
     log_debug("Output sending configuration to: {}", (void*)client_resource);
 
-    // TODO: This is simply an approximation that we send for the sake of the protocol
-    //       It has no impact with respect to actual output layout
-    auto position = glm::round(output->layout_rect.origin);
+    auto& desc = wl_output->desc;
 
-    log_debug("  position = {}", wrei_to_string(position));
-    log_debug("  physical size = {}x{}mm", output->physical_size_mm.x, output->physical_size_mm.y);
-    log_debug("  subpixel_layout = {}", magic_enum::enum_name(output->subpixel_layout));
-    log_debug("  make = {}", output->make);
-    log_debug("  model = {}", output->make);
-    log_debug("  mode = {}x{} @ {:}", output->mode.size.x, output->mode.size.y, output->mode.refresh);
-    log_debug("  scale = {}", output->scale);
-    log_debug("  name = {}", output->name);
-    log_debug("  description = {}", output->description);
+    log_debug("  name = {}", desc.name);
+    log_debug("  description = {}", desc.description);
+    log_debug("  make = {}", desc.make);
+    log_debug("  model = {}", desc.model);
+    log_debug("  position = {}", wrei_to_string(wl_output->position));
+    log_debug("  physical size = {}x{}mm", desc.physical_size_mm.x, desc.physical_size_mm.y);
+    log_debug("  transform = {}", magic_enum::enum_name(desc.transform));
+    log_debug("  subpixel_layout = {}", magic_enum::enum_name(desc.subpixel));
+    log_debug("  scale = {:.2f}", desc.scale);
 
     wl_output_send_geometry(client_resource,
-        position.x, position.y,
-        output->physical_size_mm.x, output->physical_size_mm.y,
-        output->subpixel_layout,
-        output->make.c_str(),
-        output->model.c_str(),
-        WL_OUTPUT_TRANSFORM_NORMAL);
+        wl_output->position.x, wl_output->position.y,
+        desc.physical_size_mm.x, desc.physical_size_mm.y,
+        desc.subpixel,
+        desc.make.c_str(),
+        desc.model.c_str(),
+        desc.transform);
 
-    wl_output_send_mode(client_resource,
-        output->mode.flags,
-        output->mode.size.x, output->mode.size.y,
-        output->mode.refresh * 1000);
+    for (auto& mode : desc.modes) {
+        if (!(mode.flags >= wroc_output_mode_flags::current)) continue;
+
+        log_debug("  mode = {}x{} @ {:.2f}Hz", mode.size.x, mode.size.y, mode.refresh);
+
+        wl_output_send_mode(client_resource,
+            WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
+            mode.size.x, mode.size.y,
+            mode.refresh * 1000);
+
+        break;
+    }
 
     auto version = wl_resource_get_version(client_resource);
 
     if (version >= WL_OUTPUT_SCALE_SINCE_VERSION) {
-        wl_output_send_scale(client_resource, output->scale);
+        wl_output_send_scale(client_resource, desc.scale);
     }
 
     if (initial && version >= WL_OUTPUT_NAME_SINCE_VERSION) {
-        wl_output_send_name(client_resource, output->name.c_str());
+        wl_output_send_name(client_resource, desc.name.c_str());
     }
 
     if (version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION) {
-        wl_output_send_description(client_resource, output->description.c_str());
+        wl_output_send_description(client_resource, desc.description.c_str());
     }
 
     if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
@@ -308,7 +273,7 @@ void wroc_output_send_configuration(wroc_output* output, wl_resource* client_res
 
 void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto output = static_cast<wroc_output*>(data);
+    auto output = static_cast<wroc_wl_output*>(data);
     auto* new_resource = wl_resource_create(client, &wl_output_interface, version, id);
     log_warn("OUTPUT BIND: {}", (void*)new_resource);
     output->resources.emplace_back(new_resource);
@@ -316,10 +281,10 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
 
     wroc_output_send_configuration(output, new_resource, true);
 
-    // See if any of client's surfaces need to enter the newly bound wl_output
+    // Enter all client surfaces
     for (auto* surface : output->server->surfaces) {
         if (wl_resource_get_client(surface->resource) == client) {
-            wroc_output_layout_update_surface(output->server->output_layout.get(), surface);
+            wroc_output_enter_surface(output, surface);
         }
     }
 }

@@ -90,7 +90,6 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
             if (server->interaction_mode == wroc_interaction_mode::move) {
                 // Move
                 toplevel->base()->anchor.position = movesize.surface_grab + delta;
-                wroc_output_layout_update_surface(server->output_layout.get(), toplevel->surface.get());
 
             } else if (server->interaction_mode == wroc_interaction_mode::size) {
                 // Resize

@@ -9,9 +9,9 @@ VkResult wren_check(VkResult res, auto... allowed)
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
     log_error("VULKAN ERROR: {}, ({})", wren_result_to_string(res), int(res));
-    std::cout << std::stacktrace::current();
+    std::cout << std::stacktrace::current() << std::flush;
 
-    return res;
+    wrei_debugkill();
 }
 
 template<typename Container, typename Fn, typename... Args>

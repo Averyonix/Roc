@@ -377,3 +377,9 @@ void wrei_debugbreak()
 {
     raise(SIGTRAP);
 }
+
+[[noreturn]] inline
+void wrei_debugkill()
+{
+    std::terminate();
+}

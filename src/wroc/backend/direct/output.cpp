@@ -60,7 +60,7 @@ int handle_display_scanout(int fd, u32 mask, void* data)
 }
 
 static
-void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& display_props)
+void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& display_props, i32 index)
 {
     auto* wren  =backend->server->renderer->wren.get();
     auto display = display_props.display;
@@ -73,10 +73,8 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
     }
 
     auto mode_props = modes.front();
-    log_info("Selecting mode: {}x{} @ {}Hz",
-        mode_props.parameters.visibleRegion.width,
-        mode_props.parameters.visibleRegion.height,
-        mode_props.parameters.refreshRate / 1000.f);
+
+    log_debug("Display: {} ({})", display_props.displayName, index + 1);
 
     std::vector<VkDisplayPlanePropertiesKHR> planes;
     wren_vk_enumerate(planes, wren->vk.GetPhysicalDeviceDisplayPlanePropertiesKHR, wren->physical_device);
@@ -98,7 +96,7 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
         wren_vk_enumerate(supported_displays, wren->vk.GetDisplayPlaneSupportedDisplaysKHR, wren->physical_device, i);
         for (auto& d : supported_displays) {
             if (d == display) {
-                log_error("Found plane: {}", i);
+                log_debug("  Plane: {}", i);
                 plane_index = i;
                 break;
             }
@@ -126,21 +124,29 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
         }
     }
 
-    log_info("Alpha mode: {}", magic_enum::enum_name(alpha_mode));
-
     auto output = wrei_create<wroc_drm_output>();
 
     output->vk_display = display;
-
-    output->physical_size_mm = {display_props.physicalDimensions.width, display_props.physicalDimensions.height};
-    output->model = "Unknown";
-    output->make = "Unknown";
-    output->make = display_props.displayName;
-    output->description = display_props.displayName;
     output->size = {mode_props.parameters.visibleRegion.width, mode_props.parameters.visibleRegion.height};
-    output->mode.flags = WL_OUTPUT_MODE_CURRENT;
-    output->mode.size = output->size;
-    output->mode.refresh = mode_props.parameters.refreshRate / 1000.f;
+
+    output->desc.physical_size_mm = {display_props.physicalDimensions.width, display_props.physicalDimensions.height};
+    output->desc.model = "Unknown";
+    output->desc.make = "Unknown";
+    output->desc.name = std::format("{} ({})", display_props.displayName, index + 1);
+    output->desc.description = display_props.displayName;
+
+    for (auto& mode : modes) {
+        auto& m = output->desc.modes.emplace_back(wroc_output_mode {
+            .flags = mode.displayMode == mode_props.displayMode
+                ? wroc_output_mode_flags::current | wroc_output_mode_flags::preferred
+                : wroc_output_mode_flags::none,
+            .size = {mode.parameters.visibleRegion.width, mode.parameters.visibleRegion.height},
+            .refresh = mode.parameters.refreshRate / 1000.f,
+        });
+        log_debug("  Mode {}x{} @ {:.2f}Hz{}", m.size.x, m.size.y, m.refresh, m.flags >= wroc_output_mode_flags::current ? " *" : "");
+    }
+
+    log_debug("  Alpha mode: {}", magic_enum::enum_name(alpha_mode));
 
     backend->outputs.emplace_back(output);
 
@@ -182,12 +188,8 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
         return;
     }
 
-    // auto display_props = displays.front();
-    // auto display = display_props.display;
-    // log_info("Selecting display: {}", display_props.displayName);
-
-    for (auto& display : displays) {
-        create_output(backend, display);
+    for (auto[i, display] : displays | std::views::enumerate) {
+        create_output(backend, display, i);
     }
 }
 

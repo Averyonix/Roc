@@ -97,10 +97,12 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
         output->size = {width, height};
     }
 
-    output->mode = {
-        .flags = WL_OUTPUT_MODE_CURRENT,
-        .size = output->size,
-        .refresh = 0,
+    output->desc.modes = {
+        {
+            .flags = wroc_output_mode_flags::current | wroc_output_mode_flags::preferred,
+            .size = output->size,
+            .refresh = 0,
+        }
     };
 
     for (auto[i, state] : wroc_to_span<xdg_toplevel_state>(states) | std::views::enumerate) {
@@ -224,11 +226,13 @@ void wroc_wayland_backend::create_output()
 
     auto output = wrei_create<wroc_wayland_output>();
 
-    output->physical_size_mm = {};
-    output->model = "Unknown";
-    output->make = "Unknown";
-    output->name = "WL-1";
-    output->description = "Wayland output 1";
+    auto id = next_window_id++;
+
+    output->desc.physical_size_mm = {};
+    output->desc.model = "Unknown";
+    output->desc.make = "Unknown";
+    output->desc.name = std::format("WL-{}", id);
+    output->desc.description = std::format("Wayland output {}", id);
 
     outputs.emplace_back(output);
 
@@ -242,7 +246,7 @@ void wroc_wayland_backend::create_output()
     xdg_toplevel_add_listener(output->toplevel, &wroc_xdg_toplevel_listener, output.get());
 
     xdg_toplevel_set_app_id(output->toplevel, PROGRAM_NAME);
-    xdg_toplevel_set_title(output->toplevel, output->name.c_str());
+    xdg_toplevel_set_title(output->toplevel, output->desc.name.c_str());
 
     if (decoration_manager) {
         output->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, output->toplevel);
