@@ -94,7 +94,7 @@ void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u3
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
 {
     xdg_surface->sent_configure_serial = wl_display_next_serial(xdg_surface->surface->server->display);
-    xdg_surface_send_configure(xdg_surface->resource, xdg_surface->sent_configure_serial);
+    wroc_send(xdg_surface_send_configure, xdg_surface->resource, xdg_surface->sent_configure_serial);
 }
 
 static
@@ -190,7 +190,7 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
     wroc_xdg_toplevel_flush_configure(toplevel);
 
     if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        xdg_toplevel_send_wm_capabilities(toplevel->resource, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
+        wroc_send(xdg_toplevel_send_wm_capabilities, toplevel->resource, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
             XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
         })));
@@ -273,10 +273,10 @@ void wroc_xdg_toplevel_flush_configure(wroc_toplevel* toplevel)
     }
 
     if (toplevel->pending_configure >= wroc_xdg_toplevel_configure_state::bounds) {
-        xdg_toplevel_send_configure_bounds(toplevel->resource, toplevel->bounds.x, toplevel->bounds.y);
+        wroc_send(xdg_toplevel_send_configure_bounds, toplevel->resource, toplevel->bounds.x, toplevel->bounds.y);
     }
 
-    xdg_toplevel_send_configure(toplevel->resource, toplevel->size.x, toplevel->size.y,
+    wroc_send(xdg_toplevel_send_configure, toplevel->resource, toplevel->size.x, toplevel->size.y,
         wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(toplevel->states)));
 
     wroc_xdg_surface_flush_configure(toplevel->base());
@@ -616,11 +616,11 @@ void wroc_xdg_popup_position(wroc_popup* popup)
     base->anchor.position = parent_origin + vec2f64(geometry.origin);
 
     if (popup->reposition_token) {
-        xdg_popup_send_repositioned(popup->resource, *popup->reposition_token);
+        wroc_send(xdg_popup_send_repositioned, popup->resource, *popup->reposition_token);
         popup->reposition_token = std::nullopt;
     }
 
-    xdg_popup_send_configure(popup->resource, geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
+    wroc_send(xdg_popup_send_configure, popup->resource, geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
     wroc_xdg_surface_flush_configure(base);
 }
 

@@ -35,7 +35,7 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
 
     auto* server = static_cast<wroc_server*>(data);
     for (auto&[format, _] : server->renderer->wren->shm_texture_formats.entries) {
-        wl_shm_send_format(new_resource, format->shm);
+        wroc_send(wl_shm_send_format, new_resource, format->shm);
     }
 };
 

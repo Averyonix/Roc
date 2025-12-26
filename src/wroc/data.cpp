@@ -50,7 +50,7 @@ void wroc_wl_data_offer_receive(wl_client* client, wl_resource* resource, const 
     auto* offer = wroc_get_userdata<wroc_data_offer>(resource);
 
     if (offer->source) {
-        wl_data_source_send_send(offer->source->resource, mime_type, fd);
+        wroc_send(wl_data_source_send_send, offer->source->resource, mime_type, fd);
     } else {
         log_error("Data offer receieve failed: source {} was destroyed", (void*)offer->source.get());
     }
@@ -85,7 +85,7 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
         data_offer->action = matched;
     }
 
-    wl_data_offer_send_action(data_offer->resource, data_offer->action);
+    wroc_send(wl_data_offer_send_action, data_offer->resource, data_offer->action);
 }
 
 static
@@ -123,13 +123,13 @@ void wroc_wl_data_offer_accept(wl_client* client, wl_resource* resource, u32 ser
         drag.offer = offer;
         offer->mime_type = mime_type;
         if (drag.source && drag.source->resource) {
-            wl_data_source_send_target(drag.source->resource, mime_type);
+            wroc_send(wl_data_source_send_target, drag.source->resource, mime_type);
         }
     } else if (drag.offer.get() == offer) {
         log_warn("Offer removed from drag");
         drag.offer = nullptr;
         if (drag.source && drag.source->resource) {
-            wl_data_source_send_target(drag.source->resource, nullptr);
+            wroc_send(wl_data_source_send_target, drag.source->resource, nullptr);
         }
     }
 }
@@ -148,7 +148,7 @@ void wroc_wl_data_offer_finish(wl_client* client, wl_resource* resource)
     auto* offer = wroc_get_userdata<wroc_data_offer>(resource);
 
     if (offer->source) {
-        wl_data_source_send_dnd_finished(offer->source->resource);
+        wroc_send(wl_data_source_send_dnd_finished, offer->source->resource);
     }
 
     wroc_data_manager_end_grab(offer->server);
@@ -219,7 +219,7 @@ void wroc_data_source_cancel(wroc_data_source* data_source)
     if (data_source->cancelled) return;
     log_warn("Cancelling data source: {}", (void*)data_source);
     if (data_source->resource) {
-        wl_data_source_send_cancelled(data_source->resource);
+        wroc_send(wl_data_source_send_cancelled, data_source->resource);
     }
     data_source->cancelled = true;
     if (data_source == data_source->server->data_manager.drag.source.get()) {
@@ -240,14 +240,14 @@ wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* 
     data_offer->device = device;
     wroc_resource_set_implementation_refcounted(offer_resource, &wroc_wl_data_offer_impl, data_offer);
 
-    wl_data_device_send_data_offer(device->resource, offer_resource);
+    wroc_send(wl_data_device_send_data_offer, device->resource, offer_resource);
 
     for (auto& mime_type : source->mime_types) {
-        wl_data_offer_send_offer(offer_resource, mime_type.c_str());
+        wroc_send(wl_data_offer_send_offer, offer_resource, mime_type.c_str());
     }
 
     if (wl_resource_get_version(offer_resource) >= WL_DATA_OFFER_ACTION_SINCE_VERSION) {
-        wl_data_offer_send_source_actions(offer_resource, source->dnd_actions);
+        wroc_send(wl_data_offer_send_source_actions, offer_resource, source->dnd_actions);
     }
 
     return offer_resource;
@@ -262,7 +262,7 @@ void wroc_data_manager_offer_selection(wroc_server* server, wl_client* client)
         // TODO: We should also be filtering per seat when/if we support multiple of those
         log_warn("Offering selection {} to {}", (void*)selection, (void*)device);
         auto* offer_resource = wroc_data_device_offer(device, selection);
-        wl_data_device_send_selection(device->resource, offer_resource);
+        wroc_send(wl_data_device_send_selection, device->resource, offer_resource);
     }
 }
 
@@ -312,7 +312,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
 
             auto pos = server->seat->pointer->position - wroc_surface_get_position(target_surface);
             log_warn("Drag moved in {} - {} [{}]", (void*)target_surface, wrei_to_string(pos), time);
-            wl_data_device_send_motion(device->resource,
+            wroc_send(wl_data_device_send_motion, device->resource,
                 time,
                 wl_fixed_from_double(pos.x),
                 wl_fixed_from_double(pos.y));
@@ -325,7 +325,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
             if (wroc_resource_get_client(device->resource) != wroc_resource_get_client(drag.offered_surface->resource)) continue;
 
             log_warn("Drag left: {}", (void*)target_surface);
-            wl_data_device_send_leave(device->resource);
+            wroc_send(wl_data_device_send_leave, device->resource);
         }
     }
 
@@ -338,7 +338,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
             auto pos = server->seat->pointer->position - wroc_surface_get_position(target_surface);
             log_warn("Drag entered {} at {}", (void*)target_surface, wrei_to_string(pos));
             auto* offer_resource = wroc_data_device_offer(device, drag.source.get());
-            wl_data_device_send_enter(device->resource,
+            wroc_send(wl_data_device_send_enter, device->resource,
                 wl_display_next_serial(server->display),
                 target_surface->resource,
                 wl_fixed_from_double(pos.x),
@@ -362,8 +362,8 @@ void wroc_data_manager_finish_drag(wroc_server* server)
             log_warn("Drag completed with offer");
             log_warn("  action = {}", magic_enum::enum_name(drag.offer->action));
             log_warn("  mime_type = {}", drag.offer->mime_type);
-            wl_data_device_send_drop(drag.offer->device->resource);
-            wl_data_source_send_dnd_drop_performed(drag.source->resource);
+            wroc_send(wl_data_device_send_drop, drag.offer->device->resource);
+            wroc_send(wl_data_source_send_dnd_drop_performed, drag.source->resource);
         } else {
             log_warn("Drag completed with no matching action, cancelling");
             wroc_data_source_cancel(drag.source.get());

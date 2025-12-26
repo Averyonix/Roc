@@ -86,7 +86,7 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
     u32 count = 0;
     for (auto* target_surface : cursor->server->surfaces) {
         if (!target_surface->resource) continue;
-        if (wl_resource_get_client(target_surface->resource) != client) continue;
+        if (wroc_resource_get_client(target_surface->resource) != client) continue;
         if (target_surface->role == wroc_surface_role::cursor) continue;
 
         target_surface->cursor = cursor_surface;

@@ -142,9 +142,9 @@ void wroc_pointer_constraint::activate()
 
     switch (type) {
         break;case wroc_pointer_constraint_type::locked:
-            zwp_locked_pointer_v1_send_locked(resource);
+            wroc_send(zwp_locked_pointer_v1_send_locked, resource);
         break;case wroc_pointer_constraint_type::confined:
-            zwp_confined_pointer_v1_send_confined(resource);
+            wroc_send(zwp_confined_pointer_v1_send_confined, resource);
     }
 }
 
@@ -161,9 +161,9 @@ void wroc_pointer_constraint::deactivate()
 
     switch (type) {
         break;case wroc_pointer_constraint_type::locked:
-            zwp_locked_pointer_v1_send_unlocked(resource);
+            wroc_send(zwp_locked_pointer_v1_send_unlocked, resource);
         break;case wroc_pointer_constraint_type::confined:
-            zwp_confined_pointer_v1_send_unconfined(resource);
+            wroc_send(zwp_confined_pointer_v1_send_unconfined, resource);
     }
 }
 
@@ -383,7 +383,7 @@ static
 void wroc_pointer_send_frame(wl_resource* pointer)
 {
     if (wl_resource_get_version(pointer) >= WL_POINTER_FRAME_SINCE_VERSION) {
-        wl_pointer_send_frame(pointer);
+        wroc_send(wl_pointer_send_frame, pointer);
     }
 }
 
@@ -408,7 +408,7 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
             auto serial = wl_display_next_serial(server->display);
             for (auto* resource : pointer->resources) {
                 if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
-                wl_pointer_send_leave(resource, serial, old_surface->resource);
+                wroc_send(wl_pointer_send_leave, resource, serial, old_surface->resource);
                 wroc_pointer_send_frame(resource);
             }
         }
@@ -424,13 +424,13 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
 
             for (auto* resource : pointer->resources) {
                 if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
-                wl_pointer_send_enter(resource,
+                wroc_send(wl_pointer_send_enter, resource,
                     serial,
                     focused_surface->resource,
                     wl_fixed_from_double(pos.x),
                     wl_fixed_from_double(pos.y));
 
-                wroc_pointer_send_frame(resource);
+                wroc_send(wroc_pointer_send_frame, resource);
             }
         }
     }
@@ -465,11 +465,11 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
     auto time = wroc_get_elapsed_milliseconds(server);
     for (auto* resources : pointer->resources) {
         if (!wroc_pointer_resource_matches_focus_client(pointer, resources)) continue;
-        wl_pointer_send_button(resources,
+        wroc_send(wl_pointer_send_button, resources,
             serial,
             time,
             button, pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
-        wroc_pointer_send_frame(resources);
+        wroc_send(wroc_pointer_send_frame, resources);
     }
 
     if (!pressed && pointer->pressed.empty() && server->implicit_grab_surface) {
@@ -504,7 +504,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
 
             // log_warn("relative[{}:{}] - {}", time_us >> 32, time_us & 0xFFFF'FFFF, wrei_to_string(delta));
 
-            zwp_relative_pointer_v1_send_relative_motion(resource,
+            wroc_send(zwp_relative_pointer_v1_send_relative_motion, resource,
                 time_us >> 32, time_us & 0xFFFF'FFFF,
                 wl_fixed_from_double(delta.x), wl_fixed_from_double(delta.y),
                 wl_fixed_from_double(delta.x), wl_fixed_from_double(delta.y));
@@ -540,11 +540,11 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
                 continue;
             }
 
-            wl_pointer_send_motion(resource,
+            wroc_send(wl_pointer_send_motion, resource,
                 time,
                 wl_fixed_from_double(pos.x),
                 wl_fixed_from_double(pos.y));
-            wroc_pointer_send_frame(resource);
+            wroc_send(wroc_pointer_send_frame, resource);
         }
     }
 }
@@ -561,25 +561,25 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
         auto version = wl_resource_get_version(resource);
 
         if (version >= WL_POINTER_AXIS_SOURCE_SINCE_VERSION) {
-            wl_pointer_send_axis_source(resource, WL_POINTER_AXIS_SOURCE_WHEEL);
+            wroc_send(wl_pointer_send_axis_source, resource, WL_POINTER_AXIS_SOURCE_WHEEL);
         }
 
         // TODO: We shouldn't have to send this for higher version clients
         constexpr double discrete_to_pixels = 15;
-        if (rel.x) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(rel.x * discrete_to_pixels));
-        if (rel.y) wl_pointer_send_axis(resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(rel.y * discrete_to_pixels));
+        if (rel.x) wroc_send(wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(rel.x * discrete_to_pixels));
+        if (rel.y) wroc_send(wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(rel.y * discrete_to_pixels));
 
         if (version >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION) {
-            if (rel.x) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x * 120));
-            if (rel.y) wl_pointer_send_axis_value120(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y * 120));
+            if (rel.x) wroc_send(wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x * 120));
+            if (rel.y) wroc_send(wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y * 120));
         } else if (version >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION) {
             // TODO: Accumulate fractional values
-            if (rel.x) wl_pointer_send_axis_discrete(resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x));
-            if (rel.y) wl_pointer_send_axis_discrete(resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y));
+            if (rel.x) wroc_send(wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(rel.x));
+            if (rel.y) wroc_send(wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(rel.y));
         }
 
         if (version >= WL_POINTER_FRAME_SINCE_VERSION) {
-            wroc_pointer_send_frame(resource);
+            wroc_send(wroc_pointer_send_frame, resource);
         }
     }
 }

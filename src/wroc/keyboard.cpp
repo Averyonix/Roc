@@ -135,10 +135,10 @@ wroc_seat_keyboard::~wroc_seat_keyboard()
 
 void wroc_seat_keyboard_on_get(wroc_seat_keyboard* kb, wl_client*, wl_resource* resource)
 {
-    wl_keyboard_send_keymap(resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, kb->keymap_fd, kb->keymap_size);
+    wroc_send(wl_keyboard_send_keymap, resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, kb->keymap_fd, kb->keymap_size);
 
     if (wl_resource_get_version(resource) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION) {
-        wl_keyboard_send_repeat_info(resource, 25, 600);
+        wroc_send(wl_keyboard_send_repeat_info, resource, 25, 600);
     }
 }
 
@@ -277,13 +277,13 @@ void wroc_keyboard_clear_focus(wroc_seat_keyboard* kb)
         for (auto* resource : kb->resources) {
             if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
             for (auto keycode : kb->pressed) {
-                wl_keyboard_send_key(resource,
+                wroc_send(wl_keyboard_send_key, resource,
                     serial,
                     wroc_get_elapsed_milliseconds(kb->seat->server),
                     u32(keycode), WL_KEYBOARD_KEY_STATE_RELEASED);
             }
-            wl_keyboard_send_modifiers(resource, serial, 0, 0, 0, 0);
-            wl_keyboard_send_leave(resource, serial, surface->resource);
+            wroc_send(wl_keyboard_send_modifiers, resource, serial, 0, 0, 0, 0);
+            wroc_send(wl_keyboard_send_leave, resource, serial, surface->resource);
         }
 
         kb->focused_surface = nullptr;
@@ -311,11 +311,11 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
 
         wroc_data_manager_offer_selection(kb->seat->server, wroc_resource_get_client(resource));
 
-        wl_keyboard_send_enter(resource,
+        wroc_send(wl_keyboard_send_enter, resource,
             serial,
             surface->resource, wrei_ptr_to(wroc_to_wl_array<const u32>(kb->pressed)));
 
-        wl_keyboard_send_modifiers(resource,
+        wroc_send(wl_keyboard_send_modifiers, resource,
             serial,
             xkb_state_serialize_mods(kb->state, XKB_STATE_MODS_DEPRESSED),
             xkb_state_serialize_mods(kb->state, XKB_STATE_MODS_LATCHED),
@@ -363,7 +363,7 @@ void wroc_keyboard_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& event)
 
     for (auto* resource : kb->resources) {
         if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
-        wl_keyboard_send_key(resource,
+        wroc_send(wl_keyboard_send_key, resource,
             wl_display_next_serial(kb->seat->server->display),
             wroc_get_elapsed_milliseconds(kb->seat->server),
             event.key.code, event.key.pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
@@ -375,7 +375,7 @@ void wroc_keyboard_modifiers(wroc_seat_keyboard* kb, u32 mods_depressed, u32 mod
 {
     for (auto* resource : kb->resources) {
         if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;
-        wl_keyboard_send_modifiers(resource,
+        wroc_send(wl_keyboard_send_modifiers, resource,
             wl_display_next_serial(kb->seat->server->display),
             mods_depressed,
             mods_latched,

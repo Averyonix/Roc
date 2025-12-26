@@ -58,10 +58,10 @@ void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id
     seat->resources.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_seat_impl, seat);
     if (version >= WL_SEAT_NAME_SINCE_VERSION) {
-        wl_seat_send_name(new_resource, seat->name.c_str());
+        wroc_send(wl_seat_send_name, new_resource, seat->name.c_str());
     }
     u32 caps = WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER;
-    wl_seat_send_capabilities(new_resource, caps);
+    wroc_send(wl_seat_send_capabilities, new_resource, caps);
 };
 
 void wroc_seat_init(wroc_server* server)

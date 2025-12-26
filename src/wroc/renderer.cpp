@@ -341,7 +341,7 @@ void wroc_render_frame(wroc_output* output)
     for (wroc_surface* surface : output->server->surfaces) {
         while (auto* callback = surface->current.frame_callbacks.front()) {
             // log_trace("Sending frame callback: {}", (void*)callback);
-            wl_callback_send_done(callback, elapsed);
+            wroc_send(wl_callback_send_done, callback, elapsed);
             wl_resource_destroy(callback);
         }
     }

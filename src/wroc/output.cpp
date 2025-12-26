@@ -208,8 +208,8 @@ void wroc_output_init_swapchain(wroc_output* output)
 void wroc_output_enter_surface(wroc_wl_output* wl_output, wroc_surface* surface)
 {
     for (auto* resource : wl_output->resources) {
-        if (wl_resource_get_client(resource) == wl_resource_get_client(surface->resource)) {
-            wl_surface_send_enter(surface->resource, resource);
+        if (wroc_resource_get_client(resource) == wroc_resource_get_client(surface->resource)) {
+            wroc_send(wl_surface_send_enter, surface->resource, resource);
         }
     }
 }
@@ -231,7 +231,7 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
     log_debug("  subpixel_layout = {}", magic_enum::enum_name(desc.subpixel));
     log_debug("  scale = {:.2f}", desc.scale);
 
-    wl_output_send_geometry(client_resource,
+    wroc_send(wl_output_send_geometry, client_resource,
         wl_output->position.x, wl_output->position.y,
         desc.physical_size_mm.x, desc.physical_size_mm.y,
         desc.subpixel,
@@ -244,7 +244,7 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
 
         log_debug("  mode = {}x{} @ {:.2f}Hz", mode.size.x, mode.size.y, mode.refresh);
 
-        wl_output_send_mode(client_resource,
+        wroc_send(wl_output_send_mode, client_resource,
             WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
             mode.size.x, mode.size.y,
             mode.refresh * 1000);
@@ -255,19 +255,19 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
     auto version = wl_resource_get_version(client_resource);
 
     if (version >= WL_OUTPUT_SCALE_SINCE_VERSION) {
-        wl_output_send_scale(client_resource, desc.scale);
+        wroc_send(wl_output_send_scale, client_resource, desc.scale);
     }
 
     if (initial && version >= WL_OUTPUT_NAME_SINCE_VERSION) {
-        wl_output_send_name(client_resource, desc.name.c_str());
+        wroc_send(wl_output_send_name, client_resource, desc.name.c_str());
     }
 
     if (version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION) {
-        wl_output_send_description(client_resource, desc.description.c_str());
+        wroc_send(wl_output_send_description, client_resource, desc.description.c_str());
     }
 
     if (version >= WL_OUTPUT_DONE_SINCE_VERSION) {
-        wl_output_send_done(client_resource);
+        wroc_send(wl_output_send_done, client_resource);
     }
 }
 
@@ -279,11 +279,11 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
     output->resources.emplace_back(new_resource);
     wl_resource_set_implementation(new_resource, &wroc_wl_output_impl, output, nullptr);
 
-    wroc_output_send_configuration(output, new_resource, true);
+    wroc_send(wroc_output_send_configuration, output, new_resource, true);
 
     // Enter all client surfaces
     for (auto* surface : output->server->surfaces) {
-        if (wl_resource_get_client(surface->resource) == client) {
+        if (wroc_resource_get_client(surface->resource) == client) {
             wroc_output_enter_surface(output, surface);
         }
     }

@@ -118,9 +118,9 @@ void wroc_dmabuf_params_create_buffer(wl_client* client, wl_resource* params, i3
 {
     auto buffer = wroc_dmabuf_create_buffer(client, params, 0, width, height, format, flags);
     if (buffer) {
-        zwp_linux_buffer_params_v1_send_created(params, buffer->resource);
+        wroc_send(zwp_linux_buffer_params_v1_send_created, params, buffer->resource);
     } else {
-        zwp_linux_buffer_params_v1_send_failed(params);
+        wroc_send(zwp_linux_buffer_params_v1_send_failed, params);
     }
 }
 
@@ -214,15 +214,15 @@ void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* resource)
 
     auto& feedback = server->renderer->buffer_feedback;
 
-    zwp_linux_dmabuf_feedback_v1_send_main_device(resource, &dev_id);
-    zwp_linux_dmabuf_feedback_v1_send_format_table(resource, feedback.format_table, feedback.format_table_size);
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_main_device, resource, &dev_id);
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_format_table, resource, feedback.format_table, feedback.format_table_size);
 
-    zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(resource, &dev_id);
-    zwp_linux_dmabuf_feedback_v1_send_tranche_flags(resource, 0);
-    zwp_linux_dmabuf_feedback_v1_send_tranche_formats(resource, wrei_ptr_to(wroc_to_wl_array<u16>(feedback.tranche_formats)));
-    zwp_linux_dmabuf_feedback_v1_send_tranche_done(resource);
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_tranche_target_device, resource, &dev_id);
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_tranche_flags, resource, 0);
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_tranche_formats, resource, wrei_ptr_to(wroc_to_wl_array<u16>(feedback.tranche_formats)));
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_tranche_done, resource);
 
-    zwp_linux_dmabuf_feedback_v1_send_done(resource);
+    wroc_send(zwp_linux_dmabuf_feedback_v1_send_done, resource);
 }
 
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
@@ -239,13 +239,13 @@ void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 ver
     auto send_modifier = [&](u32 format, u64 modifier) {
         u32 modifier_hi =  modifier >> 32;
         u32 modifier_lo = modifier & 0xFFFF'FFFF;
-        zwp_linux_dmabuf_v1_send_modifier(new_resource, format, modifier_hi, modifier_lo);
+        wroc_send(zwp_linux_dmabuf_v1_send_modifier, new_resource, format, modifier_hi, modifier_lo);
     };
 
     auto* server = static_cast<wroc_server*>(data);
 
     for (auto[format, modifiers] : server->renderer->wren->dmabuf_texture_formats) {
-        zwp_linux_dmabuf_v1_send_format(new_resource, format->drm);
+        wroc_send(zwp_linux_dmabuf_v1_send_format, new_resource, format->drm);
 
         for (auto modifier : modifiers) {
             send_modifier(format->drm, modifier);
