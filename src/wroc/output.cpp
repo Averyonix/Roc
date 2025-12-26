@@ -274,7 +274,7 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
 void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto output = static_cast<wroc_wl_output*>(data);
-    auto* new_resource = wl_resource_create(client, &wl_output_interface, version, id);
+    auto* new_resource = wroc_resource_create(client, &wl_output_interface, version, id);
     log_warn("OUTPUT BIND: {}", (void*)new_resource);
     output->resources.emplace_back(new_resource);
     wl_resource_set_implementation(new_resource, &wroc_wl_output_impl, output, nullptr);

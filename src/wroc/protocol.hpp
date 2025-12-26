@@ -20,8 +20,9 @@ T* wroc_get_userdata(wl_resource* resource)
 #define WROC_NOISY_WL_RESOURCE 0
 
 inline
-void wroc_debug_track_resource(wl_resource* resource)
+wl_resource* wroc_resource_create(wl_client* client, const wl_interface* interface, int version, u32 id)
 {
+    auto resource = wl_resource_create(client, interface, version, id);
 #if WROC_NOISY_WL_RESOURCE
     static i64 count = 0;
     log_trace("wl_resource ++ {}", ++count);
@@ -34,6 +35,7 @@ void wroc_debug_track_resource(wl_resource* resource)
     };
     wl_resource_add_destroy_listener(resource, destroy_listener);
 #endif
+    return resource;
 }
 
 inline
@@ -104,11 +106,11 @@ extern const struct wp_viewporter_interface wroc_wp_viewporter_impl;
 extern const struct wp_viewport_interface   wroc_wp_viewport_impl;
 
 extern const struct zwp_relative_pointer_manager_v1_interface wroc_zwp_relative_pointer_manager_v1_impl;
-extern const struct zwp_relative_pointer_v1_interface wroc_zwp_relative_pointer_v1_impl;
+extern const struct zwp_relative_pointer_v1_interface         wroc_zwp_relative_pointer_v1_impl;
 
 extern const struct zwp_pointer_constraints_v1_interface wroc_zwp_pointer_constraints_v1_impl;
-extern const struct zwp_locked_pointer_v1_interface wroc_zwp_locked_pointer_v1_impl;
-extern const struct zwp_confined_pointer_v1_interface wroc_zwp_confined_pointer_v1_impl;
+extern const struct zwp_locked_pointer_v1_interface      wroc_zwp_locked_pointer_v1_impl;
+extern const struct zwp_confined_pointer_v1_interface    wroc_zwp_confined_pointer_v1_impl;
 
 extern const u32 wroc_wl_compositor_version;
 extern const u32 wroc_wl_subcompositor_version;

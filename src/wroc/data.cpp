@@ -6,7 +6,7 @@ const u32 wroc_wl_data_device_manager_version = 3;
 static
 void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &wl_data_source_interface, wl_resource_get_version(resource), id);
+    auto* new_resource = wroc_resource_create(client, &wl_data_source_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* data_source = wrei_create_unsafe<wroc_data_source>();
     data_source->resource = new_resource;
@@ -18,7 +18,7 @@ void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resour
 static
 void wroc_wl_data_device_manager_get_data_device(wl_client* client, wl_resource* resource, u32 id, wl_resource* seat)
 {
-    auto* new_resource = wl_resource_create(client, &wl_data_device_interface, wl_resource_get_version(resource), id);
+    auto* new_resource = wroc_resource_create(client, &wl_data_device_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* data_device = wrei_create_unsafe<wroc_data_device>();
     data_device->resource = new_resource;
@@ -35,8 +35,7 @@ const struct wl_data_device_manager_interface wroc_wl_data_device_manager_impl =
 
 void wroc_wl_data_device_manager_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto new_resource = wl_resource_create(client, &wl_data_device_manager_interface, version, id);
-    wroc_debug_track_resource(new_resource);
+    auto new_resource = wroc_resource_create(client, &wl_data_device_manager_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_wl_data_device_manager_impl, static_cast<wroc_server*>(data));
 }
 
@@ -232,7 +231,7 @@ void wroc_data_source_cancel(wroc_data_source* data_source)
 static
 wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* source)
 {
-    auto* offer_resource = wl_resource_create(wroc_resource_get_client(device->resource), &wl_data_offer_interface, wl_resource_get_version(device->resource), 0);
+    auto* offer_resource = wroc_resource_create(wroc_resource_get_client(device->resource), &wl_data_offer_interface, wl_resource_get_version(device->resource), 0);
     auto* data_offer = wrei_create_unsafe<wroc_data_offer>();
     data_offer->resource = offer_resource;
     data_offer->server = device->server;

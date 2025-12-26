@@ -9,8 +9,7 @@ void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource
 static
 void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
 {
-    auto* new_resource = wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
     auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);;
     auto* xdg_surface = wrei_create_unsafe<wroc_xdg_surface>();
     xdg_surface->resource = new_resource;
@@ -27,8 +26,7 @@ const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
 
 void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &xdg_wm_base_interface, version, id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &xdg_wm_base_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, static_cast<wroc_server*>(data));
 };
 
@@ -37,8 +35,7 @@ void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u3
 static
 void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
     auto* xdg_toplevel = wrei_create_unsafe<wroc_toplevel>();
     xdg_toplevel->resource = new_resource;
@@ -293,8 +290,7 @@ void wroc_toplevel::on_ack_configure(u32 serial)
 
 void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* positioner = wrei_create_unsafe<wroc_positioner>();
     positioner->resource = new_resource;
@@ -554,8 +550,7 @@ rect2i32 wroc_xdg_positioner_apply(const wroc_positioner_rules& rules, rect2i32 
 
 void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _parent, wl_resource* positioner)
 {
-    auto* new_resource = wl_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
     auto* base = wroc_get_userdata<wroc_xdg_surface>(resource);
     auto* popup = wrei_create_unsafe<wroc_popup>();
     popup->resource = new_resource;

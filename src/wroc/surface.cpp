@@ -8,8 +8,7 @@ const u32 wroc_wl_subcompositor_version = 1;
 static
 void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* region = wrei_create_unsafe<wroc_region>();
     region->server = server;
@@ -21,8 +20,7 @@ static
 void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* server = wroc_get_userdata<wroc_server>(resource);
-    auto* new_resource = wl_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
     auto* surface = wrei_create_unsafe<wroc_surface>();
     surface->server = server;
     surface->resource = new_resource;
@@ -45,8 +43,7 @@ const struct wl_compositor_interface wroc_wl_compositor_impl = {
 
 void wroc_wl_compositor_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &wl_compositor_interface, version, id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &wl_compositor_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, static_cast<wroc_server*>(data));
 };
 
@@ -98,8 +95,7 @@ static
 void wroc_wl_surface_frame(wl_client* client, wl_resource* resource, u32 callback)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    auto new_resource = wl_resource_create(client, &wl_callback_interface, 1, callback);
-    wroc_debug_track_resource(new_resource);
+    auto new_resource = wroc_resource_create(client, &wl_callback_interface, 1, callback);
     surface->pending.frame_callbacks.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, nullptr, surface);
 }

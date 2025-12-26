@@ -7,7 +7,7 @@ const u32 wroc_zwp_linux_dmabuf_v1_version = 5;
 static
 void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 params_id)
 {
-    auto* new_resource = wl_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
+    auto* new_resource = wroc_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* params = wrei_create_unsafe<wroc_dma_buffer_params>();
     params->server = server;
@@ -28,7 +28,7 @@ void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* feedback_resour
 static
 void wroc_dmabuf_get_default_feedback(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
+    auto* new_resource = wroc_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr);
 
     wroc_dmabuf_send_tranches(wroc_get_userdata<wroc_server>(resource), new_resource);
@@ -37,7 +37,7 @@ void wroc_dmabuf_get_default_feedback(wl_client* client, wl_resource* resource, 
 static
 void wroc_dmabuf_get_surface_feedback(wl_client* client, wl_resource* resource, u32 id, wl_resource* surface)
 {
-    auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
+    auto* new_resource = wroc_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr);
 
     // TODO: Surface optimized tranches?
@@ -93,7 +93,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     }
 
     auto* params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
-    auto* new_resource = wl_resource_create(client, &wl_buffer_interface, 1, buffer_id);
+    auto* new_resource = wroc_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = wrei_create_unsafe<wroc_dma_buffer>();
     buffer->server = params->server;
     buffer->resource = new_resource;
@@ -227,7 +227,7 @@ void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* resource)
 
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
+    auto* new_resource = wroc_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_v1_impl, static_cast<wroc_server*>(data));
 
     if (version >= ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION) {

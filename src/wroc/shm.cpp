@@ -7,8 +7,7 @@ void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, i
 {
     // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
 
-    auto* new_resource = wl_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &wl_shm_pool_interface, wl_resource_get_version(resource), id);
     auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* pool = wrei_create_unsafe<wroc_shm_pool>();
     pool->server = server;
@@ -29,8 +28,7 @@ const struct wl_shm_interface wroc_wl_shm_impl = {
 
 void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto* new_resource = wl_resource_create(client, &wl_shm_interface, version, id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &wl_shm_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_wl_shm_impl, static_cast<wroc_server*>(data));
 
     auto* server = static_cast<wroc_server*>(data);
@@ -52,8 +50,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
         return;
     }
 
-    auto* new_resource = wl_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &wl_buffer_interface, wl_resource_get_version(resource), id);
 
     auto* shm_buffer = wrei_create_unsafe<wroc_shm_buffer>();
     shm_buffer->server = pool->server;

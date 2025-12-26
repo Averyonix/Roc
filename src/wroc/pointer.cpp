@@ -7,8 +7,7 @@ const u32 wroc_zwp_relative_pointer_manager_v1_version = 1;
 void wroc_zwp_relative_pointer_manager_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* server = static_cast<wroc_server*>(data);
-    auto new_resource = wl_resource_create(client, &zwp_relative_pointer_manager_v1_interface, version, id);
-    wroc_debug_track_resource(new_resource);
+    auto new_resource = wroc_resource_create(client, &zwp_relative_pointer_manager_v1_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_manager_v1_impl, server);
 
     log_error("RELATIVE POINTER MANAGER CREATED");
@@ -17,8 +16,7 @@ void wroc_zwp_relative_pointer_manager_v1_bind_global(wl_client* client, void* d
 static
 void get_relative_pointer(wl_client* client, wl_resource* resource, uint32_t id, wl_resource* _pointer)
 {
-    auto new_resource = wl_resource_create(client, &zwp_relative_pointer_v1_interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto new_resource = wroc_resource_create(client, &zwp_relative_pointer_v1_interface, wl_resource_get_version(resource), id);
     auto* pointer = wroc_get_userdata<wroc_seat_pointer>(_pointer);
     pointer->relative_pointers.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_v1_impl, pointer);
@@ -42,8 +40,7 @@ const u32 wroc_zwp_pointer_constraints_v1_version = 1;
 void wroc_zwp_pointer_constraints_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* server = static_cast<wroc_server*>(data);
-    auto* new_resource = wl_resource_create(client, &zwp_pointer_constraints_v1_interface, version, id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, &zwp_pointer_constraints_v1_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_pointer_constraints_v1_impl, server);
 
     log_error("POINTER CONSTRAINT INTERFACE BOUND");
@@ -78,8 +75,7 @@ void constrain_pointer(
             implementation = &wroc_zwp_confined_pointer_v1_impl;
     }
 
-    auto* new_resource = wl_resource_create(client, interface, wl_resource_get_version(resource), id);
-    wroc_debug_track_resource(new_resource);
+    auto* new_resource = wroc_resource_create(client, interface, wl_resource_get_version(resource), id);
     auto* constraint = wrei_create_unsafe<wroc_pointer_constraint>();
     wroc_resource_set_implementation_refcounted(new_resource, implementation, constraint);
     constraint->type = type;
