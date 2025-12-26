@@ -223,22 +223,22 @@ ImGuiKey wroc_imgui_key_from_xkb_sym(u32 code)
 static
 bool wroc_imgui_handle_key(wroc_imgui* imgui, const wroc_keyboard_event& event)
 {
-    auto& io = ImGui::GetIO();
+    if (event.key.upper() == XKB_KEY_A && event.key.pressed && wroc_get_active_modifiers(imgui->server) >= wroc_modifiers::mod) {
+        imgui->show_debug_menu = !imgui->show_debug_menu;
+        return true;
+    }
 
-    auto xkb_keycode = wroc_key_to_xkb(event.key.keycode);
+    auto& io = ImGui::GetIO();
 
     // Keys
 
-    auto xkb_sym = xkb_state_key_get_one_sym(event.keyboard->state, xkb_keycode);
-    auto imkey = wroc_imgui_key_from_xkb_sym(xkb_sym);
+    auto imkey = wroc_imgui_key_from_xkb_sym(event.key.symbol);
     io.AddKeyEvent(imkey, event.key.pressed);
 
     // Text
 
     if (event.key.pressed) {
-        char utf[128] = {};
-        xkb_state_key_get_utf8(event.keyboard->state, xkb_keycode, utf, sizeof(utf) - 1);
-        io.AddInputCharactersUTF8(utf);
+        io.AddInputCharactersUTF8(event.key.utf8);
     }
 
     return event.key.pressed && io.WantCaptureKeyboard;
@@ -276,31 +276,34 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
     return false;
 }
 
-static bool show_log_window = true;
-static bool show_demo_window = false;
-
 static
-void draw_debug_window(wroc_server* server)
+void draw_debug_window(wroc_imgui* imgui)
 {
-    defer { ImGui::End(); };
-    bool dont_quit = true;
-    ImGui::Begin("Roc", &dont_quit);
+    if (!imgui->show_debug_menu) return;
 
-    if (!dont_quit) {
-        wroc_terminate(server);
-    }
+    auto* server = imgui->server;
+
+    defer { ImGui::End(); };
+    ImGui::Begin("Roc", &imgui->show_debug_menu);
 
     static constexpr float second_column_offset = 113.f;
     static constexpr float third_column_offset = 226.f;
 
     // Window toggles
 
-    ImGui::Checkbox("Show Log", &show_log_window);
+    ImGui::Checkbox("Show Log", &imgui->show_log_window);
+
     ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Show Cursor", &server->renderer->show_debug_cursor);
 
     ImGui::SameLine(third_column_offset);
+    if (ImGui::Button("Quit Roc")) {
+        wroc_terminate(server);
+    }
 
+    ImGui::Checkbox("Show Demo Window", &imgui->show_demo_window);
+
+    ImGui::SameLine(third_column_offset);
     if (ImGui::Button("New Output")) {
         server->backend->create_output();
     }
@@ -435,11 +438,11 @@ void draw_debug_window(wroc_server* server)
 }
 
 static
-void draw_log_window()
+void draw_log_window(wroc_imgui* imgui)
 {
-    if (!show_log_window) return;
+    if (!imgui->show_log_window) return;
     defer { ImGui::End(); };
-    if (!ImGui::Begin("Log", &show_log_window, ImGuiWindowFlags_NoCollapse)) return;
+    if (!ImGui::Begin("Log", &imgui->show_log_window, ImGuiWindowFlags_NoCollapse)) return;
 
     auto scroll_to_bottom = ImGui::Button("Follow");
 
@@ -509,10 +512,10 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd)
 
     ImGui::NewFrame();
 
-    draw_debug_window(imgui->server);
-    draw_log_window();
-    if (show_demo_window) {
-        ImGui::ShowDemoWindow(&show_demo_window);
+    draw_debug_window(imgui);
+    draw_log_window(imgui);
+    if (imgui->show_demo_window) {
+        ImGui::ShowDemoWindow(&imgui->show_demo_window);
     }
     wroc_launcher_frame(imgui->server->launcher.get(), extent);
 

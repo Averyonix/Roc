@@ -200,7 +200,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Draw ImGui
 
-    if (server->imgui && server->imgui->output == output) {
+    if (server->imgui->output == output) {
         flush_draws();
         wroc_imgui_frame(server->imgui.get(), current_extent, cmd);
         start_draws();

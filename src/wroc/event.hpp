@@ -36,6 +36,8 @@ struct wroc_output_event : wroc_event
     wroc_output* output;
 };
 
+using evdev_key_t = u32;
+
 struct wroc_keyboard_event : wroc_event
 {
     WROC_EVENT_BASE
@@ -44,22 +46,27 @@ struct wroc_keyboard_event : wroc_event
 
     union {
         struct {
-            u32 keycode;
+            evdev_key_t code;
+            xkb_keysym_t symbol;
+            const char* utf8;
             bool pressed;
+
+            [[nodiscard]] constexpr xkb_keysym_t upper() const noexcept { return xkb_keysym_to_upper(symbol); };
+            [[nodiscard]] constexpr xkb_keysym_t lower() const noexcept { return xkb_keysym_to_lower(symbol); };
         } key;
         struct {
-            u32 depressed;
-            u32 latched;
-            u32 locked;
-            u32 group;
+            xkb_mod_mask_t depressed;
+            xkb_mod_mask_t latched;
+            xkb_mod_mask_t locked;
+            xkb_mod_mask_t group;
         } mods;
     };
 };
 
 inline
-u32 wroc_key_to_xkb(u32 libinput_code)
+xkb_keycode_t wroc_key_to_xkb(evdev_key_t code)
 {
-    return libinput_code + 8;
+    return code + 8;
 }
 
 struct wroc_pointer_event : wroc_event
@@ -67,11 +74,10 @@ struct wroc_pointer_event : wroc_event
     WROC_EVENT_BASE
 
     wroc_seat_pointer* pointer;
-    // wroc_output* output;
 
     union {
         struct {
-            u32 button;
+            evdev_key_t button;
             bool pressed;
         } button;
         struct {

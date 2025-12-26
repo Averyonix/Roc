@@ -211,10 +211,21 @@ void wroc_seat_keyboard_update_state(wroc_seat_keyboard* kb, wroc_key_action act
     for (auto key : actioned_keys) {
         if (action == wroc_key_action::release ? kb->pressed.dec(key) : kb->pressed.inc(key)) {
             if (action != wroc_key_action::enter) {
+
+                char utf8[128] = {};
+                if (action == wroc_key_action::press) {
+                    xkb_state_key_get_utf8(kb->state, wroc_key_to_xkb(key), utf8, sizeof(utf8));
+                }
+
                 wroc_post_event(kb->seat->server, wroc_keyboard_event {
                     .type = wroc_event_type::keyboard_key,
                     .keyboard = kb,
-                    .key = { .keycode = key, .pressed = action == wroc_key_action::press },
+                    .key = {
+                        .code = key,
+                        .symbol = xkb_state_key_get_one_sym(kb->state, wroc_key_to_xkb(key)),
+                        .utf8 = utf8,
+                        .pressed = action == wroc_key_action::press
+                    },
                 });
             }
         }
@@ -318,42 +329,36 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
 }
 
 static
-void wroc_debug_print_key(wroc_seat_keyboard* kb, u32 libinput_keycode, bool pressed)
+void wroc_debug_print_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& event)
 {
-    u32 xkb_keycode = wroc_key_to_xkb(libinput_keycode);
-    char name[128] = {};
-    char _utf[128] = {};
+    auto evdev_keycode = event.key.code;
+    auto sym = event.key.symbol;
+    auto pressed = event.key.pressed;
 
-    auto sym = xkb_state_key_get_one_sym(kb->state, xkb_keycode);
+    char name[128] = {};
     xkb_keysym_get_name(sym, name, sizeof(name) - 1);
 
-    xkb_state_key_get_utf8(kb->state, xkb_keycode, _utf, sizeof(_utf) - 1);
-    auto utf = wrei_escape_utf8(_utf);
+    auto utf8_escaped = wrei_escape_utf8(event.key.utf8);
 
-    if (strcmp(name, _utf) == 0) {
-        log_debug("key '{}' (sym: {}, evdev: {}) = {}", utf, sym, libinput_keycode, pressed ? "press" : "release");
-    } else if (!utf.empty()) {
-        log_debug("key <{}> '{}' (sym: {}, evdev: {}) = {}", name, utf, sym, libinput_keycode, pressed ? "press" : "release");
+    if (strcmp(name, event.key.utf8) == 0) {
+        log_debug("key '{}' (sym: {}, evdev: {}) = {}", utf8_escaped, sym, evdev_keycode, pressed ? "press" : "release");
+    } else if (!utf8_escaped.empty()) {
+        log_debug("key <{}> '{}' (sym: {}, evdev: {}) = {}", name, utf8_escaped, sym, evdev_keycode, pressed ? "press" : "release");
     } else {
-        log_debug("key <{}> (sym: {}, evdev: {}) = {}", name, sym, libinput_keycode, pressed ? "press" : "release");
+        log_debug("key <{}> (sym: {}, evdev: {}) = {}", name, sym, evdev_keycode, pressed ? "press" : "release");
     }
 }
 
 static
-void wroc_keyboard_key(wroc_seat_keyboard* kb, u32 keycode, bool pressed)
+void wroc_keyboard_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& event)
 {
-    wroc_debug_print_key(kb, keycode, pressed);
+    wroc_debug_print_key(kb, event);
 
-    {
-        // TODO: Proper compositor keybind handling
-
-        u32 xkb_keycode = wroc_key_to_xkb(keycode);
-        auto sym = xkb_state_key_get_one_sym(kb->state, xkb_keycode);
-        if (sym == XKB_KEY_Print && pressed) {
-            log_debug("PRINT OVERRIDE, saving screenshot");
-            kb->seat->server->renderer->screenshot_queued = true;
-            return;
-        }
+    // TODO: Proper compositor keybind handling
+    if (event.key.upper() == XKB_KEY_Print && event.key.pressed) {
+        log_debug("PRINT OVERRIDE, saving screenshot");
+        kb->seat->server->renderer->screenshot_queued = true;
+        return;
     }
 
     for (auto* resource : kb->resources) {
@@ -361,7 +366,7 @@ void wroc_keyboard_key(wroc_seat_keyboard* kb, u32 keycode, bool pressed)
         wl_keyboard_send_key(resource,
             wl_display_next_serial(kb->seat->server->display),
             wroc_get_elapsed_milliseconds(kb->seat->server),
-            keycode, pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
+            event.key.code, event.key.pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
     }
 }
 
@@ -383,7 +388,7 @@ void wroc_handle_keyboard_event(wroc_server* server, const wroc_keyboard_event& 
 {
     switch (event.type) {
         case wroc_event_type::keyboard_key:
-            wroc_keyboard_key(event.keyboard, event.key.keycode, event.key.pressed);
+            wroc_keyboard_key(event.keyboard, event);
             break;
         case wroc_event_type::keyboard_modifiers:
             wroc_keyboard_modifiers(event.keyboard, event.mods.depressed, event.mods.latched, event.mods.locked, event.mods.group);

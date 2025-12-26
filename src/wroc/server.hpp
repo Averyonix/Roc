@@ -888,6 +888,10 @@ struct wroc_imgui : wrei_object
 
     ref<wren_image> font_image;
 
+    bool show_debug_menu = false;
+    bool show_log_window = false;
+    bool show_demo_window = false;
+
     bool wants_mouse;
     bool wants_keyboard;
 };
@@ -940,14 +944,6 @@ enum class wroc_directions : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
-enum class wroc_options : u32
-{
-    none,
-
-    imgui = 1 << 0,
-};
-WREI_DECORATE_FLAG_ENUM(wroc_options)
-
 struct wroc_server : wrei_object
 {
     ref<wroc_backend>  backend;
@@ -956,8 +952,6 @@ struct wroc_server : wrei_object
 
     ref<wroc_imgui> imgui;
     ref<wroc_launcher> launcher;
-
-    wroc_options options;
 
     wroc_modifiers main_mod = wroc_modifiers::alt;
 

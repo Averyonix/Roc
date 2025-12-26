@@ -158,8 +158,7 @@ bool wroc_launcher_handle_event(wroc_launcher* launcher, const struct wroc_event
 {
     if (wroc_event_get_type(event) == wroc_event_type::keyboard_key) {
         auto& key_event = static_cast<const wroc_keyboard_event&>(event);
-        // TODO: Expose XKB symbols in the event bus instead of hard coding evdev scancodes
-        if (key_event.key.keycode == KEY_D && key_event.key.pressed && wroc_get_active_modifiers(launcher->server) >= wroc_modifiers::mod) {
+        if (key_event.key.upper() == XKB_KEY_D && key_event.key.pressed && wroc_get_active_modifiers(launcher->server) >= wroc_modifiers::mod) {
             log_warn("Showing launcher");
             launcher->show = true;
             launcher->grab_focus = true;

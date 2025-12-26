@@ -17,11 +17,15 @@ wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface
 
 void wroc_run(int argc, char* argv[])
 {
+    wrei_log_set_history_enabled(true);
+
     wroc_render_options render_options = {};
     wroc_backend_type backend_type = getenv("WAYLAND_DISPLAY")
         ? wroc_backend_type::wayland
         : wroc_backend_type::direct;
-    wroc_options options = wroc_options::none;
+
+    bool show_imgui_on_startup = false;
+
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
         if (arg == "--no-dmabuf") {
@@ -29,8 +33,7 @@ void wroc_run(int argc, char* argv[])
         } else if (arg == "--separate-draws") {
             render_options |= wroc_render_options::separate_draws;
         } else if (arg == "--imgui") {
-            options |= wroc_options::imgui;
-            wrei_log_set_history_enabled(true);
+            show_imgui_on_startup = true;
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
@@ -40,8 +43,6 @@ void wroc_run(int argc, char* argv[])
     ref<wroc_server> server_ref = wrei_create<wroc_server>();
     wroc_server* server = server_ref.get();
     log_warn("server = {}", (void*)server);
-
-    server->options = options;
 
     // Seat
 
@@ -71,7 +72,6 @@ void wroc_run(int argc, char* argv[])
     // Renderer
 
     log_warn("Initializing renderer");
-
     wroc_renderer_create(server, render_options);
 
     // Cursor
@@ -81,17 +81,16 @@ void wroc_run(int argc, char* argv[])
     // ImGui
 
     log_warn("Initializing imgui");
-
-    if (server->options >= wroc_options::imgui) {
-        wroc_imgui_init(server);
+    wroc_imgui_init(server);
+    if (show_imgui_on_startup) {
+        server->imgui->show_debug_menu = true;
+        server->imgui->show_log_window = true;
     }
 
     // Backend
 
     log_warn("Initializing backend");
-
     wroc_backend_init(server, backend_type);
-
     log_warn("Backend initialized");
 
     // Register globals

@@ -103,7 +103,7 @@ void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* outp
 
     auto* server = layout->server;
 
-    if (server->imgui && !server->imgui->output) {
+    if (!server->imgui->output) {
         // TODO: This should be set to the PRIMARY output, instead of the first output
         server->imgui->output = output;
     }
