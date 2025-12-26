@@ -32,7 +32,7 @@ void wroc_output_layout_init(wroc_server* server)
     vec2f64 physical_size_mm = glm::round(vec2f64(size) * (mm_per_inch / dpi));
 
     primary->desc = {
-        .make  = "Roc",
+        .make  = PROJECT_NAME,
         .model = "Display",
         .name  = name,
         .description = std::format("{} {}x{} @ {:.2f}Hz", name, size.x, size.y, refresh),

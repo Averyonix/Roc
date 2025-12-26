@@ -34,7 +34,7 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_surface_impl, surface);
 
-    // Enter primary display unconditionally
+    // Enter primary output unconditionally
     wroc_output_enter_surface(server->output_layout->primary.get(), surface);
 }
 
@@ -279,14 +279,14 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 const struct wl_surface_interface wroc_wl_surface_impl = {
     .destroy              = wroc_simple_resource_destroy_callback,
     .attach               = wroc_wl_surface_attach,
-    .damage               = WROC_STUB,
+    WROC_STUB_QUIET(damage),
     .frame                = wroc_wl_surface_frame,
     .set_opaque_region    = wroc_wl_surface_set_opaque_region,
     .set_input_region     = wroc_wl_surface_set_input_region,
     .commit               = wroc_wl_surface_commit,
-    .set_buffer_transform = WROC_STUB,
-    .set_buffer_scale     = WROC_STUB,
-    .damage_buffer        = WROC_STUB,
+    WROC_STUB(set_buffer_transform),
+    WROC_STUB_QUIET(set_buffer_scale),
+    WROC_STUB_QUIET(damage_buffer),
     .offset               = wroc_wl_surface_offset,
 };
 

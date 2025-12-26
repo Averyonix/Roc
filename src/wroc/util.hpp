@@ -6,11 +6,10 @@
 
 // -----------------------------------------------------------------------------
 
-void wroc_stub(auto...) {}
+#define WROC_STUB(Member)       .Member = [](auto...) { log_warn("TODO: " #Member); }
+#define WROC_STUB_QUIET(Member) .Member = [](auto...) { }
 
-#define WROC_STUB wroc_stub
-
-#define WROC_NOISY_STUB(Member) [](auto...) { log_warn("STUBBED " #Member); }
+// -----------------------------------------------------------------------------
 
 #define wroc_send(Fn, Resource, ...) \
     wroc_send_impl(#Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)

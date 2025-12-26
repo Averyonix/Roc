@@ -28,7 +28,7 @@ void wroc_wl_seat_get_pointer(wl_client* client, wl_resource* resource, u32 id)
 const struct wl_seat_interface wroc_wl_seat_impl = {
     .get_pointer  = wroc_wl_seat_get_pointer,
     .get_keyboard = wroc_wl_seat_get_keyboard,
-    .get_touch    = WROC_STUB,
+    WROC_STUB(get_touch),
     .release      = wroc_simple_resource_destroy_callback,
 };
 

@@ -17,7 +17,7 @@ const xdg_wm_base_listener wroc_xdg_wm_base_listener = {
 // -----------------------------------------------------------------------------
 
 static
-void wroc_listen_registry_global(void *data, wl_registry*, u32 name, const char* interface, u32 version)
+void wroc_listen_registry_global(void* data, wl_registry*, u32 name, const char* interface, u32 version)
 {
     auto* backend = static_cast<wroc_wayland_backend*>(data);
 
@@ -54,7 +54,7 @@ void wroc_listen_registry_global(void *data, wl_registry*, u32 name, const char*
 }
 
 static
-void wroc_listen_registry_global_remove(void* /* data */, wl_registry*, u32 name)
+void wroc_listen_registry_global_remove(void*, wl_registry*, u32 name)
 {
     log_warn("wl_registry::global_remove(name = {:2})", name);
 }

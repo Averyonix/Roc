@@ -23,6 +23,7 @@ struct wroc_seat_pointer;
 struct wroc_pointer_constraint;
 struct wroc_data_offer;
 struct wroc_data_device;
+struct wroc_imgui;
 
 // -----------------------------------------------------------------------------
 
@@ -64,9 +65,6 @@ struct wroc_output_mode
     f64 refresh;
 };
 
-/*
- * Describes an output state. Only represents a current state,
- */
 struct wroc_output_desc
 {
     std::string make;
@@ -82,8 +80,8 @@ struct wroc_output_desc
 };
 
 /*
- * Represents a wl_output protocol object. This may or may
- * not correspond to any actual output made available by the backend.
+ * Represents a wl_output protocol object
+ * This may or may not correspond to any actual output made available by the backend.
  */
 struct wroc_wl_output : wrei_object
 {
@@ -888,10 +886,6 @@ struct wroc_imgui : wrei_object
 
     ref<wren_image> font_image;
 
-    bool show_debug_menu = false;
-    bool show_log_window = false;
-    bool show_demo_window = false;
-
     bool wants_mouse;
     bool wants_keyboard;
 };
@@ -930,6 +924,14 @@ bool wroc_launcher_handle_event(wroc_launcher*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------
 
+struct wroc_debug_gui;
+WREI_OBJECT_EXPLICIT_DECLARE(wroc_debug_gui);
+void wroc_debug_gui_init(wroc_server*, bool show_on_startup);
+void wroc_debug_gui_frame(wroc_debug_gui*);
+bool wroc_debug_gui_handle_event(wroc_debug_gui*, const struct wroc_event&);
+
+// -----------------------------------------------------------------------------
+
 enum class wroc_interaction_mode : u32
 {
     normal,
@@ -951,6 +953,7 @@ struct wroc_server : wrei_object
     ref<wroc_seat>     seat;
 
     ref<wroc_imgui> imgui;
+    ref<wroc_debug_gui> debug_gui;
     ref<wroc_launcher> launcher;
 
     wroc_modifiers main_mod = wroc_modifiers::alt;

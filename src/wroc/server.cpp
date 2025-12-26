@@ -82,10 +82,7 @@ void wroc_run(int argc, char* argv[])
 
     log_warn("Initializing imgui");
     wroc_imgui_init(server);
-    if (show_imgui_on_startup) {
-        server->imgui->show_debug_menu = true;
-        server->imgui->show_log_window = true;
-    }
+    wroc_debug_gui_init(server, show_imgui_on_startup);
 
     // Backend
 

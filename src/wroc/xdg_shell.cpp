@@ -22,7 +22,7 @@ const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
     .destroy           = wroc_simple_resource_destroy_callback,
     .create_positioner = wroc_xdg_wm_base_create_positioner,
     .get_xdg_surface   = wroc_xdg_wm_base_get_xdg_surface,
-    .pong              = WROC_STUB,
+    WROC_STUB(pong),
 };
 
 void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u32 id)
@@ -221,20 +221,20 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 }
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
-    .destroy          = wroc_surface_addon_destroy,
-    .set_parent       = WROC_STUB,
-    .set_title        = wroc_xdg_toplevel_set_title,
-    .set_app_id       = wroc_xdg_toplevel_set_app_id,
-    .show_window_menu = WROC_STUB,
-    .move             = wroc_xdg_toplevel_move,
-    .resize           = wroc_xdg_toplevel_resize,
-    .set_max_size     = WROC_STUB,
-    .set_min_size     = WROC_STUB,
-    .set_maximized    = WROC_STUB,
-    .unset_maximized  = WROC_STUB,
-    .set_fullscreen   = WROC_STUB,
-    .unset_fullscreen = WROC_STUB,
-    .set_minimized    = WROC_STUB,
+    .destroy    = wroc_surface_addon_destroy,
+    WROC_STUB(set_parent),
+    .set_title  = wroc_xdg_toplevel_set_title,
+    .set_app_id = wroc_xdg_toplevel_set_app_id,
+    WROC_STUB(show_window_menu),
+    .move       = wroc_xdg_toplevel_move,
+    .resize     = wroc_xdg_toplevel_resize,
+    WROC_STUB(set_max_size),
+    WROC_STUB(set_min_size),
+    WROC_STUB(set_maximized),
+    WROC_STUB(unset_maximized),
+    WROC_STUB(set_fullscreen),
+    WROC_STUB(unset_fullscreen),
+    WROC_STUB(set_minimized),
 };
 
 void wroc_xdg_toplevel_set_size(wroc_toplevel* toplevel, vec2i32 size)
@@ -255,7 +255,7 @@ void wroc_xdg_toplevel_set_bounds(wroc_toplevel* toplevel, vec2i32 bounds)
 void wroc_xdg_toplevel_set_state(wroc_toplevel* toplevel, xdg_toplevel_state state, bool enabled)
 {
     if (enabled) {
-        if (std::ranges::find(toplevel->states, state) == toplevel->states.end()) {
+        if (!std::ranges::contains(toplevel->states, state)) {
             toplevel->states.emplace_back(state);
             toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::states;
         }
@@ -657,6 +657,6 @@ void wroc_xdg_popup_reposition(wl_client* client, wl_resource* resource, wl_reso
 
 const struct xdg_popup_interface wroc_xdg_popup_impl = {
     .destroy    = wroc_surface_addon_destroy,
-    .grab       = WROC_NOISY_STUB(grab),
+    WROC_STUB(grab),
     .reposition = wroc_xdg_popup_reposition,
 };

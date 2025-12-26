@@ -122,7 +122,7 @@ endfunction()
 add_library(wrei)
 init_target(wrei)
 target_precompile_headers(wrei PUBLIC src/wrei/pch.hpp)
-target_compile_definitions(wrei PUBLIC "PROGRAM_NAME=\"wroc\"")
+target_compile_definitions(wrei PUBLIC PROGRAM_NAME="wroc" PROJECT_NAME="Roc")
 target_sources(wrei PUBLIC
     src/wrei/log.cpp
     src/wrei/shm.cpp
@@ -203,6 +203,7 @@ target_sources(wroc PUBLIC
     src/wroc/cursor.cpp
     src/wroc/imgui.cpp
     src/wroc/scene.cpp
+    src/wroc/debug.cpp
 
     src/wroc/applets/launcher.cpp
 
