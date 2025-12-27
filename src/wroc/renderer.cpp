@@ -160,9 +160,16 @@ void wroc_render_frame(wroc_output* output)
 
     start_draws();
 
-    draw(server->renderer->background.get(), output->layout_rect, {{}, server->renderer->background->extent, wrei_xywh});
+    // Background
 
-    auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos) -> void {
+    {
+        auto src = wrei_rect_fit(server->renderer->background->extent, output->layout_rect.extent);
+        draw(server->renderer->background.get(), output->layout_rect, src);
+    }
+
+    // Surface helper
+
+    auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos, vec2f64 scale) -> void {
         if (!surface) return;
 
         // log_trace("drawing surface: {} (stack.size = {})", (void*)surface, surface->current.surface_stack.size());
@@ -172,17 +179,18 @@ void wroc_render_frame(wroc_output* output)
 
         for (auto& s : surface->current.surface_stack) {
             if (s.get() == surface) {
-                // s->position = pos;
 
                 // Draw self
-                auto dst = surface->buffer_dst;
+                rect2f64 dst = surface->buffer_dst;
+                dst.origin *= scale;
+                dst.extent *= scale;
                 dst.origin += pos;
                 draw(buffer->image.get(), dst, surface->buffer_src);
 
             } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
 
                 // Draw subsurface
-                draw_surface(s.get(), pos + vec2f64(subsurface->current.position));
+                draw_surface(s.get(), pos + vec2f64(subsurface->current.position) * scale, scale);
             }
         }
     };
@@ -192,10 +200,17 @@ void wroc_render_frame(wroc_output* output)
     for (auto* surface : output->server->surfaces) {
         auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
         if (!xdg_surface) continue;
-        auto pos = wroc_surface_get_position(xdg_surface->surface.get());
+        auto[pos, scale] = wroc_surface_get_coord_space(surface);
+
+        if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+            // Draw backstop under toplevels
+            auto layout_rect = wroc_toplevel_get_layout_rect(toplevel);
+            vec4f32 color = {1, 0, 1, 1};
+            draw(nullptr, layout_rect, {}, color);
+        }
 
         // log_debug("Drawing toplevel");
-        draw_surface(surface, pos);
+        draw_surface(surface, pos, scale);
     }
 
     // Draw ImGui
@@ -209,7 +224,7 @@ void wroc_render_frame(wroc_output* output)
     // Draw drag icon
 
     if (auto& icon = server->data_manager.drag.icon) {
-        draw_surface(icon->surface.get(), server->seat->pointer->position);
+        draw_surface(icon->surface.get(), server->seat->pointer->position, vec2f64(1.0));
     }
 
     // Draw cursor
@@ -221,7 +236,7 @@ void wroc_render_frame(wroc_output* output)
         if (pointer->focused_surface && pointer->focused_surface->cursor) {
             // If surface is focused and has cursor set, render cursor surface (possibly hidden)
             if (auto* cursor_surface = pointer->focused_surface->cursor->get()) {
-                draw_surface(cursor_surface->surface.get(), pointer->position);
+                draw_surface(cursor_surface->surface.get(), pointer->position, vec2f64(1.0));
             }
         } else {
             // ... else fall back to default cursor

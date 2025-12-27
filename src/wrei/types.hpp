@@ -73,14 +73,12 @@ struct wrei_rect
     template<typename T2>
         requires (!std::same_as<T2, T>)
     wrei_rect(const wrei_rect<T2>& other)
-        : origin(other.origin)
-        , extent(other.extent)
+        : wrei_rect(other.origin, other.extent, wrei_xywh)
     {}
 
     template<typename T2>
     wrei_rect(const wrei_aabb<T2>& other)
-        : origin(other.min)
-        , extent(other.max - other.min)
+        : wrei_rect(other.min, other.max, wrei_minmax)
     {}
 
     constexpr bool operator==(const wrei_rect<T>& other) const = default;
@@ -112,14 +110,12 @@ struct wrei_aabb
     template<typename T2>
         requires (!std::same_as<T2, T>)
     wrei_aabb(const wrei_aabb<T2>& other)
-        : min(other.min)
-        , max(other.max)
+        : wrei_aabb(other.min, other.max, wrei_minmax)
     {}
 
     template<typename T2>
     wrei_aabb(const wrei_rect<T2>& other)
-        : min(other.origin)
-        , max(other.origin + other.extent)
+        : wrei_aabb(other.origin, other.extent, wrei_xywh)
     {}
 
     constexpr bool operator==(const wrei_aabb<T>& other) const = default;

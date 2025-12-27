@@ -309,7 +309,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
                 continue;
             }
 
-            auto pos = server->seat->pointer->position - wroc_surface_get_position(target_surface);
+            auto pos = wroc_surface_pos_from_global(target_surface, server->seat->pointer->position);
             log_warn("Drag moved in {} - {} [{}]", (void*)target_surface, wrei_to_string(pos), time);
             wroc_send(wl_data_device_send_motion, device->resource,
                 time,
@@ -334,7 +334,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
         for (auto* device : server->data_manager.devices) {
             if (wroc_resource_get_client(device->resource) != wroc_resource_get_client(target_surface->resource)) continue;
 
-            auto pos = server->seat->pointer->position - wroc_surface_get_position(target_surface);
+            auto pos = wroc_surface_pos_from_global(target_surface, server->seat->pointer->position);
             log_warn("Drag entered {} at {}", (void*)target_surface, wrei_to_string(pos));
             auto* offer_resource = wroc_data_device_offer(device, drag.source.get());
             wroc_send(wl_data_device_send_enter, device->resource,

@@ -234,7 +234,25 @@ struct wroc_surface : wrei_object
     ~wroc_surface();
 };
 
-vec2f64 wroc_surface_get_position(wroc_surface* surface);
+struct wroc_coord_space
+{
+    vec2f64 origin;
+    vec2f64 scale;
+
+    constexpr vec2f64 from_global(vec2f64 global_pos) const
+    {
+        return (global_pos - origin) / scale;
+    }
+
+    constexpr vec2f64 to_global(vec2f64 local_pos) const
+    {
+        return (local_pos * scale) + origin;
+    }
+};
+
+wroc_coord_space wroc_surface_get_coord_space(wroc_surface*);
+vec2f64 wroc_surface_pos_from_global(wroc_surface*, vec2f64 global_pos);
+vec2f64 wroc_surface_pos_to_global(wroc_surface*, vec2f64 surface_pos);
 
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 surface_pos);
 bool wroc_surface_is_synchronized(wroc_surface*);
@@ -347,11 +365,6 @@ struct wroc_xdg_surface : wroc_surface_addon
     wrox_xdg_surface_state pending;
     wrox_xdg_surface_state current;
 
-    struct {
-        vec2f64 position;
-        vec2i32 relative;
-    } anchor;
-
     u32 sent_configure_serial = {};
     u32 acked_configure_serial = {};
 
@@ -359,7 +372,6 @@ struct wroc_xdg_surface : wroc_surface_addon
 };
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface*);
-// vec2f64  wroc_xdg_surface_get_position(wroc_xdg_surface*, rect2i32* p_geom = nullptr);
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface*);
 
 // -----------------------------------------------------------------------------
@@ -406,10 +418,26 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
     bool initial_configure_complete;
     bool initial_size_receieved;
 
-    vec2i32 bounds;
-    vec2i32 size;
-    std::vector<xdg_toplevel_state> states;
-    wroc_xdg_toplevel_configure_state pending_configure = {};
+    struct configure {
+        vec2i32 bounds;
+        vec2i32 size;
+        std::vector<xdg_toplevel_state> states;
+        wroc_xdg_toplevel_configure_state pending = {};
+    } configure;
+
+    struct {
+        vec2f64 position;
+        vec2i32 relative;
+    } anchor;
+
+    std::optional<vec2f64> layout_size;
+
+    struct {
+        vec2i32 prev_size;
+        weak<wroc_output> output;
+    } fullscreen;
+
+    bool force_rescale;
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
     virtual void on_ack_configure(u32 serial) final override;
@@ -417,10 +445,21 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_toplevel; }
 };
 
-void wroc_xdg_toplevel_set_bounds(wroc_toplevel*, vec2i32 bounds);
-void wroc_xdg_toplevel_set_size(wroc_toplevel*, vec2i32 size);
-void wroc_xdg_toplevel_set_state(wroc_toplevel*, xdg_toplevel_state, bool enabled);
-void wroc_xdg_toplevel_flush_configure(wroc_toplevel*);
+void wroc_toplevel_set_bounds(wroc_toplevel*, vec2i32 bounds);
+void wroc_toplevel_set_size(wroc_toplevel*, vec2i32 size);
+void wroc_toplevel_set_state(wroc_toplevel*, xdg_toplevel_state, bool enabled);
+void wroc_toplevel_flush_configure(wroc_toplevel*);
+
+/**
+ * Update the size of the toplevel in the layout space.
+ * This may or may not update the underlying client toplevel size.
+ */
+void wroc_toplevel_set_layout_size(wroc_toplevel*, vec2i32 size);
+void wroc_toplevel_force_rescale(wroc_toplevel*, bool force_rescale);
+void wroc_toplevel_set_fullscreen(wroc_toplevel*, wroc_output*);
+void wroc_toplevel_update_fullscreen_size(wroc_toplevel*);
+
+rect2f64 wroc_toplevel_get_layout_rect(wroc_toplevel*, rect2i32* geometry = nullptr);
 
 // -----------------------------------------------------------------------------
 
@@ -470,6 +509,9 @@ struct wroc_popup : wroc_xdg_shell_role_addon
     weak<wroc_xdg_surface> parent;
     weak<wroc_toplevel> root_toplevel;
     bool initial_configure_complete;
+
+    // Position of popup, in surface coordinates, relative to parent surface origin
+    vec2f64 position;
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
 

@@ -218,25 +218,25 @@ const struct zwp_confined_pointer_v1_interface wroc_zwp_confined_pointer_v1_impl
 static
 vec2f64 apply_constraint(wroc_pointer_constraint* constraint, vec2f64 old_pos, vec2f64 pos, bool* in_constriant = nullptr)
 {
-    auto surface_origin = wroc_surface_get_position(constraint->surface.get());
+    auto* surface = constraint->surface.get();
+
     vec2f64 original;
     switch (constraint->type) {
-        break;case wroc_pointer_constraint_type::locked:   original = old_pos;
-        break;case wroc_pointer_constraint_type::confined: original = pos;
+        break;case wroc_pointer_constraint_type::locked:   original = wroc_surface_pos_from_global(surface, old_pos);
+        break;case wroc_pointer_constraint_type::confined: original = wroc_surface_pos_from_global(surface, pos);
     }
-    original -= surface_origin;
     vec2f64 constrained = original;
 
     // Constrain to initial surface rectangle
-    auto surface_rect = rect2f64(constraint->surface->buffer_dst);
+    auto surface_rect = rect2f64(surface->buffer_dst);
     static constexpr double epsilon = 0.0001;
     surface_rect.origin += epsilon;
     surface_rect.extent -= epsilon * 2;
     constrained = wrei_rect_clamp_point(surface_rect, constrained);
 
     // Constrain to surface input region
-    if (!constraint->surface->current.input_region.empty()) {
-        constrained = constraint->surface->current.input_region.constrain(constrained);
+    if (!surface->current.input_region.empty()) {
+        constrained = surface->current.input_region.constrain(constrained);
     }
 
     // Constrain to constraint region
@@ -246,7 +246,7 @@ vec2f64 apply_constraint(wroc_pointer_constraint* constraint, vec2f64 old_pos, v
 
     if (in_constriant) *in_constriant = (constrained == original);
 
-    return surface_origin + constrained;
+    return wroc_surface_pos_to_global(surface, constrained);
 }
 
 // -----------------------------------------------------------------------------
@@ -415,7 +415,7 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
 
             pointer->focused_surface = focused_surface;
 
-            auto pos = pointer->position - wroc_surface_get_position(focused_surface);
+            auto pos = wroc_surface_pos_from_global(focused_surface, pointer->position);
             auto serial = wl_display_next_serial(pointer->seat->server->display);
 
             for (auto* resource : pointer->resources) {
@@ -524,7 +524,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
     if (focused_surface && focused_surface->resource) {
 
         auto time = wroc_get_elapsed_milliseconds(server);
-        auto pos = pointer->position - wroc_surface_get_position(focused_surface);
+        auto pos = wroc_surface_pos_from_global(focused_surface, pointer->position);
 
         // log_trace("sending motion to surface: {} ({:.2f}, {:.2f}) [{}]", (void*)focused_surface, pos.x, pos.y, time);
 

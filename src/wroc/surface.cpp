@@ -336,30 +336,47 @@ void wroc_surface_raise(wroc_surface* surface)
     std::rotate(i, i + 1, surface->server->surfaces.end());
 }
 
-vec2f64 wroc_surface_get_position(wroc_surface* surface)
+wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
 {
     switch (surface->role) {
         break;case wroc_surface_role::none:
             ;
         break;case wroc_surface_role::cursor:
               case wroc_surface_role::drag_icon:
-            return surface->server->seat->pointer->position;
+            return {surface->server->seat->pointer->position, vec2f64(1.0)};
         break;case wroc_surface_role::subsurface:
             if (auto* subsurface = static_cast<wroc_subsurface*>(surface->role_addon.get())) {
-                return wroc_surface_get_position(subsurface->parent.get()) + vec2f64(subsurface->current.position);
+                auto space = wroc_surface_get_coord_space(subsurface->parent.get());
+                return {space.origin + vec2f64(subsurface->current.position) * space.scale, space.scale};
+            }
+        break;case wroc_surface_role::xdg_popup:
+            if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
+                auto space = wroc_surface_get_coord_space(popup->parent->surface.get());
+                return {space.origin + vec2f64(popup->position) * space.scale, space.scale};
             }
         break;case wroc_surface_role::xdg_toplevel:
-              case wroc_surface_role::xdg_popup:
-            if (auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface)) {
-                auto geom = wroc_xdg_surface_get_geometry(xdg_surface);
-                return xdg_surface->anchor.position
-                    - vec2f64(geom.extent * xdg_surface->anchor.relative)
-                    - vec2f64(geom.origin);
+            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+                rect2i32 geom;
+                auto layout = wroc_toplevel_get_layout_rect(toplevel, &geom);
+                auto fit = wrei_rect_fit(layout.extent, geom.extent);
+                auto scale = fit.extent / vec2f64(geom.extent);
+                auto pos = layout.origin + fit.origin - vec2f64(geom.origin) * scale;
+                return {pos, scale};
             }
     }
 
     log_warn("Surface has no valid position!");
     return {};
+}
+
+vec2f64 wroc_surface_pos_from_global(wroc_surface* surface, vec2f64 global_pos)
+{
+    return wroc_surface_get_coord_space(surface).from_global(global_pos);
+}
+
+vec2f64 wroc_surface_pos_to_global(wroc_surface* surface, vec2f64 surface_pos)
+{
+    return wroc_surface_get_coord_space(surface).to_global(surface_pos);
 }
 
 // -----------------------------------------------------------------------------

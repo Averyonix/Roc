@@ -86,6 +86,44 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     ImGui::Separator();
 
+    // Focused window toggles
+
+    {
+        wroc_surface* surface = server->seat->keyboard->focused_surface.get();
+        wroc_toplevel* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface);
+
+        ImGui::BeginDisabled(!toplevel);
+        defer { ImGui::EndDisabled(); };
+
+        {
+            bool force_rescale = toplevel && toplevel->force_rescale;
+            if (ImGui::Checkbox("Rescale", &force_rescale) && toplevel) {
+                wroc_toplevel_force_rescale(toplevel, force_rescale);
+            }
+        }
+
+        ImGui::SameLine(second_column_offset);
+
+        {
+            bool fullscreen = toplevel && toplevel->fullscreen.output;
+            if (ImGui::Checkbox("Fullscreen", &fullscreen) && toplevel) {
+                if (fullscreen) {
+                    auto rect = wroc_toplevel_get_layout_rect(toplevel);
+                    auto point = rect.origin + rect.extent * 0.5;
+                    wroc_output* output;
+                    wroc_output_layout_clamp_position(server->output_layout.get(), point, &output);
+                    if (output) {
+                        wroc_toplevel_set_fullscreen(toplevel, output);
+                    }
+                } else {
+                    wroc_toplevel_set_fullscreen(toplevel, nullptr);
+                }
+            }
+        }
+    }
+
+    ImGui::Separator();
+
     // Frametime
 
     {

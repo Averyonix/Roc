@@ -112,6 +112,20 @@ rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
         : xdg_surface->surface->buffer_dst;
 }
 
+rect2f64 wroc_toplevel_get_layout_rect(wroc_toplevel* toplevel, rect2i32* p_geometry)
+{
+    auto geom = wroc_xdg_surface_get_geometry(toplevel->base());
+    if (p_geometry) *p_geometry = geom;
+
+    if (toplevel->fullscreen.output) {
+        return toplevel->fullscreen.output->layout_rect;
+    }
+
+    auto extent = toplevel->layout_size ? *toplevel->layout_size : vec2f64(geom.extent);
+    auto offset = toplevel->anchor.position - extent * vec2f64(toplevel->anchor.relative);
+    return {offset, extent, wrei_xywh};
+}
+
 // -----------------------------------------------------------------------------
 
 static
@@ -161,7 +175,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
         return;
     }
 
-    vec2i32 anchor_rel = toplevel->base()->anchor.relative;
+    vec2i32 anchor_rel = toplevel->anchor.relative;
     wroc_directions dirs = {};
     switch (edges) {
         break;case XDG_TOPLEVEL_RESIZE_EDGE_NONE: return;
@@ -179,17 +193,33 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
 }
 
 static
+void wroc_xdg_toplevel_set_fullscreen(wl_client* client, wl_resource* resource, wl_resource* requested_output)
+{
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
+    auto* server = toplevel->surface->server;
+    wroc_output* output;
+    wroc_output_layout_clamp_position(server->output_layout.get(), server->seat->pointer->position, &output);
+    wroc_toplevel_set_fullscreen(toplevel, output);
+}
+
+static
+void wroc_xdg_toplevel_unset_fullscreen(wl_client* client, wl_resource* resource)
+{
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
+    wroc_toplevel_set_fullscreen(toplevel, nullptr);
+}
+
+static
 void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
 {
-    wroc_xdg_toplevel_set_size(toplevel, {0, 0});
-    wroc_xdg_toplevel_set_state(toplevel, XDG_TOPLEVEL_STATE_ACTIVATED, true);
+    wroc_toplevel_set_size(toplevel, {0, 0});
+    wroc_toplevel_set_state(toplevel, XDG_TOPLEVEL_STATE_ACTIVATED, true);
 
-    wroc_xdg_toplevel_flush_configure(toplevel);
+    wroc_toplevel_flush_configure(toplevel);
 
     if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
         wroc_send(xdg_toplevel_send_wm_capabilities, toplevel->resource, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
-            XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
         })));
     }
 
@@ -206,8 +236,8 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
         initial_size_receieved = true;
         auto geom = wroc_xdg_surface_get_geometry(base());
         log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
-        wroc_xdg_toplevel_set_size(this, geom.extent);
-        wroc_xdg_toplevel_flush_configure(this);
+        wroc_toplevel_set_size(this, geom.extent);
+        wroc_toplevel_flush_configure(this);
     }
 
     if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
@@ -229,61 +259,122 @@ const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     WROC_STUB(set_min_size),
     WROC_STUB(set_maximized),
     WROC_STUB(unset_maximized),
-    WROC_STUB(set_fullscreen),
-    WROC_STUB(unset_fullscreen),
+    .set_fullscreen   = wroc_xdg_toplevel_set_fullscreen,
+    .unset_fullscreen = wroc_xdg_toplevel_unset_fullscreen,
     WROC_STUB(set_minimized),
 };
 
-void wroc_xdg_toplevel_set_size(wroc_toplevel* toplevel, vec2i32 size)
+void wroc_toplevel_set_size(wroc_toplevel* toplevel, vec2i32 size)
 {
-    if (toplevel->size == size) return;
-    toplevel->size = size;
-    toplevel->pending_configure = wroc_xdg_toplevel_configure_state::size;
+    auto& configure = toplevel->configure;
+    if (configure.size == size) return;
+    configure.size = size;
+    configure.pending = wroc_xdg_toplevel_configure_state::size;
 }
 
-void wroc_xdg_toplevel_set_bounds(wroc_toplevel* toplevel, vec2i32 bounds)
+void wroc_toplevel_set_bounds(wroc_toplevel* toplevel, vec2i32 bounds)
 {
     if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION) {
-        toplevel->bounds = bounds;
-        toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::bounds;
+        toplevel->configure.bounds = bounds;
+        toplevel->configure.pending |= wroc_xdg_toplevel_configure_state::bounds;
     }
 }
 
-void wroc_xdg_toplevel_set_state(wroc_toplevel* toplevel, xdg_toplevel_state state, bool enabled)
+void wroc_toplevel_set_state(wroc_toplevel* toplevel, xdg_toplevel_state state, bool enabled)
 {
+    auto& configure = toplevel->configure;
     if (enabled) {
-        if (!std::ranges::contains(toplevel->states, state)) {
-            toplevel->states.emplace_back(state);
-            toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::states;
+        if (!std::ranges::contains(configure.states, state)) {
+            configure.states.emplace_back(state);
+            configure.pending |= wroc_xdg_toplevel_configure_state::states;
         }
-    } else if (std::erase(toplevel->states, state)) {
-        toplevel->pending_configure |= wroc_xdg_toplevel_configure_state::states;
+    } else if (std::erase(configure.states, state)) {
+        configure.pending |= wroc_xdg_toplevel_configure_state::states;
     }
 }
 
-void wroc_xdg_toplevel_flush_configure(wroc_toplevel* toplevel)
+void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
 {
-    if (toplevel->pending_configure == wroc_xdg_toplevel_configure_state::none) return;
+    auto& configure = toplevel->configure;
+    if (configure.pending == wroc_xdg_toplevel_configure_state::none) return;
     if (toplevel->base()->sent_configure_serial > toplevel->base()->acked_configure_serial) {
         log_warn("Waiting for client ack before reconfiguring");
         return;
     }
 
-    if (toplevel->pending_configure >= wroc_xdg_toplevel_configure_state::bounds) {
-        wroc_send(xdg_toplevel_send_configure_bounds, toplevel->resource, toplevel->bounds.x, toplevel->bounds.y);
+    if (configure.pending >= wroc_xdg_toplevel_configure_state::bounds) {
+        wroc_send(xdg_toplevel_send_configure_bounds, toplevel->resource, configure.bounds.x, configure.bounds.y);
     }
 
-    wroc_send(xdg_toplevel_send_configure, toplevel->resource, toplevel->size.x, toplevel->size.y,
-        wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(toplevel->states)));
+    wroc_send(xdg_toplevel_send_configure, toplevel->resource, configure.size.x, configure.size.y,
+        wrei_ptr_to(wroc_to_wl_array<xdg_toplevel_state>(configure.states)));
 
     wroc_xdg_surface_flush_configure(toplevel->base());
 
-    toplevel->pending_configure = {};
+    configure.pending = {};
 }
 
 void wroc_toplevel::on_ack_configure(u32 serial)
 {
-    wroc_xdg_toplevel_flush_configure(this);
+    wroc_toplevel_flush_configure(this);
+}
+
+void wroc_toplevel_force_rescale(wroc_toplevel* toplevel, bool force_rescale)
+{
+    if (toplevel->force_rescale == force_rescale) return;
+
+    toplevel->force_rescale = force_rescale;
+    if (!force_rescale) {
+        if (toplevel->fullscreen.output) {
+            wroc_toplevel_update_fullscreen_size(toplevel);
+        } else if (toplevel->layout_size) {
+            wroc_toplevel_set_size(toplevel, *toplevel->layout_size);
+            wroc_toplevel_flush_configure(toplevel);
+        }
+        toplevel->layout_size = std::nullopt;
+    }
+}
+
+void wroc_toplevel_set_layout_size(wroc_toplevel* toplevel, vec2i32 size)
+{
+    if (toplevel->force_rescale) {
+        toplevel->layout_size = size;
+    } else {
+        wroc_toplevel_set_size(toplevel, size);
+    }
+}
+
+void wroc_toplevel_set_fullscreen(wroc_toplevel* toplevel, wroc_output* output)
+{
+    wroc_toplevel_set_state(toplevel, XDG_TOPLEVEL_STATE_FULLSCREEN, output);
+
+    if (output && !toplevel->fullscreen.output) {
+        // Set previous size when first setting fullscreen output
+        toplevel->fullscreen.prev_size = wroc_toplevel_get_layout_rect(toplevel).extent;
+    }
+
+    if (toplevel->fullscreen.output && !output) {
+        // Restore previous size on dropping out of fullscreen
+        auto size = toplevel->fullscreen.prev_size;
+        if (size.x && size.y) wroc_toplevel_set_layout_size(toplevel, size);
+    }
+
+    toplevel->fullscreen.output = output;
+
+    if (output && !toplevel->force_rescale) {
+        wroc_toplevel_update_fullscreen_size(toplevel);
+    }
+
+    wroc_toplevel_flush_configure(toplevel);
+}
+
+void wroc_toplevel_update_fullscreen_size(wroc_toplevel* toplevel)
+{
+    if (toplevel->force_rescale) return;
+    if (!toplevel->fullscreen.output) return;
+
+    wroc_toplevel_set_size(toplevel, toplevel->fullscreen.output->layout_rect.extent);
+    wroc_toplevel_flush_configure(toplevel);
 }
 
 // -----------------------------------------------------------------------------
@@ -591,28 +682,28 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 static
 void wroc_xdg_popup_position(wroc_popup* popup)
 {
-    auto parent_pos = wroc_surface_get_position(popup->parent->surface.get());
-    auto parent_origin = parent_pos + vec2f64(wroc_xdg_surface_get_geometry(popup->parent.get()).origin);
+    auto* server = popup->surface->server;
+    auto* parent = popup->parent.get();
+    auto* parent_surface = parent->surface.get();
 
     auto* base = popup->base();
 
     rect2i32 constraint = {};
 
     {
-        auto anchor_origin = parent_origin + vec2f64(popup->positioner->rules.anchor_rect.origin);
+        auto anchor_origin = wroc_surface_pos_to_global(parent_surface, popup->positioner->rules.anchor_rect.origin);
         wroc_output* output;
-        wroc_output_layout_clamp_position(popup->surface->server->output_layout.get(), anchor_origin, &output);
+        wroc_output_layout_clamp_position(server->output_layout.get(), anchor_origin, &output);
         if (output) {
-            constraint = output->layout_rect;
+            aabb2f64 rect = output->layout_rect;
+            rect.min = wroc_surface_pos_from_global(parent_surface, rect.min);
+            rect.max = wroc_surface_pos_from_global(parent_surface, rect.max);
+            constraint = rect;
         }
     }
-
-    constraint.origin -= parent_origin;
-
     auto geometry = wroc_xdg_positioner_apply(popup->positioner->rules, constraint);
 
-    base->anchor.relative = {};
-    base->anchor.position = parent_origin + vec2f64(geometry.origin);
+    popup->position = geometry.origin;
 
     if (popup->reposition_token) {
         wroc_send(xdg_popup_send_repositioned, popup->resource, *popup->reposition_token);

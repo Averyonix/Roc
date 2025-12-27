@@ -102,6 +102,12 @@ void wroc_output_update(wroc_output_layout* layout)
         log_info("  Output: {}", output->desc.name);
         log_info("    Rect: {}", wrei_to_string(output->layout_rect));
     }
+
+    for (auto* surface : layout->server->surfaces) {
+        if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+            wroc_toplevel_update_fullscreen_size(toplevel);
+        }
+    }
 }
 
 void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* output)

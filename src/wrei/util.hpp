@@ -364,6 +364,17 @@ bool wrei_rect_intersects(const wrei_rect<T>& a, const wrei_rect<T>& b, wrei_rec
 
 // -----------------------------------------------------------------------------
 
+inline
+rect2f64 wrei_rect_fit(vec2f64 outer, vec2f64 inner)
+{
+    f64 scale = glm::min(outer.x / inner.x, outer.y / inner.y);
+    auto extent = inner * scale;
+    auto offset = (outer - extent) / 2.0;
+    return {offset, extent, wrei_xywh};
+}
+
+// -----------------------------------------------------------------------------
+
 constexpr usz wrei_round_up_power2(usz v) noexcept
 {
     v--;
