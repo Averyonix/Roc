@@ -47,7 +47,7 @@ static
 void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
     auto* surface = wroc_get_userdata<wroc_xdg_surface>(resource);
-    surface->pending.geometry = {{x, y}, {width, height}};
+    surface->pending.geometry = {{x, y}, {width, height}, wrei_xywh};
     surface->pending.committed |= wroc_xdg_surface_committed_state::geometry;
 }
 
@@ -307,7 +307,7 @@ void wroc_xdg_positioner_set_size(wl_client* client, wl_resource* resource, i32 
 static
 void wroc_xdg_positioner_set_anchor_rect(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
-    wroc_get_userdata<wroc_positioner>(resource)->rules.anchor_rect = {{x, y}, {width, height}};
+    wroc_get_userdata<wroc_positioner>(resource)->rules.anchor_rect = {{x, y}, {width, height}, wrei_xywh};
 }
 
 static
@@ -596,15 +596,19 @@ void wroc_xdg_popup_position(wroc_popup* popup)
 
     auto* base = popup->base();
 
-    rect2i32 constraint {
-        .origin = -parent_origin,
-    };
-    // TODO: Use "primary" output of popup
-    // for (auto& output : popup->surface->outputs) {
-    for (auto& output : popup->surface->server->output_layout->outputs) {
-        constraint.extent = output->size;
-        break;
+    rect2i32 constraint = {};
+
+    {
+        auto anchor_origin = parent_origin + vec2f64(popup->positioner->rules.anchor_rect.origin);
+        wroc_output* output;
+        wroc_output_layout_clamp_position(popup->surface->server->output_layout.get(), anchor_origin, &output);
+        if (output) {
+            constraint = output->layout_rect;
+        }
     }
+
+    constraint.origin -= parent_origin;
+
     auto geometry = wroc_xdg_positioner_apply(popup->positioner->rules, constraint);
 
     base->anchor.relative = {};

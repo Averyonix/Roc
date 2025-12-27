@@ -7,6 +7,7 @@
 #include "wrei/types.hpp"
 #include "wrei/util.hpp"
 #include "wrei/log.hpp"
+#include "wrei/region.hpp"
 
 #include "wren/wren.hpp"
 
@@ -138,7 +139,7 @@ struct wroc_output_layout : wrei_object
 void wroc_output_layout_init(wroc_server*);
 void wroc_output_layout_add_output(wroc_output_layout*, wroc_output*);
 void wroc_output_layout_remove_output(wroc_output_layout*, wroc_output*);
-vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos);
+vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos, wroc_output** output = nullptr);
 
 // -----------------------------------------------------------------------------
 
@@ -148,7 +149,7 @@ struct wroc_region : wrei_object
 
     wroc_resource resource;
 
-    wrei_region region;
+    region2i32 region;
 };
 
 // -----------------------------------------------------------------------------
@@ -202,8 +203,8 @@ struct wroc_surface_state
     ref<wroc_buffer> buffer;
     wroc_resource_list frame_callbacks;
     vec2i32 delta;
-    wrei_region opaque_region;
-    wrei_region input_region;
+    region2i32 opaque_region;
+    region2i32 input_region;
     f64 buffer_scale;
     std::vector<weak<wroc_surface>> surface_stack;
 };
@@ -217,7 +218,7 @@ struct wroc_surface : wrei_object
     wroc_surface_state pending;
     wroc_surface_state cached;
     wroc_surface_state current = {
-        .input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}}),
+        .input_region = {{{0, 0}, {INT32_MAX, INT32_MAX}, wrei_minmax}},
         .buffer_scale = 1.f
     };
 
@@ -718,7 +719,7 @@ struct wroc_pointer_constraint_state
 {
     wroc_pointer_constraint_committed_state committed;
     vec2f64 position_hint;
-    wrei_region region;
+    region2i32 region;
 };
 
 enum class wroc_pointer_constraint_type

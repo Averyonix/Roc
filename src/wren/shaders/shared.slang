@@ -46,14 +46,14 @@ typedef matrix<f32, 4, 4> mat4x4f32;
 
 // -----------------------------------------------------------------------------
 
-struct wren_rect2i32<T>
+struct wren_rect<T>
 {
     vector<T, 2> origin;
     vector<T, 2> extent;
 };
 
-typedef wren_rect2i32<i32> rect2i32;
-typedef wren_rect2i32<f32> rect2f32;
+typedef wren_rect<i32> rect2i32;
+typedef wren_rect<f32> rect2f32;
 
 // -----------------------------------------------------------------------------
 

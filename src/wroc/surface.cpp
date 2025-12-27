@@ -53,7 +53,7 @@ static
 void wroc_wl_region_add(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
     auto* region = wroc_get_userdata<wroc_region>(resource);
-    region->region.add({{x, y}, {width, height}});
+    region->region.add({{x, y}, {width, height}, wrei_xywh});
 }
 
 static
@@ -61,7 +61,7 @@ void wroc_wl_region_subtract(wl_client* client, wl_resource* resource, i32 x, i3
 {
     auto* region = wroc_get_userdata<wroc_region>(resource);
 
-    region->region.subtract({{x, y}, {width, height}});
+    region->region.subtract({{x, y}, {width, height}, wrei_xywh});
 }
 
 const struct wl_region_interface wroc_wl_region_impl = {
@@ -121,7 +121,8 @@ void wroc_wl_surface_set_input_region(wl_client* client, wl_resource* resource, 
     if (region) {
         surface->pending.input_region = region->region;
     } else {
-        surface->pending.input_region = wrei_region({{0, 0}, {INT32_MAX, INT32_MAX}});
+        surface->pending.input_region.clear();
+        surface->pending.input_region.add({{0, 0}, {INT32_MAX, INT32_MAX}, wrei_minmax});
     }
     surface->pending.committed |= wroc_surface_committed_state::input_region;
 }
@@ -238,7 +239,7 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
     // Buffer rects
 
     if (apply && surface->current.buffer) {
-        surface->buffer_src = {{}, surface->current.buffer->extent};
+        surface->buffer_src = {{}, surface->current.buffer->extent, wrei_xywh};
         // TODO: inverse buffer_transform
         surface->buffer_dst.extent = vec2f64(surface->current.buffer->extent) / surface->current.buffer_scale;
     }

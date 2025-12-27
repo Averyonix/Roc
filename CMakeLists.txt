@@ -34,12 +34,6 @@ target_link_libraries(     libgio2 INTERFACE /usr/lib/libgio-2.0.so
 
 # ------------------------------------------------------------------------------
 
-add_library(               pixman INTERFACE)
-target_link_libraries(     pixman INTERFACE pixman-1)
-target_include_directories(pixman INTERFACE /usr/include/pixman-1)
-
-# ------------------------------------------------------------------------------
-
 add_subdirectory(${VENDOR_DIR}/magic-enum EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
@@ -126,7 +120,6 @@ target_compile_definitions(wrei PUBLIC PROGRAM_NAME="wroc" PROJECT_NAME="Roc")
 target_sources(wrei PUBLIC
     src/wrei/log.cpp
     src/wrei/shm.cpp
-    src/wrei/region.cpp
     src/wrei/format.cpp
     src/wrei/object.cpp
     )
@@ -139,7 +132,6 @@ target_link_libraries(wrei PUBLIC
     wayland-client
     wayland-header
     xkbcommon
-    pixman
     libevdev
     input
     evdev

@@ -38,7 +38,7 @@ void wroc_wp_viewport_set_source(wl_client* client, wl_resource* resource, wl_fi
 {
     auto* viewport = wroc_get_userdata<wroc_viewport>(resource);
     viewport->pending.committed |= wroc_viewport_committed_state::source;
-    viewport->pending.source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}};
+    viewport->pending.source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}, wrei_xywh};
 }
 
 static
@@ -59,7 +59,7 @@ const struct wp_viewport_interface wroc_wp_viewport_impl
 void wroc_viewport::on_commit(wroc_surface_commit_flags)
 {
     if (pending.committed >= wroc_viewport_committed_state::source) {
-        if (pending.source == rect2f64{{-1, -1}, {-1, -1}}) {
+        if (pending.source == rect2f64{{-1, -1}, {-1, -1}, wrei_xywh}) {
             log_debug("wp_viewport source unset");
             current.committed -= wroc_viewport_committed_state::source;
         } else {

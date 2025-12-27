@@ -283,7 +283,60 @@ template<typename T> std::string wrei_to_string(const wrei_vec<4, T>& vec) { ret
 template<typename T>
 std::string wrei_to_string(const wrei_rect<T>& rect)
 {
-    return std::format("([{}, {}] [{}, {}])", rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
+    return std::format("([{}, {}] : [{}, {}])", rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
+}
+
+template<typename T>
+std::string wrei_to_string(const wrei_aabb<T>& aabb)
+{
+    return std::format("([{}, {}] < [{}, {}])", aabb.min.x, aabb.min.y, aabb.max.x, aabb.max.y);
+}
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+wrei_vec<2, T> wrei_aabb_clamp_point(const wrei_aabb<T>& rect, wrei_vec<2, T> point)
+{
+    return glm::clamp(point, rect.min, rect.max);
+}
+
+template<typename T>
+bool wrei_aabb_contains(const wrei_aabb<T>& rect, wrei_vec<2, T> point)
+{
+    return point.x >= rect.min.x && point.x < rect.max.x
+        && point.y >= rect.min.y && point.y < rect.max.y;
+}
+
+template<typename T>
+bool wrei_aabb_intersects(const wrei_aabb<T>& a, const wrei_aabb<T>& b, wrei_aabb<T>* intersection = nullptr)
+{
+    wrei_aabb<T> i = {glm::max(a.min, b.min), glm::min(a.max, b.max), wrei_minmax};
+
+    if (i.max.x <= i.min.x || i.max.y <= i.min.y) {
+        if (intersection) *intersection = {};
+        return false;
+    } else {
+        if (intersection) *intersection = i;
+        return true;
+    }
+}
+
+template<typename T>
+static
+u32 wrei_aabb_subtract(const wrei_aabb<T>& minuend, const wrei_aabb<T>& subtrahend, wrei_aabb<T>* out)
+{
+    wrei_aabb<T> intersection;
+    if (wrei_aabb_intersects(minuend, subtrahend, &intersection)) {
+        u32 count = 0;
+        if (minuend.min.x != intersection.min.x) /* left   */ out[count++] = {{     minuend.min.x, intersection.min.y}, {intersection.min.x, intersection.max.y}, wrei_minmax};
+        if (minuend.max.x != intersection.max.x) /* right  */ out[count++] = {{intersection.max.x, intersection.min.y}, {     minuend.max.x, intersection.max.y}, wrei_minmax};
+        if (minuend.min.y != intersection.min.y) /* top    */ out[count++] = {{     minuend.min},                       {     minuend.max.x, intersection.min.y}, wrei_minmax};
+        if (minuend.max.y != intersection.max.y) /* bottom */ out[count++] = {{     minuend.min.x, intersection.max.y}, {     minuend.max                      }, wrei_minmax};
+        return count;
+    } else {
+        *out = minuend;
+        return 1;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -291,68 +344,23 @@ std::string wrei_to_string(const wrei_rect<T>& rect)
 template<typename T>
 wrei_vec<2, T> wrei_rect_clamp_point(const wrei_rect<T>& rect, wrei_vec<2, T> point)
 {
-    return glm::clamp(point, rect.origin, rect.origin + rect.extent);
+    return wrei_aabb_clamp_point<T>(rect, point);
 }
 
 template<typename T>
 bool wrei_rect_contains(const wrei_rect<T>& rect, wrei_vec<2, T> point)
 {
-    return point.x >= rect.origin.x && point.x <= rect.origin.x + rect.extent.x
-        && point.y >= rect.origin.y && point.y <= rect.origin.y + rect.extent.y;
+    return wrei_aabb_contains<T>(rect, point);
 }
 
 template<typename T>
 bool wrei_rect_intersects(const wrei_rect<T>& a, const wrei_rect<T>& b, wrei_rect<T>* intersection = nullptr)
 {
-    auto a_max = a.origin + a.extent;
-    auto b_max = b.origin + b.extent;
-
-    auto i_min = glm::max(a.origin, b.origin);
-    auto i_max = glm::min(a_max, b_max);
-
-    if (i_max.x <= i_min.x || i_max.y <= i_min.y) {
-        if (intersection) *intersection = {};
-        return false;
-    } else {
-        if (intersection) {
-            *intersection = {
-                i_min,
-                i_max - i_min,
-            };
-        }
-        return true;
-    }
+    wrei_aabb<T> i;
+    bool intersects = wrei_aabb_intersects<T>(a, b, &i);
+    if (intersection) *intersection = i;
+    return intersects;
 }
-
-// -----------------------------------------------------------------------------
-
-struct wrei_region
-{
-    pixman_region32 region;
-
-    wrei_region();
-    wrei_region(rect2i32);
-
-    wrei_region(const wrei_region&);
-    wrei_region& operator=(const wrei_region&);
-
-    wrei_region(wrei_region&&);
-    wrei_region& operator=(wrei_region&&);
-
-    ~wrei_region();
-
-    void clear();
-
-    bool empty() const;
-
-    void add(rect2i32);
-    void subtract(rect2i32);
-
-    bool contains(vec2i32 point) const;
-    bool contains(rect2i32 rect) const;
-
-    vec2f64 constrain(vec2f64 point) const;
-};
 
 // -----------------------------------------------------------------------------
 

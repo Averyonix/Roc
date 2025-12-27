@@ -1,7 +1,5 @@
 #include "wren_internal.hpp"
 
-#include "wroc/server.hpp"
-
 #include <sys/sysmacros.h>
 
 static

@@ -116,9 +116,9 @@ void wroc_render_frame(wroc_output* output)
         rect_id++;
         renderer->rects_cpu.emplace_back(wroc_shader_rect {
             .image = image ? image4f32{image, renderer->sampler.get()} : image4f32 {},
-            .image_rect = { source.origin, source.extent },
+            .image_rect = source,
             .image_has_alpha = image ? image->format->has_alpha : false,
-            .rect = { pixel_dst.origin, pixel_dst.extent },
+            .rect = pixel_dst,
             .opacity = 1.f,
             .color = color,
         });
@@ -160,7 +160,7 @@ void wroc_render_frame(wroc_output* output)
 
     start_draws();
 
-    draw(server->renderer->background.get(), output->layout_rect, {{}, server->renderer->background->extent});
+    draw(server->renderer->background.get(), output->layout_rect, {{}, server->renderer->background->extent, wrei_xywh});
 
     auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos) -> void {
         if (!surface) return;
@@ -228,7 +228,7 @@ void wroc_render_frame(wroc_output* output)
             auto* cursor = server->cursor.get();
             auto& fallback = cursor->fallback;
             auto pos = pointer->position - vec2f64(fallback.hotspot);
-            draw(fallback.image.get(), {pos, fallback.image->extent}, {{}, fallback.image->extent});
+            draw(fallback.image.get(), {pos, fallback.image->extent, wrei_xywh}, {{}, fallback.image->extent, wrei_xywh});
         }
     }
 
@@ -246,8 +246,8 @@ void wroc_render_frame(wroc_output* output)
         auto hlength = length / 2;
         auto hwidth = width / 2;
 
-        draw(nullptr, {pos - vec2f64{hwidth, hlength}, vec2f64{width, length}}, {}, color);
-        draw(nullptr, {pos - vec2f64{hlength, hwidth}, vec2f64{length, width}}, {}, color);
+        draw(nullptr, {pos - vec2f64{hwidth, hlength}, vec2f64{width, length}, wrei_xywh}, {}, color);
+        draw(nullptr, {pos - vec2f64{hlength, hwidth}, vec2f64{length, width}, wrei_xywh}, {}, color);
     }
 
     // Finish

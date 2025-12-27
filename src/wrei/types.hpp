@@ -43,19 +43,88 @@ using vec4f32 = wrei_vec<4, f32>;
 // -----------------------------------------------------------------------------
 
 template<typename T>
+struct wrei_aabb;
+
+// -----------------------------------------------------------------------------
+
+struct wrei_xywh_tag{};
+static constexpr wrei_xywh_tag wrei_xywh;
+
+struct wrei_minmax_tag{};
+static constexpr wrei_minmax_tag wrei_minmax;
+
+template<typename T>
 struct wrei_rect
 {
     wrei_vec<2, T> origin, extent;
 
-    template<typename T2>
-    operator wrei_rect<T2>() const
-    {
-        return {origin, extent};
-    }
+    wrei_rect() = default;
 
-    bool operator==(const wrei_rect<T>& other) const = default;
+    wrei_rect(wrei_vec<2, T> origin, wrei_vec<2, T> extent, wrei_xywh_tag)
+        : origin(origin)
+        , extent(extent)
+    {}
+
+    wrei_rect(wrei_vec<2, T> min, wrei_vec<2, T> max, wrei_minmax_tag)
+        : origin(min)
+        , extent(max - min)
+    {}
+
+    template<typename T2>
+        requires (!std::same_as<T2, T>)
+    wrei_rect(const wrei_rect<T2>& other)
+        : origin(other.origin)
+        , extent(other.extent)
+    {}
+
+    template<typename T2>
+    wrei_rect(const wrei_aabb<T2>& other)
+        : origin(other.min)
+        , extent(other.max - other.min)
+    {}
+
+    constexpr bool operator==(const wrei_rect<T>& other) const = default;
 };
 
 using rect2i32 = wrei_rect<i32>;
 using rect2f32 = wrei_rect<f32>;
 using rect2f64 = wrei_rect<f64>;
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+struct wrei_aabb
+{
+    wrei_vec<2, T> min, max;
+
+    wrei_aabb() = default;
+
+    wrei_aabb(wrei_vec<2, T> origin, wrei_vec<2, T> extent, wrei_xywh_tag)
+        : min(origin)
+        , max(origin + extent)
+    {}
+
+    wrei_aabb(wrei_vec<2, T> min, wrei_vec<2, T> max, wrei_minmax_tag)
+        : min(min)
+        , max(max)
+    {}
+
+    template<typename T2>
+        requires (!std::same_as<T2, T>)
+    wrei_aabb(const wrei_aabb<T2>& other)
+        : min(other.min)
+        , max(other.max)
+    {}
+
+    template<typename T2>
+    wrei_aabb(const wrei_rect<T2>& other)
+        : min(other.origin)
+        , max(other.origin + other.extent)
+    {}
+
+    constexpr bool operator==(const wrei_aabb<T>& other) const = default;
+};
+
+using aabb2i32 = wrei_aabb<i32>;
+using aabb2f32 = wrei_aabb<f32>;
+using aabb2f64 = wrei_aabb<f64>;

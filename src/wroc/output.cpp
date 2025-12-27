@@ -51,24 +51,34 @@ void wroc_output_layout_init(wroc_server* server)
     primary->global = WROC_SERVER_GLOBAL(server, wl_output, primary);
 }
 
-vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 global_pos)
+vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 global_pos, wroc_output** p_output)
 {
     double closest_dist = INFINITY;
     vec2f64 closest = {};
+    wroc_output* closest_output = nullptr;
+
+    if (p_output) log_error("clamping {}", wrei_to_string(global_pos));
 
     for (auto& output : layout->outputs) {
+        if (p_output) log_error("  output[{}] = {}", output->desc.name, wrei_to_string(output->layout_rect));
         if (wrei_rect_contains(output->layout_rect, global_pos)) {
-            return global_pos;
+            if (p_output) log_error("    contains!");
+            closest = global_pos;
+            closest_output = output.get();
+            break;
         } else {
             auto pos = wrei_rect_clamp_point(output->layout_rect, global_pos);
             auto dist = glm::distance(pos, global_pos);
             if (dist < closest_dist) {
+                if (p_output) log_error("    new closest!");
                 closest = pos;
                 closest_dist = dist;
+                closest_output = output.get();
             }
         }
     }
 
+    if (p_output) *p_output = closest_output;
     return closest;
 }
 
@@ -152,9 +162,10 @@ rect2i32 wroc_output_get_pixel_rect(wroc_output* output, rect2f64 rect, rect2f64
         *remainder = {
             min - origin,
             max - min - (extent),
+            wrei_xywh,
         };
     }
-    return { origin, extent };
+    return { origin, extent, wrei_xywh };
 }
 
 static
