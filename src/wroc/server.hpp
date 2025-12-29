@@ -50,18 +50,8 @@ void wroc_backend_init(wroc_server*, wroc_backend_type);
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_output_mode_flags
-{
-    none,
-
-    current   = 1 << 0,
-    preferred = 1 << 1,
-};
-WREI_DECORATE_FLAG_ENUM(wroc_output_mode_flags)
-
 struct wroc_output_mode
 {
-    wroc_output_mode_flags flags;
     vec2i32 size;
     f64 refresh;
 };
@@ -78,6 +68,8 @@ struct wroc_output_desc
     f64 scale;
 
     std::vector<wroc_output_mode> modes;
+    u32 current_mode;
+    u32 preferred_mode;
 };
 
 /*
@@ -125,7 +117,7 @@ struct wroc_output : wrei_object
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
 
 vec2i32 wroc_output_get_pixel(wroc_output*, vec2f64 global_pos, vec2f64* remainder = nullptr);
-rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 rect, rect2f64* remainder = nullptr);
+rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 global_rect, rect2f64* remainder = nullptr);
 
 struct wroc_output_layout : wrei_object
 {

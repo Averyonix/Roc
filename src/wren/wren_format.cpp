@@ -661,26 +661,7 @@ ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_param
 
     wren_check(ctx->vk.BindImageMemory2(ctx->device, 1, &bindi));
 
-    {
-        auto cmd = wren_begin_commands(ctx);
-
-        wren_transition(ctx, cmd, image->image,
-            0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-            0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-
-        wren_submit_commands(ctx, cmd);
-    }
-
-    wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image->image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = params.format->vk,
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-    }), nullptr, &image->view));
-
-    wren_allocate_image_descriptor(image.get());
+    wren_image_init(image.get());
 
     return image;
 }

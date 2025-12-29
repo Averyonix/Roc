@@ -345,12 +345,12 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
               case wroc_surface_role::drag_icon:
             return {surface->server->seat->pointer->position, vec2f64(1.0)};
         break;case wroc_surface_role::subsurface:
-            if (auto* subsurface = static_cast<wroc_subsurface*>(surface->role_addon.get())) {
+            if (auto* subsurface = static_cast<wroc_subsurface*>(surface->role_addon.get()); subsurface && subsurface->parent) {
                 auto space = wroc_surface_get_coord_space(subsurface->parent.get());
                 return {space.origin + vec2f64(subsurface->current.position) * space.scale, space.scale};
             }
         break;case wroc_surface_role::xdg_popup:
-            if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
+            if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface); popup && popup->parent) {
                 auto space = wroc_surface_get_coord_space(popup->parent->surface.get());
                 return {space.origin + vec2f64(popup->position) * space.scale, space.scale};
             }
@@ -366,7 +366,7 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
     }
 
     log_warn("Surface has no valid position!");
-    return {};
+    return {{}, {1, 1}};
 }
 
 vec2f64 wroc_surface_pos_from_global(wroc_surface* surface, vec2f64 global_pos)

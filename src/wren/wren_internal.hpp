@@ -54,6 +54,10 @@ u32 wren_find_vk_memory_type_index(wren_context*, u32 type_filter, VkMemoryPrope
 
 // -----------------------------------------------------------------------------
 
+void wren_image_init(wren_image*);
+
+// -----------------------------------------------------------------------------
+
 void wren_init_descriptors(wren_context*);
 void wren_allocate_image_descriptor(wren_image*);
 void wren_allocate_sampler_descriptor(wren_sampler*);

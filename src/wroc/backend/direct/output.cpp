@@ -72,7 +72,8 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
         return;
     }
 
-    auto mode_props = modes.front();
+    auto mode_idx = 0;
+    auto mode_props = modes[mode_idx];
 
     log_debug("Display: {} ({})", display_props.displayName, index + 1);
 
@@ -137,14 +138,13 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
 
     for (auto& mode : modes) {
         auto& m = output->desc.modes.emplace_back(wroc_output_mode {
-            .flags = mode.displayMode == mode_props.displayMode
-                ? wroc_output_mode_flags::current | wroc_output_mode_flags::preferred
-                : wroc_output_mode_flags::none,
             .size = {mode.parameters.visibleRegion.width, mode.parameters.visibleRegion.height},
             .refresh = mode.parameters.refreshRate / 1000.f,
         });
-        log_debug("  Mode {}x{} @ {:.2f}Hz{}", m.size.x, m.size.y, m.refresh, m.flags >= wroc_output_mode_flags::current ? " *" : "");
+        log_debug("  Mode {}x{} @ {:.2f}Hz{}", m.size.x, m.size.y, m.refresh, (mode.displayMode == mode_props.displayMode) ? " *" : "");
     }
+    output->desc.current_mode = mode_idx;
+    output->desc.preferred_mode = mode_idx;
 
     log_debug("  Alpha mode: {}", magic_enum::enum_name(alpha_mode));
 
@@ -169,7 +169,7 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
     });
 
     output->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    output->scanout = wl_event_loop_add_fd(wl_display_get_event_loop(backend->server->display), output->eventfd, WL_EVENT_READABLE, handle_display_scanout, output.get());
+    output->scanout = wl_event_loop_add_fd(backend->server->event_loop, output->eventfd, WL_EVENT_READABLE, handle_display_scanout, output.get());
 
     output->scanout_thread = std::jthread{[wren = wren, output = output.get()](std::stop_token stop) {
         scanout_thread(stop, wren, output);

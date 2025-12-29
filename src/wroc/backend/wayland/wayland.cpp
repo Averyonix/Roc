@@ -65,21 +65,38 @@ const wl_registry_listener wroc_wl_registry_listener {
 };
 
 static
+void before_poll(wroc_wayland_backend* backend)
+{
+    // See https://www.systutorials.com/docs/linux/man/3-wl_display_dispatch/
+
+    while (wl_display_prepare_read(backend->wl_display) != 0) {
+        wl_display_dispatch_pending(backend->wl_display);
+    }
+
+    wl_display_flush(backend->wl_display);
+}
+
+static
+bool after_poll(wroc_wayland_backend* backend)
+{
+    if (wl_display_read_events(backend->wl_display) == -1) {
+        log_error("  wl_display_read_events failed: {}", strerror(errno));
+        wl_event_source_remove(backend->event_source);
+        backend->event_source = nullptr;
+        return false;
+    }
+    wl_display_dispatch_pending(backend->wl_display);
+    return true;
+}
+
+static
 int wroc_listen_backend_display_read(int fd, u32 mask, void* data)
 {
     auto* backend = static_cast<wroc_wayland_backend*>(data);
 
-    // log_trace("backend display read, events = {:#x}", events);
-
-    timespec timeout = {};
-    int res = wl_display_dispatch_timeout(backend->wl_display, &timeout);
-    if (res < 0) {
-        log_error("  wl_display_dispatch: {}", res);
-        wl_event_source_remove(backend->event_source);
-        backend->event_source = nullptr;
+    if (after_poll(backend)) {
+        before_poll(backend);
     }
-
-    wl_display_flush(backend->wl_display);
 
     return 1;
 }
@@ -102,6 +119,7 @@ void wroc_wayland_backend_init(wroc_server* server)
     wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend.get());
     wl_display_roundtrip(backend->wl_display);
 
+    before_poll(backend.get());
     backend->event_source = wl_event_loop_add_fd(server->event_loop, wl_display_get_fd(backend->wl_display), WL_EVENT_READABLE,
         wroc_listen_backend_display_read, backend.get());
 

@@ -105,6 +105,23 @@ ref<wren_context> wren_create(wren_features features)
         }
     }
 
+    std::vector<VkExtensionProperties> available_extensions;
+    {
+        u32 count = 0;
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
+        available_extensions.resize(count);
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, available_extensions.data()));
+    }
+
+    auto check_extension = [&](const char* name) -> bool {
+        for (auto& extension : available_extensions) {
+            if (strcmp(extension.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     std::vector device_extensions {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
@@ -112,34 +129,38 @@ ref<wren_context> wren_create(wren_features features)
         VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
         VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME,
         VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
+        VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
+    };
+
+    auto add_all = [&](std::span<const char* const> names) -> bool {
+        bool all_present = true;
+        for (auto name : names) {
+            if (!check_extension(name)) {
+                all_present = false;
+                break;
+            }
+        }
+        if (all_present) {
+            device_extensions.append_range(names);
+        }
+        return all_present;
     };
 
     if (features >= wren_features::dmabuf) {
-        device_extensions.append_range(std::span<const char* const>{
+        if (!add_all({
             VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
             VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
             VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
-        });
+        })) {
+            log_warn("DMABUF feature requested but extension not available (probably running in RenderDoc)");
+            features -= wren_features::dmabuf;
+        }
     }
 
-    {
-        u32 count = 0;
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
-        std::vector<VkExtensionProperties> props(count);
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, props.data()));
-
-        for (auto& ext : device_extensions) {
-            bool found = false;
-            for (auto& check : props) {
-                if (strcmp(check.extensionName, ext) == 0) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                log_error("Extension not present: {}", ext);
-                exit(1);
-            }
+    for (auto& ext : device_extensions) {
+        if (!check_extension(ext)) {
+            log_error("Extension not present: {}", ext);
+            exit(1);
         }
     }
 
@@ -186,6 +207,11 @@ ref<wren_context> wren_create(wren_features features)
                 wrei_ptr_to(VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
                     .swapchainMaintenance1 = true,
+                }),
+                wrei_ptr_to(VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
+                    .unifiedImageLayouts = true,
+                    .unifiedImageLayoutsVideo = true,
                 }),
             }),
             .queueCreateInfoCount = 1,

@@ -99,7 +99,6 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
 
     output->desc.modes = {
         {
-            .flags = wroc_output_mode_flags::current | wroc_output_mode_flags::preferred,
             .size = output->size,
             .refresh = 0,
         }

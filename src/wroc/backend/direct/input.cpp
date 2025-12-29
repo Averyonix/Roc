@@ -154,7 +154,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     assert(seat_fd >= 0);
 
     backend->libseat_event_source = wl_event_loop_add_fd(
-        wl_display_get_event_loop(backend->server->display), seat_fd, WL_EVENT_READABLE, handle_libseat_readable, backend);
+        backend->server->event_loop, seat_fd, WL_EVENT_READABLE, handle_libseat_readable, backend);
 
     // libinput
 
@@ -183,7 +183,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     }
 
     backend->libinput_event_source = wl_event_loop_add_fd(
-        wl_display_get_event_loop(backend->server->display), libinput_fd, WL_EVENT_READABLE, handle_libinput_readable, backend);
+        backend->server->event_loop, libinput_fd, WL_EVENT_READABLE, handle_libinput_readable, backend);
 
     log_debug("LIBINPUT FD event source added");
 }

@@ -71,10 +71,11 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
     wren_check(vmaCreateBuffer(ctx->vma, wrei_ptr_to(VkBufferCreateInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
-        .usage = VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT
-            | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT
-            | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
-            | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+               | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+               | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+               | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+               | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     }), wrei_ptr_to(VmaAllocationCreateInfo {
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
@@ -126,7 +127,9 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT
+               | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+               | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), wrei_ptr_to(VmaAllocationCreateInfo {
@@ -136,17 +139,31 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
     image->stats.owned_allocation_size += alloc_info.size;
     ctx->stats.active_image_owned_memory += alloc_info.size;
 
+    wren_image_init(image.get());
+
+    return image;
+}
+
+void wren_image_init(wren_image* image)
+{
+    auto* ctx = image->ctx.get();
+
     wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format->vk,
+        .format = image->format->vk,
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
 
-    wren_allocate_image_descriptor(image.get());
+    wren_allocate_image_descriptor(image);
 
-    return image;
+    auto cmd = wren_begin_commands(ctx);
+    wren_transition(ctx, cmd, image->image,
+        0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    wren_submit_commands(ctx, cmd);
 }
 
 void wren_image_readback(wren_image* image, void* data)
@@ -164,7 +181,7 @@ void wren_image_readback(wren_image* image, void* data)
     // TODO: This should be stored persistently for transfers
     ref buffer = wren_buffer_create(ctx, image_size);
 
-    ctx->vk.CmdCopyImageToBuffer(cmd, image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
+    ctx->vk.CmdCopyImageToBuffer(cmd, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
         .bufferRowLength = row_length,
         .bufferImageHeight = image_size,
@@ -195,12 +212,7 @@ void wren_image_update(wren_image* image, const void* data)
 
     std::memcpy(buffer->host_address, data, image_size);
 
-    wren_transition(ctx, cmd, image->image,
-        0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-        0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    ctx->vk.CmdCopyBufferToImage(cmd, buffer->buffer, image->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, wrei_ptr_to(VkBufferImageCopy {
+    ctx->vk.CmdCopyBufferToImage(cmd, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, wrei_ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
         .bufferRowLength = row_length,
         .bufferImageHeight = image_size,
@@ -209,17 +221,11 @@ void wren_image_update(wren_image* image, const void* data)
         .imageExtent = { extent.x, extent.y, 1 },
     }));
 
-    wren_transition(ctx, cmd, image->image,
-        0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-        0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-
     wren_submit_commands(ctx, cmd);
 }
 
 wren_image::~wren_image()
 {
-
     // TODO: Proper non-owning image support
     if (!id) {
         log_debug("Image isn't imported, don't free");

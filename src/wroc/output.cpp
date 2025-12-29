@@ -41,7 +41,6 @@ void wroc_output_layout_init(wroc_server* server)
         .scale = 1.0,
         .modes = {
             {
-                .flags = wroc_output_mode_flags::current | wroc_output_mode_flags::preferred,
                 .size = size,
                 .refresh = refresh,
             }
@@ -256,18 +255,12 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
         desc.model.c_str(),
         desc.transform);
 
-    for (auto& mode : desc.modes) {
-        if (!(mode.flags >= wroc_output_mode_flags::current)) continue;
-
-        log_debug("  mode = {}x{} @ {:.2f}Hz", mode.size.x, mode.size.y, mode.refresh);
-
-        wroc_send(wl_output_send_mode, client_resource,
-            WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
-            mode.size.x, mode.size.y,
-            mode.refresh * 1000);
-
-        break;
-    }
+    auto& mode = desc.modes[desc.current_mode];
+    log_debug("  mode = {}x{} @ {:.2f}Hz", mode.size.x, mode.size.y, mode.refresh);
+    wroc_send(wl_output_send_mode, client_resource,
+        WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
+        mode.size.x, mode.size.y,
+        mode.refresh * 1000);
 
     auto version = wl_resource_get_version(client_resource);
 
