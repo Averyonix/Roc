@@ -133,7 +133,7 @@ wroc_seat_keyboard::~wroc_seat_keyboard()
     xkb_context_unref(context);
 }
 
-void wroc_seat_keyboard_on_get(wroc_seat_keyboard* kb, wl_client*, wl_resource* resource)
+void wroc_seat_keyboard_send_configuration(wroc_seat_keyboard* kb, wl_client*, wl_resource* resource)
 {
     wroc_send(wl_keyboard_send_keymap, resource, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, kb->keymap_fd, kb->keymap_size);
 
@@ -322,10 +322,10 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
             xkb_state_serialize_mods(kb->state, XKB_STATE_MODS_LOCKED),
             xkb_state_serialize_layout(kb->state, XKB_STATE_LAYOUT_EFFECTIVE));
 
-        wroc_surface_raise(surface);
-
         break;
     }
+
+    wroc_surface_raise(surface);
 }
 
 static

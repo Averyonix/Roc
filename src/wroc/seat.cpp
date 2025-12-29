@@ -11,7 +11,7 @@ void wroc_wl_seat_get_keyboard(wl_client* client, wl_resource* resource, u32 id)
     seat->keyboard->resources.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_wl_keyboard_impl, seat->keyboard.get());
 
-    wroc_seat_keyboard_on_get(seat->keyboard.get(), client, new_resource);
+    wroc_seat_keyboard_send_configuration(seat->keyboard.get(), client, new_resource);
 }
 
 static

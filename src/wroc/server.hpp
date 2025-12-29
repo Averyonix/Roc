@@ -441,6 +441,7 @@ void wroc_toplevel_set_bounds(wroc_toplevel*, vec2i32 bounds);
 void wroc_toplevel_set_size(wroc_toplevel*, vec2i32 size);
 void wroc_toplevel_set_state(wroc_toplevel*, xdg_toplevel_state, bool enabled);
 void wroc_toplevel_flush_configure(wroc_toplevel*);
+void wroc_toplevel_close(wroc_toplevel*);
 
 /**
  * Update the size of the toplevel in the layout space.
@@ -687,7 +688,7 @@ struct wroc_seat_keyboard : wrei_object
     ~wroc_seat_keyboard();
 };
 
-void wroc_seat_keyboard_on_get(wroc_seat_keyboard*, wl_client*, wl_resource*);
+void wroc_seat_keyboard_send_configuration(wroc_seat_keyboard*, wl_client*, wl_resource*);
 
 wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_seat_keyboard*);
 
@@ -972,6 +973,7 @@ enum class wroc_interaction_mode : u32
     normal,
     move,
     size,
+    focus_cycle,
 };
 
 enum class wroc_directions : u32
@@ -1014,6 +1016,10 @@ struct wroc_server : wrei_object
         vec2f64 surface_grab;
         wroc_directions directions;
     } movesize;
+
+    struct {
+        weak<wroc_surface> cycled;
+    } focus;
 
     struct {
         std::vector<wroc_data_device*> devices;

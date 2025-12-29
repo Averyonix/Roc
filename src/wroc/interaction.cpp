@@ -38,82 +38,214 @@ void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* p
 
 bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& base_event)
 {
-    if (wroc_event_get_type(base_event) == wroc_event_type::pointer_button) {
-        auto& event = static_cast<const wroc_pointer_event&>(base_event);
-        if (event.button.pressed) {
-            if (wroc_get_active_modifiers(server) >= wroc_modifiers::mod) {
+    auto mods = wroc_get_active_modifiers(server);
 
-                wroc_toplevel* toplevel;
-                wroc_get_surface_under_cursor(server, &toplevel);
-                if (toplevel) {
+    switch (wroc_event_get_type(base_event)) {
+        break;case wroc_event_type::keyboard_key: {
+            auto& event = static_cast<const wroc_keyboard_event&>(base_event);
+            if (event.key.pressed && mods >= wroc_modifiers::mod) {
+                if (event.key.upper() == XKB_KEY_S) {
+                    log_warn("dropping focus");
+                    wroc_keyboard_clear_focus(server->seat->keyboard.get());
+                    return true;
+                }
+                else if (event.key.upper() == XKB_KEY_Q) {
+                    auto* surface = server->seat->keyboard->focused_surface.get();
+                    if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+                        log_warn("closing window");
+                        wroc_toplevel_close(toplevel);
+                    }
+                    return true;
+                }
+            }
+        }
+        break;case wroc_event_type::pointer_button: {
+            auto& event = static_cast<const wroc_pointer_event&>(base_event);
+            if (event.button.pressed) {
+                if (mods >= wroc_modifiers::mod) {
 
-                    rect2i32 geom = wroc_xdg_surface_get_geometry(toplevel->base());
-                    auto cursor_geom_rel = vec2i32(wroc_surface_pos_from_global(toplevel->surface.get(), event.pointer->position));
-                    cursor_geom_rel -= geom.origin;
-                    auto nine_slice = cursor_geom_rel * 3 / geom.extent;
+                    wroc_toplevel* toplevel;
+                    wroc_get_surface_under_cursor(server, &toplevel);
+                    if (toplevel) {
 
-                    wroc_directions dirs = {};
-                    if (nine_slice.x != 1 || nine_slice.y == 1) dirs |= wroc_directions::horizontal;
-                    if (nine_slice.y != 1 || nine_slice.x == 1) dirs |= wroc_directions::vertical;
+                        rect2i32 geom = wroc_xdg_surface_get_geometry(toplevel->base());
+                        auto cursor_geom_rel = vec2i32(wroc_surface_pos_from_global(toplevel->surface.get(), event.pointer->position));
+                        cursor_geom_rel -= geom.origin;
+                        auto nine_slice = cursor_geom_rel * 3 / geom.extent;
 
-                    if (event.button.button == BTN_LEFT) {
-                        if (nine_slice.y == 0) dirs |= wroc_directions::horizontal;
-                        wroc_begin_move_interaction(toplevel, event.pointer, dirs);
+                        wroc_directions dirs = {};
+                        if (nine_slice.x != 1 || nine_slice.y == 1) dirs |= wroc_directions::horizontal;
+                        if (nine_slice.y != 1 || nine_slice.x == 1) dirs |= wroc_directions::vertical;
 
-                    } else if (event.button.button == BTN_RIGHT) {
-
-                        vec2i32 anchor_rel = toplevel->anchor.relative;
-                        if      (nine_slice.x > 1) anchor_rel.x = 0;
-                        else if (nine_slice.x < 1) anchor_rel.x = 1;
-                        if      (nine_slice.y > 1) anchor_rel.y = 0;
-                        else if (nine_slice.y < 1) anchor_rel.y = 1;
-
-                        if (nine_slice.x == 1 && nine_slice.y == 1) {
+                        if (event.button.button == BTN_LEFT) {
+                            if (nine_slice.y == 0) dirs |= wroc_directions::horizontal;
                             wroc_begin_move_interaction(toplevel, event.pointer, dirs);
-                        } else {
-                            wroc_begin_resize_interaction(toplevel, event.pointer, anchor_rel, dirs);
+
+                        } else if (event.button.button == BTN_RIGHT) {
+
+                            vec2i32 anchor_rel = toplevel->anchor.relative;
+                            if      (nine_slice.x > 1) anchor_rel.x = 0;
+                            else if (nine_slice.x < 1) anchor_rel.x = 1;
+                            if      (nine_slice.y > 1) anchor_rel.y = 0;
+                            else if (nine_slice.y < 1) anchor_rel.y = 1;
+
+                            if (nine_slice.x == 1 && nine_slice.y == 1) {
+                                wroc_begin_move_interaction(toplevel, event.pointer, dirs);
+                            } else {
+                                wroc_begin_resize_interaction(toplevel, event.pointer, anchor_rel, dirs);
+                            }
                         }
                     }
+                    return true;
                 }
-                return true;
+            } else if (server->interaction_mode == wroc_interaction_mode::move
+                    || server->interaction_mode == wroc_interaction_mode::size) {
+                server->interaction_mode = wroc_interaction_mode::normal;
             }
-        } else if (server->interaction_mode == wroc_interaction_mode::move
-                || server->interaction_mode == wroc_interaction_mode::size) {
-            server->interaction_mode = wroc_interaction_mode::normal;
         }
+        break;case wroc_event_type::pointer_motion:
+            if (server->interaction_mode == wroc_interaction_mode::move ||  server->interaction_mode == wroc_interaction_mode::size) {
+                auto& event = static_cast<const wroc_pointer_event&>(base_event);
+                auto& movesize = server->movesize;
+                if (auto* toplevel = movesize.grabbed_toplevel.get(); toplevel && toplevel_is_interactable(toplevel)) {
+
+                    auto delta = event.pointer->position - movesize.pointer_grab;
+                    if (!(movesize.directions >= wroc_directions::horizontal)) delta.x = 0;
+                    if (!(movesize.directions >= wroc_directions::vertical))   delta.y = 0;
+
+                    // TODO: Re-snap to pixel coordinates for appropriate output?
+
+                    if (server->interaction_mode == wroc_interaction_mode::move) {
+                        // Move
+                        toplevel->anchor.position = movesize.surface_grab + delta;
+
+                    } else if (server->interaction_mode == wroc_interaction_mode::size) {
+                        // Resize
+                        auto new_size = vec2i32(movesize.surface_grab) + (vec2i32(delta) * (vec2i32(1) - toplevel->anchor.relative * vec2i32(2)));
+
+                        new_size = glm::max(new_size, vec2i32{100, 100});
+
+                        wroc_toplevel_set_layout_size(toplevel, new_size);
+                        wroc_toplevel_flush_configure(toplevel);
+                    }
+
+                    return true;
+                } else {
+                    server->interaction_mode = wroc_interaction_mode::normal;
+                }
+            }
+        break;default:
+            ;
     }
 
-    if (wroc_event_get_type(base_event) == wroc_event_type::pointer_motion
-            && (server->interaction_mode == wroc_interaction_mode::move
-            ||  server->interaction_mode == wroc_interaction_mode::size)) {
-        auto& event = static_cast<const wroc_pointer_event&>(base_event);
-        auto& movesize = server->movesize;
-        if (auto* toplevel = movesize.grabbed_toplevel.get(); toplevel && toplevel_is_interactable(toplevel)) {
+    return false;
+}
 
-            auto delta = event.pointer->position - movesize.pointer_grab;
-            if (!(movesize.directions >= wroc_directions::horizontal)) delta.x = 0;
-            if (!(movesize.directions >= wroc_directions::vertical))   delta.y = 0;
+// -----------------------------------------------------------------------------
 
-            // TODO: Re-snap to pixel coordinates for appropriate output?
+static
+void focus_cycle(wroc_server* server, bool reverse, wroc_seat_pointer* pointer)
+{
+    if (server->surfaces.empty()) return;
 
-            if (server->interaction_mode == wroc_interaction_mode::move) {
-                // Move
-                toplevel->anchor.position = movesize.surface_grab + delta;
+    auto in_cycle = [&](wroc_surface* surface) {
+        // TODO: Track derived "mapped" state
+        return surface->current.buffer && wroc_surface_get_addon<wroc_toplevel>(surface)
+            && (!pointer || wroc_surface_point_accepts_input(surface, wroc_surface_pos_from_global(surface, pointer->position)));
+    };
 
-            } else if (server->interaction_mode == wroc_interaction_mode::size) {
-                // Resize
-                auto new_size = vec2i32(movesize.surface_grab) + (vec2i32(delta) * (vec2i32(1) - toplevel->anchor.relative * vec2i32(2)));
-
-                new_size = glm::max(new_size, vec2i32{100, 100});
-
-                wroc_toplevel_set_layout_size(toplevel, new_size);
-                wroc_toplevel_flush_configure(toplevel);
-            }
-
-            return true;
-        } else {
-            server->interaction_mode = wroc_interaction_mode::normal;
+    auto iter = std::ranges::find(server->surfaces, server->focus.cycled.get());
+    if (iter == server->surfaces.end()) {
+        for (auto surface : server->surfaces | std::views::reverse) {
+            if (!in_cycle(surface)) continue;
+            server->focus.cycled = surface;
+            return;
         }
+        server->focus.cycled = nullptr;
+        return;
+    }
+
+    auto orig = iter;
+
+    for (;;) {
+        if (reverse) {
+            iter++;
+            if (iter == server->surfaces.end()) iter = server->surfaces.begin();
+        } else {
+            if (iter == server->surfaces.begin()) iter = server->surfaces.end();
+            iter--;
+        }
+
+        if (in_cycle(*iter)) {
+            server->focus.cycled = *iter;
+            return;
+        }
+
+        if (iter == orig) {
+            // We wrapped around without finding any surface in cycle
+            server->focus.cycled = nullptr;
+            return;
+        }
+    }
+}
+
+bool wroc_handle_focus_cycle_interaction(wroc_server* server, const wroc_event& base_event)
+{
+    auto mods = wroc_get_active_modifiers(server);
+
+    switch (wroc_event_get_type(base_event)) {
+        break;case wroc_event_type::keyboard_key: {
+            auto& event = static_cast<const wroc_keyboard_event&>(base_event);
+            if ((event.key.upper() == XKB_KEY_Tab || event.key.upper() == XKB_KEY_ISO_Left_Tab)
+                    && event.key.pressed && mods >= wroc_modifiers::mod) {
+                if (server->interaction_mode == wroc_interaction_mode::normal) {
+
+                    log_warn("Beginning focus cycle");
+                    server->interaction_mode = wroc_interaction_mode::focus_cycle;
+
+                    server->focus.cycled = server->seat->keyboard->focused_surface.get();
+                    focus_cycle(server, mods >= wroc_modifiers::shift, nullptr);
+
+                    return true;
+                } else {
+                    log_warn("Cyling focus {}", mods >= wroc_modifiers::shift ? "previous" : "next");
+                    focus_cycle(server, mods >= wroc_modifiers::shift, nullptr);
+
+                    return true;
+                }
+            }
+        }
+        break;case wroc_event_type::keyboard_modifiers:
+            if (!(mods >= wroc_modifiers::mod) && server->interaction_mode == wroc_interaction_mode::focus_cycle) {
+                log_warn("Ending focus cycle");
+                server->interaction_mode = wroc_interaction_mode::normal;
+                if (server->focus.cycled) {
+                    wroc_keyboard_enter(server->seat->keyboard.get(), server->focus.cycled.get());
+                }
+            }
+        break;case wroc_event_type::pointer_axis: {
+            auto& event = static_cast<const wroc_pointer_event&>(base_event);
+            if (event.axis.delta.y && mods >= wroc_modifiers::mod) {
+                if (server->interaction_mode == wroc_interaction_mode::normal) {
+
+                    log_warn("Beginning focus cycle under pointer");
+                    server->interaction_mode = wroc_interaction_mode::focus_cycle;
+
+                    server->focus.cycled = server->seat->keyboard->focused_surface.get();
+                    focus_cycle(server, mods >= wroc_modifiers::shift, server->seat->pointer.get());
+                } else {
+                    log_warn("Cycling focus under pointer: {}", event.axis.delta.y);
+
+                    auto reverse = event.axis.delta.y > 0;
+                    i32 count = i32(std::abs(event.axis.delta.y));
+                    for (i32 i = 0; i < count; ++i) {
+                        focus_cycle(server, reverse, server->seat->pointer.get());
+                    }
+                }
+            }
+        }
+        break;default:
+            ;
     }
 
     return false;

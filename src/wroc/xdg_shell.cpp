@@ -319,6 +319,11 @@ void wroc_toplevel::on_ack_configure(u32 serial)
     wroc_toplevel_flush_configure(this);
 }
 
+void wroc_toplevel_close(wroc_toplevel* toplevel)
+{
+    wroc_send(xdg_toplevel_send_close, toplevel->resource);
+}
+
 void wroc_toplevel_force_rescale(wroc_toplevel* toplevel, bool force_rescale)
 {
     if (toplevel->force_rescale == force_rescale) return;

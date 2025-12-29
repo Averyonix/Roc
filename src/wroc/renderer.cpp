@@ -169,7 +169,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Surface helper
 
-    auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos, vec2f64 scale) -> void {
+    auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos, vec2f64 scale, f64 opacity = 1.0) -> void {
         if (!surface) return;
 
         // log_trace("drawing surface: {} (stack.size = {})", (void*)surface, surface->current.surface_stack.size());
@@ -185,32 +185,65 @@ void wroc_render_frame(wroc_output* output)
                 dst.origin *= scale;
                 dst.extent *= scale;
                 dst.origin += pos;
-                draw(buffer->image.get(), dst, surface->buffer_src);
+                draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
 
             } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
 
                 // Draw subsurface
-                draw_surface(s.get(), pos + vec2f64(subsurface->current.position) * scale, scale);
+                draw_surface(s.get(), pos + vec2f64(subsurface->current.position) * scale, scale, opacity);
             }
         }
     };
 
     // Draw xdg surfaces
 
-    for (auto* surface : output->server->surfaces) {
-        auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
-        if (!xdg_surface) continue;
-        auto[pos, scale] = wroc_surface_get_coord_space(surface);
+    auto draw_xdg_surfaces = [&](bool show_cycled) {
+        for (auto* surface : output->server->surfaces) {
+            auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
+            if (!xdg_surface) continue;
+            auto[pos, scale] = wroc_surface_get_coord_space(surface);
 
-        if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-            // Draw backstop under toplevels
-            auto layout_rect = wroc_toplevel_get_layout_rect(toplevel);
-            vec4f32 color = {1, 0, 1, 1};
-            draw(nullptr, layout_rect, {}, color);
+            f32 opacity = 1.0;
+            if (server->interaction_mode == wroc_interaction_mode::focus_cycle) {
+                if (surface == server->focus.cycled.get()) {
+                    if (!show_cycled) continue;
+                } else {
+                    if (show_cycled) continue;
+                    opacity = 0.5;
+                }
+            }
+
+            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+                auto layout_rect = wroc_toplevel_get_layout_rect(toplevel);
+
+                // Draw backstop under toplevels
+                draw(nullptr, layout_rect, {}, vec4f32{0, 0, 0, 1} * opacity);
+
+                // Then draw toplevel
+                draw_surface(surface, pos, scale, opacity);
+
+                // Draw focus border above toplevels
+                f64     width = 2.0;
+                vec4f32 color = surface == server->seat->keyboard->focused_surface.get()
+                    ? vec4f32{0.4, 0.4, 1.0, 1.0}
+                    : vec4f32{0.3, 0.3, 0.3, 1.0};
+                color *= opacity;
+
+                aabb2f64 r = layout_rect;
+                draw(nullptr, /* left   */ { r.min - width,     {r.min.x, r.max.y + width}, wrei_minmax}, {}, color);
+                draw(nullptr, /* right  */ {{r.max.x, r.min.y - width},  r.max + width,     wrei_minmax}, {}, color);
+                draw(nullptr, /* top    */ {{r.min.x, r.min.y - width}, {r.max.x, r.min.y}, wrei_minmax}, {}, color);
+                draw(nullptr, /* bottom */ {{r.min.x, r.max.y}, {r.max.x, r.max.y + width}, wrei_minmax}, {}, color);
+            } else {
+                // Popups have no additional decorations
+                draw_surface(surface, pos, scale, opacity);
+            }
         }
+    };
 
-        // log_debug("Drawing toplevel");
-        draw_surface(surface, pos, scale);
+    draw_xdg_surfaces(false);
+    if (server->interaction_mode == wroc_interaction_mode::focus_cycle) {
+        draw_xdg_surfaces(true);
     }
 
     // Draw ImGui
