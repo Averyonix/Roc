@@ -429,8 +429,6 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
         weak<wroc_output> output;
     } fullscreen;
 
-    bool force_rescale;
-
     virtual void on_commit(wroc_surface_commit_flags) final override;
     virtual void on_ack_configure(u32 serial) final override;
 

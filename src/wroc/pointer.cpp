@@ -184,8 +184,6 @@ void pointer_constraints_set_region(wl_client* client, wl_resource* resource, wl
         constraint->pending.committed |= wroc_pointer_constraint_committed_state::region_unset;
         constraint->pending.committed -= wroc_pointer_constraint_committed_state::region;
     }
-
-    log_error("CONSTRAINT SET REGION: {}", (void*)_region);
 }
 
 static

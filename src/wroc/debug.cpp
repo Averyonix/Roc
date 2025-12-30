@@ -96,7 +96,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         defer { ImGui::EndDisabled(); };
 
         {
-            bool force_rescale = toplevel && toplevel->force_rescale;
+            bool force_rescale = toplevel && toplevel->layout_size.has_value();
             if (ImGui::Checkbox("Rescale", &force_rescale) && toplevel) {
                 wroc_toplevel_force_rescale(toplevel, force_rescale);
             }
@@ -119,6 +119,21 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
                     wroc_toplevel_set_fullscreen(toplevel, nullptr);
                 }
             }
+        }
+
+        {
+            rect2i32 geom = toplevel ? wroc_xdg_surface_get_geometry(toplevel->base()) : rect2i32{};
+            ImGui::SetNextItemWidth(208);
+            int size[2] = { geom.extent.x, geom.extent.y };
+            ImGui::InputInt2("Geometry", size);
+
+            if (ImGui::IsItemDeactivatedAfterEdit()) {
+                size[0] = std::clamp(size[0], 100, 7680);
+                size[1] = std::clamp(size[1], 100, 4320);
+                wroc_toplevel_set_size(toplevel, vec2i32{size[0], size[1]});
+                wroc_toplevel_flush_configure(toplevel);
+            }
+
         }
     }
 

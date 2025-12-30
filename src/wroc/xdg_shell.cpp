@@ -326,10 +326,11 @@ void wroc_toplevel_close(wroc_toplevel* toplevel)
 
 void wroc_toplevel_force_rescale(wroc_toplevel* toplevel, bool force_rescale)
 {
-    if (toplevel->force_rescale == force_rescale) return;
+    if (toplevel->layout_size.has_value() == force_rescale) return;
 
-    toplevel->force_rescale = force_rescale;
-    if (!force_rescale) {
+    if (force_rescale) {
+        toplevel->layout_size = wroc_xdg_surface_get_geometry(toplevel->base()).extent;
+    } else {
         if (toplevel->fullscreen.output) {
             wroc_toplevel_update_fullscreen_size(toplevel);
         } else if (toplevel->layout_size) {
@@ -342,7 +343,7 @@ void wroc_toplevel_force_rescale(wroc_toplevel* toplevel, bool force_rescale)
 
 void wroc_toplevel_set_layout_size(wroc_toplevel* toplevel, vec2i32 size)
 {
-    if (toplevel->force_rescale) {
+    if (toplevel->layout_size) {
         toplevel->layout_size = size;
     } else {
         wroc_toplevel_set_size(toplevel, size);
@@ -366,7 +367,7 @@ void wroc_toplevel_set_fullscreen(wroc_toplevel* toplevel, wroc_output* output)
 
     toplevel->fullscreen.output = output;
 
-    if (output && !toplevel->force_rescale) {
+    if (output && !toplevel->layout_size) {
         wroc_toplevel_update_fullscreen_size(toplevel);
     }
 
@@ -375,7 +376,7 @@ void wroc_toplevel_set_fullscreen(wroc_toplevel* toplevel, wroc_output* output)
 
 void wroc_toplevel_update_fullscreen_size(wroc_toplevel* toplevel)
 {
-    if (toplevel->force_rescale) return;
+    if (toplevel->layout_size) return;
     if (!toplevel->fullscreen.output) return;
 
     wroc_toplevel_set_size(toplevel, toplevel->fullscreen.output->layout_rect.extent);
