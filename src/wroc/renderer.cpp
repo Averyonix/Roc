@@ -199,8 +199,12 @@ void wroc_render_frame(wroc_output* output)
 
     auto draw_xdg_surfaces = [&](bool show_cycled) {
         for (auto* surface : output->server->surfaces) {
+            // TODO: Generic "mapped" state tracking
+            if (!surface->current.buffer) continue;
+
             auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
             if (!xdg_surface) continue;
+
             auto[pos, scale] = wroc_surface_get_coord_space(surface);
 
             f32 opacity = 1.0;
@@ -213,14 +217,18 @@ void wroc_render_frame(wroc_output* output)
                 }
             }
 
-            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-                auto layout_rect = wroc_toplevel_get_layout_rect(toplevel);
+            rect2f64 layout_rect;
+            auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface);
+            if (toplevel) {
+                layout_rect = wroc_toplevel_get_layout_rect(toplevel);
 
                 // Draw backstop under toplevels
                 draw(nullptr, layout_rect, {}, vec4f32{0, 0, 0, 1} * opacity);
+            }
 
-                // Then draw toplevel
-                draw_surface(surface, pos, scale, opacity);
+            draw_surface(surface, pos, scale, opacity);
+
+            if (toplevel && !toplevel->fullscreen.output) {
 
                 // Draw focus border above toplevels
                 f64     width = 2.0;
@@ -234,9 +242,6 @@ void wroc_render_frame(wroc_output* output)
                 draw(nullptr, /* right  */ {{r.max.x, r.min.y - width},  r.max + width,     wrei_minmax}, {}, color);
                 draw(nullptr, /* top    */ {{r.min.x, r.min.y - width}, {r.max.x, r.min.y}, wrei_minmax}, {}, color);
                 draw(nullptr, /* bottom */ {{r.min.x, r.max.y}, {r.max.x, r.max.y + width}, wrei_minmax}, {}, color);
-            } else {
-                // Popups have no additional decorations
-                draw_surface(surface, pos, scale, opacity);
             }
         }
     };
@@ -252,6 +257,15 @@ void wroc_render_frame(wroc_output* output)
         flush_draws();
         wroc_imgui_frame(server->imgui.get(), current_extent, cmd);
         start_draws();
+    }
+
+    // Draw zone selection
+
+    if (server->interaction_mode == wroc_interaction_mode::zone) {
+        auto& c = server->zone.config;
+        vec4f32 color = server->zone.selecting ? c.color_selected : c.color_initial;
+        color = {vec3f32(color) * color.a, color.a};
+        draw(nullptr, server->zone.final_zone, {}, color);
     }
 
     // Draw drag icon

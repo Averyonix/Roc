@@ -308,6 +308,12 @@ bool wrei_aabb_contains(const wrei_aabb<T>& rect, wrei_vec<2, T> point)
 }
 
 template<typename T>
+wrei_aabb<T> wrei_aabb_outer(const wrei_aabb<T>& a, const wrei_aabb<T>& b)
+{
+    return {glm::min(a.min, b.min), glm::max(a.max, b.max), wrei_minmax};
+}
+
+template<typename T>
 bool wrei_aabb_intersects(const wrei_aabb<T>& a, const wrei_aabb<T>& b, wrei_aabb<T>* intersection = nullptr)
 {
     wrei_aabb<T> i = {glm::max(a.min, b.min), glm::min(a.max, b.max), wrei_minmax};

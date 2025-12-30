@@ -250,3 +250,125 @@ bool wroc_handle_focus_cycle_interaction(wroc_server* server, const wroc_event& 
 
     return false;
 }
+
+// -----------------------------------------------------------------------------
+
+static
+rect2i32 get_zone_rect(wroc_server* server, rect2i32 workarea, vec2i32 zone)
+{
+    auto& c = server->zone.config;
+
+    rect2i32 out;
+
+    auto get_axis = [&](glm::length_t axis) {
+        i32 usable_length = workarea.extent[axis] - (c.padding_inner * (c.zones[axis] - 1));
+        f64 ideal_zone_size = f64(usable_length) / c.zones[axis];
+        out.origin[axis] = std::round(ideal_zone_size *  zone[axis]     );
+        out.extent[axis] = std::round(ideal_zone_size * (zone[axis] + 1)) - out.origin[axis];
+        out.origin[axis] += workarea.origin[axis] + c.padding_inner * zone[axis];
+    };
+    get_axis(0);
+    get_axis(1);
+
+    return out;
+}
+
+static
+void zone_update_regions(wroc_server* server)
+{
+    auto& c = server->zone.config;
+
+    // TODO: Scaling
+
+    vec2f64 point = server->seat->pointer->position;
+
+    wroc_output* output;
+    wroc_output_layout_clamp_position(server->output_layout.get(), point, &output);
+
+    aabb2i32 workarea = output->layout_rect;
+    workarea.min += vec2i32{c.external_padding.left, c.external_padding.top};
+    workarea.max -= vec2i32{c.external_padding.right, c.external_padding.bottom};
+
+    aabb2f64 pointer_zone = {};
+    bool any_zones = false;
+
+    for (u32 zone_x = 0; zone_x < c.zones.x; ++zone_x) {
+        for (u32 zone_y = 0; zone_y < c.zones.y; ++zone_y) {
+            aabb2f64 rect = get_zone_rect(server, workarea, {zone_x, zone_y});
+            aabb2f64 check_rect = {
+                rect.min - vec2f64(c.selection_leeway),
+                rect.max + vec2f64(c.selection_leeway),
+                wrei_minmax,
+            };
+            if (wrei_aabb_contains(check_rect, point)) {
+                pointer_zone = any_zones ? wrei_aabb_outer(pointer_zone, rect) : rect;
+                any_zones = true;
+            }
+        }
+    }
+
+    if (any_zones) {
+        if (server->zone.selecting) {
+            server->zone.final_zone = wrei_aabb_outer(server->zone.initial_zone, pointer_zone);
+        } else {
+            server->zone.final_zone = server->zone.initial_zone = pointer_zone;
+        }
+    } else {
+        server->zone.final_zone = {};
+    }
+}
+
+bool wroc_handle_zone_interaction(wroc_server* server, const wroc_event& base_event)
+{
+    auto mods = wroc_get_active_modifiers(server);
+    auto& event = static_cast<const wroc_pointer_event&>(base_event);
+    auto& button = event.button;
+    switch (wroc_event_get_type(base_event)) {
+        break;case wroc_event_type::pointer_button:
+            if (button.button == BTN_LEFT) {
+                if (button.pressed && mods >= wroc_modifiers::mod && (!(mods >= wroc_modifiers::shift))) {
+                    wroc_toplevel* toplevel;
+                    wroc_get_surface_under_cursor(server, &toplevel);
+                    if (toplevel) {
+                        server->zone.toplevel = toplevel;
+                        if (toplevel_is_interactable(toplevel)) {
+                            server->interaction_mode = wroc_interaction_mode::zone;
+                            server->zone.selecting = false;
+                            zone_update_regions(server);
+                        }
+                    }
+                    return true;
+                } else if (server->interaction_mode == wroc_interaction_mode::zone) {
+                    if (server->zone.selecting) {
+                        if (auto* toplevel = server->zone.toplevel.get()) {
+                            auto r = rect2f64(server->zone.final_zone);
+                            wroc_toplevel_set_layout_size(toplevel, r.extent);
+                            wroc_toplevel_flush_configure(toplevel);
+                            toplevel->anchor.position = r.origin;
+                            toplevel->anchor.relative = {};
+                            wroc_keyboard_enter(server->seat->keyboard.get(), toplevel->surface.get());
+                        }
+                    }
+                    server->interaction_mode = wroc_interaction_mode::normal;
+                    return true;
+                }
+            } else {
+                if (button.button == BTN_RIGHT && server->interaction_mode == wroc_interaction_mode::zone) {
+                    if (button.pressed) {
+                        server->zone.selecting = !server->zone.selecting;
+                        zone_update_regions(server);
+                    }
+                    return true;
+                }
+            }
+        break;case wroc_event_type::pointer_motion:
+            if (server->interaction_mode == wroc_interaction_mode::zone) {
+                zone_update_regions(server);
+                return true;
+            }
+        break;default:
+            ;
+    }
+
+    return false;
+}

@@ -91,6 +91,7 @@ struct wroc_pointer_event : wroc_event
 
 void wroc_post_event(wroc_server*, const wroc_event&);
 
+bool wroc_handle_zone_interaction(wroc_server*, const wroc_event&);
 bool wroc_handle_focus_cycle_interaction(wroc_server*, const wroc_event&);
 bool wroc_handle_movesize_interaction(wroc_server*, const wroc_event&);
 

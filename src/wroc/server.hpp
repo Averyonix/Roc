@@ -974,6 +974,7 @@ enum class wroc_interaction_mode : u32
     move,
     size,
     focus_cycle,
+    zone,
 };
 
 enum class wroc_directions : u32
@@ -1020,6 +1021,27 @@ struct wroc_server : wrei_object
     struct {
         weak<wroc_surface> cycled;
     } focus;
+
+    struct {
+        struct {
+            vec2u32 zones = {6, 2};
+            vec2i32 selection_leeway = {200, 200};
+            i32 padding_inner = 8;
+            struct {
+                i32 left   = 9;
+                i32 top    = 9;
+                i32 right  = 9;
+                i32 bottom = 9;
+            } external_padding;
+            vec4f32 color_initial = {0.6, 0.6, 0.6, 0.4};
+            vec4f32 color_selected = {0.4, 0.4, 1.0, 0.6};
+        } config;
+
+        weak<wroc_toplevel> toplevel;
+        aabb2f64 initial_zone;
+        aabb2f64 final_zone;
+        bool selecting = false;
+    } zone;
 
     struct {
         std::vector<wroc_data_device*> devices;

@@ -56,12 +56,8 @@ vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 gl
     vec2f64 closest = {};
     wroc_output* closest_output = nullptr;
 
-    if (p_output) log_error("clamping {}", wrei_to_string(global_pos));
-
     for (auto& output : layout->outputs) {
-        if (p_output) log_error("  output[{}] = {}", output->desc.name, wrei_to_string(output->layout_rect));
         if (wrei_rect_contains(output->layout_rect, global_pos)) {
-            if (p_output) log_error("    contains!");
             closest = global_pos;
             closest_output = output.get();
             break;
@@ -69,7 +65,6 @@ vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 gl
             auto pos = wrei_rect_clamp_point(output->layout_rect, global_pos);
             auto dist = glm::distance(pos, global_pos);
             if (dist < closest_dist) {
-                if (p_output) log_error("    new closest!");
                 closest = pos;
                 closest_dist = dist;
                 closest_output = output.get();
