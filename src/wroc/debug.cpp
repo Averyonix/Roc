@@ -213,33 +213,17 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     ImGui::SameLine(second_column_offset);
 
     ImGui::SetNextItemWidth(76.f);
-    ImGui::Combo("X11", &launch.x11_mode, "Disable\0Enable\0Force");
+    ImGui::Combo("X11", &launch.x11_mode, "Disable\0Enable\0Force\0");
 
     bool run = ImGui::InputText("##launch", &launch.launch_text, ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
     if (ImGui::Button("Run") || run) {
-
-        log_info("Launching: [{}]", launch.launch_text.c_str());
-        if (launch.x11_mode != x11_forced) {
-            log_debug("  WAYLAND_DISPLAY={}", getenv("WAYLAND_DISPLAY") ?: "");
-        }
-        if (launch.x11_mode >= x11_enabled) {
-            log_debug("  DISPLAY={}", launch.x11_socket);
-        }
-
-        if (fork() == 0) {
-            if (launch.x11_mode >= x11_enabled) {
-                setenv("DISPLAY", launch.x11_socket.c_str(), true);
+        wroc_server_spawn(server, "sh", {"sh", "-c", launch.launch_text.c_str()}, {
+            wroc_spawn_x11_action{
+                launch.x11_mode >= x11_enabled ? launch.x11_socket.c_str() : nullptr,
+                launch.x11_mode == x11_forced
             }
-
-            if (launch.x11_mode == x11_forced) {
-                // Clear instead of unsetting for compatibility with certain toolkits
-                setenv("WAYLAND_DISPLAY", "", true);
-            }
-
-            execlp("sh", "sh", "-c", launch.launch_text.c_str(), nullptr);
-            _Exit(1);
-        }
+        });
     }
 }
 

@@ -216,6 +216,15 @@ const struct zwp_confined_pointer_v1_interface wroc_zwp_confined_pointer_v1_impl
 };
 
 static
+bool is_constraint_focused(wroc_pointer_constraint* constraint)
+{
+    if (!constraint->surface) return false;
+    auto* seat = constraint->surface->server->seat.get();
+    return seat->keyboard->focused_surface == constraint->surface
+        && seat->pointer->focused_surface == constraint->surface;
+}
+
+static
 vec2f64 apply_constraint(wroc_pointer_constraint* constraint, vec2f64 old_pos, vec2f64 pos, bool* in_constriant = nullptr)
 {
     auto* surface = constraint->surface.get();
@@ -300,15 +309,42 @@ void wroc_pointer::absolute(wroc_output* output, vec2f64 offset)
     });
 }
 
-void wroc_pointer::relative(vec2f64 delta)
+struct wroc_pointer_accel_config
 {
-    static constexpr double rate = 0.3;
-    delta *= rate;
+    f64 offset;
+    f64 rate;
+    f64 multiplier;
+};
+
+static constexpr wroc_pointer_accel_config pointer_accel     = { 2.0, 0.05, 0.3 };
+static constexpr wroc_pointer_accel_config pointer_rel_accel = { 2.0, 0.05, 1.0 };
+
+static
+vec2f64 pointer_acceleration_apply(const wroc_pointer_accel_config& config, vec2f64 delta, vec2f64* remainder = nullptr)
+{
+    f64 speed = glm::length(delta);
+    vec2f64 sens = vec2f64(config.multiplier * (1 + (std::max(speed, config.offset) - config.offset) * config.rate));
+
+    vec2f64 new_delta = sens * delta;
+
+    if (!remainder) return new_delta;
+
+    *remainder += new_delta;
+    vec2f64 integer_delta = wrei_round_to_zero(*remainder);
+    *remainder -= integer_delta;
+
+    return integer_delta;
+}
+
+void wroc_pointer::relative(vec2f64 rel_unaccel)
+{
+    auto rel = pointer_acceleration_apply(pointer_rel_accel, rel_unaccel, &rel_remainder);
+    auto delta = pointer_acceleration_apply(pointer_accel, rel_unaccel);
 
     auto old_pos = target->position;
     target->position = wroc_output_layout_clamp_position(server->output_layout.get(), target->position + delta);
 
-    if (auto* constraint = server->seat->pointer->active_constraint.get()) {
+    if (auto* constraint = server->seat->pointer->active_constraint.get(); constraint && is_constraint_focused(constraint)) {
         target->position = apply_constraint(constraint, old_pos, target->position);
     }
 
@@ -316,7 +352,8 @@ void wroc_pointer::relative(vec2f64 delta)
         .type = wroc_event_type::pointer_motion,
         .pointer = target.get(),
         .motion = {
-            .delta = delta,
+            .rel = rel,
+            .rel_unaccel = rel_unaccel,
         },
     });
 }
@@ -362,6 +399,17 @@ static
 void wroc_seat_pointer_update_state(wroc_seat_pointer* pointer, wroc_key_action action, std::span<const u32> actioned_buttons)
 {
     for (auto button : actioned_buttons) {
+
+        if (button == BTN_SIDE) {
+            u32 translated = pointer->seat->server->main_mod_evdev;
+            switch (action) {
+                break;case wroc_key_action::press:   pointer->keyboard->press(translated);
+                break;case wroc_key_action::release: pointer->keyboard->release(translated);
+                break;case wroc_key_action::enter:   pointer->keyboard->enter({translated});
+            }
+            continue;
+        }
+
         if (action == wroc_key_action::release ? pointer->pressed.dec(button) : pointer->pressed.inc(button)) {
             log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), magic_enum::enum_name(action));
             if (action != wroc_key_action::enter) {
@@ -477,7 +525,7 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
 }
 
 static
-void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
+void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_unaccel)
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
@@ -498,12 +546,12 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
             auto time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
             auto time_us = time.count();
 
-            // log_warn("relative[{}:{}] - {}", time_us >> 32, time_us & 0xFFFF'FFFF, wrei_to_string(delta));
+            // log_warn("relative[{}:{}] - {}, {}", time_us >> 32, time_us & 0xFFFF'FFFF, wrei_to_string(rel), wrei_to_string(rel_unaccel));
 
             wroc_send(zwp_relative_pointer_v1_send_relative_motion, resource,
                 time_us >> 32, time_us & 0xFFFF'FFFF,
-                wl_fixed_from_double(delta.x), wl_fixed_from_double(delta.y),
-                wl_fixed_from_double(delta.x), wl_fixed_from_double(delta.y));
+                wl_fixed_from_double(rel.x), wl_fixed_from_double(rel.y),
+                wl_fixed_from_double(rel_unaccel.x), wl_fixed_from_double(rel_unaccel.y));
         }
     }
 
@@ -514,11 +562,6 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 delta)
 
     if (auto* constraint = wroc_surface_get_addon<wroc_pointer_constraint>(focused_surface)) {
         constraint->activate();
-    }
-
-    if (pointer->active_constraint && pointer->active_constraint->type == wroc_pointer_constraint_type::locked) {
-        // Don't send any further pointer motion events with active locked constraint
-        return;
     }
 
     if (focused_surface && focused_surface->resource) {
@@ -586,7 +629,7 @@ void wroc_handle_pointer_event(wroc_server* server, const wroc_pointer_event& ev
         break;case wroc_event_type::pointer_button:
             wroc_pointer_button(event.pointer, event.button.button, event.button.pressed);
         break;case wroc_event_type::pointer_motion:
-            wroc_pointer_motion(event.pointer, event.motion.delta);
+            wroc_pointer_motion(event.pointer, event.motion.rel, event.motion.rel_unaccel);
         break;case wroc_event_type::pointer_axis:
             wroc_pointer_axis(event.pointer, event.axis.delta);
         break;default:

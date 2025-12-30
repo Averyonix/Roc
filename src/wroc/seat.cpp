@@ -69,4 +69,7 @@ void wroc_seat_init(wroc_server* server)
 
     wroc_seat_init_keyboard(server->seat.get());
     wroc_seat_init_pointer(server->seat.get());
+
+    server->seat->pointer->keyboard = wrei_create<wroc_keyboard>();
+    server->seat->keyboard->attach(server->seat->pointer->keyboard.get());
 }

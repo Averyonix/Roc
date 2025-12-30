@@ -130,26 +130,12 @@ void wroc_launcher_init(wroc_server* server)
 static
 void wroc_launcher_run(wroc_launcher* launcher, wroc_launcher_app& app)
 {
-    log_info("Running: {}", app.display_name);
-    log_info("  command line: {}", g_app_info_get_commandline(app.app_info) ?: "");
+    auto& x11 = launcher->server->x11_socket;
 
     // TODO: Select action on right-click
-    //
-    // auto* desktop = G_DESKTOP_APP_INFO(app.app_info);
-    // auto actions = g_desktop_app_info_list_actions(desktop);
-    // for (auto action = actions; *action; ++action) {
-    //     log_info("  action[{}] = {}", *action, g_desktop_app_info_get_action_name(desktop, *action));
-
-    // }
-    // g_desktop_app_info_launch_action()
-
-    auto* ctx = g_app_launch_context_new();
-    defer { g_object_unref(ctx); };
-
-    GError* err = nullptr;
-    if (!g_app_info_launch(app.app_info, nullptr, ctx, &err)) {
-        log_error("Error launching {}: {}", app.display_name, err->message);
-    }
+    wroc_server_spawn(launcher->server, app.app_info, {
+        wroc_spawn_x11_action{x11.empty() ? nullptr : x11.c_str(), false},
+    });
 
     launcher->show = false;
 }

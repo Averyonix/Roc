@@ -81,7 +81,8 @@ struct wroc_pointer_event : wroc_event
             bool pressed;
         } button;
         struct {
-            vec2f64 delta;
+            vec2f64 rel;
+            vec2f64 rel_unaccel;
         } motion;
         struct {
             vec2f64 delta;

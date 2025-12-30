@@ -256,10 +256,10 @@ struct wrei_unix_check_helper
         bool error_occured = false;
         int error_code = 0;
 
-        if constexpr (B == wrei_unix_error_behavior::ret_null)     if (!res)      { error_occured = true; error_code = errno; }
-        if constexpr (B == wrei_unix_error_behavior::ret_neg1)     if (res == -1) { error_occured = true; error_code = errno; }
+        if constexpr (B == wrei_unix_error_behavior::ret_null)      if (!res)      { error_occured = true; error_code = errno; }
+        if constexpr (B == wrei_unix_error_behavior::ret_neg1)      if (res == -1) { error_occured = true; error_code = errno; }
         if constexpr (B == wrei_unix_error_behavior::ret_neg_errno) if (res < 0)   { error_occured = true; error_code = -res;  }
-        if constexpr (B == wrei_unix_error_behavior::check_errno)  if (errno)     { error_occured = true; error_code = errno; }
+        if constexpr (B == wrei_unix_error_behavior::check_errno)   if (errno)     { error_occured = true; error_code = errno; }
 
         if (!error_occured || (... || (error_code == allowed))) return res;
 

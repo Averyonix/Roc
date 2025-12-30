@@ -213,7 +213,7 @@ void wroc_render_frame(wroc_output* output)
                     if (!show_cycled) continue;
                 } else {
                     if (show_cycled) continue;
-                    opacity = 0.5;
+                    opacity = 0.2;
                 }
             }
 
@@ -222,8 +222,10 @@ void wroc_render_frame(wroc_output* output)
             if (toplevel) {
                 layout_rect = wroc_toplevel_get_layout_rect(toplevel);
 
-                // Draw backstop under toplevels
-                draw(nullptr, layout_rect, {}, vec4f32{0, 0, 0, 1} * opacity);
+                if (opacity == 1.0) {
+                    // Draw backstop under toplevels
+                    draw(nullptr, layout_rect, {}, vec4f32{0, 0, 0, 1});
+                }
             }
 
             draw_surface(surface, pos, scale, opacity);

@@ -705,6 +705,8 @@ struct wroc_pointer : wrei_object
 
     weak<wroc_seat_pointer> target;
 
+    vec2f64 rel_remainder;
+
     void enter(std::span<const u32>);
     void leave();
     void press(u32);
@@ -721,6 +723,9 @@ struct wroc_pointer : wrei_object
 struct wroc_seat_pointer : wrei_object
 {
     wroc_seat* seat;
+
+    // For translating mouse buttons to key presses
+    ref<wroc_keyboard> keyboard;
 
     std::vector<wroc_pointer*> sources;
 
@@ -994,12 +999,15 @@ struct wroc_server : wrei_object
     ref<wroc_debug_gui> debug_gui;
     ref<wroc_launcher> launcher;
 
-    wroc_modifiers main_mod = wroc_modifiers::alt;
+    wroc_modifiers main_mod;
+    u32 main_mod_evdev;
 
     std::chrono::steady_clock::time_point epoch;
 
     wl_display*    display;
     wl_event_loop* event_loop;
+    std::string    socket;
+    std::string    x11_socket;
 
     ref<wroc_output_layout> output_layout;
     std::vector<wroc_surface*> surfaces;
@@ -1058,7 +1066,7 @@ struct wroc_server : wrei_object
     } data_manager;
 };
 
-wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data = nullptr);
+wl_global* wroc_server_global(wroc_server*, const wl_interface*, i32 version, wl_global_bind_func_t, void* data = nullptr);
 #define WROC_SERVER_GLOBAL(Server, Interface, ...) \
     wroc_server_global(Server, &Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
 
@@ -1068,4 +1076,11 @@ wroc_modifiers wroc_get_active_modifiers(wroc_server*);
 void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_directions);
 void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, vec2i32 anchor_rel, wroc_directions);
 
-wroc_surface* wroc_get_surface_under_cursor(wroc_server* server, wroc_toplevel** toplevel = nullptr);
+wroc_surface* wroc_get_surface_under_cursor(wroc_server*, wroc_toplevel** toplevel = nullptr);
+
+struct wroc_spawn_env_action { const char* name; const char* value; };
+struct wroc_spawn_x11_action { const char* x11_socket; bool force; };
+struct wroc_spawn_cwd_action { const char* cwd; };
+using wroc_spawn_action = std::variant<wroc_spawn_env_action, wroc_spawn_x11_action>;
+pid_t wroc_server_spawn(wroc_server*, std::string_view file, std::span<const std::string_view> argv, std::span<const wroc_spawn_action>);
+void wroc_server_spawn(wroc_server*, GAppInfo* app_info, std::span<const wroc_spawn_action>);

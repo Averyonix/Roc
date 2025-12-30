@@ -26,6 +26,8 @@ void wroc_run(int argc, char* argv[])
 
     bool show_imgui_on_startup = false;
 
+    std::optional<std::string> x11_socket;
+
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
         if (arg == "--no-dmabuf") {
@@ -34,6 +36,12 @@ void wroc_run(int argc, char* argv[])
             render_options |= wroc_render_options::separate_draws;
         } else if (arg == "--imgui") {
             show_imgui_on_startup = true;
+        } else if (arg == "--xwayland") {
+            if (i + 1 >= argc || argv[i + 1][0] != ':') {
+                log_error("Expected x11 socket path after --xwayland");
+                return;
+            }
+            x11_socket = argv[++i];
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
@@ -43,6 +51,14 @@ void wroc_run(int argc, char* argv[])
     ref<wroc_server> server_ref = wrei_create<wroc_server>();
     wroc_server* server = server_ref.get();
     log_warn("server = {}", (void*)server);
+
+    if (backend_type == wroc_backend_type::direct) {
+        server->main_mod = wroc_modifiers::super;
+        server->main_mod_evdev = KEY_LEFTMETA;
+    } else {
+        server->main_mod = wroc_modifiers::alt;
+        server->main_mod_evdev = KEY_LEFTALT;
+    }
 
     // Seat
 
@@ -63,7 +79,7 @@ void wroc_run(int argc, char* argv[])
 
     wl_display_set_default_max_buffer_size(server->display, 65'536);
 
-    const char* socket = wl_display_add_socket_auto(server->display);
+    server->socket = wl_display_add_socket_auto(server->display);
 
     // Output layout
 
@@ -108,14 +124,16 @@ void wroc_run(int argc, char* argv[])
 
     // Run
 
-    log_warn("Setting WAYLAND_DISPLAY={}", socket);
-    setenv("WAYLAND_DISPLAY", socket, true);
-    unsetenv("DISPLAY");
+    log_warn("WAYLAND_DISPLAY={}", server->socket);
     if (backend_type == wroc_backend_type::direct) {
         setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, true);
     }
+    if (x11_socket) {
+        wroc_server_spawn(server, "xwayland-satellite", {"xwayland-satellite", x11_socket->c_str()}, {});
+        server->x11_socket = *x11_socket;
+    }
 
-    log_info("Running compositor on: {}", socket);
+    log_info("Running compositor on: {}", server->socket);
 
     wl_display_run(server->display);
 
