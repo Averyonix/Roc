@@ -1,7 +1,7 @@
 #include "server.hpp"
 
 #include "wren/wren.hpp"
-#include "wren/wren_internal.hpp"
+#include "wren/internal.hpp"
 
 #include "wroc/event.hpp"
 

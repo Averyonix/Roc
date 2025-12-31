@@ -3,7 +3,7 @@
 #include "wrei/object.hpp"
 #include "wrei/types.hpp"
 
-#include "wren_functions.hpp"
+#include "functions.hpp"
 
 // -----------------------------------------------------------------------------
 

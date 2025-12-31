@@ -1,4 +1,4 @@
-#include "wren_internal.hpp"
+#include "internal.hpp"
 
 void wren_init_descriptors(wren_context* ctx)
 {

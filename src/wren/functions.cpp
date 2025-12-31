@@ -1,4 +1,4 @@
-#include "wren_functions.hpp"
+#include "functions.hpp"
 #include "wren.hpp"
 
 #include "wrei/log.hpp"

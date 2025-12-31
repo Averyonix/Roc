@@ -3,7 +3,7 @@
 #include "wrei/object.hpp"
 
 #include "wren/wren.hpp"
-#include "wren/wren_internal.hpp"
+#include "wren/internal.hpp"
 
 #include "wroc_blit_shader.hpp"
 #include "shaders/blit.h"

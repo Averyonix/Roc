@@ -1,21 +1,6 @@
-#include "wren_internal.hpp"
+#include "internal.hpp"
 
 #include "wrei/util.hpp"
-
-const char* wren_result_to_string(VkResult res)
-{
-    return string_VkResult(res);
-}
-
-void wren_wait_for_timeline_value(wren_context* ctx, const VkSemaphoreSubmitInfo& info)
-{
-    wren_check(ctx->vk.WaitSemaphores(ctx->device, wrei_ptr_to(VkSemaphoreWaitInfo {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-        .semaphoreCount = 1,
-        .pSemaphores = &info.semaphore,
-        .pValues = &info.value,
-    }), UINT64_MAX));
-}
 
 void wren_transition(wren_context* ctx, VkCommandBuffer cmd, VkImage image,
     VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
@@ -39,70 +24,6 @@ void wren_transition(wren_context* ctx, VkCommandBuffer cmd, VkImage image,
             .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
         }),
     }));
-}
-
-u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties props;
-    ctx->vk.GetPhysicalDeviceMemoryProperties(ctx->physical_device, &props);
-
-    for (u32 i = 0; i < props.memoryTypeCount; ++i) {
-        std::string flags;
-        if (!(type_filter & (1 << i))) continue;
-        if ((props.memoryTypes[i].propertyFlags & properties) != properties) continue;
-
-        return i;
-    }
-
-    log_error("Failed to find suitable memory type");
-    return 0xFF;
-}
-
-ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
-{
-    auto buffer = wrei_create<wren_buffer>();
-    buffer->ctx = ctx;
-
-    buffer->size = size;
-
-    ctx->stats.active_buffers++;
-
-    VmaAllocationInfo alloc_info;
-    wren_check(vmaCreateBuffer(ctx->vma, wrei_ptr_to(VkBufferCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
-               | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-               | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
-               | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-               | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    }), wrei_ptr_to(VmaAllocationCreateInfo {
-        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    }), &buffer->buffer, &buffer->vma_allocation, &alloc_info));
-
-    ctx->stats.active_buffer_memory += alloc_info.size;
-
-    buffer->host_address = alloc_info.pMappedData;
-
-    buffer->device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, wrei_ptr_to(VkBufferDeviceAddressInfo {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-        .buffer = buffer->buffer,
-    }));
-
-    return buffer;
-}
-
-wren_buffer::~wren_buffer()
-{
-    ctx->stats.active_buffers--;
-
-    VmaAllocationInfo alloc_info;
-    vmaGetAllocationInfo(ctx->vma, vma_allocation, &alloc_info);
-    ctx->stats.active_buffer_memory -= alloc_info.size;
-
-    vmaDestroyBuffer(ctx->vma, buffer, vma_allocation);
 }
 
 // -----------------------------------------------------------------------------
@@ -250,35 +171,6 @@ wren_image::~wren_image()
     }
 }
 
-void wren_image_wait(wren_image* image)
-{
-    auto* params = image->dma_params.get();
-    if (!params) return;
-
-    // TODO: Importing sync files to Vulkan semaphores
-    // TODO: Wait for images asynchronously to prevent frames from being delayed
-
-    for (auto& plane : params->planes) {
-        pollfd pfd {
-            .fd = plane.fd,
-            .events = POLLIN,
-        };
-        int timeout_ms = 1000;
-        auto start = std::chrono::steady_clock::now();
-        int ret = poll(&pfd, 1, timeout_ms);
-            auto dur = std::chrono::steady_clock::now() - start;
-        if (ret < 0) {
-            log_error("Failed to wait for DMA-BUF");
-        } else if (ret == 0) {
-            log_error("Timed out waiting for DMA-BUF fence after {}", wrei_duration_to_string(dur));
-        } else {
-            if (dur > 1ms) {
-                log_warn("Waiting for imported DMA-BUF took a long time: {}", wrei_duration_to_string(dur));
-            }
-        }
-    }
-}
-
 // -----------------------------------------------------------------------------
 
 ref<wren_sampler> wren_sampler_create(wren_context* ctx, VkFilter mag, VkFilter min)
@@ -313,4 +205,174 @@ wren_sampler::~wren_sampler()
     ctx->sampler_descriptor_allocator.free(id);
 
     ctx->vk.DestroySampler(ctx->device, sampler, nullptr);
+}
+
+// -----------------------------------------------------------------------------
+
+u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties props;
+    ctx->vk.GetPhysicalDeviceMemoryProperties(ctx->physical_device, &props);
+
+    for (u32 i = 0; i < props.memoryTypeCount; ++i) {
+        std::string flags;
+        if (!(type_filter & (1 << i))) continue;
+        if ((props.memoryTypes[i].propertyFlags & properties) != properties) continue;
+
+        return i;
+    }
+
+    log_error("Failed to find suitable memory type");
+    return 0xFF;
+}
+
+ref<wren_image> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params)
+{
+    auto image = wrei_create<wren_image>();
+    image->ctx = ctx;
+
+    ctx->stats.active_images++;
+
+    image->extent = params.extent;
+    image->format = params.format;
+
+    VkExternalMemoryHandleTypeFlagBits htype = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+
+    VkImageCreateInfo img_info {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = params.format->vk,
+        .extent = {image->extent.x, image->extent.y, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .usage = wren_dma_texture_usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+
+    VkExternalMemoryImageCreateInfo eimg = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
+    img_info.pNext = &eimg;
+
+    VkSubresourceLayout plane_layouts[wren_dma_max_planes] = {};
+
+    img_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
+    for (u32 i = 0; i < params.planes.size(); ++i) {
+        plane_layouts[i].offset = params.planes[i].offset;
+        plane_layouts[i].rowPitch = params.planes[i].stride;
+    }
+
+    VkImageDrmFormatModifierExplicitCreateInfoEXT mod_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
+        .drmFormatModifier = params.planes.front().drm_modifier,
+        .drmFormatModifierPlaneCount = u32(params.planes.size()),
+        .pPlaneLayouts = plane_layouts,
+    };
+    eimg.pNext = &mod_info;
+
+    wren_check(ctx->vk.CreateImage(ctx->device, &img_info, nullptr, &image->image));
+
+    image->dma_params = std::make_unique<wren_dma_params>(params);
+
+    VkBindImageMemoryInfo bindi = {};
+
+    {
+        VkMemoryFdPropertiesKHR fdp = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
+        };
+        log_trace("  num_planes = {}", params.planes.size());
+        log_trace("  plane[0].fd = {}", params.planes.front().fd);
+        auto mod_name = drmGetFormatModifierName(params.planes.front().drm_modifier);
+        defer { free(mod_name); };
+        log_trace("  plane[0].modifier = {}", mod_name);
+        log_trace("  ctx->vk.GetMemoryFdPropertiesKHR = {}", (void*)ctx->vk.GetMemoryFdPropertiesKHR);
+        wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, htype, params.planes.front().fd, &fdp));
+
+        // TODO: Multi-plane support
+        assert(params.planes.size() == 1);
+
+        VkImageMemoryRequirementsInfo2 memri = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+            .image = image->image,
+        };
+
+        VkMemoryRequirements2 memr = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        };
+
+        ctx->vk.GetImageMemoryRequirements2(ctx->device, &memri, &memr);
+
+        auto mem = wren_find_vk_memory_type_index(ctx, memr.memoryRequirements.memoryTypeBits & fdp.memoryTypeBits, 0);
+
+        // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
+        int dfd = fcntl(params.planes.front().fd, F_DUPFD_CLOEXEC, 0);
+        image->dma_params->planes[0].fd = dfd;
+
+        VkMemoryAllocateInfo memi = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .allocationSize = memr.memoryRequirements.size,
+            .memoryTypeIndex = mem,
+        };
+
+        image->stats.imported_allocation_size += memr.memoryRequirements.size;
+        ctx->stats.active_image_imported_memory += memr.memoryRequirements.size;
+
+        VkImportMemoryFdInfoKHR importi = {
+            .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+            .handleType = htype,
+            .fd = dfd,
+        };
+        memi.pNext = &importi;
+
+        VkMemoryDedicatedAllocateInfo dedi = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+            .image = image->image,
+        };
+        importi.pNext = &dedi;
+
+        wren_check(ctx->vk.AllocateMemory(ctx->device, &memi, nullptr, &image->memory));
+
+        bindi.image = image->image;
+        bindi.memory = image->memory;
+        bindi.memoryOffset = 0;
+        bindi.sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
+    }
+
+    wren_check(ctx->vk.BindImageMemory2(ctx->device, 1, &bindi));
+
+    wren_image_init(image.get());
+
+    return image;
+}
+
+void wren_image_wait(wren_image* image)
+{
+    auto* params = image->dma_params.get();
+    if (!params) return;
+
+    // TODO: Importing sync files to Vulkan semaphores
+    // TODO: Wait for images asynchronously to prevent frames from being delayed
+
+    for (auto& plane : params->planes) {
+        pollfd pfd {
+            .fd = plane.fd,
+            .events = POLLIN,
+        };
+        int timeout_ms = 1000;
+        auto start = std::chrono::steady_clock::now();
+        int ret = poll(&pfd, 1, timeout_ms);
+            auto dur = std::chrono::steady_clock::now() - start;
+        if (ret < 0) {
+            log_error("Failed to wait for DMA-BUF");
+        } else if (ret == 0) {
+            log_error("Timed out waiting for DMA-BUF fence after {}", wrei_duration_to_string(dur));
+        } else {
+            if (dur > 1ms) {
+                log_warn("Waiting for imported DMA-BUF took a long time: {}", wrei_duration_to_string(dur));
+            }
+        }
+    }
 }

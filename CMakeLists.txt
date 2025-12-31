@@ -160,12 +160,13 @@ add_library(wren)
 init_target(wren)
 target_sources(wren PUBLIC
     src/wren/wren.cpp
-    src/wren/wren_init.cpp
-    src/wren/wren_functions.cpp
-    src/wren/wren_resources.cpp
-    src/wren/wren_descriptors.cpp
-    src/wren/wren_format.cpp
-    src/wren/wren_pipelines.cpp
+    src/wren/functions.cpp
+    src/wren/buffer.cpp
+    src/wren/image.cpp
+    src/wren/descriptors.cpp
+    src/wren/formats.cpp
+    src/wren/pipeline.cpp
+    src/wren/commands.cpp
     )
 target_link_libraries(wren PUBLIC wrei shaders)
 

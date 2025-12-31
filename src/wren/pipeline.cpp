@@ -1,4 +1,4 @@
-#include "wren_internal.hpp"
+#include "internal.hpp"
 
 ref<wren_pipeline> wren_pipeline_create(
     wren_context* ctx,

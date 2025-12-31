@@ -1,5 +1,5 @@
 #include "backend.hpp"
-#include <wren/wren_internal.hpp>
+#include <wren/internal.hpp>
 #include <wroc/event.hpp>
 
 static
