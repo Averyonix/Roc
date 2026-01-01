@@ -14,10 +14,13 @@
 #define wroc_send(Fn, Resource, ...) \
     wroc_send_impl(#Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
 
+void wroc_queue_client_flush();
+
 void wroc_send_impl(const char* fn_name, auto fn, auto&& resource, auto&&... args)
 {
     if (resource) {
         fn(resource, args...);
+        wroc_queue_client_flush();
     } else {
         log_error("Failed to dispatch {}, resource is null", fn_name);
     }

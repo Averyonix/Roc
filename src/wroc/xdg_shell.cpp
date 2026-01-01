@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include "util.hpp"
 
 const u32 wroc_xdg_wm_base_version = 7;
@@ -27,7 +27,7 @@ const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
 void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_wm_base_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, static_cast<wroc_server*>(data));
+    wroc_resource_set_implementation(new_resource, &wroc_xdg_wm_base_impl, nullptr);
 };
 
 // -----------------------------------------------------------------------------
@@ -90,7 +90,7 @@ void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u3
 
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
 {
-    xdg_surface->sent_configure_serial = wl_display_next_serial(xdg_surface->surface->server->display);
+    xdg_surface->sent_configure_serial = wl_display_next_serial(server->display);
     wroc_send(xdg_surface_send_configure, xdg_surface->resource, xdg_surface->sent_configure_serial);
 }
 
@@ -152,7 +152,7 @@ void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resourc
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
 
     // TODO: Use seat to select pointer
-    auto* pointer = toplevel->surface->server->seat->pointer.get();
+    auto* pointer = server->seat->pointer.get();
     if (!pointer->pressed.contains(BTN_LEFT)) {
         log_warn("toplevel attempted to initiate move but left button was not pressed");
         return;
@@ -169,7 +169,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
 
     // TODO: Use seat to select pointer
-    auto* pointer = toplevel->surface->server->seat->pointer.get();
+    auto* pointer = server->seat->pointer.get();
     if (!pointer->pressed.contains(BTN_LEFT)) {
         log_warn("toplevel attempted to initiate resize but left button was not pressed");
         return;
@@ -196,7 +196,6 @@ static
 void wroc_xdg_toplevel_set_fullscreen(wl_client* client, wl_resource* resource, wl_resource* requested_output)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
-    auto* server = toplevel->surface->server;
     wroc_output* output;
     wroc_output_layout_clamp_position(server->output_layout.get(), server->seat->pointer->position, &output);
     wroc_toplevel_set_fullscreen(toplevel, output);
@@ -388,10 +387,8 @@ void wroc_toplevel_update_fullscreen_size(wroc_toplevel* toplevel)
 void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
-    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* positioner = wrei_create_unsafe<wroc_positioner>();
     positioner->resource = new_resource;
-    positioner->server = server;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_positioner_impl, positioner);
 }
 
@@ -688,7 +685,6 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 static
 void wroc_xdg_popup_position(wroc_popup* popup)
 {
-    auto* server = popup->surface->server;
     auto* parent = popup->parent.get();
     auto* parent_surface = parent->surface.get();
 

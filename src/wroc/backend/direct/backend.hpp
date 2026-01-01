@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wroc/server.hpp"
+#include "wroc/wroc.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -17,10 +17,7 @@ struct wroc_drm_output : wroc_output
 {
     VkDisplayKHR vk_display;
 
-    int eventfd;
-    ref<wrei_event_source> scanout;
     std::jthread scanout_thread;
-    std::atomic<std::chrono::steady_clock::time_point> scanout_time;
 
     ~wroc_drm_output();
 };
@@ -51,8 +48,6 @@ struct wroc_input_device : wrei_object
 
 struct wroc_direct_backend : wroc_backend
 {
-    wroc_server* server = {};
-
     struct libseat* seat;
     const char* seat_name;
     struct udev* udev;
@@ -73,7 +68,7 @@ struct wroc_direct_backend : wroc_backend
     ~wroc_direct_backend();
 };
 
-void wroc_direct_backend_init(wroc_server*);
+void wroc_direct_backend_init();
 
 void wroc_backend_init_libinput(wroc_direct_backend*);
 void wroc_backend_deinit_libinput(wroc_direct_backend*);

@@ -1,4 +1,4 @@
-#include <wroc/server.hpp>
+#include <wroc/wroc.hpp>
 #include <wroc/event.hpp>
 
 static constexpr int x11_disabled = 0;
@@ -7,8 +7,6 @@ static constexpr int x11_forced = 2;
 
 struct wroc_debug_gui : wrei_object
 {
-    wroc_server* server;
-
     bool show_debug_menu = false;
     bool show_log_window = false;
     bool show_demo_window = false;
@@ -28,10 +26,9 @@ struct wroc_debug_gui : wrei_object
 };
 WREI_OBJECT_EXPLICIT_DEFINE(wroc_debug_gui)
 
-void wroc_debug_gui_init(wroc_server* server, bool show_on_startup)
+void wroc_debug_gui_init(bool show_on_startup)
 {
     auto debug = (server->debug_gui = wrei_create<wroc_debug_gui>()).get();
-    debug->server = server;
 
     if (show_on_startup) {
         debug->show_debug_menu = true;
@@ -44,7 +41,7 @@ bool wroc_debug_gui_handle_event(wroc_debug_gui* debug, const wroc_event& _event
     if (wroc_event_get_type(_event) == wroc_event_type::keyboard_key) {
         auto& event = static_cast<const wroc_keyboard_event&>(_event);
 
-        if (event.key.upper() == XKB_KEY_A && event.key.pressed && wroc_get_active_modifiers(debug->server) >= wroc_modifiers::mod) {
+        if (event.key.upper() == XKB_KEY_A && event.key.pressed && wroc_get_active_modifiers() >= wroc_modifiers::mod) {
             debug->show_debug_menu = !debug->show_debug_menu;
             return true;
         }
@@ -56,8 +53,6 @@ bool wroc_debug_gui_handle_event(wroc_debug_gui* debug, const wroc_event& _event
 void wroc_imgui_show_debug(wroc_debug_gui* debug)
 {
     if (!debug->show_debug_menu) return;
-
-    auto* server = debug->server;
 
     defer { ImGui::End(); };
     ImGui::Begin(PROJECT_NAME, &debug->show_debug_menu);
@@ -74,7 +69,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     ImGui::SameLine(third_column_offset);
     if (ImGui::Button("Quit " PROJECT_NAME)) {
-        wroc_terminate(server);
+        wroc_terminate();
     }
 
     ImGui::Checkbox("Show Demo Window", &debug->show_demo_window);
@@ -206,7 +201,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     // Elapsed
 
-    ImGui_Text("Elapsed: {:.1f}s", wroc_get_elapsed_milliseconds(server) / 1000.0);
+    ImGui_Text("Elapsed: {:.1f}s", wroc_get_elapsed_milliseconds() / 1000.0);
 
     ImGui::Separator();
 
@@ -233,7 +228,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     bool run = ImGui::InputText("##launch", &launch.launch_text, ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
     if (ImGui::Button("Run") || run) {
-        wroc_server_spawn(server, "sh", {"sh", "-c", launch.launch_text.c_str()}, {
+        wroc_spawn("sh", {"sh", "-c", launch.launch_text.c_str()}, {
             wroc_spawn_x11_action{
                 launch.x11_mode >= x11_enabled ? launch.x11_socket.c_str() : nullptr,
                 launch.x11_mode == x11_forced

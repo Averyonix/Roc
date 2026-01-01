@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include "util.hpp"
 
 const u32 wroc_wl_seat_version = 10;
@@ -37,10 +37,9 @@ const struct wl_keyboard_interface wroc_wl_keyboard_impl = {
 static
 void wroc_wl_pointer_set_cursor(wl_client* client, wl_resource* resource, u32 serial, wl_resource* wl_surface, i32 x, i32 y)
 {
-    auto* pointer = wroc_get_userdata<wroc_seat_pointer>(resource);
     auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);
 
-    wroc_cursor_set(pointer->seat->server->cursor.get(), client, surface, {x, y});
+    wroc_cursor_set(server->cursor.get(), client, surface, {x, y});
 }
 
 const struct wl_pointer_interface wroc_wl_pointer_impl = {
@@ -61,11 +60,10 @@ void wroc_wl_seat_bind_global(wl_client* client, void* data, u32 version, u32 id
     wroc_send(wl_seat_send_capabilities, new_resource, caps);
 };
 
-void wroc_seat_init(wroc_server* server)
+void wroc_seat_init()
 {
     server->seat = wrei_create<wroc_seat>();
     server->seat->name = "seat-0";
-    server->seat->server = server;
 
     wroc_seat_init_keyboard(server->seat.get());
     wroc_seat_init_pointer(server->seat.get());

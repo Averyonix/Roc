@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 static
 std::vector<std::string> wroc_cursor_list_themes()
@@ -27,11 +27,10 @@ std::vector<std::string> wroc_cursor_list_themes()
 
 }
 
-void wroc_cursor_create(wroc_server* server)
+void wroc_cursor_create()
 {
     server->cursor = wrei_create<wroc_cursor>();
     auto cursor = server->cursor.get();
-    cursor->server = server;
 
     auto themes = wroc_cursor_list_themes();
     for (auto& theme : themes) {
@@ -84,7 +83,7 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
     //       OR track cursor at the client level directly
 
     u32 count = 0;
-    for (auto* target_surface : cursor->server->surfaces) {
+    for (auto* target_surface : server->surfaces) {
         if (!target_surface->resource) continue;
         if (wroc_resource_get_client(target_surface->resource) != client) continue;
         if (target_surface->role == wroc_surface_role::cursor) continue;

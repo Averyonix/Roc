@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 #include "wrei/shm.hpp"
 
@@ -8,9 +8,7 @@ static
 void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 params_id)
 {
     auto* new_resource = wroc_resource_create(client, &zwp_linux_buffer_params_v1_interface, wl_resource_get_version(resource), params_id);
-    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* params = wrei_create_unsafe<wroc_dma_buffer_params>();
-    params->server = server;
     params->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params);
 }
@@ -23,7 +21,7 @@ wroc_dma_buffer_params::~wroc_dma_buffer_params()
 }
 
 static
-void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* feedback_resource);
+void wroc_dmabuf_send_tranches(wl_resource* feedback_resource);
 
 static
 void wroc_dmabuf_get_default_feedback(wl_client* client, wl_resource* resource, u32 id)
@@ -31,7 +29,7 @@ void wroc_dmabuf_get_default_feedback(wl_client* client, wl_resource* resource, 
     auto* new_resource = wroc_resource_create(client, &zwp_linux_dmabuf_feedback_v1_interface, wl_resource_get_version(resource), id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_feedback_v1_impl, nullptr);
 
-    wroc_dmabuf_send_tranches(wroc_get_userdata<wroc_server>(resource), new_resource);
+    wroc_dmabuf_send_tranches(new_resource);
 }
 
 static
@@ -42,7 +40,7 @@ void wroc_dmabuf_get_surface_feedback(wl_client* client, wl_resource* resource, 
 
     // TODO: Surface optimized tranches?
 
-    wroc_dmabuf_send_tranches(wroc_get_userdata<wroc_server>(resource), new_resource);
+    wroc_dmabuf_send_tranches(new_resource);
 }
 
 const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
@@ -95,7 +93,6 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     auto* params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
     auto* new_resource = wroc_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = wrei_create_unsafe<wroc_dma_buffer>();
-    buffer->server = params->server;
     buffer->resource = new_resource;
     buffer->type = wroc_buffer_type::dma;
 
@@ -106,7 +103,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
     buffer->extent = {width, height};
-    buffer->image = wren_image_import_dmabuf(buffer->server->renderer->wren.get(), params->params);
+    buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params->params);
 
     log_warn("dma buffer created {}, format = {}", wrei_to_string(buffer->extent), format->name);
 
@@ -204,7 +201,7 @@ void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
 }
 
 static
-void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* resource)
+void wroc_dmabuf_send_tranches(wl_resource* resource)
 {
     wl_array dev_id = {
         .size = sizeof(server->renderer->wren->dev_id),
@@ -228,7 +225,7 @@ void wroc_dmabuf_send_tranches(wroc_server* server, wl_resource* resource)
 void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &zwp_linux_dmabuf_v1_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_v1_impl, static_cast<wroc_server*>(data));
+    wroc_resource_set_implementation(new_resource, &wroc_zwp_linux_dmabuf_v1_impl, nullptr);
 
     if (version >= ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION) {
         return;
@@ -242,7 +239,6 @@ void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 ver
         wroc_send(zwp_linux_dmabuf_v1_send_modifier, new_resource, format, modifier_hi, modifier_lo);
     };
 
-    auto* server = static_cast<wroc_server*>(data);
 
     for (auto[format, modifiers] : server->renderer->wren->dmabuf_texture_formats) {
         wroc_send(zwp_linux_dmabuf_v1_send_format, new_resource, format->drm);

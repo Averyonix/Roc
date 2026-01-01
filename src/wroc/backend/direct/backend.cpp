@@ -2,10 +2,9 @@
 
 #define WROC_DIRECT_BACKEND_TIME_LIMIT 0
 
-void wroc_direct_backend_init(wroc_server* server)
+void wroc_direct_backend_init()
 {
     auto backend = wrei_create<wroc_direct_backend>();
-    backend->server = server;
     server->backend = backend;
 
 #if WROC_DIRECT_BACKEND_TIME_LIMIT

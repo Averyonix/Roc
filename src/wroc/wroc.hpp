@@ -29,9 +29,8 @@ struct wroc_imgui;
 
 // -----------------------------------------------------------------------------
 
-struct wroc_server;
 void wroc_run(int argc, char* argv[]);
-void wroc_terminate(wroc_server*);
+void wroc_terminate();
 
 // -----------------------------------------------------------------------------
 
@@ -47,7 +46,7 @@ enum struct wroc_backend_type
     direct,
 };
 
-void wroc_backend_init(wroc_server*, wroc_backend_type);
+void wroc_backend_init(wroc_backend_type);
 
 // -----------------------------------------------------------------------------
 
@@ -79,8 +78,6 @@ struct wroc_output_desc
  */
 struct wroc_wl_output : wrei_object
 {
-    wroc_server* server;
-
     wl_global* global;
     wroc_resource_list resources;
 
@@ -96,8 +93,6 @@ void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
  */
 struct wroc_output : wrei_object
 {
-    wroc_server* server;
-
     VkSurfaceKHR vk_surface;
     VkSemaphore timeline;
     u64 timeline_value = 0;
@@ -122,14 +117,12 @@ rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 global_rect, rect2f64
 
 struct wroc_output_layout : wrei_object
 {
-    wroc_server* server;
-
     // TODO: Support multi output description for clients
     ref<wroc_wl_output> primary;
     std::vector<weak<wroc_output>> outputs;
 };
 
-void wroc_output_layout_init(wroc_server*);
+void wroc_output_layout_init();
 void wroc_output_layout_add_output(wroc_output_layout*, wroc_output*);
 void wroc_output_layout_remove_output(wroc_output_layout*, wroc_output*);
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos, wroc_output** output = nullptr);
@@ -138,8 +131,6 @@ vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_po
 
 struct wroc_region : wrei_object
 {
-    wroc_server* server;
-
     wroc_resource resource;
 
     region2i32 region;
@@ -204,8 +195,6 @@ struct wroc_surface_state
 
 struct wroc_surface : wrei_object
 {
-    wroc_server* server = {};
-
     wroc_resource resource;
 
     wroc_surface_state pending;
@@ -482,8 +471,6 @@ struct wroc_positioner_rules
 
 struct wroc_positioner : wrei_object
 {
-    wroc_server* server;
-
     wroc_resource resource;
 
     wroc_positioner_rules rules;
@@ -520,8 +507,6 @@ enum class wroc_buffer_type : u32
 
 struct wroc_buffer : wrei_object
 {
-    wroc_server* server;
-
     wroc_buffer_type type;
 
     wroc_resource resource;
@@ -542,8 +527,6 @@ struct wroc_buffer : wrei_object
 
 struct wroc_shm_pool : wrei_object
 {
-    wroc_server* server;
-
     wroc_resource resource;
 
     i32 size;
@@ -568,8 +551,6 @@ struct wroc_shm_buffer : wroc_buffer
 
 struct wroc_dma_buffer_params : wrei_object
 {
-    wroc_server* server;
-
     wroc_resource resource;
 
     wren_dma_params params;
@@ -586,8 +567,6 @@ struct wroc_dma_buffer : wroc_buffer
 
 struct wroc_seat : wrei_object
 {
-    wroc_server* server;
-
     ref<wroc_seat_keyboard> keyboard;
     ref<wroc_seat_pointer>  pointer;
 
@@ -596,7 +575,7 @@ struct wroc_seat : wrei_object
     wroc_resource_list resources;
 };
 
-void wroc_seat_init(wroc_server*);
+void wroc_seat_init();
 void wroc_seat_init_keyboard(wroc_seat*);
 void wroc_seat_init_pointer(wroc_seat*);
 
@@ -632,8 +611,6 @@ enum class wroc_key_action
  */
 struct wroc_keyboard : wrei_object
 {
-    wroc_server* server;
-
     std::flat_set<u32> pressed = {};
 
     weak<wroc_seat_keyboard> target;
@@ -698,8 +675,6 @@ void wroc_keyboard_enter(wroc_seat_keyboard*, wroc_surface*);
 
 struct wroc_pointer : wrei_object
 {
-    wroc_server* server;
-
     std::flat_set<u32> pressed = {};
 
     weak<wroc_seat_pointer> target;
@@ -792,8 +767,6 @@ WREI_DECORATE_FLAG_ENUM(wl_data_device_manager_dnd_action)
 
 struct wroc_data_source : wrei_object
 {
-    wroc_server* server;
-
     std::vector<std::string> mime_types;
     wl_data_device_manager_dnd_action dnd_actions;
     bool cancelled = false;
@@ -805,8 +778,6 @@ struct wroc_data_source : wrei_object
 
 struct wroc_data_offer : wrei_object
 {
-    wroc_server* server;
-
     wroc_resource resource;
 
     weak<wroc_data_source> source;
@@ -820,7 +791,6 @@ struct wroc_data_offer : wrei_object
 
 struct wroc_data_device : wrei_object
 {
-    wroc_server* server;
     wroc_seat* seat;
 
     wroc_resource resource;
@@ -828,9 +798,9 @@ struct wroc_data_device : wrei_object
     ~wroc_data_device();
 };
 
-void wroc_data_manager_offer_selection(wroc_server*, wl_client*);
-void wroc_data_manager_update_drag(wroc_server*, wroc_surface*);
-void wroc_data_manager_finish_drag(wroc_server*);
+void wroc_data_manager_offer_selection(wl_client*);
+void wroc_data_manager_update_drag(wroc_surface*);
+void wroc_data_manager_finish_drag();
 
 // -----------------------------------------------------------------------------
 
@@ -852,15 +822,13 @@ struct wroc_cursor_surface : wroc_surface_addon
 
 struct wroc_cursor : wrei_object
 {
-    wroc_server* server;
-
     struct {
         ref<wren_image> image;
         vec2i32         hotspot;
     } fallback;
 };
 
-void wroc_cursor_create(wroc_server* server);
+void wroc_cursor_create();
 void wroc_cursor_set(wroc_cursor*, wl_client* client, wroc_surface* cursor_surface, vec2i32 hotspot);
 
 // -----------------------------------------------------------------------------
@@ -876,8 +844,6 @@ WREI_DECORATE_FLAG_ENUM(wroc_render_options)
 
 struct wroc_renderer : wrei_object
 {
-    wroc_server* server;
-
     struct {
         int format_table;
         usz format_table_size;
@@ -905,7 +871,7 @@ struct wroc_renderer : wrei_object
     ~wroc_renderer();
 };
 
-void wroc_renderer_create(wroc_server*, wroc_render_options);
+void wroc_renderer_create(wroc_render_options);
 void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
 
@@ -913,8 +879,6 @@ void wroc_render_frame(wroc_output*);
 
 struct wroc_imgui : wrei_object
 {
-    wroc_server* server;
-
     std::chrono::steady_clock::time_point last_frame = {};
 
     ImGuiContext* context;
@@ -951,7 +915,7 @@ void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
     ImGui::TextUnformatted(std::vformat(fmt.get(), std::make_format_args(args...)).c_str());
 }
 
-void wroc_imgui_init(wroc_server*);
+void wroc_imgui_init();
 void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer);
 bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 
@@ -960,7 +924,7 @@ bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 struct wroc_launcher;
 WREI_OBJECT_EXPLICIT_DECLARE(wroc_launcher);
 
-void wroc_launcher_init(wroc_server*);
+void wroc_launcher_init();
 void wroc_launcher_frame(wroc_launcher*, vec2u32 extent);
 bool wroc_launcher_handle_event(wroc_launcher*, const struct wroc_event&);
 
@@ -968,7 +932,7 @@ bool wroc_launcher_handle_event(wroc_launcher*, const struct wroc_event&);
 
 struct wroc_debug_gui;
 WREI_OBJECT_EXPLICIT_DECLARE(wroc_debug_gui);
-void wroc_debug_gui_init(wroc_server*, bool show_on_startup);
+void wroc_debug_gui_init(bool show_on_startup);
 void wroc_debug_gui_frame(wroc_debug_gui*);
 bool wroc_debug_gui_handle_event(wroc_debug_gui*, const struct wroc_event&);
 
@@ -1006,6 +970,9 @@ struct wroc_server : wrei_object
     std::chrono::steady_clock::time_point epoch;
 
     ref<wrei_event_loop> event_loop;
+    ref<wrei_event_source_tasks> event_tasks;
+
+    u32 client_flushes_pending = 0;
 
     wl_display* display;
     std::string socket;
@@ -1068,21 +1035,23 @@ struct wroc_server : wrei_object
     } data_manager;
 };
 
-wl_global* wroc_server_global(wroc_server*, const wl_interface*, i32 version, wl_global_bind_func_t, void* data = nullptr);
-#define WROC_SERVER_GLOBAL(Server, Interface, ...) \
-    wroc_server_global(Server, &Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
+extern wroc_server* server;
 
-u32 wroc_get_elapsed_milliseconds(wroc_server*);
-wroc_modifiers wroc_get_active_modifiers(wroc_server*);
+wl_global* wroc_global(const wl_interface*, i32 version, wl_global_bind_func_t, void* data = nullptr);
+#define WROC_GLOBAL(Interface, ...) \
+    wroc_global(&Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
+
+u32 wroc_get_elapsed_milliseconds();
+wroc_modifiers wroc_get_active_modifiers();
 
 void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_directions);
 void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, vec2i32 anchor_rel, wroc_directions);
 
-wroc_surface* wroc_get_surface_under_cursor(wroc_server*, wroc_toplevel** toplevel = nullptr);
+wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** toplevel = nullptr);
 
 struct wroc_spawn_env_action { const char* name; const char* value; };
 struct wroc_spawn_x11_action { const char* x11_socket; bool force; };
 struct wroc_spawn_cwd_action { const char* cwd; };
 using wroc_spawn_action = std::variant<wroc_spawn_env_action, wroc_spawn_x11_action>;
-pid_t wroc_server_spawn(wroc_server*, std::string_view file, std::span<const std::string_view> argv, std::span<const wroc_spawn_action>);
-void wroc_server_spawn(wroc_server*, GAppInfo* app_info, std::span<const wroc_spawn_action>);
+pid_t wroc_spawn(std::string_view file, std::span<const std::string_view> argv, std::span<const wroc_spawn_action>);
+void wroc_spawn(GAppInfo* app_info, std::span<const wroc_spawn_action>);

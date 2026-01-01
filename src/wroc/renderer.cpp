@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 #include "wrei/object.hpp"
 
@@ -12,11 +12,10 @@
 
 wroc_renderer::~wroc_renderer() = default;
 
-void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
+void wroc_renderer_create(wroc_render_options render_options)
 {
 
     auto* renderer = (server->renderer = wrei_create<wroc_renderer>()).get();
-    renderer->server = server;
     renderer->options = render_options;
 
     wren_features features = {};
@@ -50,7 +49,6 @@ void wroc_renderer_create(wroc_server* server, wroc_render_options render_option
 
 void wroc_render_frame(wroc_output* output)
 {
-    auto* server = output->server;
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
     auto cmd = wren_begin_commands(wren);
@@ -200,7 +198,7 @@ void wroc_render_frame(wroc_output* output)
     // Draw xdg surfaces
 
     auto draw_xdg_surfaces = [&](bool show_cycled) {
-        for (auto* surface : output->server->surfaces) {
+        for (auto* surface : server->surfaces) {
             // TODO: Generic "mapped" state tracking
             if (!surface->current.buffer) continue;
 
@@ -401,10 +399,10 @@ void wroc_render_frame(wroc_output* output)
 
     // Send frame callbacks
 
-    auto elapsed = wroc_get_elapsed_milliseconds(output->server);
+    auto elapsed = wroc_get_elapsed_milliseconds();
 
     // TODO: Track latency per application and dispatch done events for optimal pacing
-    for (wroc_surface* surface : output->server->surfaces) {
+    for (wroc_surface* surface : server->surfaces) {
         while (auto* callback = surface->current.frame_callbacks.front()) {
             // log_trace("Sending frame callback: {}", (void*)callback);
             wroc_send(wl_callback_send_done, callback, elapsed);

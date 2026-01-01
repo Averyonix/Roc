@@ -176,7 +176,6 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
 
     auto* pointer = (backend->pointer = wrei_create<wroc_wayland_pointer>()).get();
     pointer->wl_pointer = wl_pointer;
-    pointer->server = backend->server;
 
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
 
@@ -188,7 +187,7 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
     }
 #endif
 
-    backend->server->seat->pointer->attach(pointer);
+    server->seat->pointer->attach(pointer);
 }
 
 // -----------------------------------------------------------------------------
@@ -266,11 +265,10 @@ void wroc_keyboard_set(wroc_wayland_backend* backend, struct wl_keyboard* wl_key
 
     auto* keyboard = (backend->keyboard = wrei_create<wroc_wayland_keyboard>()).get();
     keyboard->wl_keyboard = wl_keyboard;
-    keyboard->server = backend->server;
 
     wl_keyboard_add_listener(wl_keyboard, &wroc_wl_keyboard_listener, keyboard);
 
-    backend->server->seat->keyboard->attach(keyboard);
+    server->seat->keyboard->attach(keyboard);
 }
 
 // -----------------------------------------------------------------------------

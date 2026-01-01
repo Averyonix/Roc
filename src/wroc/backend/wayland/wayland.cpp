@@ -78,11 +78,10 @@ int wroc_listen_backend_display_read(wroc_wayland_backend* backend, int fd, u32 
     return 1;
 }
 
-void wroc_wayland_backend_init(wroc_server* server)
+void wroc_wayland_backend_init()
 {
     auto backend = wrei_create<wroc_wayland_backend>();
     server->backend = backend;
-    backend->server = server;
 
     if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
         setenv("WAYLAND_DEBUG", "1", true);

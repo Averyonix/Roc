@@ -1,6 +1,6 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
-wroc_surface* wroc_get_surface_under_cursor(wroc_server* server, wroc_toplevel** p_toplevel)
+wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** p_toplevel)
 {
     if (p_toplevel) *p_toplevel = nullptr;
 

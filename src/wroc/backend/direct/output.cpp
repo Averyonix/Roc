@@ -3,7 +3,25 @@
 #include <wroc/event.hpp>
 
 static
-void scanout_thread(std::stop_token stop, wren_context* wren, wroc_drm_output* output)
+void handle_scanout(wroc_drm_output* output, std::chrono::steady_clock::time_point scanout_time)
+{
+#if WROC_NOISY_FRAME_TIME
+    log_debug("Scanout 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+#endif
+    if (scanout_time < output->acquire_time) {
+        log_warn("Scanout from earlier frame, skipping..");
+        return;
+    }
+
+    wroc_post_event(wroc_output_event {
+        .type = wroc_event_type::output_frame,
+        .output = output,
+    });
+}
+
+static
+void scanout_thread(std::stop_token stop, wren_context* wren, weak<wroc_drm_output> output)
 {
     for (;;) {
         VkFence fence;
@@ -15,7 +33,6 @@ void scanout_thread(std::stop_token stop, wren_context* wren, wroc_drm_output* o
         wren_check(wren->vk.WaitForFences(wren->device, 1, &fence, true, UINT64_MAX));
 
         auto now = std::chrono::steady_clock::now();
-        output->scanout_time = now;
 #if WROC_NOISY_FRAME_TIME
         log_debug("Scanout 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(now.time_since_epoch()).count());
 #endif
@@ -26,41 +43,18 @@ void scanout_thread(std::stop_token stop, wren_context* wren, wroc_drm_output* o
             return;
         }
 
-        u64 inc = 1;
-        write(output->eventfd, &inc, sizeof(inc));
+        wrei_event_source_tasks_enqueue(server->event_tasks.get(), [output, now] {
+            if (output) {
+                handle_scanout(output.get(), now);
+            }
+        });
     }
-}
-
-static
-int handle_display_scanout(wroc_drm_output* output, int fd, u32 mask)
-{
-    if (!(mask & WL_EVENT_READABLE)) return 0;
-
-    u64 value = 0;
-    while (read(fd, &value, sizeof(value)) > 0)
-        ;
-
-#if WROC_NOISY_FRAME_TIME
-    log_debug("Scanout 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
-#endif
-    if (output->scanout_time.load() < output->acquire_time) {
-        log_warn("Scanout from earlier frame, skipping..");
-        return 0;
-    }
-
-    wroc_post_event(output->server, wroc_output_event {
-        .type = wroc_event_type::output_frame,
-        .output = output,
-    });
-
-    return 0;
 }
 
 static
 void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& display_props, i32 index)
 {
-    auto* wren  =backend->server->renderer->wren.get();
+    auto* wren = server->renderer->wren.get();
     auto display = display_props.display;
 
     std::vector<VkDisplayModePropertiesKHR> modes;
@@ -148,8 +142,6 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
 
     backend->outputs.emplace_back(output);
 
-    output->server = backend->server;
-
     wren_check(wren->vk.CreateDisplayPlaneSurfaceKHR(wren->instance, wrei_ptr_to(VkDisplaySurfaceCreateInfoKHR {
         .sType = VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR,
         .displayMode = mode_props.displayMode,
@@ -161,25 +153,19 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
         .imageExtent = {mode_props.parameters.visibleRegion.width, mode_props.parameters.visibleRegion.height},
     }), nullptr, &output->vk_surface));
 
-    wroc_post_event(output->server, wroc_output_event {
+    wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_added,
         .output = output.get(),
     });
 
-    output->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    output->scanout = wrei_event_loop_add_fd(backend->server->event_loop.get(), output->eventfd, EPOLLIN,
-        [output = output.get()](int fd, u32 events) {
-            handle_display_scanout(output, fd, events);
-        });
-
-    output->scanout_thread = std::jthread{[wren = wren, output = output.get()](std::stop_token stop) {
+    output->scanout_thread = std::jthread{[wren = wren, output = weak(output.get())](std::stop_token stop) {
         scanout_thread(stop, wren, output);
     }};
 }
 
 void wroc_backend_init_drm(wroc_direct_backend* backend)
 {
-    auto wren = backend->server->renderer->wren;
+    auto wren = server->renderer->wren;
 
     std::vector<VkDisplayPropertiesKHR> displays;
     wren_vk_enumerate(displays, wren->vk.GetPhysicalDeviceDisplayPropertiesKHR, wren->physical_device);
@@ -196,9 +182,6 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 
 wroc_drm_output::~wroc_drm_output()
 {
-    scanout = nullptr;
-    close(eventfd);
-
     scanout_thread.get_stop_source().request_stop();
 }
 
@@ -209,7 +192,7 @@ void wroc_direct_backend::create_output()
 
 void wroc_direct_backend::destroy_output(wroc_output* output)
 {
-    wroc_post_event(output->server, wroc_output_event {
+    wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_removed,
         .output = output,
     });

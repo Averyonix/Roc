@@ -10,7 +10,6 @@ void wroc_begin_move_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* poi
 {
     if (!toplevel_is_interactable(toplevel)) return;
 
-    auto* server = toplevel->surface->server;
     server->movesize.grabbed_toplevel = toplevel;
     server->movesize.pointer_grab = pointer->position;
     server->movesize.surface_grab = toplevel->anchor.position;
@@ -22,7 +21,6 @@ void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* p
 {
     if (!toplevel_is_interactable(toplevel)) return;
 
-    auto* server = toplevel->surface->server;
     server->movesize.grabbed_toplevel = toplevel;
     server->movesize.pointer_grab = pointer->position;
     server->movesize.surface_grab = wroc_toplevel_get_layout_rect(toplevel).extent;
@@ -36,9 +34,9 @@ void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* p
     toplevel->anchor.relative = new_anchor_rel;
 }
 
-bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& base_event)
+bool wroc_handle_movesize_interaction(const wroc_event& base_event)
 {
-    auto mods = wroc_get_active_modifiers(server);
+    auto mods = wroc_get_active_modifiers();
 
     switch (wroc_event_get_type(base_event)) {
         break;case wroc_event_type::keyboard_key: {
@@ -65,7 +63,7 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
                 if (mods >= wroc_modifiers::mod) {
 
                     wroc_toplevel* toplevel;
-                    wroc_get_surface_under_cursor(server, &toplevel);
+                    wroc_get_surface_under_cursor(&toplevel);
                     if (toplevel) {
 
                         rect2i32 geom = wroc_xdg_surface_get_geometry(toplevel->base());
@@ -144,7 +142,7 @@ bool wroc_handle_movesize_interaction(wroc_server* server, const wroc_event& bas
 // -----------------------------------------------------------------------------
 
 static
-void focus_cycle(wroc_server* server, bool reverse, wroc_seat_pointer* pointer)
+void focus_cycle(bool reverse, wroc_seat_pointer* pointer)
 {
     if (server->surfaces.empty()) return;
 
@@ -189,9 +187,9 @@ void focus_cycle(wroc_server* server, bool reverse, wroc_seat_pointer* pointer)
     }
 }
 
-bool wroc_handle_focus_cycle_interaction(wroc_server* server, const wroc_event& base_event)
+bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
 {
-    auto mods = wroc_get_active_modifiers(server);
+    auto mods = wroc_get_active_modifiers();
 
     switch (wroc_event_get_type(base_event)) {
         break;case wroc_event_type::keyboard_key: {
@@ -204,12 +202,12 @@ bool wroc_handle_focus_cycle_interaction(wroc_server* server, const wroc_event& 
                     server->interaction_mode = wroc_interaction_mode::focus_cycle;
 
                     server->focus.cycled = server->seat->keyboard->focused_surface.get();
-                    focus_cycle(server, mods >= wroc_modifiers::shift, nullptr);
+                    focus_cycle(mods >= wroc_modifiers::shift, nullptr);
 
                     return true;
                 } else {
                     log_warn("Cyling focus {}", mods >= wroc_modifiers::shift ? "previous" : "next");
-                    focus_cycle(server, mods >= wroc_modifiers::shift, nullptr);
+                    focus_cycle(mods >= wroc_modifiers::shift, nullptr);
 
                     return true;
                 }
@@ -232,14 +230,14 @@ bool wroc_handle_focus_cycle_interaction(wroc_server* server, const wroc_event& 
                     server->interaction_mode = wroc_interaction_mode::focus_cycle;
 
                     server->focus.cycled = server->seat->keyboard->focused_surface.get();
-                    focus_cycle(server, mods >= wroc_modifiers::shift, server->seat->pointer.get());
+                    focus_cycle(mods >= wroc_modifiers::shift, server->seat->pointer.get());
                 } else {
                     log_warn("Cycling focus under pointer: {}", event.axis.delta.y);
 
                     auto reverse = event.axis.delta.y > 0;
                     i32 count = i32(std::abs(event.axis.delta.y));
                     for (i32 i = 0; i < count; ++i) {
-                        focus_cycle(server, reverse, server->seat->pointer.get());
+                        focus_cycle(reverse, server->seat->pointer.get());
                     }
                 }
             }
@@ -254,7 +252,7 @@ bool wroc_handle_focus_cycle_interaction(wroc_server* server, const wroc_event& 
 // -----------------------------------------------------------------------------
 
 static
-rect2i32 get_zone_rect(wroc_server* server, rect2i32 workarea, vec2i32 zone)
+rect2i32 get_zone_rect(rect2i32 workarea, vec2i32 zone)
 {
     auto& c = server->zone.config;
 
@@ -274,7 +272,7 @@ rect2i32 get_zone_rect(wroc_server* server, rect2i32 workarea, vec2i32 zone)
 }
 
 static
-void zone_update_regions(wroc_server* server)
+void zone_update_regions()
 {
     auto& c = server->zone.config;
 
@@ -294,7 +292,7 @@ void zone_update_regions(wroc_server* server)
 
     for (u32 zone_x = 0; zone_x < c.zones.x; ++zone_x) {
         for (u32 zone_y = 0; zone_y < c.zones.y; ++zone_y) {
-            aabb2f64 rect = get_zone_rect(server, workarea, {zone_x, zone_y});
+            aabb2f64 rect = get_zone_rect(workarea, {zone_x, zone_y});
             aabb2f64 check_rect = {
                 rect.min - vec2f64(c.selection_leeway),
                 rect.max + vec2f64(c.selection_leeway),
@@ -318,9 +316,9 @@ void zone_update_regions(wroc_server* server)
     }
 }
 
-bool wroc_handle_zone_interaction(wroc_server* server, const wroc_event& base_event)
+bool wroc_handle_zone_interaction(const wroc_event& base_event)
 {
-    auto mods = wroc_get_active_modifiers(server);
+    auto mods = wroc_get_active_modifiers();
     auto& event = static_cast<const wroc_pointer_event&>(base_event);
     auto& button = event.button;
     switch (wroc_event_get_type(base_event)) {
@@ -328,13 +326,13 @@ bool wroc_handle_zone_interaction(wroc_server* server, const wroc_event& base_ev
             if (button.button == BTN_LEFT) {
                 if (button.pressed && mods >= wroc_modifiers::mod && (!(mods >= wroc_modifiers::shift))) {
                     wroc_toplevel* toplevel;
-                    wroc_get_surface_under_cursor(server, &toplevel);
+                    wroc_get_surface_under_cursor(&toplevel);
                     if (toplevel) {
                         server->zone.toplevel = toplevel;
                         if (toplevel_is_interactable(toplevel)) {
                             server->interaction_mode = wroc_interaction_mode::zone;
                             server->zone.selecting = false;
-                            zone_update_regions(server);
+                            zone_update_regions();
                         }
                     }
                     return true;
@@ -356,14 +354,14 @@ bool wroc_handle_zone_interaction(wroc_server* server, const wroc_event& base_ev
                 if (button.button == BTN_RIGHT && server->interaction_mode == wroc_interaction_mode::zone) {
                     if (button.pressed) {
                         server->zone.selecting = !server->zone.selecting;
-                        zone_update_regions(server);
+                        zone_update_regions();
                     }
                     return true;
                 }
             }
         break;case wroc_event_type::pointer_motion:
             if (server->interaction_mode == wroc_interaction_mode::zone) {
-                zone_update_regions(server);
+                zone_update_regions();
                 return true;
             }
         break;default:

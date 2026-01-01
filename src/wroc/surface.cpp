@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include "util.hpp"
 
 
@@ -9,9 +9,7 @@ static
 void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &wl_region_interface, wl_resource_get_version(resource), id);
-    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* region = wrei_create_unsafe<wroc_region>();
-    region->server = server;
     region->resource = new_resource;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_region_impl, region);
 }
@@ -19,10 +17,8 @@ void wroc_wl_compositor_create_region(wl_client* client, wl_resource* resource, 
 static
 void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* new_resource = wroc_resource_create(client, &wl_surface_interface, wl_resource_get_version(resource), id);
     auto* surface = wrei_create_unsafe<wroc_surface>();
-    surface->server = server;
     surface->resource = new_resource;
     server->surfaces.emplace_back(surface);
 
@@ -44,7 +40,7 @@ const struct wl_compositor_interface wroc_wl_compositor_impl = {
 void wroc_wl_compositor_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &wl_compositor_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, static_cast<wroc_server*>(data));
+    wroc_resource_set_implementation(new_resource, &wroc_wl_compositor_impl, nullptr);
 };
 
 // -----------------------------------------------------------------------------
@@ -332,8 +328,8 @@ void wroc_surface_raise(wroc_surface* surface)
 {
     // TODO: Implement generic "slide" algorithm for this and subsurface layers
 
-    auto i = std::ranges::find(surface->server->surfaces, surface);
-    std::rotate(i, i + 1, surface->server->surfaces.end());
+    auto i = std::ranges::find(server->surfaces, surface);
+    std::rotate(i, i + 1, server->surfaces.end());
 }
 
 wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
@@ -343,7 +339,7 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
             ;
         break;case wroc_surface_role::cursor:
               case wroc_surface_role::drag_icon:
-            return {surface->server->seat->pointer->position, vec2f64(1.0)};
+            return {server->seat->pointer->position, vec2f64(1.0)};
         break;case wroc_surface_role::subsurface:
             if (auto* subsurface = static_cast<wroc_subsurface*>(surface->role_addon.get()); subsurface && subsurface->parent) {
                 auto space = wroc_surface_get_coord_space(subsurface->parent.get());

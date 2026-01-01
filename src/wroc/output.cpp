@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 #include "wren/wren.hpp"
 #include "wren/internal.hpp"
@@ -13,14 +13,11 @@ static void wroc_output_send_configuration(wroc_wl_output*, wl_resource* client_
 
 // -----------------------------------------------------------------------------
 
-void wroc_output_layout_init(wroc_server* server)
+void wroc_output_layout_init()
 {
     auto* layout = (server->output_layout = wrei_create<wroc_output_layout>()).get();
-    layout->server = server;
 
     auto* primary = (layout->primary = wrei_create<wroc_wl_output>()).get();
-
-    primary->server = server;
 
     // TODO: Configuration
     static constexpr auto name = "DP-1";
@@ -47,7 +44,7 @@ void wroc_output_layout_init(wroc_server* server)
         }
     };
 
-    primary->global = WROC_SERVER_GLOBAL(server, wl_output, primary);
+    primary->global = WROC_GLOBAL(wl_output, primary);
 }
 
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 global_pos, wroc_output** p_output)
@@ -97,7 +94,7 @@ void wroc_output_update(wroc_output_layout* layout)
         log_info("    Rect: {}", wrei_to_string(output->layout_rect));
     }
 
-    for (auto* surface : layout->server->surfaces) {
+    for (auto* surface : server->surfaces) {
         if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
             wroc_toplevel_update_fullscreen_size(toplevel);
         }
@@ -110,8 +107,6 @@ void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* outp
         log_debug("NEW OUTPUT");
         layout->outputs.emplace_back(output);
     }
-
-    auto* server = layout->server;
 
     if (!server->imgui->output) {
         // TODO: This should be set to the PRIMARY output, instead of the first output
@@ -171,7 +166,7 @@ rect2i32 wroc_output_get_pixel_rect(wroc_output* output, rect2f64 rect, rect2f64
 static
 void wroc_output_init_swapchain(wroc_output* output)
 {
-    auto* renderer = output->server->renderer.get();
+    auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
 
     log_debug("Creating vulkan swapchain");
@@ -278,7 +273,7 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
 
 void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto output = static_cast<wroc_wl_output*>(data);
+    auto* output = static_cast<wroc_wl_output*>(data);
     auto* new_resource = wroc_resource_create(client, &wl_output_interface, version, id);
     log_warn("OUTPUT BIND: {}", (void*)new_resource);
     output->resources.emplace_back(new_resource);
@@ -287,7 +282,7 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
     wroc_send(wroc_output_send_configuration, output, new_resource, true);
 
     // Enter all client surfaces
-    for (auto* surface : output->server->surfaces) {
+    for (auto* surface : server->surfaces) {
         if (wroc_resource_get_client(surface->resource) == client) {
             wroc_output_enter_surface(output, surface);
         }
@@ -297,8 +292,6 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
 static
 void wroc_output_added(wroc_output* output)
 {
-    auto* server = output->server;
-
     if (!output->swapchain) {
         wroc_output_init_swapchain(output);
     }
@@ -320,10 +313,10 @@ wroc_output::~wroc_output()
 static
 void wroc_output_removed(wroc_output* output)
 {
-    wroc_output_layout_remove_output(output->server->output_layout.get(), output);
+    wroc_output_layout_remove_output(server->output_layout.get(), output);
 }
 
-void wroc_handle_output_event(wroc_server* server, const wroc_output_event& event)
+void wroc_handle_output_event(const wroc_output_event& event)
 {
     switch (event.type) {
         case wroc_event_type::output_added:   wroc_output_added(    event.output); break;
@@ -346,7 +339,7 @@ VkSemaphoreSubmitInfo wroc_output_get_next_submit_info(wroc_output* output)
 vkwsi_swapchain_image wroc_output_acquire_image(wroc_output* output)
 {
 
-    auto* wren = output->server->renderer->wren.get();
+    auto* wren = server->renderer->wren.get();
     vkwsi_swapchain_resize(output->swapchain, {u32(output->size.x), u32(output->size.y)});
 
     auto timeline_info = wroc_output_get_next_submit_info(output);

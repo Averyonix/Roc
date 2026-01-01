@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include <wayland-client-protocol.h>
 
 const u32 wroc_wl_data_device_manager_version = 3;
@@ -7,11 +7,9 @@ static
 void wroc_wl_data_device_manager_create_data_source(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &wl_data_source_interface, wl_resource_get_version(resource), id);
-    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* data_source = wrei_create_unsafe<wroc_data_source>();
     data_source->resource = new_resource;
-    data_source->server = server;
-    data_source->server->data_manager.sources.emplace_back(data_source);
+    server->data_manager.sources.emplace_back(data_source);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_data_source_impl, data_source);
 }
 
@@ -19,12 +17,10 @@ static
 void wroc_wl_data_device_manager_get_data_device(wl_client* client, wl_resource* resource, u32 id, wl_resource* seat)
 {
     auto* new_resource = wroc_resource_create(client, &wl_data_device_interface, wl_resource_get_version(resource), id);
-    auto* server = wroc_get_userdata<wroc_server>(resource);
     auto* data_device = wrei_create_unsafe<wroc_data_device>();
     data_device->resource = new_resource;
-    data_device->server = server;
     data_device->seat = wroc_get_userdata<wroc_seat>(seat);
-    data_device->server->data_manager.devices.emplace_back(data_device);
+    server->data_manager.devices.emplace_back(data_device);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_data_device_impl, data_device);
 }
 
@@ -36,7 +32,7 @@ const struct wl_data_device_manager_interface wroc_wl_data_device_manager_impl =
 void wroc_wl_data_device_manager_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto new_resource = wroc_resource_create(client, &wl_data_device_manager_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_wl_data_device_manager_impl, static_cast<wroc_server*>(data));
+    wroc_resource_set_implementation(new_resource, &wroc_wl_data_device_manager_impl, nullptr);
 }
 
 // -----------------------------------------------------------------------------
@@ -101,7 +97,6 @@ void wroc_wl_data_offer_accept(wl_client* client, wl_resource* resource, u32 ser
         return;
     }
 
-    auto* server = offer->server;
     auto& drag = server->data_manager.drag;
 
     if (offer->source.get() != drag.source.get()) {
@@ -134,7 +129,7 @@ void wroc_wl_data_offer_accept(wl_client* client, wl_resource* resource, u32 ser
 }
 
 static
-void wroc_data_manager_end_grab(wroc_server* server)
+void wroc_data_manager_end_grab()
 {
     server->data_manager.drag = {};
 }
@@ -150,7 +145,7 @@ void wroc_wl_data_offer_finish(wl_client* client, wl_resource* resource)
         wroc_send(wl_data_source_send_dnd_finished, offer->source->resource);
     }
 
-    wroc_data_manager_end_grab(offer->server);
+    wroc_data_manager_end_grab();
 }
 
 const struct wl_data_offer_interface wroc_wl_data_offer_impl = {
@@ -194,8 +189,8 @@ void wroc_wl_data_source_destroy(wl_client* client, wl_resource* resource)
 {
     auto* source = wroc_get_userdata<wroc_data_source>(resource);
     log_debug("data source destroyed: {}", (void*)source);
-    if (source->server->data_manager.drag.source.get() == source) {
-        wroc_data_manager_end_grab(source->server);
+    if (server->data_manager.drag.source.get() == source) {
+        wroc_data_manager_end_grab();
     }
 }
 
@@ -221,8 +216,8 @@ void wroc_data_source_cancel(wroc_data_source* data_source)
         wroc_send(wl_data_source_send_cancelled, data_source->resource);
     }
     data_source->cancelled = true;
-    if (data_source == data_source->server->data_manager.drag.source.get()) {
-        wroc_data_manager_end_grab(data_source->server);
+    if (data_source == server->data_manager.drag.source.get()) {
+        wroc_data_manager_end_grab();
     }
 }
 
@@ -234,7 +229,6 @@ wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* 
     auto* offer_resource = wroc_resource_create(wroc_resource_get_client(device->resource), &wl_data_offer_interface, wl_resource_get_version(device->resource), 0);
     auto* data_offer = wrei_create_unsafe<wroc_data_offer>();
     data_offer->resource = offer_resource;
-    data_offer->server = device->server;
     data_offer->source = source;
     data_offer->device = device;
     wroc_resource_set_implementation_refcounted(offer_resource, &wroc_wl_data_offer_impl, data_offer);
@@ -252,7 +246,7 @@ wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* 
     return offer_resource;
 }
 
-void wroc_data_manager_offer_selection(wroc_server* server, wl_client* client)
+void wroc_data_manager_offer_selection(wl_client* client)
 {
     if (!server->data_manager.selection) return;
     auto* selection = server->data_manager.selection.get();
@@ -274,23 +268,23 @@ void wroc_wl_data_device_set_selection(wl_client* client, wl_resource* resource,
 
     // Cancel all previous data sources
 
-    for (auto* old_source : data_source->server->data_manager.sources) {
+    for (auto* old_source : server->data_manager.sources) {
         if (old_source == data_source) continue;
         wroc_data_source_cancel(old_source);
     }
 
-    data_source->server->data_manager.selection = data_source;
+    server->data_manager.selection = data_source;
 
     log_warn("wl_data_device::set_selection({})", (void*)data_source);
 
-    if (auto* surface = data_source->server->seat->keyboard->focused_surface.get(); surface && surface->resource) {
+    if (auto* surface = server->seat->keyboard->focused_surface.get(); surface && surface->resource) {
         if (auto* focused_client = wroc_resource_get_client(surface->resource)) {
-            wroc_data_manager_offer_selection(data_source->server, focused_client);
+            wroc_data_manager_offer_selection(focused_client);
         }
     }
 }
 
-void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_surface)
+void wroc_data_manager_update_drag(wroc_surface* target_surface)
 {
     auto& drag = server->data_manager.drag;
 
@@ -299,7 +293,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
     if (drag.offered_surface.get() == target_surface) {
         if (!target_surface) return;
 
-        auto time = wroc_get_elapsed_milliseconds(server);
+        auto time = wroc_get_elapsed_milliseconds();
 
         for (auto* device : server->data_manager.devices) {
             if (wroc_resource_get_client(device->resource) != wroc_resource_get_client(target_surface->resource)) continue;
@@ -347,7 +341,7 @@ void wroc_data_manager_update_drag(wroc_server* server, wroc_surface* target_sur
     }
 }
 
-void wroc_data_manager_finish_drag(wroc_server* server)
+void wroc_data_manager_finish_drag()
 {
     auto& drag = server->data_manager.drag;
 
@@ -388,8 +382,6 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     auto drag_icon = wroc_surface_get_or_create_addon<wroc_drag_icon>(drag_surface);
     drag_surface->buffer_dst.origin = {};
 
-    auto* server = data_device->server;
-
     log_warn("Drag started (device = {}, source = {}, surface = {})", (void*)data_device, (void*)data_source, (void*)drag_surface);
 
     server->data_manager.drag.device = data_device;
@@ -398,9 +390,9 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     server->data_manager.drag.offered_surface = nullptr;
     server->data_manager.drag.offer = nullptr;
 
-    auto surface_under_cursor = wroc_get_surface_under_cursor(server);
+    auto surface_under_cursor = wroc_get_surface_under_cursor();
 
-    wroc_data_manager_update_drag(server, surface_under_cursor);
+    wroc_data_manager_update_drag(surface_under_cursor);
 }
 
 void wroc_drag_icon::on_commit(wroc_surface_commit_flags)

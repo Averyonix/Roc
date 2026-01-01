@@ -151,7 +151,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     int seat_fd = libseat_get_fd(backend->seat);
     assert(seat_fd >= 0);
 
-    backend->libseat_event_source = wrei_event_loop_add_fd(backend->server->event_loop.get(), seat_fd, EPOLLIN,
+    backend->libseat_event_source = wrei_event_loop_add_fd(server->event_loop.get(), seat_fd, EPOLLIN,
         [backend](int fd, u32 events) {
             handle_libseat_readable(backend, fd, events);
         });
@@ -182,7 +182,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
         std::terminate();
     }
 
-    backend->libinput_event_source = wrei_event_loop_add_fd(backend->server->event_loop.get(), libinput_fd, EPOLLIN,
+    backend->libinput_event_source = wrei_event_loop_add_fd(server->event_loop.get(), libinput_fd, EPOLLIN,
         [backend](int fd, u32 events) {
             handle_libinput_readable(backend, fd, events);
         });

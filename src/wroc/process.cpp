@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 static
 std::filesystem::path find_on_path(std::string_view in)
@@ -22,8 +22,7 @@ std::filesystem::path find_on_path(std::string_view in)
     return {};
 }
 
-pid_t wroc_server_spawn(
-    wroc_server* server,
+pid_t wroc_spawn(
     std::string_view file,
     std::span<const std::string_view> args,
     std::span<const wroc_spawn_action> actions)
@@ -86,7 +85,7 @@ pid_t wroc_server_spawn(
     }
 }
 
-void wroc_server_spawn(wroc_server* server, GAppInfo* app, std::span<const wroc_spawn_action> actions)
+void wroc_spawn(GAppInfo* app, std::span<const wroc_spawn_action> actions)
 {
     auto* name = g_app_info_get_display_name(app) ?: g_app_info_get_name(app);
     log_info("Running: {}", name);

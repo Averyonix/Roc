@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include "util.hpp"
 
 const u32 wroc_wp_viewporter_version = 1;
@@ -26,9 +26,8 @@ const struct wp_viewporter_interface wroc_wp_viewporter_impl
 void wroc_wp_viewporter_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     log_warn("wp_viewporter::bind_global()");
-    auto* server = static_cast<wroc_server*>(data);
     auto new_resource = wroc_resource_create(client, &wp_viewporter_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_wp_viewporter_impl, server);
+    wroc_resource_set_implementation(new_resource, &wroc_wp_viewporter_impl, nullptr);
 }
 
 // -----------------------------------------------------------------------------

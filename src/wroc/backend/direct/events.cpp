@@ -13,10 +13,7 @@ wroc_input_device::~wroc_input_device()
 static
 bool device_init_keyboard(wroc_input_device* device)
 {
-    auto* server = device->backend->server;
-
     device->keyboard = wrei_create<wroc_libinput_keyboard>();
-    device->keyboard->server = server;
     device->keyboard->base = device;
 
     server->seat->keyboard->attach(device->keyboard.get());
@@ -52,7 +49,6 @@ static
 bool device_init_pointer(wroc_input_device* device)
 {
     device->pointer = wrei_create<wroc_libinput_pointer>();
-    device->pointer->server = device->backend->server;
     device->pointer->base = device;
 
     if (libinput_device_config_accel_is_available(device->handle)) {
@@ -62,7 +58,7 @@ bool device_init_pointer(wroc_input_device* device)
 
     auto* pointer = device->pointer.get();
 
-    device->backend->server->seat->pointer->attach(pointer);
+    server->seat->pointer->attach(pointer);
 
     return true;
 }

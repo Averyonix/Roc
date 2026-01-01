@@ -1,6 +1,6 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
-u32 wroc_get_elapsed_milliseconds(wroc_server* server)
+u32 wroc_get_elapsed_milliseconds()
 {
     // TODO: This will elapse after 46 days of runtime, should we base it on surface epoch?
 
@@ -9,11 +9,25 @@ u32 wroc_get_elapsed_milliseconds(wroc_server* server)
     return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-wl_global* wroc_server_global(wroc_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
+wl_global* wroc_global(const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
 {
     assert(version <= interface->version);
-    return wl_global_create(server->display, interface, version, data ?: server, bind);
+    return wl_global_create(server->display, interface, version, data, bind);
 }
+
+void wroc_queue_client_flush()
+{
+    if (server->client_flushes_pending) return;
+    server->client_flushes_pending++;
+    wrei_event_source_tasks_enqueue(server->event_tasks.get(), [] {
+        if (server->client_flushes_pending) {
+            wl_display_flush_clients(server->display);
+            server->client_flushes_pending = 0;
+        }
+    });
+}
+
+wroc_server* server;
 
 void wroc_run(int argc, char* argv[])
 {
@@ -49,7 +63,7 @@ void wroc_run(int argc, char* argv[])
     }
 
     ref<wroc_server> server_ref = wrei_create<wroc_server>();
-    wroc_server* server = server_ref.get();
+    server = server_ref.get();
     server->event_loop = wrei_event_loop_create();
     log_warn("server = {}", (void*)server);
 
@@ -61,9 +75,11 @@ void wroc_run(int argc, char* argv[])
         server->main_mod_evdev = KEY_LEFTALT;
     }
 
+    server->event_tasks = wrei_event_loop_add_tasks(server->event_loop.get());
+
     // Seat
 
-    wroc_seat_init(server);
+    wroc_seat_init();
 
     server->epoch = std::chrono::steady_clock::now();
 
@@ -84,53 +100,52 @@ void wroc_run(int argc, char* argv[])
     auto wl_event_loop = wl_display_get_event_loop(server->display);
     auto _ = wrei_event_loop_add_fd(server->event_loop.get(), wl_event_loop_get_fd(wl_event_loop), EPOLLIN,
         [&](int fd, u32 events) {
+            server->client_flushes_pending++;
             wrei_unix_check_n1(wl_event_loop_dispatch(wl_event_loop, 0));
+            wl_display_flush_clients(server->display);
+            server->client_flushes_pending--;
         });
-
-    server->event_loop->prepolls.emplace_back([&] {
-        wl_display_flush_clients(server->display);
-    });
 
     // Output layout
 
-    wroc_output_layout_init(server);
+    wroc_output_layout_init();
 
     // Renderer
 
     log_warn("Initializing renderer");
-    wroc_renderer_create(server, render_options);
+    wroc_renderer_create(render_options);
 
     // Cursor
 
-    wroc_cursor_create(server);
+    wroc_cursor_create();
 
     // ImGui
 
     log_warn("Initializing imgui");
-    wroc_imgui_init(server);
-    wroc_debug_gui_init(server, show_imgui_on_startup);
+    wroc_imgui_init();
+    wroc_debug_gui_init(show_imgui_on_startup);
 
     // Backend
 
     log_warn("Initializing backend");
-    wroc_backend_init(server, backend_type);
+    wroc_backend_init(backend_type);
     log_warn("Backend initialized");
 
     // Register globals
 
-    WROC_SERVER_GLOBAL(server, wl_shm);
+    WROC_GLOBAL(wl_shm);
     if (!(render_options >= wroc_render_options::no_dmabuf)) {
-        WROC_SERVER_GLOBAL(server, zwp_linux_dmabuf_v1);
+        WROC_GLOBAL(zwp_linux_dmabuf_v1);
     }
-    WROC_SERVER_GLOBAL(server, wl_compositor);
-    WROC_SERVER_GLOBAL(server, wl_subcompositor);
-    WROC_SERVER_GLOBAL(server, wl_data_device_manager);
-    WROC_SERVER_GLOBAL(server, xdg_wm_base);
-    WROC_SERVER_GLOBAL(server, wl_seat, server->seat.get());
-    WROC_SERVER_GLOBAL(server, zwp_pointer_gestures_v1);
-    WROC_SERVER_GLOBAL(server, wp_viewporter);
-    WROC_SERVER_GLOBAL(server, zwp_relative_pointer_manager_v1);
-    WROC_SERVER_GLOBAL(server, zwp_pointer_constraints_v1);
+    WROC_GLOBAL(wl_compositor);
+    WROC_GLOBAL(wl_subcompositor);
+    WROC_GLOBAL(wl_data_device_manager);
+    WROC_GLOBAL(xdg_wm_base);
+    WROC_GLOBAL(wl_seat, server->seat.get());
+    WROC_GLOBAL(zwp_pointer_gestures_v1);
+    WROC_GLOBAL(wp_viewporter);
+    WROC_GLOBAL(zwp_relative_pointer_manager_v1);
+    WROC_GLOBAL(zwp_pointer_constraints_v1);
 
     // Run
 
@@ -139,7 +154,7 @@ void wroc_run(int argc, char* argv[])
         setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, true);
     }
     if (x11_socket) {
-        wroc_server_spawn(server, "xwayland-satellite", {"xwayland-satellite", x11_socket->c_str()}, {});
+        wroc_spawn("xwayland-satellite", {"xwayland-satellite", x11_socket->c_str()}, {});
         server->x11_socket = *x11_socket;
     }
 
@@ -166,7 +181,7 @@ void wroc_run(int argc, char* argv[])
     log_info("Shutdown complete");
 }
 
-void wroc_terminate(wroc_server* server)
+void wroc_terminate()
 {
     wrei_event_loop_stop(server->event_loop.get());
 }

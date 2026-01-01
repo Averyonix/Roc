@@ -3,6 +3,8 @@
 #include "wrei/log.hpp"
 #include "wrei/object.hpp"
 
+#include "util.hpp"
+
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)
 {

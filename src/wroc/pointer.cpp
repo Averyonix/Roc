@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 #include "wroc/event.hpp"
 
@@ -6,9 +6,8 @@ const u32 wroc_zwp_relative_pointer_manager_v1_version = 1;
 
 void wroc_zwp_relative_pointer_manager_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto* server = static_cast<wroc_server*>(data);
     auto new_resource = wroc_resource_create(client, &zwp_relative_pointer_manager_v1_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_manager_v1_impl, server);
+    wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_manager_v1_impl, nullptr);
 
     log_error("RELATIVE POINTER MANAGER CREATED");
 }
@@ -39,9 +38,8 @@ const u32 wroc_zwp_pointer_constraints_v1_version = 1;
 
 void wroc_zwp_pointer_constraints_v1_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
-    auto* server = static_cast<wroc_server*>(data);
     auto* new_resource = wroc_resource_create(client, &zwp_pointer_constraints_v1_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_zwp_pointer_constraints_v1_impl, server);
+    wroc_resource_set_implementation(new_resource, &wroc_zwp_pointer_constraints_v1_impl, nullptr);
 
     log_error("POINTER CONSTRAINT INTERFACE BOUND");
 }
@@ -217,7 +215,7 @@ static
 bool is_constraint_focused(wroc_pointer_constraint* constraint)
 {
     if (!constraint->surface) return false;
-    auto* seat = constraint->surface->server->seat.get();
+    auto* seat = server->seat.get();
     return seat->keyboard->focused_surface == constraint->surface
         && seat->pointer->focused_surface == constraint->surface;
 }
@@ -300,7 +298,7 @@ void wroc_pointer::absolute(wroc_output* output, vec2f64 offset)
 {
     target->position = output->layout_rect.origin + offset;
 
-    wroc_post_event(server, wroc_pointer_event {
+    wroc_post_event(wroc_pointer_event {
         .type = wroc_event_type::pointer_motion,
         .pointer = target.get(),
         .motion = {},
@@ -346,7 +344,7 @@ void wroc_pointer::relative(vec2f64 rel_unaccel)
         target->position = apply_constraint(constraint, old_pos, target->position);
     }
 
-    wroc_post_event(server, wroc_pointer_event {
+    wroc_post_event(wroc_pointer_event {
         .type = wroc_event_type::pointer_motion,
         .pointer = target.get(),
         .motion = {
@@ -359,7 +357,7 @@ void wroc_pointer::relative(vec2f64 rel_unaccel)
 void wroc_pointer::scroll(vec2f64 delta)
 {
     // TODO: Separate axis and scroll events
-    wroc_post_event(server, wroc_pointer_event {
+    wroc_post_event(wroc_pointer_event {
         .type = wroc_event_type::pointer_axis,
         .pointer = target.get(),
         .axis {
@@ -399,7 +397,7 @@ void wroc_seat_pointer_update_state(wroc_seat_pointer* pointer, wroc_key_action 
     for (auto button : actioned_buttons) {
 
         if (button == BTN_SIDE) {
-            u32 translated = pointer->seat->server->main_mod_evdev;
+            u32 translated = server->main_mod_evdev;
             switch (action) {
                 break;case wroc_key_action::press:   pointer->keyboard->press(translated);
                 break;case wroc_key_action::release: pointer->keyboard->release(translated);
@@ -411,7 +409,7 @@ void wroc_seat_pointer_update_state(wroc_seat_pointer* pointer, wroc_key_action 
         if (action == wroc_key_action::release ? pointer->pressed.dec(button) : pointer->pressed.inc(button)) {
             log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), magic_enum::enum_name(action));
             if (action != wroc_key_action::enter) {
-                wroc_post_event(pointer->seat->server, wroc_pointer_event {
+                wroc_post_event(wroc_pointer_event {
                     .type = wroc_event_type::pointer_button,
                     .pointer = pointer,
                     .button { .button = button, .pressed = action == wroc_key_action::press },
@@ -440,7 +438,6 @@ bool wroc_pointer_resource_matches_focus_client(wroc_seat_pointer* pointer, wl_r
 static
 void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused_surface)
 {
-    auto* server = pointer->seat->server;
     if (focused_surface != pointer->focused_surface.get()) {
         if (auto* old_surface = pointer->focused_surface.get(); old_surface && old_surface->resource) {
             log_info("Leaving surface: {}", (void*)pointer->focused_surface.get());
@@ -462,7 +459,7 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
             pointer->focused_surface = focused_surface;
 
             auto pos = wroc_surface_pos_from_global(focused_surface, pointer->position);
-            auto serial = wl_display_next_serial(pointer->seat->server->display);
+            auto serial = wl_display_next_serial(server->display);
 
             for (auto* resource : pointer->resources) {
                 if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
@@ -472,7 +469,7 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
                     wl_fixed_from_double(pos.x),
                     wl_fixed_from_double(pos.y));
 
-                wroc_send(wroc_pointer_send_frame, resource);
+                wroc_pointer_send_frame(resource);
             }
         }
     }
@@ -482,10 +479,9 @@ static
 void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
 {
     auto* seat = pointer->seat;
-    auto* server = seat->server;
 
     wroc_toplevel* toplevel_under_cursor;
-    auto surface_under_cursor = wroc_get_surface_under_cursor(pointer->seat->server, &toplevel_under_cursor);
+    auto surface_under_cursor = wroc_get_surface_under_cursor(&toplevel_under_cursor);
 
     if (seat->keyboard && pressed) {
         if (toplevel_under_cursor) {
@@ -504,19 +500,19 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
     }
 
     auto serial = wl_display_next_serial(server->display);
-    auto time = wroc_get_elapsed_milliseconds(server);
-    for (auto* resources : pointer->resources) {
-        if (!wroc_pointer_resource_matches_focus_client(pointer, resources)) continue;
-        wroc_send(wl_pointer_send_button, resources,
+    auto time = wroc_get_elapsed_milliseconds();
+    for (auto* resource : pointer->resources) {
+        if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
+        wroc_send(wl_pointer_send_button, resource,
             serial,
             time,
             button, pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
-        wroc_send(wroc_pointer_send_frame, resources);
+        wroc_pointer_send_frame(resource);
     }
 
     if (!pressed && pointer->pressed.empty() && server->implicit_grab_surface) {
         log_info("Ending implicit grab");
-        wroc_data_manager_finish_drag(server);
+        wroc_data_manager_finish_drag();
         server->implicit_grab_surface = {};
         wroc_pointer_update_focus(pointer, surface_under_cursor);
     }
@@ -527,9 +523,8 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_un
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
-    auto surface_under_cursor = wroc_get_surface_under_cursor(pointer->seat->server);
+    auto surface_under_cursor = wroc_get_surface_under_cursor();
 
-    auto* server = pointer->seat->server;
     auto* focused_surface = server->implicit_grab_surface ? server->implicit_grab_surface.get() : surface_under_cursor;
 
     if (focused_surface && focused_surface->resource) {
@@ -537,7 +532,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_un
             if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
 
             if (wroc_is_client_behind(wroc_resource_get_client(resource))) {
-                log_warn("[{}], client is running behind, skipping pointer relative event...", wroc_get_elapsed_milliseconds(server));
+                log_warn("[{}], client is running behind, skipping pointer relative event...", wroc_get_elapsed_milliseconds());
                 continue;
             }
 
@@ -553,7 +548,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_un
         }
     }
 
-    wroc_data_manager_update_drag(server, surface_under_cursor);
+    wroc_data_manager_update_drag(surface_under_cursor);
 
     // log_trace("motion, grab = {}", (void*)server->implicit_grab_surface.surface.get());
     wroc_pointer_update_focus(pointer, focused_surface);
@@ -564,7 +559,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_un
 
     if (focused_surface && focused_surface->resource) {
 
-        auto time = wroc_get_elapsed_milliseconds(server);
+        auto time = wroc_get_elapsed_milliseconds();
         auto pos = wroc_surface_pos_from_global(focused_surface, pointer->position);
 
         // log_trace("sending motion to surface: {} ({:.2f}, {:.2f}) [{}]", (void*)focused_surface, pos.x, pos.y, time);
@@ -581,7 +576,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_un
                 time,
                 wl_fixed_from_double(pos.x),
                 wl_fixed_from_double(pos.y));
-            wroc_send(wroc_pointer_send_frame, resource);
+            wroc_pointer_send_frame(resource);
         }
     }
 }
@@ -591,7 +586,7 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
 {
     // TODO: Handle different types of scroll correctly
 
-    auto time = wroc_get_elapsed_milliseconds(pointer->seat->server);
+    auto time = wroc_get_elapsed_milliseconds();
     for (auto* resource : pointer->resources) {
         if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
 
@@ -616,12 +611,12 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
         }
 
         if (version >= WL_POINTER_FRAME_SINCE_VERSION) {
-            wroc_send(wroc_pointer_send_frame, resource);
+            wroc_pointer_send_frame(resource);
         }
     }
 }
 
-void wroc_handle_pointer_event(wroc_server* server, const wroc_pointer_event& event)
+void wroc_handle_pointer_event(const wroc_pointer_event& event)
 {
     switch (event.type) {
         break;case wroc_event_type::pointer_button:

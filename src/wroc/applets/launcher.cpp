@@ -1,12 +1,8 @@
-#include <wroc/server.hpp>
+#include <wroc/wroc.hpp>
 #include <wroc/event.hpp>
 
 struct wroc_launcher : wrei_object
 {
-    wrei_object object;
-
-    wroc_server* server;
-
     std::vector<struct wroc_launcher_app> apps;
     std::string filter;
     const wroc_launcher_app* selected = 0;
@@ -74,12 +70,11 @@ void filter(wroc_launcher* launcher, bool up, bool down)
     }
 }
 
-void wroc_launcher_init(wroc_server* server)
+void wroc_launcher_init()
 {
     server->launcher = wrei_create<wroc_launcher>();
 
     auto* launcher = server->launcher.get();
-    launcher->server = server;
 
     auto* apps = g_app_info_get_all();
     defer { g_list_free(apps); };
@@ -130,10 +125,10 @@ void wroc_launcher_init(wroc_server* server)
 static
 void wroc_launcher_run(wroc_launcher* launcher, wroc_launcher_app& app)
 {
-    auto& x11 = launcher->server->x11_socket;
+    auto& x11 = server->x11_socket;
 
     // TODO: Select action on right-click
-    wroc_server_spawn(launcher->server, app.app_info, {
+    wroc_spawn(app.app_info, {
         wroc_spawn_x11_action{x11.empty() ? nullptr : x11.c_str(), false},
     });
 
@@ -144,7 +139,7 @@ bool wroc_launcher_handle_event(wroc_launcher* launcher, const struct wroc_event
 {
     if (wroc_event_get_type(event) == wroc_event_type::keyboard_key) {
         auto& key_event = static_cast<const wroc_keyboard_event&>(event);
-        if (key_event.key.upper() == XKB_KEY_D && key_event.key.pressed && wroc_get_active_modifiers(launcher->server) >= wroc_modifiers::mod) {
+        if (key_event.key.upper() == XKB_KEY_D && key_event.key.pressed && wroc_get_active_modifiers() >= wroc_modifiers::mod) {
             log_warn("Showing launcher");
             launcher->show = true;
             launcher->grab_focus = true;

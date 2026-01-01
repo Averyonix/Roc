@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wroc/server.hpp"
+#include "wroc/wroc.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -46,8 +46,6 @@ struct wroc_wayland_pointer : wroc_pointer
 
 struct wroc_wayland_backend : wroc_backend
 {
-    wroc_server* server = {};
-
     struct wl_display* wl_display = {};
     struct wl_registry* wl_registry = {};
     struct wl_compositor* wl_compositor;
@@ -74,7 +72,7 @@ struct wroc_wayland_backend : wroc_backend
     ~wroc_wayland_backend();
 };
 
-void wroc_wayland_backend_init(wroc_server*);
+void wroc_wayland_backend_init();
 
 wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_backend*, wl_surface*);
 

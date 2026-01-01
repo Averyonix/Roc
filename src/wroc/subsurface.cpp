@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include "util.hpp"
 
 static
@@ -27,7 +27,7 @@ const struct wl_subcompositor_interface wroc_wl_subcompositor_impl = {
 void wroc_wl_subcompositor_bind_global(wl_client* client, void* data, u32 version, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &wl_subcompositor_interface, version, id);
-    wroc_resource_set_implementation(new_resource, &wroc_wl_subcompositor_impl, static_cast<wroc_server*>(data));
+    wroc_resource_set_implementation(new_resource, &wroc_wl_subcompositor_impl, nullptr);
 }
 
 // -----------------------------------------------------------------------------

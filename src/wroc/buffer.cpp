@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "wroc.hpp"
 
 const struct wl_buffer_interface wroc_wl_buffer_impl = {
     .destroy = wroc_simple_resource_destroy_callback,

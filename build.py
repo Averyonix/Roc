@@ -97,6 +97,10 @@ git_fetch(vendor_dir / "unordered-dense", "https://github.com/martinus/unordered
 
 # -----------------------------------------------------------------------------
 
+git_fetch(vendor_dir / "concurrent-queue", "https://github.com/cameron314/concurrentqueue.git", "master")
+
+# -----------------------------------------------------------------------------
+
 git_fetch(vendor_dir / "vulkan-headers",           "https://github.com/KhronosGroup/Vulkan-Headers.git",                    "main")
 git_fetch(vendor_dir / "vulkan-utility-libraries", "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git",          "main")
 git_fetch(vendor_dir / "vulkan-memory-allocator",  "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "master")
@@ -302,6 +306,9 @@ if ((args.build or args.install) and not cmake_dir.exists()) or args.configure:
 
     print(cmd)
     configure_ok = 0 == subprocess.run(cmd).returncode
+
+if (cmake_dir / "compile_commands.json").exists():
+    shutil.copy2(cmake_dir / "compile_commands.json", build_dir / "compile_commands.json")
 
 if configure_ok and (args.build or args.install):
     subprocess.run(["cmake", "--build", cmake_dir])

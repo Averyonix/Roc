@@ -1,16 +1,15 @@
-#include "server.hpp"
+#include "wroc.hpp"
 #include "event.hpp"
 
 #include "wroc_imgui_shader.hpp"
 #include "shaders/imgui.h"
 
-void wroc_imgui_init(wroc_server* server)
+void wroc_imgui_init()
 {
     auto* wren = server->renderer->wren.get();
 
     server->imgui = wrei_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
-    imgui->server = server;
 
     imgui->pipeline = wren_pipeline_create(wren,
         wren_blend_mode::postmultiplied, server->renderer->output_format,
@@ -38,7 +37,7 @@ void wroc_imgui_init(wroc_server* server)
         io.Fonts->SetTexID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get()));
     }
 
-    wroc_launcher_init(server);
+    wroc_launcher_init();
 }
 
 static
@@ -244,7 +243,7 @@ bool wroc_imgui_handle_mods(wroc_imgui* imgui, const wroc_keyboard_event& event)
 {
     auto& io = ImGui::GetIO();
 
-    auto mods = wroc_get_active_modifiers(imgui->server);
+    auto mods = wroc_get_active_modifiers();
     io.AddKeyEvent(ImGuiMod_Shift, mods >= wroc_modifiers::shift);
     io.AddKeyEvent(ImGuiMod_Ctrl,  mods >= wroc_modifiers::ctrl);
     io.AddKeyEvent(ImGuiMod_Alt,   mods >= wroc_modifiers::alt);
@@ -273,7 +272,7 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
 
 void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd)
 {
-    auto* wren = imgui->server->renderer->wren.get();
+    auto* wren = server->renderer->wren.get();
 
     {
         auto& io = ImGui::GetIO();
@@ -292,8 +291,8 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd)
 
     ImGui::NewFrame();
 
-    wroc_debug_gui_frame(imgui->server->debug_gui.get());
-    wroc_launcher_frame(imgui->server->launcher.get(), extent);
+    wroc_debug_gui_frame(server->debug_gui.get());
+    wroc_launcher_frame(server->launcher.get(), extent);
 
     ImGui::Render();
 
