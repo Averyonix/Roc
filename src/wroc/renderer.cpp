@@ -10,6 +10,8 @@
 
 #include "wroc/event.hpp"
 
+wroc_renderer::~wroc_renderer() = default;
+
 void wroc_renderer_create(wroc_server* server, wroc_render_options render_options)
 {
 

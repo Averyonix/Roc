@@ -11,55 +11,50 @@ wrei_registry::~wrei_registry()
         if (!bin.empty()) {
             log_debug("Registry cleaning up {} allocations from bin size: {}", bin.size(), 1 << i);
         }
-        for (auto& block : bin) {
-            ::free(block.data);
+        for (auto* header : bin) {
+            ::free(header);
         }
     }
 }
 
-auto wrei_registry::allocate(usz size) -> allocated_block
+auto wrei_registry::allocate(usz size) -> wrei_allocation_header*
 {
-    assert(std::popcount(size) == 1);
+    size = wrei_round_up_power2(size + sizeof(wrei_allocation_header));
 
     active_allocations++;
     lifetime_allocations++;
 
-    allocated_block block;
-
-    auto bin_idx = std::countr_zero(size);
+    u8 bin_idx = std::countr_zero(size);
     auto& bin = bins[bin_idx];
 
     // log_trace("allocate({}), bin[{}].count = {}", size, bin_idx, bin.size());
 
+    wrei_allocation_header* header;
     if (bin.empty()) {
-        block.data = ::malloc(size);
-        block.version = 1;
+        header = static_cast<wrei_allocation_header*>(::malloc(size));
+        new (header) wrei_allocation_header {
+            .bin = bin_idx,
+        };
+        header->version = 1;
     } else {
-        block = bin.back();
+        header = bin.back();
         bin.pop_back();
         inactive_allocations--;
     }
 
-    return block;
+    header->ref_count = 1;
+
+    return header;
 }
 
-void wrei_registry::free(wrei_object* object, wrei_object_version version)
+void wrei_registry::free(wrei_allocation_header* header)
 {
-    assert(version == object->wrei.version);
-
-    version++;
-    assert(version != 0);
-
     active_allocations--;
     inactive_allocations++;
 
-    auto size = object->wrei.size;
+    header->version++;
 
-    object->~wrei_object();
-    new (object) wrei_object {};
-
-    auto& bin = bins[std::countr_zero(size)];
-    bin.emplace_back(object, version);
+    bins[header->bin].emplace_back(header);
 }
 
 struct wrei_registry wrei_registry;

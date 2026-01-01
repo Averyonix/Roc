@@ -900,6 +900,8 @@ struct wroc_renderer : wrei_object
     bool show_debug_cursor = false;
 
     bool screenshot_queued = false;
+
+    ~wroc_renderer();
 };
 
 void wroc_renderer_create(wroc_server*, wroc_render_options);

@@ -4,19 +4,16 @@
 #include "log.hpp"
 #include "util.hpp"
 
-using wrei_object_version = u32;
+// -----------------------------------------------------------------------------
 
-struct wrei_object_meta
-{
-    size_t              size;
-    u32                 ref_count;
-    wrei_object_version version;
-};
-
+/**
+ * Common polymorphic helper base for dynamic objects.
+ *
+ * Note that no registry operations actually depend on deriving from this type.
+ * It is merely provided as a convenience.
+ */
 struct wrei_object
 {
-    wrei_object_meta wrei;
-
     wrei_object() = default;
 
     WREI_DELETE_COPY_MOVE(wrei_object)
@@ -24,90 +21,106 @@ struct wrei_object
     virtual ~wrei_object() = default;
 };
 
+// -----------------------------------------------------------------------------
+
+using wrei_allocation_version = u64;
+
+struct alignas(16) wrei_allocation_header
+{
+    wrei_allocation_version version;
+    u32 ref_count;
+    u8 bin;
+};
+
+template<typename T>
+wrei_allocation_header* wrei_allocation_from(T* t)
+{
+    // NOTE: Assumes that `t` points to start of allocated data section
+    //       This will break for objects with virtual hierarchies, but we don't support them anyway..
+    return reinterpret_cast<wrei_allocation_header*>(t) - 1;
+}
+
+inline
+void* wrei_allocation_get_data(wrei_allocation_header* header)
+{
+    return header + 1;
+}
+
+// -----------------------------------------------------------------------------
+
 struct wrei_registry
 {
-    struct allocated_block
-    {
-        void* data;
-        wrei_object_version version;
-    };
-
-    std::array<std::vector<allocated_block>, 64> bins;
+    std::array<std::vector<wrei_allocation_header*>, 64> bins;
     u32 active_allocations;
     u32 inactive_allocations;
     u64 lifetime_allocations;
 
     ~wrei_registry();
 
-    allocated_block allocate(usz size);
-    void free(wrei_object*, wrei_object_version);
+    wrei_allocation_header* allocate(usz size);
+    void free(wrei_allocation_header*);
 };
 
 extern struct wrei_registry wrei_registry;
 
-template<typename T>
-T* wrei_create_unsafe()
-{
-    static constexpr auto size = wrei_round_up_power2(sizeof(T));
-    wrei_registry::allocated_block block = wrei_registry.allocate(size);
-    auto* t = new (block.data) T {};
-    t->wrei.size = size;
-    t->wrei.version = block.version;
-    t->wrei.ref_count = 1;
-    return t;
-}
+// -----------------------------------------------------------------------------
 
 template<typename T>
-void wrei_destroy(T* object, wrei_object_version version)
+void wrei_destruct(T* t)
 {
-    wrei_registry.free(wrei_object_to_base(object), version);
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+        t->~T();
+    }
 }
+
+#define WREI_OBJECT_EXPLICIT_DECLARE(Type) \
+    template<> void wrei_destruct(Type* t)
+
+#define WREI_OBJECT_EXPLICIT_DEFINE(Type) \
+    template<> void wrei_destruct(Type* t) \
+    { \
+        t->~Type(); \
+    }
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-T* wrei_object_from_base(wrei_object* base)
+T* wrei_create_uninitialized()
 {
-    return static_cast<T*>(base);
+    return static_cast<T*>(wrei_allocation_get_data(wrei_registry.allocate(sizeof(T))));
 }
 
 template<typename T>
-wrei_object* wrei_object_to_base(T* object)
+T* wrei_create_unsafe(auto&&... args)
 {
-    return static_cast<wrei_object*>(object);
+    return new (wrei_create_uninitialized<T>()) T(std::forward<decltype(args)>(args)...);
 }
 
-#define WREI_OBJECT_EXPLICIT_DECLARE(Type) \
-    template<> Type* wrei_object_from_base(wrei_object* base); \
-    template<> wrei_object* wrei_object_to_base(Type* base)
-
-#define WREI_OBJECT_EXPLICIT_DEFINE(Type) \
-    template<> Type* wrei_object_from_base(wrei_object* base) \
-    { \
-        return static_cast<Type*>(base); \
-    } \
-    template<> wrei_object* wrei_object_to_base(Type* object) \
-    { \
-        return static_cast<wrei_object*>(object); \
-    }
+template<typename T>
+void wrei_destroy(T* t)
+{
+    wrei_destruct(t);
+    wrei_registry.free(wrei_allocation_from(t));
+}
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
 T* wrei_add_ref(T* t)
 {
-    if (t) wrei_object_to_base(t)->wrei.ref_count++;
+    if (t) wrei_allocation_from(t)->ref_count++;
     return t;
 }
 
 template<typename T>
-void wrei_remove_ref(T* t)
+T* wrei_remove_ref(T* t)
 {
-    if (!t) return;
-    auto b = wrei_object_to_base(t);
-    if (!--b->wrei.ref_count) {
-        wrei_destroy(b, b->wrei.version);
+    if (!t) return nullptr;
+    if (!--wrei_allocation_from(t)->ref_count) {
+        wrei_destroy(t);
+        return nullptr;
     }
+    return t;
 }
 
 // -----------------------------------------------------------------------------
@@ -117,31 +130,34 @@ struct wrei_ref_adopt_tag {};
 template<typename T>
 struct wrei_ref
 {
-    wrei_object* value;
+    T* value;
 
-    wrei_ref() = default;
+    // Destruction
 
     ~wrei_ref()
     {
         wrei_remove_ref(value);
     }
 
+    // Construction + Assignment
+
+    wrei_ref() = default;
+
     wrei_ref(T* t)
-        : value(wrei_object_to_base(t))
+        : value(t)
     {
         wrei_add_ref(value);
     }
 
     wrei_ref(T* t, wrei_ref_adopt_tag)
-        : value(wrei_object_to_base(t))
+        : value(t)
     {}
 
     void reset(T* t = nullptr)
     {
-        auto* b = wrei_object_to_base(t);
-        if (b == value) return;
+        if (t == value) return;
         wrei_remove_ref(value);
-        value = wrei_add_ref(b);
+        value = wrei_add_ref(t);
     }
 
     wrei_ref& operator=(T* t)
@@ -176,15 +192,16 @@ struct wrei_ref
         return *this;
     }
 
+    // Queries
+
     operator bool() const { return value; }
+    T*        get() const { return value; }
+    T* operator->() const { return value; }
 
-    T* get() const { return wrei_object_from_base<T>(value); }
-
-    T* operator->() const { return get(); }
+    // Conversions
 
     template<typename T2>
-        requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
-    operator wrei_ref<T2>() { return wrei_ref<T2>(get()); }
+    operator wrei_ref<T2>() { return wrei_ref<T2>(value); }
 };
 
 template<typename T>
@@ -194,9 +211,9 @@ wrei_ref<T> wrei_adopt_ref(T* t)
 }
 
 template<typename T>
-wrei_ref<T> wrei_create()
+wrei_ref<T> wrei_create(auto&&... args)
 {
-    return wrei_adopt_ref(wrei_create_unsafe<T>());
+    return wrei_adopt_ref(wrei_create_unsafe<T>(std::forward<decltype(args)>(args)...));
 }
 
 // -----------------------------------------------------------------------------
@@ -204,8 +221,10 @@ wrei_ref<T> wrei_create()
 template<typename T>
 struct wrei_weak
 {
-    wrei_object* value;
-    wrei_object_version version;
+    T* value;
+    wrei_allocation_version version;
+
+    // Construction + Assignment
 
     wrei_weak() = default;
 
@@ -216,10 +235,9 @@ struct wrei_weak
 
     void reset(T* t = nullptr)
     {
-        value = wrei_object_to_base(t);
+        value = t;
         if (value) {
-            version = value->wrei.version;
-            assert(version != 0);
+            version = wrei_allocation_from(value)->version;
         }
     }
 
@@ -229,21 +247,18 @@ struct wrei_weak
         return *this;
     }
 
-private:
-    wrei_object* base() const { return *this ? value : nullptr; }
+    // Queries
 
-public:
-    constexpr bool operator==(const wrei_weak<T>& other) { return base() == other.base(); }
-    constexpr bool operator!=(const wrei_weak<T>& other) { return base() != other.base(); }
+    constexpr bool operator==(const wrei_weak<T>& other) { return get() == other.get(); }
+    constexpr bool operator!=(const wrei_weak<T>& other) { return get() != other.get(); }
 
-    operator bool() const { return value && value->wrei.version == version;  }
+    operator bool() const { return value && wrei_allocation_from(value)->version == version; }
+    T*        get() const { return *this ? value : nullptr; }
+    T* operator->() const { return value; }
 
-    T* get() const { return *this ? wrei_object_from_base<T>(value) : nullptr; }
-
-    T* operator->() const { return wrei_object_from_base<T>(value); }
+    // Conversions
 
     template<typename T2>
-        requires std::derived_from<std::remove_cvref_t<T>, std::remove_cvref_t<T2>>
     operator wrei_weak<T2>() { return wrei_weak<T2>{get()}; }
 };
 
