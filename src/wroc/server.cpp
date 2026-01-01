@@ -50,6 +50,7 @@ void wroc_run(int argc, char* argv[])
 
     ref<wroc_server> server_ref = wrei_create<wroc_server>();
     wroc_server* server = server_ref.get();
+    server->event_loop = wrei_event_loop_create();
     log_warn("server = {}", (void*)server);
 
     if (backend_type == wroc_backend_type::direct) {
@@ -75,11 +76,20 @@ void wroc_run(int argc, char* argv[])
     }
     server->display = wl_display_create();
     unsetenv("WAYLAND_DEBUG");
-    server->event_loop = wl_display_get_event_loop(server->display);
 
-    wl_display_set_default_max_buffer_size(server->display, 65'536);
+    wl_display_set_default_max_buffer_size(server->display, 4096);
 
     server->socket = wl_display_add_socket_auto(server->display);
+
+    auto wl_event_loop = wl_display_get_event_loop(server->display);
+    auto _ = wrei_event_loop_add_fd(server->event_loop.get(), wl_event_loop_get_fd(wl_event_loop), EPOLLIN,
+        [&](int fd, u32 events) {
+            wrei_unix_check_n1(wl_event_loop_dispatch(wl_event_loop, 0));
+        });
+
+    server->event_loop->prepolls.emplace_back([&] {
+        wl_display_flush_clients(server->display);
+    });
 
     // Output layout
 
@@ -135,7 +145,7 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Running compositor on: {}", server->socket);
 
-    wl_display_run(server->display);
+    wrei_event_loop_run(server->event_loop.get());
 
     // Shutdown
 
@@ -158,5 +168,5 @@ void wroc_run(int argc, char* argv[])
 
 void wroc_terminate(wroc_server* server)
 {
-    wl_display_terminate(server->display);
+    wrei_event_loop_stop(server->event_loop.get());
 }

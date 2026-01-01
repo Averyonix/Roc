@@ -18,7 +18,7 @@ struct wroc_drm_output : wroc_output
     VkDisplayKHR vk_display;
 
     int eventfd;
-    wl_event_source* scanout;
+    ref<wrei_event_source> scanout;
     std::jthread scanout_thread;
     std::atomic<std::chrono::steady_clock::time_point> scanout_time;
 
@@ -64,8 +64,8 @@ struct wroc_direct_backend : wroc_backend
 
     std::vector<ref<wroc_input_device>> input_devices;
 
-    wl_event_source* libseat_event_source = {};
-    wl_event_source* libinput_event_source = {};
+    ref<wrei_event_source> libseat_event_source = {};
+    ref<wrei_event_source> libinput_event_source = {};
 
     virtual void create_output() final override;
     virtual void destroy_output(wroc_output*) final override;

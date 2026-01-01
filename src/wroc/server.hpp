@@ -8,6 +8,7 @@
 #include "wrei/util.hpp"
 #include "wrei/log.hpp"
 #include "wrei/region.hpp"
+#include "wrei/event.hpp"
 
 #include "wren/wren.hpp"
 
@@ -1004,10 +1005,11 @@ struct wroc_server : wrei_object
 
     std::chrono::steady_clock::time_point epoch;
 
-    wl_display*    display;
-    wl_event_loop* event_loop;
-    std::string    socket;
-    std::string    x11_socket;
+    ref<wrei_event_loop> event_loop;
+
+    wl_display* display;
+    std::string socket;
+    std::string x11_socket;
 
     ref<wroc_output_layout> output_layout;
     std::vector<wroc_surface*> surfaces;

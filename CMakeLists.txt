@@ -122,6 +122,7 @@ target_sources(wrei PUBLIC
     src/wrei/shm.cpp
     src/wrei/format.cpp
     src/wrei/object.cpp
+    src/wrei/event.cpp
     )
 target_include_directories(wrei PUBLIC
     src

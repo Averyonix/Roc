@@ -44,6 +44,7 @@
 #include <sys/eventfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <sys/epoll.h>
 
 #include <drm/drm_fourcc.h>
 #include <xf86drm.h>

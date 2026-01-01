@@ -32,10 +32,8 @@ void scanout_thread(std::stop_token stop, wren_context* wren, wroc_drm_output* o
 }
 
 static
-int handle_display_scanout(int fd, u32 mask, void* data)
+int handle_display_scanout(wroc_drm_output* output, int fd, u32 mask)
 {
-    auto* output = static_cast<wroc_drm_output*>(data);
-
     if (!(mask & WL_EVENT_READABLE)) return 0;
 
     u64 value = 0;
@@ -169,7 +167,10 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
     });
 
     output->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    output->scanout = wl_event_loop_add_fd(backend->server->event_loop, output->eventfd, WL_EVENT_READABLE, handle_display_scanout, output.get());
+    output->scanout = wrei_event_loop_add_fd(backend->server->event_loop.get(), output->eventfd, EPOLLIN,
+        [output = output.get()](int fd, u32 events) {
+            handle_display_scanout(output, fd, events);
+        });
 
     output->scanout_thread = std::jthread{[wren = wren, output = output.get()](std::stop_token stop) {
         scanout_thread(stop, wren, output);
@@ -195,8 +196,9 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 
 wroc_drm_output::~wroc_drm_output()
 {
+    scanout = nullptr;
     close(eventfd);
-    wl_event_source_remove(scanout);
+
     scanout_thread.get_stop_source().request_stop();
 }
 

@@ -66,7 +66,7 @@ struct wroc_wayland_backend : wroc_backend
     ref<wroc_wayland_keyboard> keyboard = {};
     ref<wroc_wayland_pointer>  pointer = {};
 
-    wl_event_source* event_source = {};
+    ref<wrei_event_source> event_source;
 
     virtual void create_output() final override;
     virtual void destroy_output(wroc_output*) final override;

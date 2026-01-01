@@ -45,10 +45,9 @@ static constexpr libseat_seat_listener wroc_seat_listener {
 };
 
 static
-int handle_libseat_readable(int fd, u32 mask, void* data)
+int handle_libseat_readable(wroc_direct_backend* backend, int fd, u32 mask)
 {
     log_debug("SEAT DISPATCH");
-    auto* backend = static_cast<wroc_direct_backend*>(data);
     libseat_dispatch(backend->seat, 0);
     return 0;
 }
@@ -95,9 +94,8 @@ static constexpr libinput_interface wroc_libinput_interface {
 };
 
 static
-int handle_libinput_readable(int fd, u32 mask, void* data)
+int handle_libinput_readable(wroc_direct_backend* backend, int fd, u32 mask)
 {
-    auto* backend = static_cast<wroc_direct_backend*>(data);
     wrei_unix_check_ne(libinput_dispatch(backend->libinput));
 
     libinput_event* event;
@@ -153,8 +151,10 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     int seat_fd = libseat_get_fd(backend->seat);
     assert(seat_fd >= 0);
 
-    backend->libseat_event_source = wl_event_loop_add_fd(
-        backend->server->event_loop, seat_fd, WL_EVENT_READABLE, handle_libseat_readable, backend);
+    backend->libseat_event_source = wrei_event_loop_add_fd(backend->server->event_loop.get(), seat_fd, EPOLLIN,
+        [backend](int fd, u32 events) {
+            handle_libseat_readable(backend, fd, events);
+        });
 
     // libinput
 
@@ -176,14 +176,16 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     int libinput_fd = libinput_get_fd(backend->libinput);
     log_debug("LIBINPUT FD = {}", libinput_fd);
 
-    handle_libinput_readable(libinput_fd, WL_EVENT_READABLE, backend);
+    handle_libinput_readable(backend,libinput_fd, EPOLLIN);
     if (backend->input_devices.empty()) {
         log_error("LIBINPUT initialization failed, no keyboard or mouse detected");
         std::terminate();
     }
 
-    backend->libinput_event_source = wl_event_loop_add_fd(
-        backend->server->event_loop, libinput_fd, WL_EVENT_READABLE, handle_libinput_readable, backend);
+    backend->libinput_event_source = wrei_event_loop_add_fd(backend->server->event_loop.get(), libinput_fd, EPOLLIN,
+        [backend](int fd, u32 events) {
+            handle_libinput_readable(backend, fd, events);
+        });
 
     log_debug("LIBINPUT FD event source added");
 }
@@ -192,15 +194,11 @@ void wroc_backend_deinit_libinput(wroc_direct_backend* backend)
 {
     backend->input_devices.clear();
 
+    backend->libinput_event_source = nullptr;
     libinput_unref(backend->libinput);
+
+    backend->libseat_event_source = nullptr;
     libseat_close_seat(backend->seat);
+
     udev_unref(backend->udev);
-
-    if (backend->libseat_event_source) {
-        wl_event_source_remove(backend->libseat_event_source);
-    }
-
-    if (backend->libinput_event_source) {
-        wl_event_source_remove(backend->libinput_event_source);
-    }
 }
