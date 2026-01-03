@@ -78,8 +78,6 @@ struct wrei_enum_map
 
 // -----------------------------------------------------------------------------
 
-#include <flat_map>
-
 template<typename T>
 struct wrei_counting_set
 {

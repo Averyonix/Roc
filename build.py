@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import argparse
 import filecmp
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-U", "--update", action="store_true", help="Update")
@@ -40,24 +41,61 @@ def write_file_lazy(path: Path, data: str | bytes):
 
 # -----------------------------------------------------------------------------
 
-def git_fetch(dir: Path, repo: str, branch: str, dumb: bool = False) -> Path:
-    if not dir.exists():
-        cmd = ["git", "clone", repo, "--branch", branch]
-        if not dumb:
-            cmd += ["--depth", "1", "--recursive"]
-        cmd += [dir]
-        print(cmd)
-        subprocess.run(cmd)
-    elif args.update:
-        cmd = ["git", "pull"]
-        print(f"{cmd} @ {dir}")
-        subprocess.run(cmd, cwd = dir)
+build_data = cwd / "build.json"
 
-        cmd = ["git", "submodule", "update", "--init", "--recursive"]
-        print(f"{cmd} @ {dir}")
-        subprocess.run(cmd, cwd = dir)
+def load_build_data():
+    with build_data.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_build_data(data):
+    write_file_lazy(build_data, json.dumps(data, indent=4, sort_keys=True))
+
+# -----------------------------------------------------------------------------
+
+def fetch_dep(dir: Path, entry) -> Path:
+    repo = entry["repo"]
+    branch = entry["branch"]
+    commit = entry.get("commit", None)
+    dumb = entry.get("dumb", False)
+
+    def run(cmds, cwd=None):
+        print(cmds)
+        subprocess.run(cmds, cwd=cwd)
+
+    if not dir.exists():
+        cmds = ["git", "clone", repo, "--branch", branch]
+        if not dumb:
+            cmds += ["--depth", "1", "--recursive"]
+        cmds += [str(dir)]
+        run(cmds)
+        if commit is not None:
+            run(["git", "checkout", commit])
+    elif args.update:
+        print(f"Updating [{repo}]")
+        run(["git", "fetch", "origin", branch], cwd=dir)
+        run(["git", "checkout", branch], cwd=dir)
+        run(["git", "pull", "--ff-only"], cwd=dir)
+        run(["git", "submodule", "update", "--init", "--recursive"], cwd=dir)
+
+    entry["commit"] = subprocess.run(["git", "rev-parse", "HEAD"], cwd=dir, stdout=subprocess.PIPE).stdout.decode().strip()
 
     return dir
+
+dep_dirs = {}
+
+def fetch_deps():
+    lock = load_build_data()
+    deps = lock["dependencies"]
+    for name, entry in deps.items():
+        dir = vendor_dir / name
+        dep_dirs[name] = dir
+        fetch_dep(dir, entry)
+    save_build_data(lock)
+
+fetch_deps()
+
+def dep_dir(name: str):
+    return dep_dirs[name]
 
 # -----------------------------------------------------------------------------
 
@@ -67,52 +105,18 @@ def cmake_build(src_dir: Path, build_dir: Path, install_dir, opts: list[str]):
         cmd += [f"-DCMAKE_INSTALL_PREFIX={install_dir.absolute()}"]
         cmd += ["-DCMAKE_INSTALL_MESSAGE=LAZY"]
         cmd += opts
-        print(cmd)
         subprocess.run(cmd, cwd=src_dir)
 
     if not install_dir.exists() or args.update:
         cmd = ["cmake", "--build", build_dir.absolute(), "--target", "install"]
-        print(cmd)
         subprocess.run(cmd, cwd=src_dir)
 
 # -----------------------------------------------------------------------------
 
-git_fetch(vendor_dir / "magic-enum", "https://github.com/Neargye/magic_enum.git", "master")
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "stb", "https://github.com/nothings/stb.git", "master")
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "glm", "https://github.com/g-truc/glm.git", "master")
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "imgui", "https://github.com/ocornut/imgui.git", "docking")
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "unordered-dense", "https://github.com/martinus/unordered_dense.git", "main")
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "concurrent-queue", "https://github.com/cameron314/concurrentqueue.git", "master")
-
-# -----------------------------------------------------------------------------
-
-git_fetch(vendor_dir / "vulkan-headers",           "https://github.com/KhronosGroup/Vulkan-Headers.git",                    "main")
-git_fetch(vendor_dir / "vulkan-utility-libraries", "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git",          "main")
-git_fetch(vendor_dir / "vulkan-memory-allocator",  "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git", "master")
-
-git_fetch(vendor_dir/ "vkwsi", "https://github.com/Darianopolis/vk-wsi.git", "main")
-
-# -----------------------------------------------------------------------------
-
 def build_slang() -> Path:
-    source_dir  = git_fetch(vendor_dir / "slang", "https://github.com/shader-slang/slang.git", "master")
-    build_dir   =           vendor_dir / "slang-build"
-    install_dir =           vendor_dir / "slang-install"
+    source_dir  = dep_dir("slang")
+    build_dir   = vendor_dir / "slang-build"
+    install_dir = vendor_dir / "slang-install"
 
     cmake_build(source_dir, build_dir, install_dir, [])
     return install_dir / "bin/slangc"
@@ -128,17 +132,10 @@ xwayland_satellite_dir = vendor_dir / "xwayland-satellite"
 xwayland_satellite_bin = xwayland_satellite_dir / "target/release/xwayland-satellite"
 
 def build_xwayland_satellite():
-
-    git_fetch(xwayland_satellite_dir, "https://github.com/Supreeeme/xwayland-satellite.git", "main")
-
     if not xwayland_satellite_bin.exists() or args.update:
         subprocess.run(["cargo", "build", "--release"], cwd=xwayland_satellite_dir)
 
 build_xwayland_satellite()
-
-# -----------------------------------------------------------------------------
-
-# git_fetch(vendor_dir / "wlr-protocols", "https://gitlab.freedesktop.org/wlroots/wlr-protocols.git", "master")
 
 # -----------------------------------------------------------------------------
 
