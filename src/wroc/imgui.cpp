@@ -33,6 +33,7 @@ void wroc_imgui_init()
 
         imgui->font_image = wren_image_create(wren, {width, height}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
         wren_image_update(imgui->font_image.get(), pixels);
+        wren_wait_idle(wren);
 
         io.Fonts->SetTexID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get()));
     }
@@ -270,7 +271,7 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
     return false;
 }
 
-void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd)
+void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands)
 {
     auto* wren = server->renderer->wren.get();
 
@@ -313,6 +314,11 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, VkCommandBuffer cmd)
         log_debug("ImGui - reallocating index buffer, size: {}", new_size);
         imgui->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx)), usz(new_size)};
     }
+
+    // TODO: Protect images
+    wren_commands_protect_object(commands, imgui->vertices.buffer.get());
+    wren_commands_protect_object(commands, imgui->indices.buffer.get());
+    auto cmd = commands->buffer;
 
     wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline->pipeline);
     wren->vk.CmdBindIndexBuffer(cmd,

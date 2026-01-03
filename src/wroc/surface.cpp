@@ -143,14 +143,12 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     if (from.committed >= wroc_surface_committed_state::buffer) {
 
         if (&from == &surface->pending) {
-            if (from.buffer && from.buffer->locked) {
+            if (from.buffer && from.buffer->locks) {
                 log_error("Client is attempting to commit a buffer that is already locked!");
             }
         }
 
-        if (to.buffer) {
-            to.buffer->unlock();
-        }
+        auto old_buffer = to.buffer;
 
         if (&from == &surface->pending) {
             if (from.buffer) {
@@ -167,6 +165,10 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
             }
         } else {
             to.buffer = std::move(from.buffer);
+        }
+
+        if (old_buffer) {
+            old_buffer->on_replace();
         }
 
         from.buffer = nullptr;

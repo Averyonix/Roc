@@ -108,18 +108,23 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
         log_debug("  states[{}] = {}", i, magic_enum::enum_name(state));
     }
 
-    if (!output->vk_surface) {
+    if (!output->swapchain) {
         log_debug("Creating vulkan surface");
 
         auto* backend = dynamic_cast<wroc_wayland_backend*>(server->backend.get());
         auto* wren = server->renderer->wren.get();
 
+        VkSurfaceKHR surface;
         wren_check(wren->vk.CreateWaylandSurfaceKHR(wren->instance, wrei_ptr_to(VkWaylandSurfaceCreateInfoKHR {
             .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
             .display = backend->wl_display,
             .surface = output->wl_surface,
-        }), nullptr, &output->vk_surface));
+        }), nullptr, &surface));
+
+        output->swapchain = wren_swapchain_create(wren, surface, server->renderer->output_format);
     }
+
+    wren_swapchain_resize(output->swapchain.get(), output->size);
 
     wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_added,
@@ -144,14 +149,14 @@ void wroc_listen_toplevel_close(void* data, xdg_toplevel*)
 }
 
 static
-void wroc_listen_toplevel_configure_bounds(void* /* data */, xdg_toplevel*, i32 width, i32 height)
+void wroc_listen_toplevel_configure_bounds(void* data, xdg_toplevel*, i32 width, i32 height)
 {
     log_debug("xdg_toplevel::configure_bounds");
     log_debug("  bounds = ({}, {})", width, height);
 }
 
 static
-void wroc_listen_toplevel_wm_capabilities(void* /* data */, xdg_toplevel*, wl_array* capabilities)
+void wroc_listen_toplevel_wm_capabilities(void* data, xdg_toplevel*, wl_array* capabilities)
 {
     log_debug("xdg_toplevel::wm_capabilities");
 
@@ -170,14 +175,10 @@ const xdg_toplevel_listener wroc_xdg_toplevel_listener {
 // -----------------------------------------------------------------------------
 
 static
-void wroc_listen_toplevel_decoration_configure(void* /* data */, zxdg_toplevel_decoration_v1*, u32 mode)
+void wroc_listen_toplevel_decoration_configure(void* data, zxdg_toplevel_decoration_v1*, u32 mode)
 {
-    switch (mode) {
-        case ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE:
-            break;
-        case ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE:
-            log_warn("Compositor requested client-side decorations");
-            break;
+    if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE) {
+        log_warn("Parent compositor requested client-side decorations");
     }
 }
 
@@ -260,6 +261,12 @@ void wroc_wayland_backend::create_output()
 
 wroc_wayland_output::~wroc_wayland_output()
 {
+    auto* wren = server->renderer->wren.get();
+
+    auto surface = swapchain->surface;
+    swapchain = nullptr;
+    wren->vk.DestroySurfaceKHR(wren->instance, surface, nullptr);
+
 #if WROC_BACKEND_RELATIVE_POINTER
     if (locked_pointer) zwp_locked_pointer_v1_destroy(locked_pointer);
 #endif

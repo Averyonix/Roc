@@ -93,11 +93,8 @@ void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
  */
 struct wroc_output : wrei_object
 {
-    VkSurfaceKHR vk_surface;
-    VkSemaphore timeline;
-    u64 timeline_value = 0;
     VkSurfaceFormatKHR format;
-    vkwsi_swapchain* swapchain;
+    ref<wren_swapchain> swapchain;
 
     std::chrono::steady_clock::time_point acquire_time;
     std::chrono::steady_clock::time_point present_time;
@@ -106,11 +103,7 @@ struct wroc_output : wrei_object
     rect2f64 layout_rect;
 
     wroc_output_desc desc;
-
-    ~wroc_output();
 };
-
-vkwsi_swapchain_image wroc_output_acquire_image(wroc_output*);
 
 vec2i32 wroc_output_get_pixel(wroc_output*, vec2f64 global_pos, vec2f64* remainder = nullptr);
 rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 global_rect, rect2f64* remainder = nullptr);
@@ -515,12 +508,13 @@ struct wroc_buffer : wrei_object
 
     ref<wren_image> image;
 
-    bool locked = false;
+    u32 locks = 0;
 
     void lock();
     void unlock();
 
     virtual void on_commit() = 0;
+    virtual void on_replace() = 0;
 };
 
 // -----------------------------------------------------------------------------
@@ -545,6 +539,7 @@ struct wroc_shm_buffer : wroc_buffer
     wren_format format;
 
     virtual void on_commit() final override;
+    virtual void on_replace() final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -561,6 +556,7 @@ struct wroc_dma_buffer_params : wrei_object
 struct wroc_dma_buffer : wroc_buffer
 {
     virtual void on_commit() final override;
+    virtual void on_replace() final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -916,7 +912,7 @@ void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
 }
 
 void wroc_imgui_init();
-void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, VkCommandBuffer);
+void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, wren_commands*);
 bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------

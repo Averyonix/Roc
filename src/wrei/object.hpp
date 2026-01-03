@@ -53,7 +53,6 @@ struct wrei_registry
     std::array<std::vector<wrei_allocation_header*>, 64> bins;
     u32 active_allocations;
     u32 inactive_allocations;
-    u64 lifetime_allocations;
 
     ~wrei_registry();
 

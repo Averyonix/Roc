@@ -25,6 +25,7 @@
 #include <flat_set>
 #include <flat_map>
 #include <mutex>
+#include <deque>
 
 #include <cstring>
 #include <csignal>

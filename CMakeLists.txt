@@ -173,6 +173,8 @@ target_sources(wren PUBLIC
     src/wren/formats.cpp
     src/wren/pipeline.cpp
     src/wren/commands.cpp
+    src/wren/semaphore.cpp
+    src/wren/swapchain.cpp
     )
 target_link_libraries(wren PUBLIC wrei shaders)
 

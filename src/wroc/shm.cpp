@@ -99,6 +99,12 @@ void wroc_shm_buffer::on_commit()
 {
     lock();
     wren_image_update(image.get(), static_cast<char*>(pool->data) + offset);
-    // log_debug("buffer updated {}", wrei_to_string(extent));
+
+    // Protect the pool's mapped memory until the copy has completed
+    wren_wait_idle(image->ctx);
     unlock();
+}
+
+void wroc_shm_buffer::on_replace()
+{
 }

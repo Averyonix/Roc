@@ -67,7 +67,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
 
 void wren_image_init(wren_image* image)
 {
-    auto* ctx = image->ctx.get();
+    auto* ctx = image->ctx;
 
     wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -79,20 +79,22 @@ void wren_image_init(wren_image* image)
 
     wren_allocate_image_descriptor(image);
 
-    auto cmd = wren_begin_commands(ctx);
-    wren_transition(ctx, cmd, image->image,
+    auto cmd = wren_commands_begin(ctx);
+    wren_commands_protect_object(cmd.get(), image);
+    wren_transition(ctx, cmd->buffer, image->image,
         0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
         0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    wren_submit_commands(ctx, cmd);
+    wren_commands_submit(cmd.get(), {}, {});
 }
 
+#if 0
 void wren_image_readback(wren_image* image, void* data)
 {
     auto* ctx = image->ctx.get();
     auto extent = image->extent;
 
-    auto cmd = wren_begin_commands(ctx);
+    auto cmd = wren_commands_begin(ctx);
 
     constexpr auto pixel_size = 4;
     auto row_length = extent.x;
@@ -102,7 +104,7 @@ void wren_image_readback(wren_image* image, void* data)
     // TODO: This should be stored persistently for transfers
     ref buffer = wren_buffer_create(ctx, image_size);
 
-    ctx->vk.CmdCopyImageToBuffer(cmd, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
+    ctx->vk.CmdCopyImageToBuffer(cmd->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
         .bufferRowLength = row_length,
         .bufferImageHeight = image_size,
@@ -111,17 +113,18 @@ void wren_image_readback(wren_image* image, void* data)
         .imageExtent = { extent.x, extent.y, 1 },
     }));
 
-    wren_submit_commands(ctx, cmd);
+    wren_commands_submit(cmd.get(), {}, {});
 
     std::memcpy(data, buffer->host_address, image_size);
 }
+#endif
 
 void wren_image_update(wren_image* image, const void* data)
 {
-    auto* ctx = image->ctx.get();
+    auto* ctx = image->ctx;
     auto extent = image->extent;
 
-    auto cmd = wren_begin_commands(ctx);
+    auto cmd = wren_commands_begin(ctx);
 
     constexpr auto pixel_size = 4;
     auto row_length = extent.x;
@@ -131,9 +134,12 @@ void wren_image_update(wren_image* image, const void* data)
     // TODO: This should be stored persistently for transfers
     ref buffer = wren_buffer_create(ctx, image_size);
 
+    wren_commands_protect_object(cmd.get(), image);
+    wren_commands_protect_object(cmd.get(), buffer.get());
+
     std::memcpy(buffer->host_address, data, image_size);
 
-    ctx->vk.CmdCopyBufferToImage(cmd, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, wrei_ptr_to(VkBufferImageCopy {
+    ctx->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, wrei_ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
         .bufferRowLength = row_length,
         .bufferImageHeight = image_size,
@@ -142,7 +148,7 @@ void wren_image_update(wren_image* image, const void* data)
         .imageExtent = { extent.x, extent.y, 1 },
     }));
 
-    wren_submit_commands(ctx, cmd);
+    wren_commands_submit(cmd.get(), {}, {});
 }
 
 wren_image::~wren_image()

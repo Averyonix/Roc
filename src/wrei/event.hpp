@@ -1,3 +1,5 @@
+#pragma once
+
 #include "util.hpp"
 #include "object.hpp"
 
@@ -7,6 +9,10 @@ struct wrei_event_loop : wrei_object
 {
     int epoll_fd;
     bool stopped = false;
+
+    struct {
+        u64 events_handled;
+    } stats;
 
     ~wrei_event_loop();
 };

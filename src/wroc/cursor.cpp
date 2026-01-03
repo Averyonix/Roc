@@ -64,8 +64,10 @@ void wroc_cursor_create()
     };
     log_info("  size ({}, {}) hot ({}, {})", image->width, image->height, image->xhot, image->yhot);
 
-    cursor->fallback.image = wren_image_create(server->renderer->wren.get(), {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
+    auto* wren = server->renderer->wren.get();
+    cursor->fallback.image = wren_image_create(wren, {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
     wren_image_update(cursor->fallback.image.get(), image->pixels);
+    wren_wait_idle(wren);
 
     cursor->fallback.hotspot = {image->xhot, image->yhot};
 }

@@ -56,6 +56,7 @@
     DO(EndCommandBuffer) \
     DO(QueueSubmit2) \
     DO(QueuePresentKHR) \
+    DO(GetSemaphoreCounterValue) \
     DO(WaitSemaphores) \
     DO(DestroyCommandPool) \
     DO(DestroySemaphore) \

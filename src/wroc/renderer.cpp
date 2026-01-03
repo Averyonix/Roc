@@ -10,6 +10,8 @@
 
 #include "wroc/event.hpp"
 
+#define WROC_RENDERER_HOST_WAIT 1
+
 wroc_renderer::~wroc_renderer() = default;
 
 void wroc_renderer_create(wroc_render_options render_options)
@@ -23,7 +25,7 @@ void wroc_renderer_create(wroc_render_options render_options)
         features |= wren_features::dmabuf;
     }
 
-    renderer->wren = wren_create(features);
+    renderer->wren = wren_create(features, server->event_tasks.get());
     wroc_renderer_init_buffer_feedback(renderer);
 
     auto* wren = renderer->wren.get();
@@ -39,6 +41,7 @@ void wroc_renderer_create(wroc_render_options render_options)
 
     renderer->background = wren_image_create(wren, {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
     wren_image_update(renderer->background.get(), data);
+    wren_wait_idle(wren);
 
     renderer->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
@@ -51,36 +54,40 @@ void wroc_render_frame(wroc_output* output)
 {
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
-    auto cmd = wren_begin_commands(wren);
+    auto commands = wren_commands_begin(wren);
+    auto cmd = commands->buffer;
+
+    auto acquire_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
 
 #if WROC_NOISY_FRAME_TIME
     log_trace("Acquire 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
 #endif
-    auto current = wroc_output_acquire_image(output);
+    auto current = wren_swapchain_acquire_image(output->swapchain.get(), {{acquire_sema.get()}});
     output->acquire_time = std::chrono::steady_clock::now();
 #if WROC_NOISY_FRAME_TIME
     log_trace("Acquire 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(output->acquire_time.time_since_epoch()).count());
 #endif
-    auto current_extent = vec2f32(current.extent.width, current.extent.height);
+    VkExtent2D vk_extent = { current->extent.x, current->extent.y };
+    vec2f32 current_extent = current->extent;
 
-    wren_transition(wren, cmd, current.image,
+    wren_transition(wren, cmd, current->image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
         0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-    wren->vk.CmdClearColorImage(cmd, current.image,
+    wren->vk.CmdClearColorImage(cmd, current->image,
         VK_IMAGE_LAYOUT_GENERAL,
         wrei_ptr_to(VkClearColorValue{.float32{0.f, 0.f, 0.f, 1.f}}),
         1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
     wren->vk.CmdBeginRendering(cmd, wrei_ptr_to(VkRenderingInfo {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .renderArea = { {}, current.extent },
+        .renderArea = { {}, vk_extent },
         .layerCount = 1,
         .colorAttachmentCount = 1,
         .pColorAttachments = wrei_ptr_to(VkRenderingAttachmentInfo {
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = current.view,
+            .imageView = current->view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -95,7 +102,7 @@ void wroc_render_frame(wroc_output* output)
     wren->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wren->pipeline_layout, 0, 1, &wren->set, 0, nullptr);
 
     auto start_draws = [&] {
-        wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, current.extent }));
+        wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, vk_extent }));
         wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline->pipeline);
     };
 
@@ -111,6 +118,8 @@ void wroc_render_frame(wroc_output* output)
 
         // log_warn("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
 
+        wren_commands_protect_object(commands.get(), image);
+
         auto pixel_dst = wroc_output_get_pixel_rect(output, dest);
 
         rect_id++;
@@ -124,8 +133,6 @@ void wroc_render_frame(wroc_output* output)
         });
     };
 
-    std::vector<ref<wren_buffer>> replaced_buffers;
-
     auto flush_draws = [&] {
         if (rect_id_start == rect_id) return;
 
@@ -135,7 +142,7 @@ void wroc_render_frame(wroc_output* output)
             if (renderer->rects.buffer && rect_id_start) {
                 // Previous draws using this buffer, keep alive until all draws complete
                 log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
-                replaced_buffers.emplace_back(renderer->rects.buffer);
+                wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
             }
             renderer->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect)), new_size};
         }
@@ -257,7 +264,7 @@ void wroc_render_frame(wroc_output* output)
 
     if (server->imgui->output == output) {
         flush_draws();
-        wroc_imgui_frame(server->imgui.get(), current_extent, cmd);
+        wroc_imgui_frame(server->imgui.get(), current_extent, commands.get());
         start_draws();
     }
 
@@ -322,6 +329,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Screenshot
 
+#if 0
     if (renderer->screenshot_queued) {
         renderer->screenshot_queued = false;
 
@@ -372,10 +380,11 @@ void wroc_render_frame(wroc_output* output)
 
         cmd = wren_begin_commands(wren);
     }
+#endif
 
     // Submit
 
-    wren_transition(wren, cmd, current.image,
+    wren_transition(wren, cmd, current->image,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -384,17 +393,25 @@ void wroc_render_frame(wroc_output* output)
     log_info("Submit    [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
 #endif
 
-    wren_submit_commands(wren, cmd);
+    wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
+
+    auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
+    wren_commands_submit(commands.get(), {{acquire_sema.get()}}, {{present_sema.get()}});
 
     // Present
 
 #if WROC_NOISY_FRAME_TIME
     log_warn("Present 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
 #endif
-    wren_check(vkwsi_swapchain_present(&output->swapchain, 1, wren->queue, nullptr, 0, false));
+    wren_swapchain_present(output->swapchain.get(), {{present_sema.get()}});
     output->present_time = std::chrono::steady_clock::now();
 #if WROC_NOISY_FRAME_TIME
     log_warn("Present 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(output->present_time.time_since_epoch()).count());
+#endif
+
+#if WROC_RENDERER_HOST_WAIT
+    // TODO: import syncfiles from DMA-BUF for compatibility with async submission
+    wren_wait_idle(wren);
 #endif
 
     // Send frame callbacks

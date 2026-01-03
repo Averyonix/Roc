@@ -166,6 +166,10 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Compositor shutting down");
 
+    // Keep Wren alive until all other resources have been destroyed safely
+    ref wren = server->renderer->wren;
+    wren_wait_idle(wren.get());
+
     server->backend = nullptr;
 
     wl_display_destroy_clients(server->display);
@@ -173,15 +177,16 @@ void wroc_run(int argc, char* argv[])
     server->renderer = nullptr;
 
     wl_display_destroy(server->display);
-
     log_info("Display destroyed");
 
     server_ref = nullptr;
+    wren = nullptr;
 
     log_info("Shutdown complete");
 }
 
 void wroc_terminate()
 {
+    // TODO: Safe termination will require further event handling (e.g. waiting for GPU jobs to complete)
     wrei_event_loop_stop(server->event_loop.get());
 }

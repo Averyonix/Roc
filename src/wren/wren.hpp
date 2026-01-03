@@ -2,8 +2,13 @@
 
 #include "wrei/object.hpp"
 #include "wrei/types.hpp"
+#include "wrei/event.hpp"
 
 #include "functions.hpp"
+
+struct wren_image;
+struct wren_semaphore;
+struct wren_commands;
 
 // -----------------------------------------------------------------------------
 
@@ -146,6 +151,15 @@ struct wren_context : wrei_object
     VkCommandPool cmd_pool;
     VkCommandBuffer cmd;
 
+    ref<wren_semaphore> queue_sema;
+    std::deque<ref<wren_commands>> submissions;
+
+    std::atomic<u64> wait_thread_submitted;
+    std::jthread     wait_thread;
+    ref<wrei_event_source_tasks> tasks;
+
+    std::vector<VkSemaphore> free_binary_semaphores;
+
     VkDescriptorSetLayout set_layout;
     VkPipelineLayout pipeline_layout;
     VkDescriptorPool pool;
@@ -170,20 +184,94 @@ enum class wren_features
 };
 WREI_DECORATE_FLAG_ENUM(wren_features)
 
-ref<wren_context> wren_create(wren_features);
-
-VkCommandBuffer wren_begin_commands( wren_context*);
-void            wren_submit_commands(wren_context*, VkCommandBuffer);
+ref<wren_context> wren_create(wren_features, wrei_event_source_tasks*);
 
 // -----------------------------------------------------------------------------
 
-void wren_wait_for_timeline_value(wren_context*, const VkSemaphoreSubmitInfo&);
+struct wren_semaphore : wrei_object
+{
+    wren_context* ctx;
+
+    VkSemaphoreType type;
+    VkSemaphore semaphore;
+
+    u64 observed;
+    u64 submitted;
+
+    ~wren_semaphore();
+};
+
+struct wren_syncpoint
+{
+    wren_semaphore* semaphore;
+    u64 value = 0;
+    VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+};
+
+ref<wren_semaphore> wren_semaphore_create(wren_context*, VkSemaphoreType, u64 initial_value = 0);
+
+u64 wren_semaphore_get_value(wren_semaphore*);
+void wren_semaphore_wait_value(wren_semaphore*, u64 value);
+u64 wren_semaphore_advance(wren_semaphore*, u64 inc = 1);
+
+// -----------------------------------------------------------------------------
+
+struct wren_swapchain : wrei_object
+{
+    wren_context* ctx;
+
+    VkSurfaceKHR surface;
+    vkwsi_swapchain* swapchain;
+
+    wren_format format;
+    VkColorSpaceKHR color_space;
+
+    struct resources
+    {
+        std::vector<ref<wrei_object>> objects;
+    };
+
+    std::vector<resources> resources;
+
+    ref<wren_image> current;
+
+    ~wren_swapchain();
+};
+
+ref<wren_swapchain> wren_swapchain_create(wren_context*, VkSurfaceKHR, wren_format);
+
+void        wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
+wren_image* wren_swapchain_acquire_image(wren_swapchain*, std::span<const wren_syncpoint> signals);
+void        wren_swapchain_present(      wren_swapchain*, std::span<const wren_syncpoint> waits  );
+
+// -----------------------------------------------------------------------------
+
+struct wren_commands : wrei_object
+{
+    wren_context* ctx;
+
+    VkCommandBuffer buffer;
+    std::vector<ref<wrei_object>> objects;
+
+    u64 submitted_value;
+
+    ~wren_commands();
+};
+
+ref<wren_commands> wren_commands_begin(wren_context*);
+
+void wren_commands_protect_object(wren_commands*, wrei_object*);
+void wren_commands_submit(       wren_commands*, std::span<const wren_syncpoint> waits, std::span<const wren_syncpoint> signals);
+
+// TODO: This is a blocking operation and a temporary solution
+//       Replace with an asynchronous callback
+void wren_wait_idle(wren_context*);
 
 // -----------------------------------------------------------------------------
 
 struct wren_buffer : wrei_object
 {
-    ref<wren_context> ctx;
+    wren_context* ctx;
 
     VkBuffer buffer;
     VmaAllocation vma_allocation;
@@ -256,7 +344,7 @@ struct wren_array
 
 struct wren_image : wrei_object
 {
-    ref<wren_context> ctx;
+    wren_context* ctx;
 
     std::unique_ptr<struct wren_dma_params> dma_params;
 
@@ -292,7 +380,7 @@ void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,
 
 struct wren_sampler : wrei_object
 {
-    ref<wren_context> ctx;
+    wren_context* ctx;
 
     VkSampler sampler;
 
@@ -314,7 +402,7 @@ enum class wren_blend_mode
 
 struct wren_pipeline : wrei_object
 {
-    ref<wren_context> ctx;
+    wren_context* ctx;
 
     VkPipeline pipeline;
 

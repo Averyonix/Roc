@@ -35,6 +35,7 @@ void wrei_event_loop_run(wrei_event_loop* loop)
             if (errno == EAGAIN) continue;
             return;
         }
+        loop->stats.events_handled += count;
 
         for (i32 i = 0; i < count; ++i) {
             handle_event(events[i]);

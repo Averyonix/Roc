@@ -142,6 +142,7 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
 
     backend->outputs.emplace_back(output);
 
+    VkSurfaceKHR surface;
     wren_check(wren->vk.CreateDisplayPlaneSurfaceKHR(wren->instance, wrei_ptr_to(VkDisplaySurfaceCreateInfoKHR {
         .sType = VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR,
         .displayMode = mode_props.displayMode,
@@ -151,7 +152,10 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
         .globalAlpha = 1.f,
         .alphaMode = alpha_mode,
         .imageExtent = {mode_props.parameters.visibleRegion.width, mode_props.parameters.visibleRegion.height},
-    }), nullptr, &output->vk_surface));
+    }), nullptr, &surface));
+
+    output->swapchain = wren_swapchain_create(wren, surface, server->renderer->output_format);
+    wren_swapchain_resize(output->swapchain.get(), output->size);
 
     wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_added,
@@ -183,6 +187,13 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 wroc_drm_output::~wroc_drm_output()
 {
     scanout_thread.get_stop_source().request_stop();
+    scanout_thread.join();
+
+    auto* wren = server->renderer->wren.get();
+
+    auto surface = swapchain->surface;
+    swapchain = nullptr;
+    wren->vk.DestroySurfaceKHR(wren->instance, surface, nullptr);
 }
 
 void wroc_direct_backend::create_output()

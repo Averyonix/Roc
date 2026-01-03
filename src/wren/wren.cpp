@@ -10,19 +10,15 @@ const char* wren_result_to_string(VkResult res)
     return string_VkResult(res);
 }
 
-void wren_wait_for_timeline_value(wren_context* ctx, const VkSemaphoreSubmitInfo& info)
-{
-    wren_check(ctx->vk.WaitSemaphores(ctx->device, wrei_ptr_to(VkSemaphoreWaitInfo {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-        .semaphoreCount = 1,
-        .pSemaphores = &info.semaphore,
-        .pValues = &info.value,
-    }), UINT64_MAX));
-}
-
 wren_context::~wren_context()
 {
     log_info("Wren context destroyed");
+
+    assert(submissions.empty());
+
+    wren_commands_shutdown(this);
+
+    queue_sema = nullptr;
 
     assert(stats.active_images == 0);
     assert(stats.active_buffers == 0);
@@ -31,6 +27,10 @@ wren_context::~wren_context()
     vkwsi_context_destroy(vkwsi);
 
     vmaDestroyAllocator(vma);
+
+    for (auto* binary_sema : free_binary_semaphores) {
+        vk.DestroySemaphore(device, binary_sema, nullptr);
+    }
 
     vk.DestroyPipelineLayout(device, pipeline_layout, nullptr);
     vk.DestroyDescriptorSetLayout(device, set_layout, nullptr);
@@ -49,9 +49,11 @@ void drop_capabilities()
     cap_free(caps);
 }
 
-ref<wren_context> wren_create(wren_features features)
+ref<wren_context> wren_create(wren_features features, wrei_event_source_tasks* tasks)
 {
     auto ctx = wrei_create<wren_context>();
+
+    ctx->tasks = tasks;
 
     ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!ctx->vulkan1) {
@@ -330,6 +332,9 @@ ref<wren_context> wren_create(wren_features features)
     log_info("shm texture formats: {}", ctx->shm_texture_formats.size());
     log_info("render formats: {}", ctx->dmabuf_render_formats.size());
     log_info("dmabuf texture formats: {}", ctx->dmabuf_texture_formats.size());
+
+    ctx->queue_sema = wren_semaphore_create(ctx.get(), VK_SEMAPHORE_TYPE_TIMELINE);
+    wren_commands_init(ctx.get());
 
     return ctx;
 }

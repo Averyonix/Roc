@@ -16,6 +16,9 @@ struct wroc_debug_gui : wrei_object
         std::chrono::steady_clock::time_point last_report;
         std::chrono::steady_clock::duration frametime;
         f64 fps = 0.0;
+
+        u64 last_events_handled = 0;
+        u64 events_per_second = 0;
     } stats;
 
     struct {
@@ -128,7 +131,6 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
                 wroc_toplevel_set_size(toplevel, vec2i32{size[0], size[1]});
                 wroc_toplevel_flush_configure(toplevel);
             }
-
         }
     }
 
@@ -141,6 +143,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
         stats.frames++;
         auto now = std::chrono::steady_clock::now();
+
         if (now - stats.last_report > 0.5s) {
             auto dur = now - stats.last_report;
             auto seconds = std::chrono::duration_cast<std::chrono::duration<f64>>(dur).count();
@@ -150,19 +153,24 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
             stats.last_report = now;
             stats.frames = 0;
+
+            stats.events_per_second = glm::round((server->event_loop->stats.events_handled - stats.last_events_handled) / seconds);
+            stats.last_events_handled = server->event_loop->stats.events_handled;
         }
 
         ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
+        ImGui_Text("Events:        {}/s", stats.events_per_second);
     }
+
+    ImGui_Text("Elapsed:       {:.1f}s", wroc_get_elapsed_milliseconds() / 1000.0);
 
     ImGui::Separator();
 
     // Allocations
 
-    ImGui_Text("Objects:       {}/{} ({})",
+    ImGui_Text("Objects:       {}/{}",
         wrei_registry.active_allocations,
-        wrei_registry.inactive_allocations,
-        wrei_registry.lifetime_allocations);
+        wrei_registry.inactive_allocations);
 
     ImGui::Separator();
 
@@ -196,12 +204,6 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             else                           ImGui_Text("  {}",     str);
         }
     }
-
-    ImGui::Separator();
-
-    // Elapsed
-
-    ImGui_Text("Elapsed: {:.1f}s", wroc_get_elapsed_milliseconds() / 1000.0);
 
     ImGui::Separator();
 

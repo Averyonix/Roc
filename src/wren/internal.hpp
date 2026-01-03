@@ -64,6 +64,14 @@ void wren_allocate_sampler_descriptor(wren_sampler*);
 
 // -----------------------------------------------------------------------------
 
+void wren_commands_init(wren_context*);
+void wren_commands_shutdown(wren_context*);
+
+VkSemaphoreSubmitInfo              wren_syncpoint_to_submit_info(const wren_syncpoint& syncpoint);
+std::vector<VkSemaphoreSubmitInfo> wren_syncpoints_to_submit_infos(std::span<const wren_syncpoint> syncpoints, const wren_syncpoint* extra = nullptr);
+
+// -----------------------------------------------------------------------------
+
 static constexpr VkFormatFeatureFlags wren_shm_texture_features
     = VK_FORMAT_FEATURE_TRANSFER_SRC_BIT
     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT

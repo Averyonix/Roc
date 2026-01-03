@@ -142,6 +142,11 @@ void wroc_dma_buffer::on_commit()
     lock();
 }
 
+void wroc_dma_buffer::on_replace()
+{
+    unlock();
+}
+
 void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
 {
     auto wren = renderer->wren;

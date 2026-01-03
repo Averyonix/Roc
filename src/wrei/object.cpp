@@ -4,7 +4,6 @@ wrei_registry::~wrei_registry()
 {
     if (active_allocations) {
         log_error("Registry found {} remaining active allocations", active_allocations);
-        wrei_debugbreak();
     }
 
     for (auto[i, bin] : bins | std::views::enumerate) {
@@ -22,7 +21,6 @@ auto wrei_registry::allocate(usz size) -> wrei_allocation_header*
     size = wrei_round_up_power2(size + sizeof(wrei_allocation_header));
 
     active_allocations++;
-    lifetime_allocations++;
 
     u8 bin_idx = std::countr_zero(size);
     auto& bin = bins[bin_idx];
