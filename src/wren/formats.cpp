@@ -7,7 +7,7 @@
 // To simply things we only support little endian architectures
 //
 
-static constexpr u32 wren_opaque_drm_formats[] {
+static constexpr wren_drm_format wren_opaque_drm_formats[] {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_XBGR8888,
 	DRM_FORMAT_RGBX8888,
@@ -35,7 +35,7 @@ static constexpr u32 wren_opaque_drm_formats[] {
 
 struct wren_format_t_create_params
 {
-    u32 drm;
+    wren_drm_format drm;
     VkFormat vk;
     VkFormat vk_srgb;
     bool is_ycbcr;
@@ -276,7 +276,7 @@ wren_format wren_find_format(T needle, auto... members)
     return nullptr;
 }
 
-wren_format wren_format_from_drm(u32 drm_format)
+wren_format wren_format_from_drm(wren_drm_format drm_format)
 {
     return wren_find_format(drm_format, &wren_format_t::drm);
 }
@@ -369,6 +369,8 @@ bool wren_query_image_format_support(
         *has_mutable_srgb = has_srgb_format;
         return true;
     }
+
+    *has_mutable_srgb = false;
 
     if (!has_srgb_format) return false;
 
@@ -505,4 +507,28 @@ const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format fo
 {
     auto iter = ctx->format_props.find(format);
     return iter != ctx->format_props.end() ? &iter->second : nullptr;
+}
+
+std::string wren_drm_format_get_name(wren_drm_modifier mod)
+{
+    auto name = drmGetFormatModifierName(mod);
+    std::string str = name ?: "UNKNOWN";
+    free(name);
+    return str;
+}
+
+std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets)
+{
+    if (sets.empty()) return {};
+
+    std::vector<wren_drm_modifier> out;
+    auto first = sets.front();
+    auto rest = sets.subspan(1);
+    for (auto mod : *first) {
+        for (auto set : rest) {
+            if (!set->contains(mod)) continue;
+        }
+        out.emplace_back(mod);
+    }
+    return out;
 }

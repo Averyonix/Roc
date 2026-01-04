@@ -31,7 +31,9 @@ void wroc_imgui_init()
         int width, height;
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-        imgui->font_image = wren_image_create(wren, {width, height}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
+        imgui->font_image = wren_image_create(wren, {width, height},
+            wren_format_from_drm(DRM_FORMAT_ABGR8888),
+            wren_image_usage::texture | wren_image_usage::transfer);
         wren_image_update(imgui->font_image.get(), pixels);
         wren_wait_idle(wren);
 

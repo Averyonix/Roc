@@ -44,7 +44,7 @@ ref<wren_swapchain> wren_swapchain_create(wren_context* ctx, VkSurfaceKHR surfac
     sw_info.color_space = swapchain->color_space;
     vkwsi_swapchain_set_info(swapchain->swapchain, &sw_info);
 
-    swapchain->current = wrei_create<wren_image>();
+    swapchain->current = wrei_create<wren_image_swapchain>();
     swapchain->current->ctx = ctx;
     swapchain->current->format = format;
 

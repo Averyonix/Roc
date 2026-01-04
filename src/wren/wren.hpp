@@ -27,10 +27,13 @@ struct wren_descriptor_id_allocator
 
 // -----------------------------------------------------------------------------
 
+using wren_drm_format   = u32;
+using wren_drm_modifier = u64;
+
 struct wren_format_t
 {
     const char* name;
-    u32 drm;
+    wren_drm_format drm;
     VkFormat vk;
     VkFormat vk_srgb;
     wl_shm_format shm;
@@ -89,32 +92,46 @@ struct wren_format_props
     } dmabuf;
 };
 
-wren_format wren_format_from_drm(u32 drm_format);
+wren_format wren_format_from_drm(wren_drm_format);
 wren_format wren_format_from_shm(wl_shm_format);
+
+using wren_format_modifier_set = ankerl::unordered_dense::set<wren_drm_modifier>;
 
 struct wren_format_set
 {
-    using modifier_set = ankerl::unordered_dense::set<u64>;
-    ankerl::unordered_dense::map<wren_format, modifier_set> entries;
+    ankerl::unordered_dense::map<wren_format, wren_format_modifier_set> entries;
 
-    void add(wren_format format, u64 modifier)
+    void add(wren_format format, wren_drm_modifier modifier)
     {
         entries[format].insert(modifier);
     }
 
-    usz   size() { return entries.size(); }
-    bool empty() { return !entries.empty(); }
+    usz   size() const { return entries.size(); }
+    bool empty() const { return !entries.empty(); }
 
     auto begin() const { return entries.begin(); }
-    auto end() const { return entries.end(); }
+    auto   end() const { return entries.end(); }
 };
+
+std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
 
 const wren_format_props* wren_get_format_props(wren_context*, wren_format);
 
+std::string wren_drm_format_get_name(wren_drm_modifier);
+
 // -----------------------------------------------------------------------------
+
+enum class wren_features
+{
+    none,
+    dmabuf = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wren_features)
 
 struct wren_context : wrei_object
 {
+    wren_features features;
+
     struct {
         WREN_DECLARE_FUNCTION(GetInstanceProcAddr)
         WREN_DECLARE_FUNCTION(CreateInstance)
@@ -129,6 +146,7 @@ struct wren_context : wrei_object
     VkDevice device;
 
     dev_t dev_id;
+    int drm_fd;
 
     vkwsi_context* vkwsi;
 
@@ -136,8 +154,7 @@ struct wren_context : wrei_object
 
     struct {
         u32 active_images;
-        usz active_image_owned_memory;
-        usz active_image_imported_memory;
+        usz active_image_memory;
 
         u32 active_buffers;
         usz active_buffer_memory;
@@ -174,15 +191,10 @@ struct wren_context : wrei_object
 
     ankerl::unordered_dense::map<wren_format, wren_format_props> format_props;
 
+    gbm_device* gbm;
+
     ~wren_context();
 };
-
-enum class wren_features
-{
-    none,
-    dmabuf = 1 << 0,
-};
-WREI_DECORATE_FLAG_ENUM(wren_features)
 
 ref<wren_context> wren_create(wren_features, wrei_event_loop*);
 
@@ -213,36 +225,6 @@ ref<wren_semaphore> wren_semaphore_create(wren_context*, VkSemaphoreType, u64 in
 u64 wren_semaphore_get_value(wren_semaphore*);
 void wren_semaphore_wait_value(wren_semaphore*, u64 value);
 u64 wren_semaphore_advance(wren_semaphore*, u64 inc = 1);
-
-// -----------------------------------------------------------------------------
-
-struct wren_swapchain : wrei_object
-{
-    wren_context* ctx;
-
-    VkSurfaceKHR surface;
-    vkwsi_swapchain* swapchain;
-
-    wren_format format;
-    VkColorSpaceKHR color_space;
-
-    struct resources
-    {
-        std::vector<ref<wrei_object>> objects;
-    };
-
-    std::vector<resources> resources;
-
-    ref<wren_image> current;
-
-    ~wren_swapchain();
-};
-
-ref<wren_swapchain> wren_swapchain_create(wren_context*, VkSurfaceKHR, wren_format);
-
-void        wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
-wren_image* wren_swapchain_acquire_image(wren_swapchain*, std::span<const wren_syncpoint> signals);
-void        wren_swapchain_present(      wren_swapchain*, std::span<const wren_syncpoint> waits  );
 
 // -----------------------------------------------------------------------------
 
@@ -342,36 +324,43 @@ struct wren_array
 
 // -----------------------------------------------------------------------------
 
+enum class wren_image_usage
+{
+    none,
+
+    transfer = 1 << 0,  // transfer dst
+    texture  = 1 << 1,  // sampled
+    render   = 1 << 2,  // color attachment
+    scanout  = 1 << 3,
+    cursor   = 1 << 4,
+};
+WREI_DECORATE_FLAG_ENUM(wren_image_usage)
+
+VkImageUsageFlags wren_image_usage_to_vk(wren_image_usage);
+
 struct wren_image : wrei_object
 {
     wren_context* ctx;
-
-    std::unique_ptr<struct wren_dma_params> dma_params;
 
     wren_format format;
 
     VkImage image;
     VkImageView view;
-    VkDeviceMemory memory;
-    VmaAllocation vma_allocation;
     vec2u32 extent;
-
-    struct {
-        usz owned_allocation_size;
-        usz imported_allocation_size;
-    } stats;
 
     u32 id;
 
-    ~wren_image();
+    wren_image_usage usage;
+
+    virtual ~wren_image() = 0;
 };
 
-ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format format);
+ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format format, wren_image_usage usage);
 void wren_image_update(wren_image*, const void* data);
 void wren_image_readback(wren_image*, void* data);
 void wren_image_wait(wren_image*);
 
-void wren_transition(wren_context* vk, VkCommandBuffer cmd, VkImage image,
+void wren_transition(wren_context* vk, wren_commands*, wren_image*,
         VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
         VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
         VkImageLayout old_layout, VkImageLayout new_layout);
@@ -423,21 +412,45 @@ constexpr static u32 wren_dma_max_planes = 4;
 struct wren_dma_plane
 {
     int fd;
-    u32 plane_idx;
     u32 offset;
     u32 stride;
-    u64 drm_modifier;
 };
 
 struct wren_dma_params
 {
-    std::vector<wren_dma_plane> planes;
+    struct {
+        wren_dma_plane data[wren_dma_max_planes];
+        u32 count;
+
+        auto begin() const { return data; }
+        auto   end() const { return data + count; }
+
+        auto& operator[](usz i) const { return data[i]; }
+        auto& operator[](usz i)       { return data[i]; }
+    } planes;
+
     vec2u32 extent;
     wren_format format;
+    wren_drm_modifier modifier;
+
     zwp_linux_buffer_params_v1_flags flags;
 };
 
-ref<wren_image> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params);
+struct wren_image_dmabuf : wren_image
+{
+    wren_dma_params dma_params;
+
+    std::array<VkDeviceMemory, wren_dma_max_planes> memory_planes;
+    gbm_bo* gbm;
+
+    struct {
+        usz allocation_size;
+    } stats;
+
+    ~wren_image_dmabuf();
+};
+
+ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params, wren_image_usage);
 
 // -----------------------------------------------------------------------------
 
@@ -454,3 +467,36 @@ struct wren_image_handle
         , sampler(sampler->id)
     {}
 };
+
+
+// -----------------------------------------------------------------------------
+
+struct wren_image_swapchain : wren_image {};
+
+struct wren_swapchain : wrei_object
+{
+    wren_context* ctx;
+
+    VkSurfaceKHR surface;
+    vkwsi_swapchain* swapchain;
+
+    wren_format format;
+    VkColorSpaceKHR color_space;
+
+    struct resources
+    {
+        std::vector<ref<wrei_object>> objects;
+    };
+
+    std::vector<resources> resources;
+
+    ref<wren_image_swapchain> current;
+
+    ~wren_swapchain();
+};
+
+ref<wren_swapchain> wren_swapchain_create(wren_context*, VkSurfaceKHR, wren_format);
+
+void        wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
+wren_image* wren_swapchain_acquire_image(wren_swapchain*, std::span<const wren_syncpoint> signals);
+void        wren_swapchain_present(      wren_swapchain*, std::span<const wren_syncpoint> waits  );

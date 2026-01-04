@@ -51,9 +51,9 @@ void wroc_wl_subsurface_place(wl_resource* resource, wl_resource* _sibling, bool
     auto cur = std::ranges::find(surface_stack, subsurface->surface.get(), &wrei_weak<wroc_surface>::get);
     auto sib = std::ranges::find(surface_stack, sibling,                   &wrei_weak<wroc_surface>::get);
 
-    if (cur == surface_stack.end()) return wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Compositor error: surface not in stack!");
-    if (sib == surface_stack.end()) return wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Sibling not found in stack");
-    if (cur == sib)                 return wl_resource_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Passed self as sibling");
+    if (cur == surface_stack.end()) return wroc_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Compositor error: surface not in stack!");
+    if (sib == surface_stack.end()) return wroc_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Sibling not found in stack");
+    if (cur == sib)                 return wroc_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Passed self as sibling");
 
     if (cur > sib) std::rotate(sib + i32(above), cur, cur + 1);
     else           std::rotate(cur, cur + 1, sib + i32(above));

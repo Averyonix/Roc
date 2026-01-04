@@ -39,7 +39,8 @@ void wroc_renderer_create(wroc_render_options render_options)
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->background = wren_image_create(wren, {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888));
+    renderer->background = wren_image_create(wren, {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
+        wren_image_usage::texture | wren_image_usage::transfer);
     wren_image_update(renderer->background.get(), data);
     wren_wait_idle(wren);
 
@@ -70,7 +71,7 @@ void wroc_render_frame(wroc_output* output)
     VkExtent2D vk_extent = { current->extent.x, current->extent.y };
     vec2f32 current_extent = current->extent;
 
-    wren_transition(wren, cmd, current->image,
+    wren_transition(wren, commands.get(), current,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
         0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
@@ -384,7 +385,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Submit
 
-    wren_transition(wren, cmd, current->image,
+    wren_transition(wren, commands.get(), current,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);

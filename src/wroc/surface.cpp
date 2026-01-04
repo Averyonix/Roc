@@ -78,8 +78,8 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
 
     if (x || y) {
         if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
-            wl_resource_post_error(resource, WL_SURFACE_ERROR_INVALID_OFFSET,
-                "Non-zero offset not allowed in wl_surface::attach since version %u", WL_SURFACE_OFFSET_SINCE_VERSION);
+            wroc_post_error(resource, WL_SURFACE_ERROR_INVALID_OFFSET,
+                "Non-zero offset not allowed in wl_surface::attach since version {}", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
             surface->pending.delta = { x, y };
             surface->pending.committed |= wroc_surface_committed_state::offset;

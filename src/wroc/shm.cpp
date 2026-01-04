@@ -15,7 +15,7 @@ void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, i
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_shm_pool_impl, pool);
     pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
     if (pool->data == MAP_FAILED) {
-        wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
     }
 }
 
@@ -43,7 +43,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     i32 needed = stride * height + offset;
     if (needed > pool->size) {
-        wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_STRIDE, "buffer mapped storage exceeds pool limits");
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_STRIDE, "buffer mapped storage exceeds pool limits");
         return;
     }
 
@@ -66,7 +66,8 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
-    shm_buffer->image = wren_image_create(server->renderer->wren.get(), shm_buffer->extent, shm_buffer->format);
+    shm_buffer->image = wren_image_create(server->renderer->wren.get(), shm_buffer->extent, shm_buffer->format,
+        wren_image_usage::texture | wren_image_usage::transfer);
 
     log_warn("shm buffer created {}, format = {}", wrei_to_string(shm_buffer->extent), shm_buffer->format->name);
 }
@@ -79,7 +80,7 @@ void wroc_wl_shm_pool_resize(wl_client* client, wl_resource* resource, i32 size)
     pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
     pool->size = size;
     if (!pool->data) {
-        wl_resource_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed while resizing pool");
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed while resizing pool");
     }
 }
 

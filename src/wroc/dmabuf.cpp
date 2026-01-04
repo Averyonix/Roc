@@ -56,16 +56,34 @@ void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u3
     // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
 
     auto* params = wroc_get_userdata<wroc_dma_buffer_params>(resource);
-    if (!params->params.planes.empty()) {
-        log_error("Multiple plane formats not currently supported");
+
+    if (plane_idx >= wren_dma_max_planes) {
+        wroc_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX, "Invalid plane index");
+        return;
     }
-    params->params.planes.emplace_back(wren_dma_plane{
+
+    if (params->planes_set & (1 << plane_idx)) {
+        wroc_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_SET, "Plane already set");
+        return;
+    }
+
+    auto drm_modifier = u64(modifier_hi) << 32 | modifier_lo;
+
+    if (!params->planes_set) {
+        params->params.modifier = drm_modifier;
+    } else if (params->params.modifier != drm_modifier) {
+        wroc_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "All planes must use the same DRM modifier");
+        params->planes_set = ~0u;
+        return;
+    }
+
+    params->planes_set |= (1 << plane_idx);
+
+    params->params.planes[plane_idx] = wren_dma_plane{
         .fd = fd,
-        .plane_idx = plane_idx,
         .offset = offset,
         .stride = stride,
-        .drm_modifier = u64(modifier_hi) << 32 | modifier_lo,
-    });
+    };
 }
 
 static
@@ -86,11 +104,23 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     auto format = wren_format_from_drm(drm_format);
 
     if (!format) {
-        wl_resource_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "Invalid format");
+        wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "Invalid format");
         return nullptr;
     }
 
     auto* params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
+
+    if (params->planes_set == ~0u) {
+        wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Attempted to use buffer params with previous errors");
+        return nullptr;
+    }
+    if (std::popcount(params->planes_set + 1) != 1) {
+        wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Incomplete plane set");
+        return nullptr;
+    }
+
+    params->params.planes.count = std::popcount(params->planes_set);
+
     auto* new_resource = wroc_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = wrei_create_unsafe<wroc_dma_buffer>();
     buffer->resource = new_resource;
@@ -103,9 +133,9 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
     buffer->extent = {width, height};
-    buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params->params);
-
-    log_warn("dma buffer created {}, format = {}", wrei_to_string(buffer->extent), format->name);
+    log_warn("Importing DMA-BUF, size = {}, format = {}, mod = {}",
+        wrei_to_string(buffer->extent), format->name, wren_drm_format_get_name(params->params.modifier));
+    buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params->params, wren_image_usage::texture);
 
     return buffer;
 }

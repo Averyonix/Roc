@@ -26,6 +26,16 @@ void wroc_send_impl(const char* fn_name, auto fn, auto&& resource, auto&&... arg
     }
 }
 
+template<typename ...Args>
+void wroc_post_error(wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
+{
+    if (!resource) return;
+    auto message = std::vformat(fmt.get(), std::make_format_args(args...));
+    log_error("{}", message);
+    wl_resource_post_error(resource, code, "%s", message.c_str());
+    wroc_queue_client_flush();
+}
+
 // -----------------------------------------------------------------------------
 
 template<typename T>

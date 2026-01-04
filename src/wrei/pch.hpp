@@ -47,9 +47,14 @@
 #include <sys/prctl.h>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
+#include <sys/syscall.h>
 
 #include <drm/drm_fourcc.h>
 #include <xf86drm.h>
+
+// -----------------------------------------------------------------------------
+
+#include <gbm.h>
 
 // -----------------------------------------------------------------------------
 
@@ -108,6 +113,7 @@ extern "C" {
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
+#include <vulkan/utility/vk_format_utils.h>
 
 #include <vk-wsi.h>
 

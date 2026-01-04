@@ -72,6 +72,11 @@ std::vector<VkSemaphoreSubmitInfo> wren_syncpoints_to_submit_infos(std::span<con
 
 // -----------------------------------------------------------------------------
 
+void wren_init_gbm_allocator(wren_context*);
+void wren_destroy_gbm_allocator(wren_context*);
+
+// -----------------------------------------------------------------------------
+
 static constexpr VkFormatFeatureFlags wren_shm_texture_features
     = VK_FORMAT_FEATURE_TRANSFER_SRC_BIT
     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT

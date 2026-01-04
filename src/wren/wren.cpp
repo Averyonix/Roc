@@ -18,6 +18,8 @@ wren_context::~wren_context()
 
     wren_commands_shutdown(this);
 
+    wren_destroy_gbm_allocator(this);
+
     queue_sema = nullptr;
 
     assert(stats.active_images == 0);
@@ -49,9 +51,10 @@ void drop_capabilities()
     cap_free(caps);
 }
 
-ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loop)
+ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_loop)
 {
     auto ctx = wrei_create<wren_context>();
+    ctx->features = _features;
 
     ctx->event_loop = event_loop;
 
@@ -115,7 +118,29 @@ ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loo
         log_info("  Selected: {}", props.properties.deviceName);
     }
 
+    std::vector<VkExtensionProperties> available_extensions;
     {
+        u32 count = 0;
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
+        available_extensions.resize(count);
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, available_extensions.data()));
+    }
+
+    auto check_extension = [&](const char* name) -> bool {
+        for (auto& extension : available_extensions) {
+            if (strcmp(extension.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    {
+        if (!check_extension(VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME)) {
+            log_error("Physical device does not support DRM properties extension");
+            return nullptr;
+        }
+
         VkPhysicalDeviceDrmPropertiesEXT drm_props {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
         };
@@ -134,6 +159,22 @@ ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loo
         }
 
         log_info("Device ID: {}", ctx->dev_id);
+
+        // Get DRM fd
+
+        drmDevice* device = nullptr;
+        wrei_unix_check_ne(drmGetDeviceFromDevId(ctx->dev_id, 0, &device));
+        defer { drmFreeDevice(&device); };
+        const char* name = nullptr;
+        if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
+            name = device->nodes[DRM_NODE_RENDER];
+        } else {
+            assert(device->available_nodes & (1 << DRM_NODE_PRIMARY));
+            name = device->nodes[DRM_NODE_PRIMARY];
+            log_debug("DRM device {} has no render node, falling back to primary node", name);
+        }
+        log_info("Device path: {}", name);
+        ctx->drm_fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
     }
 
     ctx->queue_family = ~0u;
@@ -145,23 +186,6 @@ ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loo
             break;
         }
     }
-
-    std::vector<VkExtensionProperties> available_extensions;
-    {
-        u32 count = 0;
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
-        available_extensions.resize(count);
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, available_extensions.data()));
-    }
-
-    auto check_extension = [&](const char* name) -> bool {
-        for (auto& extension : available_extensions) {
-            if (strcmp(extension.extensionName, name) == 0) {
-                return true;
-            }
-        }
-        return false;
-    };
 
     std::vector device_extensions {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -187,14 +211,14 @@ ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loo
         return all_present;
     };
 
-    if (features >= wren_features::dmabuf) {
+    if (ctx->features >= wren_features::dmabuf) {
         if (!add_all({
             VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
             VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
             VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
         })) {
             log_warn("DMABUF feature requested but extension not available (probably running in RenderDoc)");
-            features -= wren_features::dmabuf;
+            ctx->features -= wren_features::dmabuf;
         }
     }
 
@@ -335,6 +359,8 @@ ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loo
 
     ctx->queue_sema = wren_semaphore_create(ctx.get(), VK_SEMAPHORE_TYPE_TIMELINE);
     wren_commands_init(ctx.get());
+
+    wren_init_gbm_allocator(ctx.get());
 
     return ctx;
 }

@@ -549,6 +549,7 @@ struct wroc_dma_buffer_params : wrei_object
     wroc_resource resource;
 
     wren_dma_params params;
+    u32 planes_set;
 
     ~wroc_dma_buffer_params();
 };

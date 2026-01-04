@@ -156,6 +156,7 @@ target_link_libraries(wrei PUBLIC
     imgui
     cap
     libgio2
+    gbm
     )
 
 # ------------------------------------------------------------------------------
