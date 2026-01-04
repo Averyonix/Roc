@@ -966,7 +966,6 @@ struct wroc_server : wrei_object
     std::chrono::steady_clock::time_point epoch;
 
     ref<wrei_event_loop> event_loop;
-    ref<wrei_event_source_tasks> event_tasks;
 
     u32 client_flushes_pending = 0;
 

@@ -5,10 +5,23 @@
 
 struct wrei_event_source;
 
+struct wrei_task
+{
+    std::move_only_function<void()> callback;
+    std::atomic<bool>* sync;
+};
+
 struct wrei_event_loop : wrei_object
 {
-    int epoll_fd;
     bool stopped = false;
+
+    std::thread::id main_thread;
+
+    moodycamel::ConcurrentQueue<wrei_task> queue;
+    std::atomic<u32> pending;
+    int task_fd;
+
+    int epoll_fd;
 
     struct {
         u64 events_handled;
@@ -31,6 +44,8 @@ ref<wrei_event_loop> wrei_event_loop_create();
 void wrei_event_loop_run( wrei_event_loop*);
 void wrei_event_loop_stop(wrei_event_loop*);
 void wrei_event_loop_add( wrei_event_loop*, u32 events, wrei_event_source*);
+void wrei_event_loop_enqueue(wrei_event_loop*, std::move_only_function<void()> task);
+void wrei_event_loop_enqueue_and_wait(wrei_event_loop*, std::move_only_function<void()> task);
 
 // -----------------------------------------------------------------------------
 
@@ -59,23 +74,3 @@ ref<wrei_event_source> wrei_event_loop_add_fd(wrei_event_loop* loop, int fd, u32
     wrei_event_loop_add(loop, events, source.get());
     return source;
 }
-
-// -----------------------------------------------------------------------------
-
-struct wrei_event_source_tasks : wrei_event_source
-{
-    moodycamel::ConcurrentQueue<std::function<void()>> tasks;
-
-    ~wrei_event_source_tasks();
-
-    virtual void handle(const epoll_event& event) final override;
-};
-
-ref<wrei_event_source_tasks> wrei_event_loop_add_tasks(wrei_event_loop*);
-
-/**
-  * Enqueue a task to run in the main event thread
-  *
-  * This function can be run from *any* thread
-  */
-void wrei_event_source_tasks_enqueue(wrei_event_source_tasks*, std::function<void()> task);

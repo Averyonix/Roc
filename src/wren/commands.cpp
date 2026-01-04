@@ -47,7 +47,7 @@ void wait_thread(wren_context* ctx)
 
         wren_check(ctx->vk.GetSemaphoreCounterValue(ctx->device, semaphore->semaphore, &observed));
 
-        wrei_event_source_tasks_enqueue(ctx->tasks.get(), [ctx, observed] {
+        wrei_event_loop_enqueue(ctx->event_loop.get(), [ctx, observed] {
             handle_signalled(ctx, observed);
         });
     }

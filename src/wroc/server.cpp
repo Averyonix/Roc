@@ -19,12 +19,26 @@ void wroc_queue_client_flush()
 {
     if (server->client_flushes_pending) return;
     server->client_flushes_pending++;
-    wrei_event_source_tasks_enqueue(server->event_tasks.get(), [] {
+    wrei_event_loop_enqueue(server->event_loop.get(), [] {
         if (server->client_flushes_pending) {
             wl_display_flush_clients(server->display);
             server->client_flushes_pending = 0;
         }
     });
+}
+
+static
+void signal_handler(int sig)
+{
+    if (sig == SIGTERM || sig == SIGINT) {
+        if (sig == SIGINT) {
+            std::signal(SIGINT, SIG_DFL);
+        }
+        wrei_event_loop_enqueue(server->event_loop.get(), [sig] {
+            log_error("{} ({}) receieved, shutting down gracefully...", sig == SIGTERM ? "Terminate" : "Interrupt", sig);
+            wroc_terminate();
+        });
+    }
 }
 
 wroc_server* server;
@@ -74,8 +88,6 @@ void wroc_run(int argc, char* argv[])
         server->main_mod = wroc_modifiers::alt;
         server->main_mod_evdev = KEY_LEFTALT;
     }
-
-    server->event_tasks = wrei_event_loop_add_tasks(server->event_loop.get());
 
     // Seat
 
@@ -160,7 +172,13 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Running compositor on: {}", server->socket);
 
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     wrei_event_loop_run(server->event_loop.get());
+
+    signal(SIGINT, SIG_DFL);
+    signal(SIGTERM, SIG_IGN);
 
     // Shutdown
 
@@ -180,6 +198,9 @@ void wroc_run(int argc, char* argv[])
     log_info("Display destroyed");
 
     server_ref = nullptr;
+
+    log_info("Server destroyed");
+
     wren = nullptr;
 
     log_info("Shutdown complete");

@@ -25,7 +25,7 @@ void wroc_renderer_create(wroc_render_options render_options)
         features |= wren_features::dmabuf;
     }
 
-    renderer->wren = wren_create(features, server->event_tasks.get());
+    renderer->wren = wren_create(features, server->event_loop.get());
     wroc_renderer_init_buffer_feedback(renderer);
 
     auto* wren = renderer->wren.get();

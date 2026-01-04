@@ -156,7 +156,7 @@ struct wren_context : wrei_object
 
     std::atomic<u64> wait_thread_submitted;
     std::jthread     wait_thread;
-    ref<wrei_event_source_tasks> tasks;
+    ref<wrei_event_loop> event_loop;
 
     std::vector<VkSemaphore> free_binary_semaphores;
 
@@ -184,7 +184,7 @@ enum class wren_features
 };
 WREI_DECORATE_FLAG_ENUM(wren_features)
 
-ref<wren_context> wren_create(wren_features, wrei_event_source_tasks*);
+ref<wren_context> wren_create(wren_features, wrei_event_loop*);
 
 // -----------------------------------------------------------------------------
 

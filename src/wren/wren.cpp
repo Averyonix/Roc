@@ -49,11 +49,11 @@ void drop_capabilities()
     cap_free(caps);
 }
 
-ref<wren_context> wren_create(wren_features features, wrei_event_source_tasks* tasks)
+ref<wren_context> wren_create(wren_features features, wrei_event_loop* event_loop)
 {
     auto ctx = wrei_create<wren_context>();
 
-    ctx->tasks = tasks;
+    ctx->event_loop = event_loop;
 
     ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!ctx->vulkan1) {

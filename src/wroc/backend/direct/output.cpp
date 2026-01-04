@@ -43,7 +43,7 @@ void scanout_thread(std::stop_token stop, wren_context* wren, weak<wroc_drm_outp
             return;
         }
 
-        wrei_event_source_tasks_enqueue(server->event_tasks.get(), [output, now] {
+        wrei_event_loop_enqueue(server->event_loop.get(), [output, now] {
             if (output) {
                 handle_scanout(output.get(), now);
             }
