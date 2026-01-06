@@ -154,12 +154,10 @@ void wren_image_readback(wren_image* image, void* data)
 }
 #endif
 
-void wren_image_update(wren_image* image, const void* data)
+void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
 {
     auto* ctx = image->ctx;
     auto extent = image->extent;
-
-    auto cmd = wren_commands_begin(ctx);
 
     constexpr auto pixel_size = 4;
     auto row_length = extent.x;
@@ -169,8 +167,8 @@ void wren_image_update(wren_image* image, const void* data)
     // TODO: This should be stored persistently for transfers
     ref buffer = wren_buffer_create(ctx, image_size);
 
-    wren_commands_protect_object(cmd.get(), image);
-    wren_commands_protect_object(cmd.get(), buffer.get());
+    wren_commands_protect_object(cmd, image);
+    wren_commands_protect_object(cmd, buffer.get());
 
     std::memcpy(buffer->host_address, data, image_size);
 
@@ -182,8 +180,14 @@ void wren_image_update(wren_image* image, const void* data)
         .imageOffset = {},
         .imageExtent = { extent.x, extent.y, 1 },
     }));
+}
 
-    wren_commands_submit(cmd.get(), {}, {});
+void wren_image_update_immed(wren_image* image, const void* data)
+{
+    auto commands = wren_commands_begin(image->ctx);
+    wren_image_update(commands.get(), image, data);
+    wren_commands_submit(commands.get(), {}, {});
+    wren_wait_idle(image->ctx);
 }
 
 // -----------------------------------------------------------------------------
@@ -250,6 +254,9 @@ wren_image_dmabuf::~wren_image_dmabuf()
 
     ctx->vk.DestroyImageView(ctx->device, view, nullptr);
     ctx->vk.DestroyImage(ctx->device, image, nullptr);
+    for (auto& plane : dma_params.planes) {
+        close(plane.fd);
+    }
     for (auto memory : memory_planes) {
         ctx->vk.FreeMemory(ctx->device, memory, nullptr);
     }
@@ -321,6 +328,9 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
     image->extent = params.extent;
     image->format = params.format;
     image->dma_params = params;
+    for (auto& plane : image->dma_params.planes) {
+        plane.fd = -1;
+    }
 
     static constexpr auto handle_type = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
@@ -390,15 +400,13 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
 
         auto mem = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
 
-        // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
-        int dfd = wrei_unix_check_n1(fcntl(fd, F_DUPFD_CLOEXEC, 0));
-        if (dfd < 0) {
-            log_error("Failed to deuplicate DMA-BUF file descriptor");
-            return nullptr;
-        }
-        image->dma_params.planes[i].fd = dfd;
+        // Take a first copy, as we don't take ownership of the dmabuf
+        image->dma_params.planes[i].fd = wrei_unix_check_n1(fcntl(fd, F_DUPFD_CLOEXEC, 0));
 
-        log_trace("  mem[{}].fd   = {}", i, dfd);
+        // Take another copy of the file descriptor, this will be owned by the bound vulkan memory
+        int vk_fd = wrei_unix_check_n1(fcntl(fd, F_DUPFD_CLOEXEC, 0));
+
+        log_trace("  mem[{}].fd   = {}", i, vk_fd);
         log_trace("  mem[{}].size = {}", i, wrei_byte_size_to_string(mem_reqs.memoryRequirements.size));
         image->stats.allocation_size   += mem_reqs.memoryRequirements.size;
         ctx->stats.active_image_memory += mem_reqs.memoryRequirements.size;
@@ -409,7 +417,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
                 wrei_ptr_to(VkImportMemoryFdInfoKHR {
                     .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
                     .handleType = handle_type,
-                    .fd = dfd,
+                    .fd = vk_fd,
                 }),
                 wrei_ptr_to(VkMemoryDedicatedAllocateInfo {
                     .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
@@ -420,7 +428,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
             .memoryTypeIndex = mem,
         }), nullptr, &image->memory_planes[i])) != VK_SUCCESS) {
             log_error("Failed to import memory");
-            close(dfd);
+            close(vk_fd);
             return nullptr;
         }
 
@@ -440,36 +448,6 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
     wren_image_init(image.get());
 
     return image;
-}
-
-void wren_image_wait(wren_image* image)
-{
-    auto* dma_image = dynamic_cast<wren_image_dmabuf*>(image);
-    if (!dma_image) return;
-    const auto& params = dma_image->dma_params;
-
-    // TODO: Importing sync files to Vulkan semaphores
-    // TODO: Wait for images asynchronously to prevent frames from being delayed
-
-    for (auto& plane : params.planes) {
-        pollfd pfd {
-            .fd = plane.fd,
-            .events = POLLIN,
-        };
-        int timeout_ms = 1000;
-        auto start = std::chrono::steady_clock::now();
-        int ret = poll(&pfd, 1, timeout_ms);
-            auto dur = std::chrono::steady_clock::now() - start;
-        if (ret < 0) {
-            log_error("Failed to wait for DMA-BUF");
-        } else if (ret == 0) {
-            log_error("Timed out waiting for DMA-BUF fence after {}", wrei_duration_to_string(dur));
-        } else {
-            if (dur > 1ms) {
-                log_warn("Waiting for imported DMA-BUF took a long time: {}", wrei_duration_to_string(dur));
-            }
-        }
-    }
 }
 
 // -----------------------------------------------------------------------------
@@ -541,6 +519,8 @@ ref<wren_image> create_gbm_image(wren_context* ctx, vec2u32 extent, wren_format 
 
 // -----------------------------------------------------------------------------
 
+#define WROC_PREFER_GBM_IMAGES 0
+
 ref<wren_image> wren_image_create(
     wren_context* ctx,
     vec2u32 extent,
@@ -549,7 +529,11 @@ ref<wren_image> wren_image_create(
 {
     assert(usage != wren_image_usage::none);
 
+#ifdef WROC_PREFER_GBM_IMAGES
     return (format->drm != DRM_FORMAT_INVALID && ctx->features >= wren_features::dmabuf)
         ? create_gbm_image(ctx, extent, format, usage)
         : create_vma_image(ctx, extent, format, usage);
+#else
+    return create_vma_image(ctx, extent, format, usage);
+#endif
 }

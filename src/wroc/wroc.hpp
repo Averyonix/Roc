@@ -19,6 +19,7 @@ struct wren_renderer;
 struct wroc_output;
 struct wroc_surface;
 struct wroc_buffer;
+struct wroc_buffer_lock;
 struct wroc_cursor_surface;
 struct wroc_seat_keyboard;
 struct wroc_seat_pointer;
@@ -178,6 +179,7 @@ struct wroc_surface_state
     wroc_surface_committed_state committed;
 
     ref<wroc_buffer> buffer;
+    ref<wroc_buffer_lock> buffer_lock;
     wroc_resource_list frame_callbacks;
     vec2i32 delta;
     region2i32 opaque_region;
@@ -500,6 +502,8 @@ enum class wroc_buffer_type : u32
 
 struct wroc_buffer : wrei_object
 {
+    friend wroc_buffer_lock;
+
     wroc_buffer_type type;
 
     wroc_resource resource;
@@ -508,24 +512,46 @@ struct wroc_buffer : wrei_object
 
     ref<wren_image> image;
 
-    u32 locks = 0;
+    weak<wroc_buffer_lock> lock_guard;
+    [[nodiscard]] ref<wroc_buffer_lock> lock();
 
-    void lock();
-    void unlock();
+    [[nodiscard]] ref<wroc_buffer_lock> commit();
 
+    bool released = true;
+    void release();
+
+    virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) = 0;
+
+protected:
     virtual void on_commit() = 0;
-    virtual void on_replace() = 0;
+    virtual void on_unlock() = 0;
+};
+
+struct wroc_buffer_lock : wrei_object
+{
+    ref<wroc_buffer> buffer;
+
+    ~wroc_buffer_lock();
 };
 
 // -----------------------------------------------------------------------------
+
+struct wroc_shm_pool;
+
+struct wroc_shm_mapping
+{
+    void* data;
+    i32 size;
+
+    ~wroc_shm_mapping();
+};
 
 struct wroc_shm_pool : wrei_object
 {
     wroc_resource resource;
 
-    i32 size;
     int fd;
-    void* data;
+    ref<wroc_shm_mapping> mapping;
 
     ~wroc_shm_pool();
 };
@@ -539,7 +565,9 @@ struct wroc_shm_buffer : wroc_buffer
     wren_format format;
 
     virtual void on_commit() final override;
-    virtual void on_replace() final override;
+    virtual void on_unlock() final override;
+
+    virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -556,8 +584,12 @@ struct wroc_dma_buffer_params : wrei_object
 
 struct wroc_dma_buffer : wroc_buffer
 {
+    bool needs_wait = false;
+
     virtual void on_commit() final override;
-    virtual void on_replace() final override;
+    virtual void on_unlock() final override;
+
+    virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) final override;
 };
 
 // -----------------------------------------------------------------------------

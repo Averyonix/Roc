@@ -67,8 +67,7 @@ void wroc_cursor_create()
     auto* wren = server->renderer->wren.get();
     cursor->fallback.image = wren_image_create(wren, {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
         wren_image_usage::texture | wren_image_usage::transfer | wren_image_usage::cursor);
-    wren_image_update(cursor->fallback.image.get(), image->pixels);
-    wren_wait_idle(wren);
+    wren_image_update_immed(cursor->fallback.image.get(), image->pixels);
 
     cursor->fallback.hotspot = {image->xhot, image->yhot};
 }

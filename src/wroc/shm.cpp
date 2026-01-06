@@ -3,6 +3,25 @@
 const u32 wroc_wl_shm_version = 2;
 
 static
+void update_mapping(wroc_shm_pool* pool, usz size)
+{
+    auto mapping = wrei_create<wroc_shm_mapping>();
+    mapping->size = size;
+    mapping->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
+    if (mapping->data == MAP_FAILED) {
+        wroc_post_error(pool->resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
+        return;
+    }
+
+    pool->mapping = mapping;
+}
+
+wroc_shm_mapping::~wroc_shm_mapping()
+{
+    munmap(data, size);
+}
+
+static
 void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, int fd, i32 size)
 {
     // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
@@ -11,12 +30,8 @@ void wroc_wl_whm_create_pool(wl_client* client, wl_resource* resource, u32 id, i
     auto* pool = wrei_create_unsafe<wroc_shm_pool>();
     pool->resource = new_resource;
     pool->fd = fd;
-    pool->size = size;
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_shm_pool_impl, pool);
-    pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
-    if (pool->data == MAP_FAILED) {
-        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
-    }
+    update_mapping(pool, size);
 }
 
 const struct wl_shm_interface wroc_wl_shm_impl = {
@@ -42,7 +57,11 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
     auto* pool = wroc_get_userdata<wroc_shm_pool>(resource);
 
     i32 needed = stride * height + offset;
-    if (needed > pool->size) {
+    if (!pool->mapping) {
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "Tried to map buffer from shm pool with previous mapping failure");
+        return;
+    }
+    if (needed > pool->mapping->size) {
         wroc_post_error(resource, WL_SHM_ERROR_INVALID_STRIDE, "buffer mapped storage exceeds pool limits");
         return;
     }
@@ -76,12 +95,9 @@ static
 void wroc_wl_shm_pool_resize(wl_client* client, wl_resource* resource, i32 size)
 {
     auto* pool = wroc_get_userdata<wroc_shm_pool>(resource);
-    munmap(pool->data, pool->size);
-    pool->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
-    pool->size = size;
-    if (!pool->data) {
-        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "mmap failed while resizing pool");
-    }
+
+    pool->mapping = nullptr;
+    update_mapping(pool, size);
 }
 
 const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
@@ -92,20 +108,59 @@ const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
 
 wroc_shm_pool::~wroc_shm_pool()
 {
-    if (data) munmap(data, size);
+    assert(wrei_allocation_from(mapping.get())->ref_count == 1);
+    mapping = nullptr;
     close(fd);
 }
 
 void wroc_shm_buffer::on_commit()
 {
-    lock();
-    wren_image_update(image.get(), static_cast<char*>(pool->data) + offset);
+    log_trace("shm_buffer committed, transferring");
 
-    // Protect the pool's mapped memory until the copy has completed
-    wren_wait_idle(image->ctx);
-    unlock();
+    if (!pool->mapping) {
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "Tried to commit buffer from shm pool with previous mapping failure");
+        release();
+        return;
+    }
+
+    auto mapping = pool->mapping;
+
+    auto commands = wren_commands_begin(image->ctx);
+    wren_image_update(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
+
+    // Keep buffer lock alive until transfer is complete
+    wren_commands_protect_object(commands.get(), lock_guard.get());
+
+    // Release resources as soon as transfer has completed
+    struct shm_transfer_guard : wrei_object
+    {
+        ref<wroc_shm_buffer> buffer;
+        // Protect mapping for duration of transfer
+        // This must be destroyed before buffer, in case buffer is holding last reference to shm_pool
+        ref<wroc_shm_mapping> mapping;
+
+        ~shm_transfer_guard()
+        {
+            log_trace("shm_buffer transfer complete, releasing");
+
+            buffer->release();
+        }
+    };
+    auto transfer_guard = wrei_create<shm_transfer_guard>();
+    transfer_guard->buffer = this;
+    transfer_guard->mapping = mapping;
+    wren_commands_protect_object(commands.get(), transfer_guard.get());
+
+    wren_commands_submit(commands.get(), {}, {});
+
+    // TODO: Buffer transitions
 }
 
-void wroc_shm_buffer::on_replace()
+void wroc_shm_buffer::on_unlock()
 {
+}
+
+void wroc_shm_buffer::on_read(wren_commands* commands, std::vector<ref<wren_semaphore>>& waits)
+{
+    // TODO: Memory barrier after initial transfer
 }

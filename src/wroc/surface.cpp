@@ -141,37 +141,30 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     // Update buffer
 
     if (from.committed >= wroc_surface_committed_state::buffer) {
-
         if (&from == &surface->pending) {
-            if (from.buffer && from.buffer->locks) {
-                log_error("Client is attempting to commit a buffer that is already locked!");
-            }
-        }
-
-        auto old_buffer = to.buffer;
-
-        if (&from == &surface->pending) {
+            // If commit from pending, acquire buffer lock or clear
             if (from.buffer) {
                 if (from.buffer->resource) {
                     to.buffer = from.buffer;
-                    to.buffer->on_commit();
+                    to.buffer_lock = to.buffer->commit();
                 } else {
                     log_warn("Pending buffer was destroyed, surface contents will be cleared");
                     to.buffer = nullptr;
+                    to.buffer_lock = nullptr;
                 }
             } else if (to.buffer) {
                 log_warn("Null buffer was attached, surface contents will be cleared");
                 to.buffer = nullptr;
+                to.buffer_lock = nullptr;
             }
         } else {
-            to.buffer = std::move(from.buffer);
-        }
-
-        if (old_buffer) {
-            old_buffer->on_replace();
+            // Else transfer committed buffer and lock to next state
+            to.buffer      = std::move(from.buffer);
+            to.buffer_lock = std::move(from.buffer_lock);
         }
 
         from.buffer = nullptr;
+        from.buffer_lock = nullptr;
     }
 
     // Update opaque region

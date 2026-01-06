@@ -361,9 +361,8 @@ struct wren_image : wrei_object
 };
 
 ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format format, wren_image_usage usage);
-void wren_image_update(wren_image*, const void* data);
-void wren_image_readback(wren_image*, void* data);
-void wren_image_wait(wren_image*);
+void wren_image_update(wren_commands*, wren_image*, const void* data);
+void wren_image_update_immed(wren_image*, const void* data);
 
 void wren_transition(wren_context* vk, wren_commands*, wren_image*,
         VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
@@ -427,8 +426,8 @@ struct wren_dma_params
         wren_dma_plane data[wren_dma_max_planes];
         u32 count;
 
-        auto begin() const { return data; }
-        auto   end() const { return data + count; }
+        auto begin(this auto&& self) { return self.data; }
+        auto   end(this auto&& self) { return self.data + self.count; }
 
         auto& operator[](this auto&& self, usz i) { return self.data[i]; }
     } planes;

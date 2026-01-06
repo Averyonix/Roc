@@ -41,8 +41,7 @@ void wroc_renderer_create(wroc_render_options render_options)
 
     renderer->background = wren_image_create(wren, {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
         wren_image_usage::texture | wren_image_usage::transfer);
-    wren_image_update(renderer->background.get(), data);
-    wren_wait_idle(wren);
+    wren_image_update_immed(renderer->background.get(), data);
 
     renderer->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
@@ -177,6 +176,8 @@ void wroc_render_frame(wroc_output* output)
 
     // Surface helper
 
+    std::vector<ref<wren_semaphore>> buffer_waits;
+
     auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos, vec2f64 scale, f64 opacity = 1.0) -> void {
         if (!surface) return;
 
@@ -184,6 +185,8 @@ void wroc_render_frame(wroc_output* output)
 
         auto* buffer = surface->current.buffer.get();
         if (!buffer || !buffer->image) return;
+
+        assert(surface->current.buffer_lock);
 
         for (auto& s : surface->current.surface_stack) {
             if (s.get() == surface) {
@@ -193,6 +196,8 @@ void wroc_render_frame(wroc_output* output)
                 dst.origin *= scale;
                 dst.extent *= scale;
                 dst.origin += pos;
+                wren_commands_protect_object(commands.get(), buffer->lock().get());
+                buffer->on_read(commands.get(), buffer_waits);
                 draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
 
             } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
@@ -396,12 +401,18 @@ void wroc_render_frame(wroc_output* output)
 
     wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
 
-    auto sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
+    std::vector<wren_syncpoint> waits;
+    waits.emplace_back(acquire_sema.get());
+    for (auto& s : buffer_waits) {
+        waits.emplace_back(s.get());
+    }
+    if (buffer_waits.size()) {
+        log_trace("DMA-BUF waits: {}", buffer_waits.size());
+    }
 
     auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
-    wren_commands_submit(commands.get(), {{acquire_sema.get()}}, {{present_sema.get()}, {sema.get()}});
 
-    wren_semaphore_wait(sema.get());
+    wren_commands_submit(commands.get(), waits, {{present_sema.get()}});
 
     // Present
 

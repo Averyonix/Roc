@@ -114,7 +114,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
         wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Attempted to use buffer params with previous errors");
         return nullptr;
     }
-    if (std::popcount(params->planes_set + 1) != 1) {
+    if (!params->planes_set || std::popcount(params->planes_set + 1) != 1) {
         wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Incomplete plane set");
         return nullptr;
     }
@@ -169,12 +169,34 @@ const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedba
 
 void wroc_dma_buffer::on_commit()
 {
-    lock();
+    needs_wait = true;
 }
 
-void wroc_dma_buffer::on_replace()
+void wroc_dma_buffer::on_unlock()
 {
-    unlock();
+    release();
+}
+
+void wroc_dma_buffer::on_read(wren_commands* commands, std::vector<ref<wren_semaphore>>& waits)
+{
+    if (needs_wait) {
+        needs_wait = false;
+
+        auto* dma_image = static_cast<wren_image_dmabuf*>(image.get());
+        for (auto& plane : dma_image->dma_params.planes) {
+            dma_buf_export_sync_file data {
+                .flags = DMA_BUF_SYNC_READ,
+                .fd = -1,
+            };
+            wrei_unix_check_n1(drmIoctl(plane.fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &data));
+            if (data.fd != -1) {
+                auto sema = wren_semaphore_import_syncfile(commands->ctx, data.fd);
+                if (sema) waits.emplace_back(sema);
+            } else {
+                log_error("Failed to export syncfile from DMA-BUF");
+            }
+        }
+    }
 }
 
 void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
