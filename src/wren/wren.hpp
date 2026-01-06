@@ -12,17 +12,19 @@ struct wren_commands;
 
 // -----------------------------------------------------------------------------
 
+enum class wren_descriptor_id : u32 { invalid = 0 };
+
 struct wren_descriptor_id_allocator
 {
-    std::vector<u32> freelist;
+    std::vector<wren_descriptor_id> freelist;
     u32 next_id;
     u32 capacity;
 
     wren_descriptor_id_allocator() = default;
     wren_descriptor_id_allocator(u32 count);
 
-    std::optional<u32> allocate();
-    void free(u32);
+    std::optional<wren_descriptor_id> allocate();
+    void free(wren_descriptor_id);
 };
 
 // -----------------------------------------------------------------------------
@@ -117,7 +119,7 @@ std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const w
 
 const wren_format_props* wren_get_format_props(wren_context*, wren_format);
 
-std::string wren_drm_format_get_name(wren_drm_modifier);
+std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
 // -----------------------------------------------------------------------------
 
@@ -221,10 +223,13 @@ struct wren_syncpoint
 };
 
 ref<wren_semaphore> wren_semaphore_create(wren_context*, VkSemaphoreType, u64 initial_value = 0);
+ref<wren_semaphore> wren_semaphore_import_syncfile(wren_context*, int sync_fd);
+int                 wren_semaphore_export_syncfile(wren_semaphore*);
 
-u64 wren_semaphore_get_value(wren_semaphore*);
+u64  wren_semaphore_get_value( wren_semaphore*);
 void wren_semaphore_wait_value(wren_semaphore*, u64 value);
-u64 wren_semaphore_advance(wren_semaphore*, u64 inc = 1);
+void wren_semaphore_wait(      wren_semaphore*);
+u64  wren_semaphore_advance(   wren_semaphore*, u64 inc = 1);
 
 // -----------------------------------------------------------------------------
 
@@ -348,7 +353,7 @@ struct wren_image : wrei_object
     VkImageView view;
     vec2u32 extent;
 
-    u32 id;
+    wren_descriptor_id id;
 
     wren_image_usage usage;
 
@@ -373,7 +378,7 @@ struct wren_sampler : wrei_object
 
     VkSampler sampler;
 
-    u32 id;
+    wren_descriptor_id id;
 
     ~wren_sampler();
 };
@@ -425,8 +430,7 @@ struct wren_dma_params
         auto begin() const { return data; }
         auto   end() const { return data + count; }
 
-        auto& operator[](usz i) const { return data[i]; }
-        auto& operator[](usz i)       { return data[i]; }
+        auto& operator[](this auto&& self, usz i) { return self.data[i]; }
     } planes;
 
     vec2u32 extent;
@@ -441,7 +445,6 @@ struct wren_image_dmabuf : wren_image
     wren_dma_params dma_params;
 
     std::array<VkDeviceMemory, wren_dma_max_planes> memory_planes;
-    gbm_bo* gbm;
 
     struct {
         usz allocation_size;
@@ -463,8 +466,8 @@ struct wren_image_handle
     wren_image_handle() = default;
 
     wren_image_handle(wren_image* image, wren_sampler* sampler)
-        : image(image->id)
-        , sampler(sampler->id)
+        : image(std::to_underlying(image->id))
+        , sampler(std::to_underlying(sampler->id))
     {}
 };
 

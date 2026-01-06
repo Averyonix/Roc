@@ -75,7 +75,7 @@ wren_descriptor_id_allocator::wren_descriptor_id_allocator(u32 count)
     , capacity(count)
 {}
 
-std::optional<u32> wren_descriptor_id_allocator::allocate()
+std::optional<wren_descriptor_id> wren_descriptor_id_allocator::allocate()
 {
     if (!freelist.empty()) {
         auto id = freelist.back();
@@ -85,12 +85,12 @@ std::optional<u32> wren_descriptor_id_allocator::allocate()
 
     if (next_id >= capacity) return std::nullopt;
 
-    return next_id++;
+    return wren_descriptor_id(next_id++);
 }
 
-void wren_descriptor_id_allocator::free(u32 id)
+void wren_descriptor_id_allocator::free(wren_descriptor_id id)
 {
-    if (id) {
+    if (id != wren_descriptor_id::invalid) {
         freelist.emplace_back(id);
     }
 }
@@ -110,14 +110,14 @@ void wren_allocate_image_descriptor(wren_image* image)
 
     image->id = *id;
 
-    log_warn("Image allocated ID: {}", image->id);
+    log_warn("Image allocated ID: {}", std::to_underlying(image->id));
 
     vk.UpdateDescriptorSets(ctx->device, 1, std::array {
         VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = ctx->set,
             .dstBinding = 0,
-            .dstArrayElement = image->id,
+            .dstArrayElement = std::to_underlying(image->id),
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
             .pImageInfo = wrei_ptr_to(VkDescriptorImageInfo {
@@ -143,14 +143,14 @@ void wren_allocate_sampler_descriptor(wren_sampler* sampler)
 
     sampler->id = *id;
 
-    log_warn("Sampler allocated ID: {}", sampler->id);
+    log_warn("Sampler allocated ID: {}", std::to_underlying(sampler->id));
 
     vk.UpdateDescriptorSets(ctx->device, 1, std::array {
         VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = ctx->set,
             .dstBinding = 1,
-            .dstArrayElement = sampler->id,
+            .dstArrayElement = std::to_underlying(sampler->id),
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
             .pImageInfo = wrei_ptr_to(VkDescriptorImageInfo {

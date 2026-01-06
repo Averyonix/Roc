@@ -509,7 +509,7 @@ const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format fo
     return iter != ctx->format_props.end() ? &iter->second : nullptr;
 }
 
-std::string wren_drm_format_get_name(wren_drm_modifier mod)
+std::string wren_drm_modifier_get_name(wren_drm_modifier mod)
 {
     auto name = drmGetFormatModifierName(mod);
     std::string str = name ?: "UNKNOWN";

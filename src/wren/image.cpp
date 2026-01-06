@@ -253,15 +253,65 @@ wren_image_dmabuf::~wren_image_dmabuf()
     for (auto memory : memory_planes) {
         ctx->vk.FreeMemory(ctx->device, memory, nullptr);
     }
+}
 
-    if (gbm) {
-        gbm_bo_destroy(gbm);
+static
+bool is_dmabuf_disjoint(const wren_dma_params& params)
+{
+    auto& planes = params.planes;
+    if (planes.count == 1) return false;
+
+    struct stat first = {};
+    if (wrei_unix_check_n1(fstat(planes[0].fd, &first)) != 0) return true;
+
+    for (u32 i = 1; i < planes.count; ++i) {
+        struct stat other = {};
+        if (wrei_unix_check_n1(fstat(planes[i].fd, &other)) != 0) return true;
+
+        if (first.st_ino != other.st_ino) return true;
     }
+
+    return false;
+}
+
+static
+const wren_format_modifier_props* get_modifier_props(wren_context* ctx, wren_format format, wren_drm_modifier modifier, bool render)
+{
+    auto* props = wren_get_format_props(ctx, format);
+    for (auto& mod_props : render ? props->dmabuf.render_mods : props->dmabuf.render_mods) {
+        if (mod_props.props.drmFormatModifier == modifier) {
+            return &mod_props;
+        }
+    }
+    return nullptr;
+}
+
+static
+VkImageAspectFlagBits plane_to_aspect(u32 i)
+{
+    return std::array {
+        VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT,
+        VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT,
+        VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT,
+        VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT
+    }[i];
 }
 
 ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params, wren_image_usage usage)
 {
     assert(usage != wren_image_usage::none);
+
+    auto props = get_modifier_props(ctx, params.format, params.modifier, usage >= wren_image_usage::render);
+    if (!props) {
+        log_error("Format {} cannot be used with modifier: {}", params.format->name, wren_drm_modifier_get_name(params.modifier));
+        return nullptr;
+    }
+
+    auto disjoint = is_dmabuf_disjoint(params);
+    if (disjoint && !(props->props.drmFormatModifierTilingFeatures & VK_FORMAT_FEATURE_2_DISJOINT_BIT)) {
+        log_error("Format {} with modifier {} does not support disjoint images", params.format->name, wren_drm_modifier_get_name(params.modifier));
+        return nullptr;
+    }
 
     auto image = wrei_create<wren_image_dmabuf>();
     image->ctx = ctx;
@@ -280,6 +330,8 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
         plane_layouts[i].rowPitch = params.planes[i].stride;
     }
 
+    VkImageCreateFlags img_create_flags = {};
+    if (disjoint) img_create_flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
     wren_check(ctx->vk.CreateImage(ctx->device, wrei_ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .pNext = wren_vk_make_chain_in({
@@ -294,6 +346,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
                 .pPlaneLayouts = plane_layouts,
             }),
         }),
+        .flags = img_create_flags,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = params.format->vk,
         .extent = {image->extent.x, image->extent.y, 1},
@@ -306,40 +359,51 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image->image));
 
+    auto mem_count = disjoint ? params.planes.count : 1;
+
     VkBindImageMemoryInfo bind_info[wren_dma_max_planes] = {};
-    log_trace("  num_planes = {}", params.planes.count);
-    log_trace("  modifier = {}", wren_drm_format_get_name(params.modifier));
+    VkBindImagePlaneMemoryInfo plane_info[wren_dma_max_planes] = {};
+    log_trace("  planes = {}{}", params.planes.count, disjoint ? " (disjoint)" : "");
+    log_trace("  modifier = {}", wren_drm_modifier_get_name(params.modifier));
 
-    for (u32 i = 0; i < params.planes.count; ++i) {
-        const auto& plane = params.planes[i];
+    for (u32 i = 0; i < mem_count; ++i) {
 
+        auto fd = params.planes[i].fd;
         VkMemoryFdPropertiesKHR fd_props = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
         };
-        log_trace("  plane[{}].fd     = {}", i, plane.fd);
-        log_trace("  plane[{}].offset = {}", i, plane.offset);
-        log_trace("  plane[{}].stride = {}", i, plane.stride);
-        wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, handle_type, plane.fd, &fd_props));
+        wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, handle_type, fd, &fd_props));
 
         VkMemoryRequirements2 mem_reqs = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
         };
-
         ctx->vk.GetImageMemoryRequirements2(ctx->device, wrei_ptr_to(VkImageMemoryRequirementsInfo2 {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+            .pNext = disjoint
+                ? wrei_ptr_to(VkImagePlaneMemoryRequirementsInfo {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO,
+                    .planeAspect = plane_to_aspect(i),
+                })
+                : nullptr,
             .image = image->image,
         }), &mem_reqs);
 
         auto mem = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
 
         // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
-        int dfd = fcntl(plane.fd, F_DUPFD_CLOEXEC, 0);
+        int dfd = wrei_unix_check_n1(fcntl(fd, F_DUPFD_CLOEXEC, 0));
+        if (dfd < 0) {
+            log_error("Failed to deuplicate DMA-BUF file descriptor");
+            return nullptr;
+        }
         image->dma_params.planes[i].fd = dfd;
 
+        log_trace("  mem[{}].fd   = {}", i, dfd);
+        log_trace("  mem[{}].size = {}", i, wrei_byte_size_to_string(mem_reqs.memoryRequirements.size));
         image->stats.allocation_size   += mem_reqs.memoryRequirements.size;
         ctx->stats.active_image_memory += mem_reqs.memoryRequirements.size;
 
-        wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
+        if (wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
             .pNext = wren_vk_make_chain_in({
                 wrei_ptr_to(VkImportMemoryFdInfoKHR {
@@ -354,12 +418,21 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
             }),
             .allocationSize = mem_reqs.memoryRequirements.size,
             .memoryTypeIndex = mem,
-        }), nullptr, &image->memory_planes[i]));
+        }), nullptr, &image->memory_planes[i])) != VK_SUCCESS) {
+            log_error("Failed to import memory");
+            close(dfd);
+            return nullptr;
+        }
 
+        bind_info[i].sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
         bind_info[i].image = image->image;
         bind_info[i].memory = image->memory_planes[i];
-        bind_info[i].memoryOffset = plane.offset;
-        bind_info[i].sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO;
+
+        if (disjoint) {
+            plane_info[i].sType = VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO;
+            plane_info[i].planeAspect = plane_to_aspect(i);
+            bind_info[i].pNext = &plane_info[i];
+        }
     }
 
     wren_check(ctx->vk.BindImageMemory2(ctx->device, params.planes.count, bind_info));
@@ -435,7 +508,9 @@ ref<wren_image> create_gbm_image(wren_context* ctx, vec2u32 extent, wren_format 
         log_error("Failed to allocate GBM buffer");
         return nullptr;
     }
-    defer { if (bo) gbm_bo_destroy(bo); };
+    defer {
+        gbm_bo_destroy(bo);
+    };
 
     // Export DMA-BUF parameters
 
@@ -457,13 +532,11 @@ ref<wren_image> create_gbm_image(wren_context* ctx, vec2u32 extent, wren_format 
         }
     };
 
-    log_debug("Allocated GBM image, size = {}, format = {}, mod = {}", wrei_to_string(extent), format->name, wren_drm_format_get_name(params.modifier));
+    log_debug("Allocated GBM image, size = {}, format = {}, mod = {}", wrei_to_string(extent), format->name, wren_drm_modifier_get_name(params.modifier));
 
     // Import in Vulkan as DMA-BUF image
 
-    auto image = wren_image_import_dmabuf(ctx, params, usage);
-    image->gbm = std::exchange(bo, nullptr);
-    return image;
+    return wren_image_import_dmabuf(ctx, params, usage);
 }
 
 // -----------------------------------------------------------------------------

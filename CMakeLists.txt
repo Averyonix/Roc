@@ -19,6 +19,7 @@ add_subdirectory(${VENDOR_DIR}/wayland EXCLUDE_FROM_ALL)
 # ------------------------------------------------------------------------------
 
 add_library(               libevdev INTERFACE)
+target_link_libraries(     libevdev INTERFACE evdev)
 target_include_directories(libevdev INTERFACE /usr/include/libevdev-1.0)
 
 # ------------------------------------------------------------------------------
@@ -139,7 +140,6 @@ target_link_libraries(wrei PUBLIC
     xkbcommon
     libevdev
     input
-    evdev
     stdc++exp
     magic_enum::magic_enum
     Vulkan::Headers

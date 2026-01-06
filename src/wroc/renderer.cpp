@@ -396,8 +396,12 @@ void wroc_render_frame(wroc_output* output)
 
     wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
 
+    auto sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
+
     auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
-    wren_commands_submit(commands.get(), {{acquire_sema.get()}}, {{present_sema.get()}});
+    wren_commands_submit(commands.get(), {{acquire_sema.get()}}, {{present_sema.get()}, {sema.get()}});
+
+    wren_semaphore_wait(sema.get());
 
     // Present
 

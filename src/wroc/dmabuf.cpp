@@ -134,7 +134,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
 
     buffer->extent = {width, height};
     log_warn("Importing DMA-BUF, size = {}, format = {}, mod = {}",
-        wrei_to_string(buffer->extent), format->name, wren_drm_format_get_name(params->params.modifier));
+        wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params->params.modifier));
     buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params->params, wren_image_usage::texture);
 
     return buffer;

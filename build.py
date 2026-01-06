@@ -261,7 +261,7 @@ def build_shaders():
 
         source_out  = f"#include \"{prefix}.hpp\"\n"
         source_out +=  "\n"
-        source_out += f"alignas(uint32_t) static constexpr char {prefix}_data[] {{\n"
+        source_out += f"alignas(uint32_t) static constexpr unsigned char {prefix}_data[] {{\n"
         source_out += f"#embed \"../spv/{prefix}.spv\"\n"
         source_out +=  "};\n"
         source_out += f"extern const std::span<const uint32_t> {prefix}(reinterpret_cast<const uint32_t*>({prefix}_data), sizeof({prefix}_data) / 4);\n"
