@@ -159,10 +159,10 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
     auto* ctx = image->ctx;
     auto extent = image->extent;
 
-    constexpr auto pixel_size = 4;
-    auto row_length = extent.x;
-    auto image_height = row_length * extent.y;
-    auto image_size = image_height * pixel_size;
+    const auto& info = vkuGetFormatInfo(image->format->vk);
+    usz block_w = (image->extent.x + info.block_extent.width  - 1) / info.block_extent.width;
+    usz block_h = (image->extent.y + info.block_extent.height - 1) / info.block_extent.height;
+    usz image_size = block_w * block_h * info.texel_block_size;
 
     // TODO: This should be stored persistently for transfers
     ref buffer = wren_buffer_create(ctx, image_size);
@@ -174,8 +174,6 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
 
     ctx->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, wrei_ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
-        .bufferRowLength = row_length,
-        .bufferImageHeight = image_size,
         .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
         .imageOffset = {},
         .imageExtent = { extent.x, extent.y, 1 },

@@ -12,8 +12,6 @@
 
 #include "wren/wren.hpp"
 
-#define WROC_NOISY_FRAME_TIME 0
-
 struct wroc_server;
 struct wren_renderer;
 struct wroc_output;
@@ -97,14 +95,16 @@ struct wroc_output : wrei_object
     VkSurfaceFormatKHR format;
     ref<wren_swapchain> swapchain;
 
-    std::chrono::steady_clock::time_point acquire_time;
-    std::chrono::steady_clock::time_point present_time;
-
     vec2i32 size;
     rect2f64 layout_rect;
 
     wroc_output_desc desc;
+
+    bool frame_ready = false;
+    bool image_ready = false;
 };
+
+void wroc_output_try_dispatch_frame(wroc_output*);
 
 vec2i32 wroc_output_get_pixel(wroc_output*, vec2f64 global_pos, vec2f64* remainder = nullptr);
 rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 global_rect, rect2f64* remainder = nullptr);
@@ -894,6 +894,11 @@ struct wroc_renderer : wrei_object
     ref<wren_sampler> sampler;
 
     bool show_debug_cursor = false;
+
+    bool vsync = true;
+    bool host_wait = true;
+    bool show_dmabufs = true;
+    bool wait_dmabufs = true;
 
     bool screenshot_queued = false;
 

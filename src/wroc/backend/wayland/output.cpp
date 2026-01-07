@@ -18,7 +18,7 @@ wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_b
 // -----------------------------------------------------------------------------
 
 static
-void wroc_listen_wl_callback_done(void*, struct wl_callback*, u32 time);
+void wroc_listen_wl_callback_done(void*, wl_callback*, u32 time);
 
 static
 void wroc_register_frame_callback(wroc_wayland_output* output)
@@ -27,21 +27,14 @@ void wroc_register_frame_callback(wroc_wayland_output* output)
     constexpr static wl_callback_listener listener {
         .done = wroc_listen_wl_callback_done,
     };
-    /* auto res = */wl_callback_add_listener(output->frame_callback, &listener, output);
+    wl_callback_add_listener(output->frame_callback, &listener, output);
     wl_surface_commit(output->wl_surface);
-    // log_trace("registered: {}", res);
 }
 
 static
-void wroc_listen_wl_callback_done(void* data, struct wl_callback*, u32 time)
+void wroc_listen_wl_callback_done(void* data, wl_callback*, u32 time)
 {
     auto* output = static_cast<wroc_wayland_output*>(data);
-
-    // log_trace("wl_callback::done(time = {})", time);
-
-    // if (auto* pointer = output->server->backend->pointer.get()) {
-    //     wl_pointer_set_cursor(pointer->wl_pointer, pointer->last_serial, nullptr, 0, 0);
-    // }
 
     wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_frame,
@@ -122,6 +115,15 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
         }), nullptr, &surface));
 
         output->swapchain = wren_swapchain_create(wren, surface, server->renderer->output_format);
+
+        output->swapchain->acquire_callback = [output = weak(output)] {
+            if (output) {
+                wroc_post_event(wroc_output_event {
+                    .type = wroc_event_type::output_image_ready,
+                    .output = output.get(),
+                });
+            }
+        };
     }
 
     wren_swapchain_resize(output->swapchain.get(), output->size);

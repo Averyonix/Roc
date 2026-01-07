@@ -43,6 +43,7 @@
     DO(GetSwapchainImagesKHR) \
     DO(CreateImageView) \
     DO(AcquireNextImageKHR) \
+    DO(ReleaseSwapchainImagesEXT) \
     DO(CmdPipelineBarrier2) \
     DO(BeginCommandBuffer) \
     DO(CmdBeginRendering) \

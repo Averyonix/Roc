@@ -82,6 +82,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         server->backend->create_output();
     }
 
+
     ImGui::Separator();
 
     // Focused window toggles
@@ -158,11 +159,27 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             stats.last_events_handled = server->event_loop->stats.events_handled;
         }
 
-        ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
+        ImGui_Text("Elapsed:       {:.1f}s", wroc_get_elapsed_milliseconds() / 1000.0);
         ImGui_Text("Events:        {}/s", stats.events_per_second);
+        ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
+
     }
 
-    ImGui_Text("Elapsed:       {:.1f}s", wroc_get_elapsed_milliseconds() / 1000.0);
+    ImGui::Separator();
+
+    if (ImGui::Checkbox("VSync", &server->renderer->vsync)) {
+        for (auto& output : server->output_layout->outputs) {
+            wroc_output_try_dispatch_frame(output.get());
+        }
+    }
+
+    ImGui::SameLine(second_column_offset);
+    ImGui::Checkbox("Show DMA-BUFs", &server->renderer->show_dmabufs);
+
+    ImGui::Checkbox("Host Wait", &server->renderer->host_wait);
+
+    ImGui::SameLine(second_column_offset);
+    ImGui::Checkbox("Wait DMA-BUFs", &server->renderer->wait_dmabufs);
 
     ImGui::Separator();
 

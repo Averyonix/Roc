@@ -5,6 +5,7 @@ enum class wroc_event_type
     output_added,
     output_removed,
     output_frame,
+    output_image_ready,
 
     keyboard_key,
     keyboard_modifiers,

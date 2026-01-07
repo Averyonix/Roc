@@ -74,8 +74,6 @@ add_subdirectory(${VENDOR_DIR}/concurrent-queue EXCLUDE_FROM_ALL)
 add_subdirectory(${VENDOR_DIR}/vulkan-headers           EXCLUDE_FROM_ALL)
 add_subdirectory(${VENDOR_DIR}/vulkan-utility-libraries EXCLUDE_FROM_ALL)
 
-add_subdirectory(${VENDOR_DIR}/vkwsi EXCLUDE_FROM_ALL)
-
 # ------------------------------------------------------------------------------
 
 add_subdirectory(${VENDOR_DIR}/vulkan-memory-allocator  EXCLUDE_FROM_ALL)
@@ -145,7 +143,6 @@ target_link_libraries(wrei PUBLIC
     Vulkan::Headers
     Vulkan::UtilityHeaders
     vma-object
-    vk-wsi::vk-wsi
     stb-image
     unordered_dense::unordered_dense
     concurrentqueue

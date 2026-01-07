@@ -5,15 +5,6 @@
 static
 void handle_scanout(wroc_drm_output* output, std::chrono::steady_clock::time_point scanout_time)
 {
-#if WROC_NOISY_FRAME_TIME
-    log_debug("Scanout 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
-#endif
-    if (scanout_time < output->acquire_time) {
-        log_warn("Scanout from earlier frame, skipping..");
-        return;
-    }
-
     wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_frame,
         .output = output,
@@ -33,9 +24,6 @@ void scanout_thread(std::stop_token stop, wren_context* wren, weak<wroc_drm_outp
         wren_check(wren->vk.WaitForFences(wren->device, 1, &fence, true, UINT64_MAX));
 
         auto now = std::chrono::steady_clock::now();
-#if WROC_NOISY_FRAME_TIME
-        log_debug("Scanout 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(now.time_since_epoch()).count());
-#endif
 
         wren->vk.DestroyFence(wren->device, fence, nullptr);
 
@@ -155,6 +143,16 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
     }), nullptr, &surface));
 
     output->swapchain = wren_swapchain_create(wren, surface, server->renderer->output_format);
+
+    output->swapchain->acquire_callback = [output = weak(output.get())] {
+        if (output) {
+            wroc_post_event(wroc_output_event {
+                .type = wroc_event_type::output_image_ready,
+                .output = output.get(),
+            });
+        }
+    };
+
     wren_swapchain_resize(output->swapchain.get(), output->size);
 
     wroc_post_event(wroc_output_event {

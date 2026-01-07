@@ -1,5 +1,30 @@
 #include "internal.hpp"
 
+VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpoint)
+{
+    return {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = syncpoint.semaphore->semaphore,
+        .value     = syncpoint.value,
+        .stageMask = syncpoint.stages,
+    };
+}
+
+std::vector<VkSemaphoreSubmitInfo> wren_syncpoints_to_submit_infos(std::span<const wren_syncpoint> syncpoints, const wren_syncpoint* extra)
+{
+    std::vector<VkSemaphoreSubmitInfo> infos(syncpoints.size() + usz(bool(extra)));
+
+    u32 i = 0;
+    for (auto& s : syncpoints) {
+        infos[i++] = wren_syncpoint_to_submit_info(s);
+    }
+    if (extra) {
+        infos[i] = wren_syncpoint_to_submit_info(*extra);
+    }
+
+    return infos;
+}
+
 ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, VkSemaphoreType type, u64 initial_value)
 {
     auto semaphore = wrei_create<wren_semaphore>();

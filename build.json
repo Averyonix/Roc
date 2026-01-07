@@ -12,7 +12,7 @@
         },
         "imgui": {
             "branch": "docking",
-            "commit": "396b33d0d011290f11915b6a2a2bf7737fb42dd7",
+            "commit": "01a4cff8f9190b7f3731e4d1cef818ca675e9a42",
             "repo": "https://github.com/ocornut/imgui.git"
         },
         "magic-enum": {
@@ -22,7 +22,7 @@
         },
         "slang": {
             "branch": "master",
-            "commit": "528ddf730f2099581cdecfccaee7e98fa0fe276c",
+            "commit": "f4504671044173211aa0747520016039f2f70ba7",
             "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
@@ -35,14 +35,9 @@
             "commit": "3234af2c03549bc85656bfd3a86993bf1cd8aef1",
             "repo": "https://github.com/martinus/unordered_dense.git"
         },
-        "vkwsi": {
-            "branch": "main",
-            "commit": "614fa901e3e9bed5740079f833d4493ada872134",
-            "repo": "https://github.com/Darianopolis/vk-wsi.git"
-        },
         "vulkan-headers": {
             "branch": "main",
-            "commit": "450bd2232225d6c7728a4108055ac2e37cef6475",
+            "commit": "0aae9c6b5f99d63a5eb7d69a3a1a95e2fa239bc2",
             "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git"
         },
         "vulkan-memory-allocator": {

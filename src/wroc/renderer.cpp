@@ -10,13 +10,10 @@
 
 #include "wroc/event.hpp"
 
-#define WROC_RENDERER_HOST_WAIT 1
-
 wroc_renderer::~wroc_renderer() = default;
 
 void wroc_renderer_create(wroc_render_options render_options)
 {
-
     auto* renderer = (server->renderer = wrei_create<wroc_renderer>()).get();
     renderer->options = render_options;
 
@@ -54,21 +51,14 @@ void wroc_render_frame(wroc_output* output)
 {
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
-    auto commands = wren_commands_begin(wren);
-    auto cmd = commands->buffer;
 
-    auto acquire_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
-
-#if WROC_NOISY_FRAME_TIME
-    log_trace("Acquire 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
-#endif
-    auto current = wren_swapchain_acquire_image(output->swapchain.get(), {{acquire_sema.get()}});
-    output->acquire_time = std::chrono::steady_clock::now();
-#if WROC_NOISY_FRAME_TIME
-    log_trace("Acquire 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(output->acquire_time.time_since_epoch()).count());
-#endif
+    auto[current, acquire_sync] = wren_swapchain_acquire_image(output->swapchain.get());
+    assert(current);
     VkExtent2D vk_extent = { current->extent.x, current->extent.y };
     vec2f32 current_extent = current->extent;
+
+    auto commands = wren_commands_begin(wren);
+    auto cmd = commands->buffer;
 
     wren_transition(wren, commands.get(), current,
         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -196,9 +186,14 @@ void wroc_render_frame(wroc_output* output)
                 dst.origin *= scale;
                 dst.extent *= scale;
                 dst.origin += pos;
+
                 wren_commands_protect_object(commands.get(), buffer->lock().get());
-                buffer->on_read(commands.get(), buffer_waits);
-                draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
+                if (renderer->wait_dmabufs) {
+                    buffer->on_read(commands.get(), buffer_waits);
+                }
+                if (renderer->show_dmabufs) {
+                    draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
+                }
 
             } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
 
@@ -395,19 +390,12 @@ void wroc_render_frame(wroc_output* output)
         VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-#if WROC_NOISY_FRAME_TIME
-    log_info("Submit    [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
-#endif
-
     wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
 
     std::vector<wren_syncpoint> waits;
-    waits.emplace_back(acquire_sema.get());
+    waits.emplace_back(acquire_sync);
     for (auto& s : buffer_waits) {
         waits.emplace_back(s.get());
-    }
-    if (buffer_waits.size()) {
-        log_trace("DMA-BUF waits: {}", buffer_waits.size());
     }
 
     auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
@@ -416,19 +404,11 @@ void wroc_render_frame(wroc_output* output)
 
     // Present
 
-#if WROC_NOISY_FRAME_TIME
-    log_warn("Present 1 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(std::chrono::steady_clock::now().time_since_epoch()).count());
-#endif
     wren_swapchain_present(output->swapchain.get(), {{present_sema.get()}});
-    output->present_time = std::chrono::steady_clock::now();
-#if WROC_NOISY_FRAME_TIME
-    log_warn("Present 2 [{:.3f}]", std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(output->present_time.time_since_epoch()).count());
-#endif
 
-#if WROC_RENDERER_HOST_WAIT
-    // TODO: import syncfiles from DMA-BUF for compatibility with async submission
-    wren_wait_idle(wren);
-#endif
+    if (renderer->host_wait) {
+        wren_wait_idle(wren);
+    }
 
     // Send frame callbacks
 

@@ -43,17 +43,19 @@ void wrei_event_loop_run(wrei_event_loop* loop)
             std::terminate();
         }
 
-        std::array<weak<wrei_event_source>, event_buffer_count> sources;
-        for (i32 i = 0; i < count; ++i) {
-            sources[i] = static_cast<wrei_event_source*>(events[i].data.ptr);
-        }
+        {
+            std::array<weak<wrei_event_source>, event_buffer_count> sources;
+            for (i32 i = 0; i < count; ++i) {
+                sources[i] = static_cast<wrei_event_source*>(events[i].data.ptr);
+            }
 
-        for (i32 i = 0; i < count; ++i) {
-            // Check that source is still alive
-            //   (also incidentally handles null source events used to wake up the loop)
-            if (sources[i]) {
-                loop->stats.events_handled++;
-                sources[i]->handle(events[i]);
+            for (i32 i = 0; i < count; ++i) {
+                // Check that source is still alive
+                //   (also incidentally handles null source events used to wake up the loop)
+                if (sources[i]) {
+                    loop->stats.events_handled++;
+                    sources[i]->handle(events[i]);
+                }
             }
         }
 
@@ -61,7 +63,8 @@ void wrei_event_loop_run(wrei_event_loop* loop)
             u64 tasks = 0;
             wrei_unix_check_n1(read(loop->task_fd, &tasks, sizeof(tasks)), EAGAIN);
 
-            do {
+            for (u64 i = 0; i < tasks; ++i)
+            {
                 wrei_task task;
                 while (!loop->queue.try_dequeue(task));
 
@@ -74,7 +77,7 @@ void wrei_event_loop_run(wrei_event_loop* loop)
                     *task.sync = true;
                     task.sync->notify_one();
                 }
-            } while (loop->pending);
+            }
         }
     }
 }
@@ -85,10 +88,8 @@ void enqueue(wrei_event_loop* loop, std::move_only_function<void()>&& task, std:
     loop->queue.enqueue({ .callback = std::move(task), .sync = sync });
     loop->pending++;
 
-    if (std::this_thread::get_id() != loop->main_thread) {
-        u64 inc = 1;
-        wrei_unix_check_n1(write(loop->task_fd, &inc, sizeof(inc)));
-    }
+    u64 inc = 1;
+    wrei_unix_check_n1(write(loop->task_fd, &inc, sizeof(inc)));
 }
 
 void wrei_event_loop_enqueue(wrei_event_loop* loop, std::move_only_function<void()> task)

@@ -26,8 +26,6 @@ wren_context::~wren_context()
     assert(stats.active_buffers == 0);
     assert(stats.active_samplers == 0);
 
-    vkwsi_context_destroy(vkwsi);
-
     vmaDestroyAllocator(vma);
 
     for (auto* binary_sema : free_binary_semaphores) {
@@ -88,7 +86,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pApplicationInfo = wrei_ptr_to(VkApplicationInfo {
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .apiVersion = VK_API_VERSION_1_3,
+            .apiVersion = VK_API_VERSION_1_4,
         }),
         .enabledExtensionCount = u32(instance_extensions.size()),
         .ppEnabledExtensionNames = instance_extensions.data(),
@@ -266,10 +264,12 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
                     .synchronization2 = true,
                     .dynamicRendering = true,
+                    .maintenance4 = true,
                 }),
-                wrei_ptr_to(VkPhysicalDeviceMaintenance5Features {
-                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES,
+                wrei_ptr_to(VkPhysicalDeviceVulkan14Features {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
                     .maintenance5 = true,
+                    .maintenance6 = true,
                 }),
                 wrei_ptr_to(VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
@@ -315,23 +315,6 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     wren_load_device_functions(ctx.get());
 
     ctx->vk.GetDeviceQueue(ctx->device, ctx->queue_family, 0, &ctx->queue);
-
-    wren_check(vkwsi_context_create(&ctx->vkwsi, wrei_ptr_to(vkwsi_context_info{
-        .instance = ctx->instance,
-        .device = ctx->device,
-        .physical_device = ctx->physical_device,
-        .get_instance_proc_addr = ctx->vk.GetInstanceProcAddr,
-        .log_callback = {
-            .fn = [](void*, vkwsi_log_level level, const char* message) -> void {
-                switch (level) {
-                    break;case vkwsi_log_level_error:  wrei_log(wrei_log_level::error, message);
-                    break;case vkwsi_log_level_warn:   wrei_log(wrei_log_level::warn, message);
-                    break;case vkwsi_log_level_info:   wrei_log(wrei_log_level::info, message);
-                    break;case vkwsi_log_level_trace:  wrei_log(wrei_log_level::trace, message);
-                }
-            }
-        },
-    })));
 
     wren_check(vmaCreateAllocator(wrei_ptr_to(VmaAllocatorCreateInfo {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,

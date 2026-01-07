@@ -117,8 +117,6 @@ extern "C" {
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/utility/vk_format_utils.h>
 
-#include <vk-wsi.h>
-
 #include <vk_mem_alloc.h>
 
 // -----------------------------------------------------------------------------

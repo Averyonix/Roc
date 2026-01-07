@@ -150,8 +150,6 @@ struct wren_context : wrei_object
     dev_t dev_id;
     int drm_fd;
 
-    vkwsi_context* vkwsi;
-
     VmaAllocator vma;
 
     struct {
@@ -333,11 +331,11 @@ enum class wren_image_usage
 {
     none,
 
-    transfer = 1 << 0,  // transfer dst
-    texture  = 1 << 1,  // sampled
-    render   = 1 << 2,  // color attachment
-    scanout  = 1 << 3,
-    cursor   = 1 << 4,
+    transfer = 1 << 0,  // Transfer dst
+    texture  = 1 << 1,  // Sampled
+    render   = 1 << 2,  // Color attachment
+    scanout  = 1 << 3,  // Suitable for direct scanout, must match swapchain format
+    cursor   = 1 << 4,  // Suitable for hardware cursor overlay
 };
 WREI_DECORATE_FLAG_ENUM(wren_image_usage)
 
@@ -360,7 +358,7 @@ struct wren_image : wrei_object
     virtual ~wren_image() = 0;
 };
 
-ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format format, wren_image_usage usage);
+ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format, wren_image_usage);
 void wren_image_update(wren_commands*, wren_image*, const void* data);
 void wren_image_update_immed(wren_image*, const void* data);
 
@@ -473,32 +471,51 @@ struct wren_image_handle
 
 // -----------------------------------------------------------------------------
 
-struct wren_image_swapchain : wren_image {};
+struct wren_image_swapchain : wren_image
+{
+    ~wren_image_swapchain();
+};
 
 struct wren_swapchain : wrei_object
 {
     wren_context* ctx;
 
     VkSurfaceKHR surface;
-    vkwsi_swapchain* swapchain;
+    VkSwapchainKHR swapchain;
 
     wren_format format;
     VkColorSpaceKHR color_space;
+
+    vec2u32 extent;
+
+    struct {
+        vec2u32 extent;
+    } pending;
+
+    std::atomic<bool> can_acquire;
+    std::atomic<bool> destroy_requested;
+
+    bool acquire_ready = false;
+
+    ref<wren_semaphore> acquire_semaphore;
+    std::jthread        acquire_thread;
+    std::move_only_function<void()> acquire_callback;
+
+    static constexpr u32 invalid_index = ~0u;
+    u32 current_index = invalid_index;
+    std::vector<ref<wren_image_swapchain>> images;
 
     struct resources
     {
         std::vector<ref<wrei_object>> objects;
     };
-
     std::vector<resources> resources;
-
-    ref<wren_image_swapchain> current;
 
     ~wren_swapchain();
 };
 
 ref<wren_swapchain> wren_swapchain_create(wren_context*, VkSurfaceKHR, wren_format);
 
-void        wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
-wren_image* wren_swapchain_acquire_image(wren_swapchain*, std::span<const wren_syncpoint> signals);
-void        wren_swapchain_present(      wren_swapchain*, std::span<const wren_syncpoint> waits  );
+void                                   wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
+std::pair<wren_image*, wren_syncpoint> wren_swapchain_acquire_image(wren_swapchain*);
+void                                   wren_swapchain_present(      wren_swapchain*, std::span<const wren_syncpoint> waits);
