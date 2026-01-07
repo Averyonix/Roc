@@ -1,5 +1,6 @@
 #include "pch.hpp"
 #include "log.hpp"
+#include "util.hpp"
 
 #define WREI_VT_COLOR_BEGIN(color) "\u001B[" #color "m"
 #define WREI_VT_COLOR_RESET "\u001B[0m"
@@ -62,8 +63,10 @@ void wrei_log(wrei_log_level level, std::string_view message)
 
     if (wrei_log_state.log_level > level) return;
 
+    auto timestamp = wrei_time_current();
+
     if (wrei_log_state.history_enabled) {
-        wrei_log_state.history.emplace_back(level, std::string(message));
+        wrei_log_state.history.emplace_back(level, timestamp, std::string(message));
     }
 
     struct {
@@ -72,17 +75,25 @@ void wrei_log(wrei_log_level level, std::string_view message)
     } fmt;
 
     switch (level) {
-        case wrei_log_level::trace: fmt = { "[" WREI_VT_COLOR(90, "TRACE") "] " WREI_VT_COLOR(90, "{}") "\n", "[TRACE] {}\n" }; break;
-        case wrei_log_level::debug: fmt = { "[" WREI_VT_COLOR(96, "DEBUG") "] {}\n",                          "[DEBUG] {}\n" }; break;
-        case wrei_log_level::info:  fmt = { " [" WREI_VT_COLOR(94, "INFO") "] {}\n",                          " [INFO] {}\n" }; break;
-        case wrei_log_level::warn:  fmt = { " [" WREI_VT_COLOR(93, "WARN") "] {}\n",                          " [WARN] {}\n" }; break;
-        case wrei_log_level::error: fmt = { "[" WREI_VT_COLOR(91, "ERROR") "] {}\n",                          "[ERROR] {}\n" }; break;
-        case wrei_log_level::fatal: fmt = { "[" WREI_VT_COLOR(91, "FATAL") "] {}\n",                          "[FATAL] {}\n" }; break;
+        break;case wrei_log_level::trace:
+            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(90, "TRACE") "] " WREI_VT_COLOR(90, "{}") "\n", "{} [TRACE] {}\n" };
+        break;case wrei_log_level::debug:
+            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(96, "DEBUG") "] {}\n",                          "{} [DEBUG] {}\n" };
+        break;case wrei_log_level::info:
+            fmt = { WREI_VT_COLOR(90, "{}") "  [" WREI_VT_COLOR(94, "INFO") "] {}\n",                          "{}  [INFO] {}\n" };
+        break;case wrei_log_level::warn:
+            fmt = { WREI_VT_COLOR(90, "{}") "  [" WREI_VT_COLOR(93, "WARN") "] {}\n",                          "{}  [WARN] {}\n" };
+        break;case wrei_log_level::error:
+            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(91, "ERROR") "] {}\n",                          "{} [ERROR] {}\n" };
+        break;case wrei_log_level::fatal:
+            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(91, "FATAL") "] {}\n",                          "{} [FATAL] {}\n" };
     }
 
-    std::cout << std::vformat(fmt.vt, std::make_format_args(message));
+    auto time_str = wrei_time_to_string(timestamp, wrei_time_format::time_ms);
+    std::cout << std::vformat(fmt.vt, std::make_format_args(time_str, message));
     if (wrei_log_state.log_file.is_open()) {
-        wrei_log_state.log_file << std::vformat(fmt.plain, std::make_format_args(message)) << std::flush;
+        auto datetime_str = wrei_time_to_string(timestamp, wrei_time_format::datetime_ms);
+        wrei_log_state.log_file << std::vformat(fmt.plain, std::make_format_args(datetime_str, message)) << std::flush;
     }
 }
 

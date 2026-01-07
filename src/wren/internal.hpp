@@ -8,8 +8,7 @@ VkResult wren_check(VkResult res, auto... allowed)
 {
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
-    log_error("VULKAN ERROR: {}, ({})", wren_result_to_string(res), int(res));
-    std::cout << std::stacktrace::current() << std::flush;
+    log_error("VULKAN ERROR: {}, ({})\n{}", wren_result_to_string(res), int(res), wrei_stacktrace_dump(1));
 
     wrei_debugkill();
 }

@@ -8,7 +8,7 @@ void wroc_direct_backend_init()
     server->backend = backend;
 
 #if WROC_DIRECT_BACKEND_TIME_LIMIT
-    log_warn("Direct backend is highly experiment and will self terminate after {} seconds to prevent system lockout", WROC_DIRECT_BACKEND_TIME_LIMIT);
+    log_warn("Direct backend is highly experimental and will self terminate after {} seconds to prevent system lockout", WROC_DIRECT_BACKEND_TIME_LIMIT);
     std::thread{[] {
         std::this_thread::sleep_for(operator""s(WROC_DIRECT_BACKEND_TIME_LIMIT));
         std::terminate();

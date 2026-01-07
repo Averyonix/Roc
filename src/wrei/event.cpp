@@ -63,8 +63,7 @@ void wrei_event_loop_run(wrei_event_loop* loop)
             u64 tasks = 0;
             wrei_unix_check_n1(read(loop->task_fd, &tasks, sizeof(tasks)), EAGAIN);
 
-            for (u64 i = 0; i < tasks; ++i)
-            {
+            for (u64 i = 0; i < tasks; ++i) {
                 wrei_task task;
                 while (!loop->queue.try_dequeue(task));
 

@@ -21,6 +21,28 @@ std::string print_value_with_suffix(std::string_view suffix, f64 amount, u32 dec
     }
 }
 
+std::string wrei_time_to_string(std::chrono::system_clock::time_point time, wrei_time_format format)
+{
+    tm tm;
+    gmtime_r(wrei_ptr_to(std::chrono::system_clock::to_time_t(time)), &tm);
+
+    auto year  = tm.tm_year + 1900;
+    auto month = tm.tm_mon + 1;
+    auto msec  = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count() % 1000;
+
+    switch (format) {
+        break;case wrei_time_format::iso8601:
+            return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",      year, month, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        break;case wrei_time_format::datetime_ms:
+            return std::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, msec);
+        break;case wrei_time_format::time:
+            return std::format("{:02}:{:02}:{:02}",       tm.tm_hour, tm.tm_min, tm.tm_sec);
+        break;case wrei_time_format::time_ms: {
+            return std::format("{:02}:{:02}:{:02}.{:03}", tm.tm_hour, tm.tm_min, tm.tm_sec, msec);
+        }
+    }
+}
+
 std::string wrei_duration_to_string(std::chrono::duration<f64, std::nano> dur)
 {
     f64 nanos = dur.count();

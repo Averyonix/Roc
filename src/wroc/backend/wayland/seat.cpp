@@ -213,8 +213,8 @@ void wroc_listen_wl_keyboard_key(void* data, wl_keyboard*, u32 serial, u32 time,
     auto kb = static_cast<wroc_wayland_keyboard*>(data);
 
     switch (state) {
-        break;case WL_POINTER_BUTTON_STATE_PRESSED:  kb->press(keycode);
-        break;case WL_POINTER_BUTTON_STATE_RELEASED: kb->release(keycode);
+        break;case WL_KEYBOARD_KEY_STATE_PRESSED:  kb->press(keycode);
+        break;case WL_KEYBOARD_KEY_STATE_RELEASED: kb->release(keycode);
     }
 }
 

@@ -189,6 +189,21 @@ struct wrei_command_parser
 
 // -----------------------------------------------------------------------------
 
+inline
+std::chrono::system_clock::time_point wrei_time_current()
+{
+    return std::chrono::system_clock::now();
+}
+
+enum class wrei_time_format
+{
+    iso8601,
+    datetime_ms,
+    time,
+    time_ms,
+};
+
+std::string wrei_time_to_string(std::chrono::system_clock::time_point, wrei_time_format);
 std::string wrei_duration_to_string(std::chrono::duration<f64, std::nano> dur);
 std::string wrei_byte_size_to_string(u64 bytes);
 
@@ -228,12 +243,26 @@ std::string wrei_escape_utf8(std::string_view in)
 // -----------------------------------------------------------------------------
 
 inline
+std::string wrei_stacktrace_dump(usz skip = 0)
+{
+    auto stacktrace = std::stacktrace::current(skip + 1);
+    std::stringstream ss;
+    ss << stacktrace;
+    return ss.str();
+}
+
+inline
 void wrei_log_unix_error(std::string_view message, int err = 0)
 {
     err = err ?: errno;
 
-    if (message.empty()) { log_error("({}) {}",              err, strerror(err)); }
-    else                 { log_error("{}: ({}) {}", message, err, strerror(err)); }
+    // 1 - wrei_log_unix_error
+    // 2 - wrei_unix_check_helper<*>::check
+    // 3 - wrei_unix_check_*
+    static constexpr usz stackframe_skips = 3;
+
+    if (message.empty()) { log_error("({}) {}\n{}",              err, strerror(err), wrei_stacktrace_dump(stackframe_skips)); }
+    else                 { log_error("{}: ({}) {}\n{}", message, err, strerror(err), wrei_stacktrace_dump(stackframe_skips)); }
 }
 
 enum class wrei_unix_error_behavior : u32
@@ -249,7 +278,7 @@ struct wrei_unix_check_helper
 {
     template<typename T>
     static constexpr
-    T check(std::source_location loc, T res, auto... allowed)
+    T check(T res, auto... allowed)
     {
         bool error_occured = false;
         int error_code = 0;
@@ -261,16 +290,22 @@ struct wrei_unix_check_helper
 
         if (!error_occured || (... || (error_code == allowed))) return res;
 
-        wrei_log_unix_error(std::format("unix_check {}@{}", loc.file_name(), loc.line()), error_code);
+        wrei_log_unix_error(std::format("unix_check<{}>", magic_enum::enum_name(B)), error_code);
 
         return res;
     }
 };
 
-#define wrei_unix_check_null(func, ...)                       wrei_unix_check_helper<wrei_unix_error_behavior::ret_null     >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
-#define wrei_unix_check_n1(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg1     >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
-#define wrei_unix_check_ne(func, ...)                         wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__)
-#define wrei_unix_check_ce(func, ...) [&] { errno = 0; return wrei_unix_check_helper<wrei_unix_error_behavior::check_errno  >::check(std::source_location::current(), (func) __VA_OPT__(,) __VA_ARGS__); }()
+auto wrei_unix_check_null(auto t, auto... allowed) {            return wrei_unix_check_helper<wrei_unix_error_behavior::ret_null     >::check(t, allowed...); }
+auto wrei_unix_check_n1(  auto t, auto... allowed) {            return wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg1     >::check(t, allowed...); }
+auto wrei_unix_check_ne(  auto t, auto... allowed) {            return wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(t, allowed...); }
+auto wrei_unix_check_ce(  auto t, auto... allowed) { errno = 0; return wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(t, allowed...); }
+
+#define WREI_UNIX_CHECK_CE(Expr, ...) \
+    [&] { \
+        errno = 0; \
+        return wrei_unix_check_ce((Expr) __VA_OPT__(,) __VA_ARGS__); \
+    }
 
 // -----------------------------------------------------------------------------
 
@@ -281,13 +316,13 @@ template<typename T> std::string wrei_to_string(const wrei_vec<4, T>& vec) { ret
 template<typename T>
 std::string wrei_to_string(const wrei_rect<T>& rect)
 {
-    return std::format("([{}, {}] : [{}, {}])", rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
+    return std::format("(({}, {}) : ({}, {}))", rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
 }
 
 template<typename T>
 std::string wrei_to_string(const wrei_aabb<T>& aabb)
 {
-    return std::format("([{}, {}] < [{}, {}])", aabb.min.x, aabb.min.y, aabb.max.x, aabb.max.y);
+    return std::format("(({}, {}) < ({}, {}))", aabb.min.x, aabb.min.y, aabb.max.x, aabb.max.y);
 }
 
 // -----------------------------------------------------------------------------

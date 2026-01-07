@@ -22,6 +22,7 @@ void      wrei_log(wrei_log_level, std::string_view message);
 struct wrei_log_entry
 {
     wrei_log_level level;
+    std::chrono::system_clock::time_point timestamp;
     std::string message;
 };
 struct wrei_log_history : std::span<const wrei_log_entry>

@@ -30,15 +30,32 @@ void wroc_queue_client_flush()
 static
 void signal_handler(int sig)
 {
-    if (sig == SIGTERM || sig == SIGINT) {
-        if (sig == SIGINT) {
-            std::signal(SIGINT, SIG_DFL);
-        }
-        wrei_event_loop_enqueue(server->event_loop.get(), [sig] {
-            log_error("{} ({}) receieved, shutting down gracefully...", sig == SIGTERM ? "Terminate" : "Interrupt", sig);
-            wroc_terminate();
-        });
+    if (sig == SIGINT) {
+        // Immediately unregister SIGINT in case of unresponsive event loop
+        std::signal(sig, SIG_DFL);
     }
+
+    // TODO: Dedicated stop eventfd for signal safe handling
+    wrei_event_loop_enqueue(server->event_loop.get(), [sig] {
+        const char* name = "Unknown";
+        switch (sig) {
+            break;case SIGTERM: name = "Terminate";
+            break;case SIGINT:  name = "Interrupt";
+        }
+
+        log_error("{} ({}) signal receieved", name, sig);
+
+        if (sig == SIGTERM || sig == SIGINT) {
+            wroc_terminate();
+        }
+    });
+}
+
+void wroc_terminate()
+{
+    // TODO: Proper termination will require further event handling (e.g. waiting for GPU jobs to complete)
+    //       Send event to start termination, then close event loop only after all subsystems have closed.
+    wrei_event_loop_stop(server->event_loop.get());
 }
 
 wroc_server* server;
@@ -56,6 +73,8 @@ void wroc_run(int argc, char* argv[])
 
     std::optional<std::string> x11_socket;
 
+    std::optional<std::string> log_file;
+
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
         if (arg == "--no-dmabuf") {
@@ -70,11 +89,19 @@ void wroc_run(int argc, char* argv[])
                 return;
             }
             x11_socket = argv[++i];
+        } else if (arg == "--log-file") {
+            if (i + 1 >= argc || argv[i + 1][0] == '\0') {
+                log_error("Expected valid path after --log-file");
+                return;
+            }
+            log_file = argv[++i];
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
         }
     }
+
+    wrei_init_log(wrei_log_level::debug, log_file ? log_file->c_str() : nullptr);
 
     ref<wroc_server> server_ref = wrei_create<wroc_server>();
     server = server_ref.get();
@@ -204,10 +231,4 @@ void wroc_run(int argc, char* argv[])
     wren = nullptr;
 
     log_info("Shutdown complete");
-}
-
-void wroc_terminate()
-{
-    // TODO: Safe termination will require further event handling (e.g. waiting for GPU jobs to complete)
-    wrei_event_loop_stop(server->event_loop.get());
 }

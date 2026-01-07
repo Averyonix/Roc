@@ -104,7 +104,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     }
 
     if (physical_devices.empty()) {
-        log_error("no vulkan capable devices found");
+        log_error("No vulkan capable devices found");
         return nullptr;
     }
 
