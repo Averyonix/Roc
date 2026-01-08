@@ -100,8 +100,10 @@ struct wroc_output : wrei_object
 
     wroc_output_desc desc;
 
-    bool frame_ready = false;
+    bool frame_requested = false;
     bool image_ready = false;
+
+    u32 frames_in_flight = 0;
 };
 
 void wroc_output_try_dispatch_frame(wroc_output*);
@@ -154,7 +156,6 @@ struct wroc_surface_addon : wrei_object
     weak<wroc_surface> surface;
 
     virtual void on_commit(wroc_surface_commit_flags) = 0;
-    virtual void on_ack_configure(u32 serial) {}
     virtual bool is_synchronized() { return false; }
     virtual wroc_surface_role get_role() { return wroc_surface_role::none; }
 };
@@ -325,6 +326,7 @@ enum class wroc_xdg_surface_committed_state : u32
 {
     none,
     geometry = 1 << 0,
+    ack      = 1 << 1,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_xdg_surface_committed_state)
 
@@ -333,6 +335,7 @@ struct wrox_xdg_surface_state
     wroc_xdg_surface_committed_state committed = wroc_xdg_surface_committed_state::none;
 
     rect2i32 geometry;
+    u32 acked_serial;
 };
 
 struct wroc_xdg_surface : wroc_surface_addon
@@ -343,7 +346,6 @@ struct wroc_xdg_surface : wroc_surface_addon
     wrox_xdg_surface_state current;
 
     u32 sent_configure_serial = {};
-    u32 acked_configure_serial = {};
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
 };
@@ -415,7 +417,6 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
     } fullscreen;
 
     virtual void on_commit(wroc_surface_commit_flags) final override;
-    virtual void on_ack_configure(u32 serial) final override;
 
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_toplevel; }
 };
@@ -521,6 +522,7 @@ struct wroc_buffer : wrei_object
     void release();
 
     virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) = 0;
+    virtual void on_release(wren_commands*) {}
 
 protected:
     virtual void on_commit() = 0;
@@ -590,6 +592,7 @@ struct wroc_dma_buffer : wroc_buffer
     virtual void on_unlock() final override;
 
     virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) final override;
+    virtual void on_release(wren_commands*) final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -900,6 +903,8 @@ struct wroc_renderer : wrei_object
     bool show_dmabufs = true;
     bool wait_dmabufs = true;
 
+    u32 max_frames_in_flight = 2;
+
     bool screenshot_queued = false;
 
     ~wroc_renderer();
@@ -910,6 +915,12 @@ void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
 
 // -----------------------------------------------------------------------------
+
+struct wroc_imgui_frame_data
+{
+    wren_array<ImDrawIdx> indices;
+    wren_array<ImDrawVert> vertices;
+};
 
 struct wroc_imgui : wrei_object
 {
@@ -923,6 +934,7 @@ struct wroc_imgui : wrei_object
 
     wren_array<ImDrawIdx> indices;
     wren_array<ImDrawVert> vertices;
+    std::vector<wroc_imgui_frame_data> available_frames;
 
     ref<wren_image> font_image;
 

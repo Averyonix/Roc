@@ -37,7 +37,7 @@ void wroc_listen_wl_callback_done(void* data, wl_callback*, u32 time)
     auto* output = static_cast<wroc_wayland_output*>(data);
 
     wroc_post_event(wroc_output_event {
-        .type = wroc_event_type::output_frame,
+        .type = wroc_event_type::output_frame_requested,
         .output = output,
     });
 
@@ -62,7 +62,7 @@ void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 ser
         log_warn("  initial configure, registering frame callbacks");
         wroc_register_frame_callback(output);
         wroc_post_event(wroc_output_event {
-            .type = wroc_event_type::output_frame,
+            .type = wroc_event_type::output_frame_requested,
             .output = output,
         });
     }

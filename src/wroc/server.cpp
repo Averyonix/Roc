@@ -101,7 +101,7 @@ void wroc_run(int argc, char* argv[])
         }
     }
 
-    wrei_init_log(wrei_log_level::debug, log_file ? log_file->c_str() : nullptr);
+    wrei_init_log(wrei_log_level::trace, log_file ? log_file->c_str() : nullptr);
 
     ref<wroc_server> server_ref = wrei_create<wroc_server>();
     server = server_ref.get();

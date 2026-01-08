@@ -91,9 +91,10 @@ void wroc_dmabuf_resource_destroy(wl_resource* resource)
 {
     auto* buffer = wroc_get_userdata<wroc_dma_buffer>(resource);
 
-    log_warn("dmabuf {} destroyed, clearing image", (void*)buffer);
+    // log_warn("dmabuf {} destroyed, clearing image", (void*)buffer);
+    // buffer->image = nullptr;
 
-    buffer->image = nullptr;
+    log_warn("dmabuf {} destroyed", (void*)buffer);
 
     wrei_remove_ref(buffer);
 }
@@ -197,6 +198,49 @@ void wroc_dma_buffer::on_read(wren_commands* commands, std::vector<ref<wren_sema
             }
         }
     }
+
+    auto* wren = commands->ctx;
+    // log_trace("inserting dmabuf acquire");
+    wren->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = wrei_ptr_to(VkImageMemoryBarrier2 {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .srcAccessMask = 0,
+            .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
+            .dstQueueFamilyIndex = wren->queue_family,
+            .image = image->image,
+            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+        }),
+    }));
+}
+
+void wroc_dma_buffer::on_release(wren_commands* commands)
+{
+    auto* wren = server->renderer->wren.get();
+    // log_trace("inserting dmabuf release");
+    wren->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = wrei_ptr_to(VkImageMemoryBarrier2 {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+            .dstAccessMask = 0,
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = wren->queue_family,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
+            .image = image->image,
+            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+        }),
+    }));
 }
 
 void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)

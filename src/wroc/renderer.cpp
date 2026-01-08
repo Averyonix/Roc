@@ -52,6 +52,8 @@ void wroc_render_frame(wroc_output* output)
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
 
+    output->frames_in_flight++;
+
     auto[current, acquire_sync] = wren_swapchain_acquire_image(output->swapchain.get());
     assert(current);
     VkExtent2D vk_extent = { current->extent.x, current->extent.y };
@@ -60,15 +62,26 @@ void wroc_render_frame(wroc_output* output)
     auto commands = wren_commands_begin(wren);
     auto cmd = commands->buffer;
 
-    wren_transition(wren, commands.get(), current,
-        VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        0, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    // Insert texture acquire fences
+    // TODO: We should do this lazily based on which buffers are actually rendered
+    //       The problem is that this needs to happen *outside* of a render pass,
+    //       so we'll need to accumulate all draw information *before* starting any renderpasses
+    std::vector<ref<wren_semaphore>> buffer_waits;
+    ankerl::unordered_dense::set<wroc_buffer*> used_buffers;
+    if (renderer->wait_dmabufs) {
+        for (auto* surface : server->surfaces) {
+            auto* buffer = surface->current.buffer.get();
+            if (buffer && buffer->image && used_buffers.insert(buffer).second) {
+                wren_commands_protect_object(commands.get(), buffer->lock().get());
+                buffer->on_read(commands.get(), buffer_waits);
+            }
+        }
+    }
 
-    wren->vk.CmdClearColorImage(cmd, current->image,
-        VK_IMAGE_LAYOUT_GENERAL,
-        wrei_ptr_to(VkClearColorValue{.float32{0.f, 0.f, 0.f, 1.f}}),
-        1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
+    wren_transition(wren, commands.get(), current,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     wren->vk.CmdBeginRendering(cmd, wrei_ptr_to(VkRenderingInfo {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -79,8 +92,9 @@ void wroc_render_frame(wroc_output* output)
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = current->view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = {.color{.float32{0.f, 0.f, 0.f, 1.f}}},
         }),
     }));
 
@@ -166,8 +180,6 @@ void wroc_render_frame(wroc_output* output)
 
     // Surface helper
 
-    std::vector<ref<wren_semaphore>> buffer_waits;
-
     auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos, vec2f64 scale, f64 opacity = 1.0) -> void {
         if (!surface) return;
 
@@ -187,11 +199,7 @@ void wroc_render_frame(wroc_output* output)
                 dst.extent *= scale;
                 dst.origin += pos;
 
-                wren_commands_protect_object(commands.get(), buffer->lock().get());
-                if (renderer->wait_dmabufs) {
-                    buffer->on_read(commands.get(), buffer_waits);
-                }
-                if (renderer->show_dmabufs) {
+                if (renderer->show_dmabufs || buffer->type != wroc_buffer_type::dma) {
                     draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
                 }
 
@@ -328,6 +336,10 @@ void wroc_render_frame(wroc_output* output)
 
     wren->vk.CmdEndRendering(cmd);
 
+    for (auto& buffer : used_buffers) {
+        buffer->on_release(commands.get());
+    }
+
     // Screenshot
 
 #if 0
@@ -386,8 +398,8 @@ void wroc_render_frame(wroc_output* output)
     // Submit
 
     wren_transition(wren, commands.get(), current,
-        VK_PIPELINE_STAGE_2_TRANSFER_BIT, 0,
-        VK_ACCESS_2_TRANSFER_WRITE_BIT, 0,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
@@ -399,6 +411,26 @@ void wroc_render_frame(wroc_output* output)
     }
 
     auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
+
+    struct frame_guard : wrei_object
+    {
+        weak<wroc_output> output;
+
+        ~frame_guard()
+        {
+            wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
+                output->frames_in_flight--;
+                if (output) {
+                    wroc_output_try_dispatch_frame(output.get());
+                } else {
+                    log_error("Can't return frames-in-flight, output is invalid");
+                }
+            });
+        }
+    };
+    auto guard = wrei_create<frame_guard>();
+    guard->output = output;
+    wren_commands_protect_object(commands.get(), guard.get());
 
     wren_commands_submit(commands.get(), waits, {{present_sema.get()}});
 

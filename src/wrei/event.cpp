@@ -3,6 +3,7 @@
 ref<wrei_event_loop> wrei_event_loop_create()
 {
     auto loop = wrei_create<wrei_event_loop>();
+    loop->main_thread = std::this_thread::get_id();
 
     loop->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 
@@ -27,8 +28,6 @@ void wrei_event_loop_stop(wrei_event_loop* loop)
 
 void wrei_event_loop_run(wrei_event_loop* loop)
 {
-    loop->main_thread = std::this_thread::get_id();
-
     static constexpr usz event_buffer_count = 64;
 
     std::array<epoll_event, event_buffer_count> events;

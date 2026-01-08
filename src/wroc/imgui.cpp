@@ -304,26 +304,50 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
     auto data = ImGui::GetDrawData();
     if (!data->TotalIdxCount) return;
 
-    if (imgui->vertices.count < usz(data->TotalVtxCount)) {
-        auto new_size = wrei_compute_geometric_growth(imgui->vertices.count, data->TotalVtxCount);
-        log_debug("ImGui - reallocating vertex buffer, size: {}", new_size);
-        imgui->vertices = {wren_buffer_create(wren, new_size * sizeof(ImDrawVert)), usz(new_size)};
+    // Dynamically allocated per-frame data
+
+    struct frame_guard : wrei_object
+    {
+        wroc_imgui_frame_data frame_data;
+        weak<wroc_imgui> imgui;
+
+        ~frame_guard()
+        {
+            if (imgui) {
+                imgui->available_frames.emplace_back(frame_data);
+            }
+        }
+    };
+    auto guard = wrei_create<frame_guard>();
+    guard->imgui = imgui;
+    wren_commands_protect_object(commands, guard.get());
+
+    wroc_imgui_frame_data* frame = &guard->frame_data;
+    if (!imgui->available_frames.empty()) {
+        *frame = std::move(imgui->available_frames.back());
+        imgui->available_frames.pop_back();
+    } else {
+        log_error("NEW IMGUI FRAME");
     }
 
-    if (imgui->indices.count < usz(data->TotalIdxCount)) {
-        auto new_size = wrei_compute_geometric_growth(imgui->indices.count, data->TotalIdxCount);
+    if (frame->vertices.count < usz(data->TotalVtxCount)) {
+        auto new_size = wrei_compute_geometric_growth(frame->vertices.count, data->TotalVtxCount);
+        log_debug("ImGui - reallocating vertex buffer, size: {}", new_size);
+        frame->vertices = {wren_buffer_create(wren, new_size * sizeof(ImDrawVert)), usz(new_size)};
+    }
+
+    if (frame->indices.count < usz(data->TotalIdxCount)) {
+        auto new_size = wrei_compute_geometric_growth(frame->indices.count, data->TotalIdxCount);
         log_debug("ImGui - reallocating index buffer, size: {}", new_size);
-        imgui->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx)), usz(new_size)};
+        frame->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx)), usz(new_size)};
     }
 
     // TODO: Protect images
-    wren_commands_protect_object(commands, imgui->vertices.buffer.get());
-    wren_commands_protect_object(commands, imgui->indices.buffer.get());
     auto cmd = commands->buffer;
 
     wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline->pipeline);
     wren->vk.CmdBindIndexBuffer(cmd,
-        imgui->indices.buffer->buffer, imgui->indices.byte_offset,
+        frame->indices.buffer->buffer, frame->indices.byte_offset,
         sizeof(ImDrawIdx) == sizeof(u16) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 
     vec2f32 clip_offset = { data->DisplayPos.x, data->DisplayPos.y };
@@ -334,8 +358,8 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
     for (i32 i = 0; i < data->CmdListsCount; ++i) {
         auto list = data->CmdLists[i];
 
-        std::memcpy(imgui->vertices.host() + vertex_offset, list->VtxBuffer.Data, list->VtxBuffer.size() * sizeof(ImDrawVert));
-        std::memcpy(imgui->indices.host()  + index_offset,  list->IdxBuffer.Data, list->IdxBuffer.size() * sizeof(ImDrawIdx));
+        std::memcpy(frame->vertices.host() + vertex_offset, list->VtxBuffer.Data, list->VtxBuffer.size() * sizeof(ImDrawVert));
+        std::memcpy(frame->indices.host()  + index_offset,  list->IdxBuffer.Data, list->IdxBuffer.size() * sizeof(ImDrawIdx));
 
         for (i32 j = 0; j < list->CmdBuffer.size(); ++j) {
             const auto& im_cmd = list->CmdBuffer[j];
@@ -354,7 +378,7 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
             }));
             wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wroc_imgui_shader_in),
                 wrei_ptr_to(wroc_imgui_shader_in {
-                    .vertices = imgui->vertices.device(),
+                    .vertices = frame->vertices.device(),
                     .scale = 2.f / vec2f32(extent),
                     .offset = vec2f32(-1.f),
                     .texture = std::bit_cast<wroc_imgui_texture>(im_cmd.GetTexID()).handle,

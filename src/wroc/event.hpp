@@ -4,7 +4,7 @@ enum class wroc_event_type
 {
     output_added,
     output_removed,
-    output_frame,
+    output_frame_requested,
     output_image_ready,
 
     keyboard_key,

@@ -67,6 +67,10 @@ void wroc_xdg_surface::on_commit(wroc_surface_commit_flags flags)
         }
     }
 
+    if (pending.committed >= wroc_xdg_surface_committed_state::ack) {
+        current.acked_serial = pending.acked_serial;
+    }
+
     current.committed |= pending.committed;
     pending = {};
 }
@@ -76,16 +80,9 @@ void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u3
 {
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
 
-    if (serial == xdg_surface->sent_configure_serial) {
-        log_info("Client acked configure: {}", serial);
-        xdg_surface->acked_configure_serial = serial;
-
-        for (auto& a : xdg_surface->surface->addons) {
-            if (a.get() != xdg_surface) {
-                a->on_ack_configure(serial);
-            }
-        }
-    }
+    log_info("Client acked configure: {}", serial);
+    xdg_surface->pending.acked_serial = serial;
+    xdg_surface->pending.committed |= wroc_xdg_surface_committed_state::ack;
 }
 
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
@@ -244,6 +241,10 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 
     current.committed |= pending.committed;
     pending = {};
+
+    // NOTE: This will always see up-to-date xdg_surface state, as xdg_toplevel will always
+    //       come after xdg_surface in the addon list.
+    wroc_toplevel_flush_configure(this);
 }
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
@@ -296,7 +297,10 @@ void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
 {
     auto& configure = toplevel->configure;
     if (configure.pending == wroc_xdg_toplevel_configure_state::none) return;
-    if (toplevel->base()->sent_configure_serial > toplevel->base()->acked_configure_serial) {
+
+    // TODO: We probably shouldn't always wait for a commit after an ack_configure?
+    //       If the surface acks and then never submits, we would softlock on further configures
+    if (toplevel->base()->sent_configure_serial > toplevel->base()->current.acked_serial) {
         log_warn("Waiting for client ack before reconfiguring");
         return;
     }
@@ -311,11 +315,6 @@ void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
     wroc_xdg_surface_flush_configure(toplevel->base());
 
     configure.pending = {};
-}
-
-void wroc_toplevel::on_ack_configure(u32 serial)
-{
-    wroc_toplevel_flush_configure(this);
 }
 
 void wroc_toplevel_close(wroc_toplevel* toplevel)

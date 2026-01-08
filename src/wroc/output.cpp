@@ -257,8 +257,11 @@ void wroc_output_removed(wroc_output* output)
 
 void wroc_output_try_dispatch_frame(wroc_output* output)
 {
-    if (output->image_ready && (output->frame_ready || !server->renderer->vsync)) {
-        output->frame_ready = false;
+    if (output->image_ready
+        && (output->frame_requested || !server->renderer->vsync)
+        && output->frames_in_flight < server->renderer->max_frames_in_flight
+    )  {
+        output->frame_requested = false;
         output->image_ready = false;
         wroc_render_frame(output);
     }
@@ -271,8 +274,8 @@ void wroc_handle_output_event(const wroc_output_event& event)
             wroc_output_added(    event.output);
         break;case wroc_event_type::output_removed:
             wroc_output_removed(  event.output);
-        break;case wroc_event_type::output_frame:
-            event.output->frame_ready = true;
+        break;case wroc_event_type::output_frame_requested:
+            event.output->frame_requested = true;
             wroc_output_try_dispatch_frame(event.output);
         break;case wroc_event_type::output_image_ready:
             event.output->image_ready = true;

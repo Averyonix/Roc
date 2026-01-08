@@ -216,6 +216,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
             VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
             VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
             VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+            VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
         })) {
             log_warn("DMABUF feature requested but extension not available (probably running in RenderDoc)");
             ctx->features -= wren_features::dmabuf;

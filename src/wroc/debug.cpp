@@ -167,11 +167,8 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     ImGui::Separator();
 
-    if (ImGui::Checkbox("VSync", &server->renderer->vsync)) {
-        for (auto& output : server->output_layout->outputs) {
-            wroc_output_try_dispatch_frame(output.get());
-        }
-    }
+    bool try_dispatch_frames = false;
+    try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
 
     ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Show DMA-BUFs", &server->renderer->show_dmabufs);
@@ -180,6 +177,28 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Wait DMA-BUFs", &server->renderer->wait_dmabufs);
+
+    {
+        ImGui::SetNextItemWidth(second_column_offset + 11);
+        u32 current_fif = 0;
+        for (auto& output : server->output_layout->outputs) {
+            current_fif = std::max(current_fif, output->frames_in_flight);
+        }
+        auto label = std::format("Max Frames in Flight ({})###max-frames-in-flight", current_fif);
+        int max_fif = server->renderer->max_frames_in_flight;
+        if (ImGui::SliderInt(label.c_str(), &max_fif, 1, 3)) {
+            server->renderer->max_frames_in_flight = max_fif;
+            try_dispatch_frames = true;
+        }
+    }
+
+    if (try_dispatch_frames) {
+        wrei_event_loop_enqueue(server->event_loop.get(), [] {
+            for (auto& output : server->output_layout->outputs) {
+                wroc_output_try_dispatch_frame(output.get());
+            }
+        });
+    }
 
     ImGui::Separator();
 

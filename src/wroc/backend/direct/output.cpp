@@ -6,7 +6,7 @@ static
 void handle_scanout(wroc_drm_output* output, std::chrono::steady_clock::time_point scanout_time)
 {
     wroc_post_event(wroc_output_event {
-        .type = wroc_event_type::output_frame,
+        .type = wroc_event_type::output_frame_requested,
         .output = output,
     });
 }

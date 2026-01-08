@@ -144,6 +144,7 @@ target_link_libraries(wrei PUBLIC
     Vulkan::UtilityHeaders
     vma-object
     stb-image
+    glm::glm
     unordered_dense::unordered_dense
     concurrentqueue
     Xcursor

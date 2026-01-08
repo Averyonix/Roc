@@ -138,5 +138,6 @@ void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoin
     ctx->submissions.emplace_back(commands);
 
     // Notify wait thread of new value to wait on
+
     ctx->wait_thread_submitted.notify_one();
 }
