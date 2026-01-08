@@ -419,11 +419,9 @@ void wroc_render_frame(wroc_output* output)
         ~frame_guard()
         {
             wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
-                output->frames_in_flight--;
                 if (output) {
+                    output->frames_in_flight--;
                     wroc_output_try_dispatch_frame(output.get());
-                } else {
-                    log_error("Can't return frames-in-flight, output is invalid");
                 }
             });
         }

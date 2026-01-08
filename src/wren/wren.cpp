@@ -56,6 +56,8 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     ctx->event_loop = event_loop;
 
+    // Loader
+
     ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!ctx->vulkan1) {
         log_error("Failed to load vulkan library");
@@ -63,6 +65,8 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     }
 
     dlerror();
+
+    // Instance
 
     auto vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(ctx->vulkan1, "vkGetInstanceProcAddr"));
     if (!vkGetInstanceProcAddr) {
@@ -94,6 +98,8 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     wren_load_instance_functions(ctx.get());
 
+    // Select GPU
+
     std::vector<VkPhysicalDevice> physical_devices;
     wren_vk_enumerate(physical_devices, ctx->vk.EnumeratePhysicalDevices, ctx->instance);
     for (u32 i = 0; i < physical_devices.size(); ++i) {
@@ -116,6 +122,18 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         log_info("  Selected: {}", props.properties.deviceName);
     }
 
+    // Device extension support
+
+    std::vector device_extensions {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+        VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+        VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME,
+        VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
+        VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
+    };
+
     std::vector<VkExtensionProperties> available_extensions;
     {
         u32 count = 0;
@@ -133,11 +151,41 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         return false;
     };
 
-    {
-        if (!check_extension(VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME)) {
-            log_error("Physical device does not support DRM properties extension");
-            return nullptr;
+    auto add_all = [&](std::span<const char* const> names) -> bool {
+        bool all_present = true;
+        for (auto name : names) {
+            if (!check_extension(name)) {
+                all_present = false;
+                break;
+            }
         }
+        if (all_present) {
+            device_extensions.append_range(names);
+        }
+        return all_present;
+    };
+
+    if (ctx->features >= wren_features::dmabuf) {
+
+        // External memory extension (for DMA-BUF import/export and synchronization)
+
+        if (!add_all({
+            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+            VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+            VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+            VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
+            VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
+        })) {
+            log_warn("DMABUF feature requested but extension not available (probably running in RenderDoc)");
+            ctx->features -= wren_features::dmabuf;
+        }
+    }
+
+    if (ctx->features >= wren_features::dmabuf) {
+
+        // DRM file descriptor for initializating GBM allocator
 
         VkPhysicalDeviceDrmPropertiesEXT drm_props {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
@@ -173,7 +221,18 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         }
         log_info("Device path: {}", name);
         ctx->drm_fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    } else {
+        ctx->drm_fd = -1;
     }
+
+    for (auto& ext : device_extensions) {
+        if (!check_extension(ext)) {
+            log_error("Extension not present: {}", ext);
+            exit(1);
+        }
+    }
+
+    // Device creation
 
     ctx->queue_family = ~0u;
     std::vector<VkQueueFamilyProperties> queue_props;
@@ -182,51 +241,6 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         if (queue_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             ctx->queue_family = i;
             break;
-        }
-    }
-
-    std::vector device_extensions {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-        VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
-        VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
-        VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME,
-        VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
-        VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
-    };
-
-    auto add_all = [&](std::span<const char* const> names) -> bool {
-        bool all_present = true;
-        for (auto name : names) {
-            if (!check_extension(name)) {
-                all_present = false;
-                break;
-            }
-        }
-        if (all_present) {
-            device_extensions.append_range(names);
-        }
-        return all_present;
-    };
-
-    if (ctx->features >= wren_features::dmabuf) {
-        if (!add_all({
-            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-            VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
-            VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-            VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
-        })) {
-            log_warn("DMABUF feature requested but extension not available (probably running in RenderDoc)");
-            ctx->features -= wren_features::dmabuf;
-        }
-    }
-
-    for (auto& ext : device_extensions) {
-        if (!check_extension(ext)) {
-            log_error("Extension not present: {}", ext);
-            exit(1);
         }
     }
 
@@ -317,6 +331,8 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     ctx->vk.GetDeviceQueue(ctx->device, ctx->queue_family, 0, &ctx->queue);
 
+    // VMA allocator
+
     wren_check(vmaCreateAllocator(wrei_ptr_to(VmaAllocatorCreateInfo {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = ctx->physical_device,
@@ -328,6 +344,14 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         .instance = ctx->instance,
         .vulkanApiVersion = VK_API_VERSION_1_3,
     }), &ctx->vma));
+
+    // GBM allocator
+
+    if (ctx->features >= wren_features::dmabuf) {
+        wren_init_gbm_allocator(ctx.get());
+    }
+
+    // State initialization
 
     wren_check(ctx->vk.CreateCommandPool(ctx->device, wrei_ptr_to(VkCommandPoolCreateInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -345,8 +369,6 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     ctx->queue_sema = wren_semaphore_create(ctx.get(), VK_SEMAPHORE_TYPE_TIMELINE);
     wren_commands_init(ctx.get());
-
-    wren_init_gbm_allocator(ctx.get());
 
     return ctx;
 }

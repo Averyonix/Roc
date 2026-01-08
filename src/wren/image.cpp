@@ -452,14 +452,17 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
 
 void wren_init_gbm_allocator(wren_context* ctx)
 {
-    ctx->gbm = gbm_create_device(ctx->drm_fd);
+    log_debug("DRM fd: {}", ctx->drm_fd);
+    ctx->gbm = wrei_unix_check_null(gbm_create_device(ctx->drm_fd));
 
-    log_debug("Created GBM allocator with backend {}", gbm_device_get_backend_name(ctx->gbm));
+    log_debug("Created GBM allocator {} with backend {}", (void*)ctx->gbm, gbm_device_get_backend_name(ctx->gbm));
 }
 
 void wren_destroy_gbm_allocator(wren_context* ctx)
 {
-    gbm_device_destroy(ctx->gbm);
+    if (ctx->gbm) {
+        gbm_device_destroy(ctx->gbm);
+    }
 }
 
 static
