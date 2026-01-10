@@ -109,18 +109,19 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
         return nullptr;
     }
 
-    auto* params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
+    auto* dma_params = wroc_get_userdata<wroc_dma_buffer_params>(params_resource);
+    auto& params = dma_params->params;
 
-    if (params->planes_set == ~0u) {
+    if (dma_params->planes_set == ~0u) {
         wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Attempted to use buffer params with previous errors");
         return nullptr;
     }
-    if (!params->planes_set || std::popcount(params->planes_set + 1) != 1) {
+    if (!dma_params->planes_set || std::popcount(dma_params->planes_set + 1) != 1) {
         wroc_post_error(params_resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Incomplete plane set");
         return nullptr;
     }
 
-    params->params.planes.count = std::popcount(params->planes_set);
+    params.planes.count = std::popcount(dma_params->planes_set);
 
     auto* new_resource = wroc_resource_create(client, &wl_buffer_interface, 1, buffer_id);
     auto* buffer = wrei_create_unsafe<wroc_dma_buffer>();
@@ -129,14 +130,15 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
 
     wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, wroc_dmabuf_resource_destroy);
 
-    params->params.format = format;
-    params->params.extent = {width, height};
-    params->params.flags = zwp_linux_buffer_params_v1_flags(flags);
+    params.format = format;
+    params.extent = {width, height};
+    params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
     buffer->extent = {width, height};
     log_warn("Importing DMA-BUF, size = {}, format = {}, mod = {}",
-        wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params->params.modifier));
-    buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params->params, wren_image_usage::texture);
+        wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params.modifier));
+    buffer->dmabuf_image = wren_image_import_dmabuf(server->renderer->wren.get(), params, wren_image_usage::texture);
+    buffer->image = wren_image_create(server->renderer->wren.get(), params.extent, params.format, wren_image_usage::texture | wren_image_usage::transfer);
 
     return buffer;
 }
@@ -168,39 +170,38 @@ const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedba
     .destroy = wroc_simple_resource_destroy_callback,
 };
 
-void wroc_dma_buffer::on_commit()
+void wroc_dma_buffer::on_commit(wroc_surface* surface)
 {
-    needs_wait = true;
-}
+    auto* wren = dmabuf_image->ctx;
+    auto queue = wren_get_queue(wren, wren_queue_type::transfer);
+    auto commands = wren_commands_begin(queue);
 
-void wroc_dma_buffer::on_unlock()
-{
-    release();
-}
+    // log_error("submitting DMA-BUF transfer on queue, type = \"{}\"", magic_enum::enum_name(queue->type));
 
-void wroc_dma_buffer::on_read(wren_commands* commands, std::vector<ref<wren_semaphore>>& waits)
-{
-    if (needs_wait) {
-        needs_wait = false;
+    std::vector<ref<wren_semaphore>> semaphores;
+    std::vector<wren_syncpoint> waits;
 
-        auto* dma_image = static_cast<wren_image_dmabuf*>(image.get());
-        for (auto& plane : dma_image->dma_params.planes) {
-            dma_buf_export_sync_file data {
-                .flags = DMA_BUF_SYNC_READ,
-                .fd = -1,
-            };
-            wrei_unix_check_n1(drmIoctl(plane.fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &data));
-            if (data.fd != -1) {
-                auto sema = wren_semaphore_import_syncfile(commands->ctx, data.fd);
-                if (sema) waits.emplace_back(sema);
+    for (auto& plane : dmabuf_image->dma_params.planes) {
+        dma_buf_export_sync_file data {
+            .flags = DMA_BUF_SYNC_READ,
+            .fd = -1,
+        };
+        if (wrei_unix_check_n1(drmIoctl(plane.fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &data)) != 0) {
+            wrei_debugkill();
+        };
+        if (data.fd != -1) {
+            auto sema = wren_semaphore_import_syncfile(commands->queue->ctx, data.fd);
+            if (sema) {
+                semaphores.emplace_back(sema);
+                waits.emplace_back(sema.get());
             } else {
-                log_error("Failed to export syncfile from DMA-BUF");
+                log_error("Failed to import syncfile into Vulkan");
             }
+        } else {
+            log_error("Failed to export syncfile from DMA-BUF");
         }
     }
 
-    auto* wren = commands->ctx;
-    // log_trace("inserting dmabuf acquire");
     wren->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .imageMemoryBarrierCount = 1,
@@ -208,39 +209,81 @@ void wroc_dma_buffer::on_read(wren_commands* commands, std::vector<ref<wren_sema
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
             .srcAccessMask = 0,
-            .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-            .dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+            .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
             .newLayout = VK_IMAGE_LAYOUT_GENERAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
-            .dstQueueFamilyIndex = wren->queue_family,
-            .image = image->image,
+            .dstQueueFamilyIndex = queue->family,
+            .image = dmabuf_image->image,
             .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
         }),
     }));
-}
 
-void wroc_dma_buffer::on_release(wren_commands* commands)
-{
-    auto* wren = server->renderer->wren.get();
-    // log_trace("inserting dmabuf release");
+    if (server->renderer->copy_dmabufs) {
+        wren->vk.CmdCopyImage2(commands->buffer, wrei_ptr_to(VkCopyImageInfo2 {
+            .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
+            .srcImage = dmabuf_image->image,
+            .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .dstImage = image->image,
+            .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .regionCount = 1,
+            .pRegions = wrei_ptr_to(VkImageCopy2 {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
+                .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+                .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+                .extent = {image->extent.x, image->extent.y, 1},
+            }),
+        }));
+    }
+
     wren->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = wrei_ptr_to(VkImageMemoryBarrier2 {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+            .srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+            .srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
             .dstAccessMask = 0,
             .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
             .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .srcQueueFamilyIndex = wren->queue_family,
+            .srcQueueFamilyIndex = queue->family,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
-            .image = image->image,
+            .image = dmabuf_image->image,
             .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
         }),
     }));
+
+    struct dmabuf_transfer_guard : wrei_object
+    {
+        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        weak<wroc_surface> surface;
+        ref<wroc_buffer_lock> lock;
+
+        ~dmabuf_transfer_guard()
+        {
+            if (server->renderer->noisy_dmabufs) {
+                log_warn("DMA-BUF transfer completed in {}", wrei_duration_to_string(std::chrono::steady_clock::now() - start));
+            }
+            lock->buffer->release();
+            if (surface) {
+                lock->buffer->ready(surface.get());
+            }
+        }
+    };
+
+    auto guard = wrei_create<dmabuf_transfer_guard>();
+    guard->surface = surface;
+    guard->lock = lock();
+    wren_commands_protect_object(commands.get(), guard.get());
+
+    wren_commands_submit(commands.get(), waits, {});
+}
+
+void wroc_dma_buffer::on_unlock()
+{
+
 }
 
 void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)

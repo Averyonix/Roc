@@ -4,17 +4,17 @@ const struct wl_buffer_interface wroc_wl_buffer_impl = {
     .destroy = wroc_simple_resource_destroy_callback,
 };
 
-[[nodiscard]] ref<wroc_buffer_lock> wroc_buffer::commit()
+[[nodiscard]] ref<wroc_buffer_lock> wroc_buffer::commit(wroc_surface* surface)
 {
     if (!released) {
         log_error("Client is attempting to commit a buffer that has not been released!");
     }
 
     released = false;
-
     auto guard = lock();
 
-    on_commit();
+    is_ready = false;
+    on_commit(surface);
 
     return guard;
 }
@@ -30,6 +30,16 @@ void wroc_buffer::release()
 
     if (resource) {
         wroc_send(wl_buffer_send_release, resource);
+    }
+}
+
+
+void wroc_buffer::ready(wroc_surface* surface)
+{
+    is_ready = true;
+
+    if (surface->current.buffer.get() == this) {
+        surface->buffer = lock();
     }
 }
 

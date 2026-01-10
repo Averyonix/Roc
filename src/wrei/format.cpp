@@ -47,6 +47,21 @@ std::string wrei_duration_to_string(std::chrono::duration<f64, std::nano> dur)
 {
     f64 nanos = dur.count();
 
+    if (nanos >= 60 * 1e9) {
+        if (nanos >= 3600 * 1e9) {
+            f64 secs = nanos / 1e9;
+            f64 hours = std::floor(secs / 3600);
+            secs -= hours * 3600;
+            f64 mins = std::floor(secs / 60);
+            secs -= mins * 60;
+            return std::format("{:.0f}h {:.0f}m {:.0f}s", hours, mins, secs);
+        }
+        f64 secs = nanos / 1e9;
+        f64 mins = std::floor(secs / 60);
+        secs -= mins * 60;
+        return std::format("{:.0f}m {:.1f}s", mins, secs);
+    }
+
 #define WREI_DURATION_FORMAT_CASE(Size, Suffix) \
     if (nanos >= (Size)) { \
         f64 in_size = nanos / (Size); \

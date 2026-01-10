@@ -27,6 +27,11 @@ void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surfac
     pointer->current_output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(pointer->server->backend.get()), surface);
 
     wroc_backend_pointer_absolute(pointer, sx, sy);
+#else
+    auto output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(server->backend.get()), surface);
+    vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    // TODO: To logical coordinates
+    pointer->absolute(output, pos);
 #endif
 
     wl_pointer_set_cursor(pointer->wl_pointer, serial, nullptr, 0, 0);

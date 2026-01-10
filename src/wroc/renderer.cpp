@@ -59,24 +59,9 @@ void wroc_render_frame(wroc_output* output)
     VkExtent2D vk_extent = { current->extent.x, current->extent.y };
     vec2f32 current_extent = current->extent;
 
-    auto commands = wren_commands_begin(wren);
+    auto queue = wren_get_queue(wren, wren_queue_type::graphics);
+    auto commands = wren_commands_begin(queue);
     auto cmd = commands->buffer;
-
-    // Insert texture acquire fences
-    // TODO: We should do this lazily based on which buffers are actually rendered
-    //       The problem is that this needs to happen *outside* of a render pass,
-    //       so we'll need to accumulate all draw information *before* starting any renderpasses
-    std::vector<ref<wren_semaphore>> buffer_waits;
-    ankerl::unordered_dense::set<wroc_buffer*> used_buffers;
-    if (renderer->wait_dmabufs) {
-        for (auto* surface : server->surfaces) {
-            auto* buffer = surface->current.buffer.get();
-            if (buffer && buffer->image && used_buffers.insert(buffer).second) {
-                wren_commands_protect_object(commands.get(), buffer->lock().get());
-                buffer->on_read(commands.get(), buffer_waits);
-            }
-        }
-    }
 
     wren_transition(wren, commands.get(), current,
         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -116,9 +101,6 @@ void wroc_render_frame(wroc_output* output)
     renderer->rects_cpu.clear();
 
     auto draw = [&](wren_image* image, rect2f64 dest, rect2f64 source, vec4f32 color = {1, 1, 1, 1}) {
-
-        // TODO: Async buffer waits
-        // wren_image_wait(image);
 
         // log_warn("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
 
@@ -185,10 +167,8 @@ void wroc_render_frame(wroc_output* output)
 
         // log_trace("drawing surface: {} (stack.size = {})", (void*)surface, surface->current.surface_stack.size());
 
-        auto* buffer = surface->current.buffer.get();
+        auto* buffer = surface->buffer ? surface->buffer->buffer.get() : nullptr;
         if (!buffer || !buffer->image) return;
-
-        assert(surface->current.buffer_lock);
 
         for (auto& s : surface->current.surface_stack) {
             if (s.get() == surface) {
@@ -199,9 +179,7 @@ void wroc_render_frame(wroc_output* output)
                 dst.extent *= scale;
                 dst.origin += pos;
 
-                if (renderer->show_dmabufs || buffer->type != wroc_buffer_type::dma) {
-                    draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
-                }
+                draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
 
             } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
 
@@ -216,7 +194,7 @@ void wroc_render_frame(wroc_output* output)
     auto draw_xdg_surfaces = [&](bool show_cycled) {
         for (auto* surface : server->surfaces) {
             // TODO: Generic "mapped" state tracking
-            if (!surface->current.buffer) continue;
+            if (!surface->buffer) continue;
 
             auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
             if (!xdg_surface) continue;
@@ -336,10 +314,6 @@ void wroc_render_frame(wroc_output* output)
 
     wren->vk.CmdEndRendering(cmd);
 
-    for (auto& buffer : used_buffers) {
-        buffer->on_release(commands.get());
-    }
-
     // Screenshot
 
 #if 0
@@ -406,9 +380,6 @@ void wroc_render_frame(wroc_output* output)
 
     std::vector<wren_syncpoint> waits;
     waits.emplace_back(acquire_sync);
-    for (auto& s : buffer_waits) {
-        waits.emplace_back(s.get());
-    }
 
     auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
 
@@ -437,7 +408,7 @@ void wroc_render_frame(wroc_output* output)
     wren_swapchain_present(output->swapchain.get(), {{present_sema.get()}});
 
     if (renderer->host_wait) {
-        wren_wait_idle(wren);
+        wren_wait_idle(queue);
     }
 
     // Send frame callbacks

@@ -86,7 +86,12 @@ ref<wren_image> create_vma_image(wren_context* ctx, vec2u32 extent, wren_format 
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = wren_image_usage_to_vk(usage),
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .sharingMode = VK_SHARING_MODE_CONCURRENT,
+        .queueFamilyIndexCount = 2,
+        .pQueueFamilyIndices = std::array {
+            ctx->graphics_queue->family,
+            ctx->transfer_queue->family,
+        }.data(),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), wrei_ptr_to(VmaAllocationCreateInfo {
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -114,7 +119,8 @@ void wren_image_init(wren_image* image)
 
     wren_allocate_image_descriptor(image);
 
-    auto cmd = wren_commands_begin(ctx);
+    auto queue = wren_get_queue(ctx, wren_queue_type::transfer);
+    auto cmd = wren_commands_begin(queue);
     wren_commands_protect_object(cmd.get(), image);
     wren_transition(ctx, cmd.get(), image,
         0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -182,10 +188,11 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
 
 void wren_image_update_immed(wren_image* image, const void* data)
 {
-    auto commands = wren_commands_begin(image->ctx);
+    auto queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
+    auto commands = wren_commands_begin(queue);
     wren_image_update(commands.get(), image, data);
     wren_commands_submit(commands.get(), {}, {});
-    wren_wait_idle(image->ctx);
+    wren_wait_idle(queue);
 }
 
 // -----------------------------------------------------------------------------
@@ -465,7 +472,7 @@ void wren_destroy_gbm_allocator(wren_context* ctx)
     }
 }
 
-static
+[[maybe_unused]] static
 ref<wren_image> create_gbm_image(wren_context* ctx, vec2u32 extent, wren_format format, wren_image_usage usage)
 {
     // Insert format modifiers
@@ -530,7 +537,7 @@ ref<wren_image> wren_image_create(
 {
     assert(usage != wren_image_usage::none);
 
-#ifdef WROC_PREFER_GBM_IMAGES
+#if WROC_PREFER_GBM_IMAGES
     return (format->drm != DRM_FORMAT_INVALID && ctx->features >= wren_features::dmabuf)
         ? create_gbm_image(ctx, extent, format, usage)
         : create_vma_image(ctx, extent, format, usage);

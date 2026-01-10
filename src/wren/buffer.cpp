@@ -18,7 +18,12 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size)
                | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
                | VK_BUFFER_USAGE_TRANSFER_DST_BIT
                | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .sharingMode = VK_SHARING_MODE_CONCURRENT,
+        .queueFamilyIndexCount = 2,
+        .pQueueFamilyIndices = std::array {
+            ctx->graphics_queue->family,
+            ctx->transfer_queue->family,
+        }.data(),
     }), wrei_ptr_to(VmaAllocationCreateInfo {
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,

@@ -1,14 +1,14 @@
 #include "internal.hpp"
 
 static
-void reclaim_old_submissions(wren_context* ctx)
+void reclaim_old_submissions(wren_queue* queue)
 {
-    auto value = wren_semaphore_get_value(ctx->queue_sema.get());
+    auto value = wren_semaphore_get_value(queue->queue_sema.get());
 
-    while (!ctx->submissions.empty()) {
-        if (ctx->submissions.front()->submitted_value <= value) {
+    while (!queue->submissions.empty()) {
+        if (queue->submissions.front()->submitted_value <= value) {
             // log_debug("reclaiming submission, value = {}", ctx->submissions.front()->submitted_value);
-            ctx->submissions.pop_front();
+            queue->submissions.pop_front();
         } else {
             break;
         }
@@ -16,21 +16,22 @@ void reclaim_old_submissions(wren_context* ctx)
 }
 
 static
-void handle_signalled(wren_context* ctx, u64 value)
+void handle_signalled(wren_queue* queue, u64 value)
 {
-    ctx->queue_sema->observed = std::max(ctx->queue_sema->observed, value);
-    reclaim_old_submissions(ctx);
+    queue->queue_sema->observed = std::max(queue->queue_sema->observed, value);
+    reclaim_old_submissions(queue);
 }
 
 static
-void wait_thread(wren_context* ctx)
+void wait_thread(wren_queue* queue)
 {
-    auto* semaphore = ctx->queue_sema.get();
+    auto* ctx = queue->ctx;
+    auto* semaphore = queue->queue_sema.get();
 
     u64 observed = 0;
     for (;;) {
-        ctx->wait_thread_submitted.wait(observed);
-        auto wait_value = ctx->wait_thread_submitted.load();
+        queue->wait_thread_submitted.wait(observed);
+        auto wait_value = queue->wait_thread_submitted.load();
 
         if (wait_value == UINT64_MAX) {
             return;
@@ -47,39 +48,80 @@ void wait_thread(wren_context* ctx)
 
         wren_check(ctx->vk.GetSemaphoreCounterValue(ctx->device, semaphore->semaphore, &observed));
 
-        wrei_event_loop_enqueue(ctx->event_loop.get(), [ctx, observed] {
-            handle_signalled(ctx, observed);
+        wrei_event_loop_enqueue(ctx->event_loop.get(), [queue, observed] {
+            handle_signalled(queue, observed);
         });
     }
 }
 
-void wren_commands_shutdown(wren_context* ctx)
+ref<wren_queue> wren_queue_init(wren_context* ctx, wren_queue_type type, u32 family)
 {
-    ctx->wait_thread_submitted = UINT64_MAX;
-    ctx->wait_thread_submitted.notify_one();
-    ctx->wait_thread.join();
+    auto queue = wrei_create<wren_queue>();
+    queue->ctx = ctx;
+    queue->type = type;
+    queue->family = family;
+
+    log_debug("Queue created of type \"{}\" with family {}", magic_enum::enum_name(type), family);
+
+    ctx->vk.GetDeviceQueue(ctx->device, family, 0, &queue->queue);
+
+    wren_check(ctx->vk.CreateCommandPool(ctx->device, wrei_ptr_to(VkCommandPoolCreateInfo {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+        .queueFamilyIndex = queue->family,
+    }), nullptr, &queue->cmd_pool));
+
+    queue->queue_sema = wren_semaphore_create(ctx, VK_SEMAPHORE_TYPE_TIMELINE);
+
+    queue->wait_thread = std::jthread([queue = queue.get()] {
+        wait_thread(queue);
+    });
+
+    return queue;
+}
+
+wren_queue::~wren_queue()
+{
+    assert(submissions.empty());
+
+    wait_thread_submitted = UINT64_MAX;
+    wait_thread_submitted.notify_one();
+    wait_thread.join();
+
+    queue_sema = nullptr;
+
+    ctx->vk.DestroyCommandPool(ctx->device, cmd_pool, nullptr);
 }
 
 void wren_commands_init(wren_context* ctx)
 {
-    ctx->wait_thread = std::jthread([ctx] {
-        wait_thread(ctx);
-    });
 }
 
 wren_commands::~wren_commands()
 {
-    ctx->vk.FreeCommandBuffers(ctx->device, ctx->cmd_pool, 1, &buffer);
+    auto* ctx = queue->ctx;
+    ctx->vk.FreeCommandBuffers(ctx->device, queue->cmd_pool, 1, &buffer);
 }
 
-ref<wren_commands> wren_commands_begin(wren_context* ctx)
+wren_queue* wren_get_queue(wren_context* ctx, wren_queue_type type)
 {
+    switch (type) {
+        break;case wren_queue_type::graphics:
+            return ctx->graphics_queue.get();
+        break;case wren_queue_type::transfer:
+            return ctx->transfer_queue.get();
+    }
+}
+
+ref<wren_commands> wren_commands_begin(wren_queue* queue)
+{
+    auto* ctx = queue->ctx;
     auto commands = wrei_create<wren_commands>();
-    commands->ctx = ctx;
+    commands->queue = queue;
 
     wren_check(ctx->vk.AllocateCommandBuffers(ctx->device, wrei_ptr_to(VkCommandBufferAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = ctx->cmd_pool,
+        .commandPool = queue->cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &commands->buffer));
@@ -99,30 +141,38 @@ void wren_commands_protect_object(wren_commands* commands, wrei_object* object)
 
 void wren_wait_idle(wren_context* ctx)
 {
-    wren_semaphore_wait_value(ctx->queue_sema.get(), ctx->queue_sema->submitted);
-    reclaim_old_submissions(ctx);
+    wren_wait_idle(ctx->graphics_queue.get());
+    wren_wait_idle(ctx->transfer_queue.get());
+}
+
+void wren_wait_idle(wren_queue* queue)
+{
+    queue->ctx->vk.QueueWaitIdle(queue->queue);
+    wren_semaphore_wait_value(queue->queue_sema.get(), queue->queue_sema->submitted);
+    reclaim_old_submissions(queue);
 }
 
 void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoint> waits, std::span<const wren_syncpoint> signals)
 {
-    auto* ctx = commands->ctx;
+    auto* queue = commands->queue;
+    auto* ctx = queue->ctx;
 
     wren_check(ctx->vk.EndCommandBuffer(commands->buffer));
 
-    commands->submitted_value = wren_semaphore_advance(ctx->queue_sema.get());
+    commands->submitted_value = wren_semaphore_advance(queue->queue_sema.get());
 
     auto wait_infos = wren_syncpoints_to_submit_infos(waits);
     auto signal_infos = wren_syncpoints_to_submit_infos(signals, wrei_ptr_to(wren_syncpoint {
-        .semaphore = ctx->queue_sema.get(),
+        .semaphore = queue->queue_sema.get(),
         .value = commands->submitted_value,
     }));
 
     for (auto& s : waits) wren_commands_protect_object(commands, s.semaphore);
     for (auto& s : signals) wren_commands_protect_object(commands, s.semaphore);
 
-    ctx->wait_thread_submitted = commands->submitted_value;
+    queue->wait_thread_submitted = commands->submitted_value;
 
-    wren_check(ctx->vk.QueueSubmit2(ctx->queue, 1, wrei_ptr_to(VkSubmitInfo2 {
+    wren_check(ctx->vk.QueueSubmit2(queue->queue, 1, wrei_ptr_to(VkSubmitInfo2 {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
         .waitSemaphoreInfoCount = u32(wait_infos.size()),
         .pWaitSemaphoreInfos = wait_infos.data(),
@@ -135,9 +185,9 @@ void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoin
         .pSignalSemaphoreInfos = signal_infos.data(),
     }), nullptr));
 
-    ctx->submissions.emplace_back(commands);
+    queue->submissions.emplace_back(commands);
 
     // Notify wait thread of new value to wait on
 
-    ctx->wait_thread_submitted.notify_one();
+    queue->wait_thread_submitted.notify_one();
 }

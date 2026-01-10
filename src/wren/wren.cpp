@@ -14,13 +14,10 @@ wren_context::~wren_context()
 {
     log_info("Wren context destroyed");
 
-    assert(submissions.empty());
-
-    wren_commands_shutdown(this);
+    graphics_queue = nullptr;
+    transfer_queue = nullptr;
 
     wren_destroy_gbm_allocator(this);
-
-    queue_sema = nullptr;
 
     assert(stats.active_images == 0);
     assert(stats.active_buffers == 0);
@@ -36,7 +33,6 @@ wren_context::~wren_context()
     vk.DestroyDescriptorSetLayout(device, set_layout, nullptr);
     vk.DestroyDescriptorPool(device, pool, nullptr);
 
-    vk.DestroyCommandPool(device, cmd_pool, nullptr);
     vk.DestroyDevice(device, nullptr);
     vk.DestroyInstance(instance, nullptr);
 }
@@ -234,13 +230,21 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     // Device creation
 
-    ctx->queue_family = ~0u;
+    static constexpr u32 invalid_index = ~0u;
+    u32 graphics_queue_family = invalid_index;
+    u32 transfer_queue_family = invalid_index;
+
     std::vector<VkQueueFamilyProperties> queue_props;
     wren_vk_enumerate(queue_props, ctx->vk.GetPhysicalDeviceQueueFamilyProperties, ctx->physical_device);
     for (u32 i = 0; i < queue_props.size(); ++i) {
         if (queue_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            ctx->queue_family = i;
-            break;
+            if (graphics_queue_family == invalid_index) {
+                graphics_queue_family = i;
+            }
+        } else if (queue_props[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+            if (transfer_queue_family == invalid_index) {
+                transfer_queue_family = i;
+            }
         }
     }
 
@@ -296,20 +300,28 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
                     .unifiedImageLayoutsVideo = true,
                 }),
             }),
-            .queueCreateInfoCount = 1,
-            .pQueueCreateInfos = wrei_ptr_to(VkDeviceQueueCreateInfo {
-                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                .pNext =
-                    global_priority
-                        ? wrei_ptr_to(VkDeviceQueueGlobalPriorityCreateInfoKHR {
-                            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO,
-                            .globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH,
-                        })
-                        : nullptr,
-                .queueFamilyIndex = ctx->queue_family,
-                .queueCount = 1,
-                .pQueuePriorities = wrei_ptr_to(1.f),
-            }),
+            .queueCreateInfoCount = 2,
+            .pQueueCreateInfos = std::array {
+                VkDeviceQueueCreateInfo {
+                    .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                    .pNext =
+                        global_priority
+                            ? wrei_ptr_to(VkDeviceQueueGlobalPriorityCreateInfoKHR {
+                                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO,
+                                .globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH,
+                            })
+                            : nullptr,
+                    .queueFamilyIndex = graphics_queue_family,
+                    .queueCount = 1,
+                    .pQueuePriorities = wrei_ptr_to(1.f),
+                },
+                VkDeviceQueueCreateInfo {
+                    .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                    .queueFamilyIndex = transfer_queue_family,
+                    .queueCount = 1,
+                    .pQueuePriorities = wrei_ptr_to(1.f),
+                },
+            }.data(),
             .enabledExtensionCount = u32(device_extensions.size()),
             .ppEnabledExtensionNames = device_extensions.data(),
         }), nullptr, &ctx->device), VK_ERROR_NOT_PERMITTED);
@@ -329,7 +341,8 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     wren_load_device_functions(ctx.get());
 
-    ctx->vk.GetDeviceQueue(ctx->device, ctx->queue_family, 0, &ctx->queue);
+    ctx->graphics_queue = wren_queue_init(ctx.get(), wren_queue_type::graphics, graphics_queue_family);
+    ctx->transfer_queue = wren_queue_init(ctx.get(), wren_queue_type::transfer, transfer_queue_family);
 
     // VMA allocator
 
@@ -353,12 +366,6 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     // State initialization
 
-    wren_check(ctx->vk.CreateCommandPool(ctx->device, wrei_ptr_to(VkCommandPoolCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-        .queueFamilyIndex = ctx->queue_family,
-    }), nullptr, &ctx->cmd_pool));
-
     wren_init_descriptors(ctx.get());
 
     wren_register_formats(ctx.get());
@@ -366,9 +373,6 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     log_info("shm texture formats: {}", ctx->shm_texture_formats.size());
     log_info("render formats: {}", ctx->dmabuf_render_formats.size());
     log_info("dmabuf texture formats: {}", ctx->dmabuf_texture_formats.size());
-
-    ctx->queue_sema = wren_semaphore_create(ctx.get(), VK_SEMAPHORE_TYPE_TIMELINE);
-    wren_commands_init(ctx.get());
 
     return ctx;
 }

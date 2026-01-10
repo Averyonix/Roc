@@ -146,7 +146,7 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
             if (from.buffer) {
                 if (from.buffer->resource) {
                     to.buffer = from.buffer;
-                    to.buffer_lock = to.buffer->commit();
+                    to.buffer_lock = to.buffer->commit(surface);
                 } else {
                     log_warn("Pending buffer was destroyed, surface contents will be cleared");
                     to.buffer = nullptr;
@@ -165,6 +165,14 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
 
         from.buffer = nullptr;
         from.buffer_lock = nullptr;
+
+        if (&to == &surface->current) {
+            if (!to.buffer) {
+                surface->buffer = nullptr;
+            } else if (to.buffer->is_ready) {
+                surface->buffer = to.buffer_lock;
+            }
+        }
     }
 
     // Update opaque region

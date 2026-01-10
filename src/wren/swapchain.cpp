@@ -64,7 +64,7 @@ wren_swapchain::~wren_swapchain()
     log_debug("Acquire thread joined");
 
     // TODO: Present VkFence
-    ctx->vk.QueueWaitIdle(ctx->queue);
+    wren_wait_idle(wren_get_queue(ctx, wren_queue_type::graphics));
 
     if (current_index != invalid_index) {
         log_debug("Releasing swapchain images");
@@ -86,7 +86,7 @@ void swapchain_recreate(wren_swapchain* swapchain)
     auto* ctx = swapchain->ctx;
 
     // TODO: Better sync
-    ctx->vk.QueueWaitIdle(ctx->queue);
+    wren_wait_idle(wren_get_queue(ctx, wren_queue_type::graphics));
 
     u32 min_image_count = 4;
     // VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
@@ -213,7 +213,9 @@ void wren_swapchain_present(wren_swapchain* swapchain, std::span<const wren_sync
 
     auto* ctx = swapchain->ctx;
 
-    wren_check(ctx->vk.QueuePresentKHR(ctx->queue, wrei_ptr_to(VkPresentInfoKHR {
+    // TODO: Asynchronous present?
+    auto queue = wren_get_queue(ctx, wren_queue_type::graphics);
+    wren_check(ctx->vk.QueuePresentKHR(queue->queue, wrei_ptr_to(VkPresentInfoKHR {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = u32(semas.size()),
         .pWaitSemaphores = semas.data(),

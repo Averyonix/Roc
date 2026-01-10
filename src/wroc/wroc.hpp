@@ -206,6 +206,8 @@ struct wroc_surface : wrei_object
 
     std::optional<weak<wroc_cursor_surface>> cursor;
 
+    ref<wroc_buffer_lock> buffer;
+
     rect2i32 buffer_dst; // in surface coordinates, origin represents "offset" surface property
     rect2f64 buffer_src; // in buffer coordinates
 
@@ -516,16 +518,16 @@ struct wroc_buffer : wrei_object
     weak<wroc_buffer_lock> lock_guard;
     [[nodiscard]] ref<wroc_buffer_lock> lock();
 
-    [[nodiscard]] ref<wroc_buffer_lock> commit();
+    [[nodiscard]] ref<wroc_buffer_lock> commit(wroc_surface*);
 
     bool released = true;
     void release();
 
-    virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) = 0;
-    virtual void on_release(wren_commands*) {}
+    bool is_ready;
+    void ready(wroc_surface*);
 
 protected:
-    virtual void on_commit() = 0;
+    virtual void on_commit(wroc_surface*) = 0;
     virtual void on_unlock() = 0;
 };
 
@@ -566,10 +568,8 @@ struct wroc_shm_buffer : wroc_buffer
     i32 stride;
     wren_format format;
 
-    virtual void on_commit() final override;
+    virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
-
-    virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -586,13 +586,10 @@ struct wroc_dma_buffer_params : wrei_object
 
 struct wroc_dma_buffer : wroc_buffer
 {
-    bool needs_wait = false;
+    ref<wren_image_dmabuf> dmabuf_image;
 
-    virtual void on_commit() final override;
+    virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
-
-    virtual void on_read(wren_commands*, std::vector<ref<wren_semaphore>>& waits) final override;
-    virtual void on_release(wren_commands*) final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -900,8 +897,8 @@ struct wroc_renderer : wrei_object
 
     bool vsync = true;
     bool host_wait = true;
-    bool show_dmabufs = true;
-    bool wait_dmabufs = true;
+    bool copy_dmabufs = true;
+    bool noisy_dmabufs = false;
 
     u32 max_frames_in_flight = 2;
 

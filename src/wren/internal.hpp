@@ -63,8 +63,9 @@ void wren_allocate_sampler_descriptor(wren_sampler*);
 
 // -----------------------------------------------------------------------------
 
-void wren_commands_init(wren_context*);
-void wren_commands_shutdown(wren_context*);
+ref<wren_queue> wren_queue_init(wren_context*, wren_queue_type, u32 family);
+
+// -----------------------------------------------------------------------------
 
 VkSemaphoreSubmitInfo              wren_syncpoint_to_submit_info(const wren_syncpoint& syncpoint);
 std::vector<VkSemaphoreSubmitInfo> wren_syncpoints_to_submit_infos(std::span<const wren_syncpoint> syncpoints, const wren_syncpoint* extra = nullptr);

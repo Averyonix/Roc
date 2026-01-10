@@ -204,6 +204,7 @@ enum class wrei_time_format
 };
 
 std::string wrei_time_to_string(std::chrono::system_clock::time_point, wrei_time_format);
+
 std::string wrei_duration_to_string(std::chrono::duration<f64, std::nano> dur);
 std::string wrei_byte_size_to_string(u64 bytes);
 

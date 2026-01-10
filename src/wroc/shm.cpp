@@ -113,7 +113,7 @@ wroc_shm_pool::~wroc_shm_pool()
     close(fd);
 }
 
-void wroc_shm_buffer::on_commit()
+void wroc_shm_buffer::on_commit(wroc_surface* surface)
 {
     log_trace("shm_buffer committed, transferring");
 
@@ -125,16 +125,15 @@ void wroc_shm_buffer::on_commit()
 
     auto mapping = pool->mapping;
 
-    auto commands = wren_commands_begin(image->ctx);
+    auto queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
+    auto commands = wren_commands_begin(queue);
     wren_image_update(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
-
-    // Keep buffer lock alive until transfer is complete
-    wren_commands_protect_object(commands.get(), lock_guard.get());
 
     // Release resources as soon as transfer has completed
     struct shm_transfer_guard : wrei_object
     {
-        ref<wroc_shm_buffer> buffer;
+        weak<wroc_surface> surface;
+        ref<wroc_buffer_lock> lock;
         // Protect mapping for duration of transfer
         // This must be destroyed before buffer, in case buffer is holding last reference to shm_pool
         ref<wroc_shm_mapping> mapping;
@@ -143,11 +142,16 @@ void wroc_shm_buffer::on_commit()
         {
             log_trace("shm_buffer transfer complete, releasing");
 
-            buffer->release();
+            lock->buffer->release();
+
+            if (surface) {
+                lock->buffer->ready(surface.get());
+            }
         }
     };
     auto transfer_guard = wrei_create<shm_transfer_guard>();
-    transfer_guard->buffer = this;
+    transfer_guard->surface = surface;
+    transfer_guard->lock = lock();
     transfer_guard->mapping = mapping;
     wren_commands_protect_object(commands.get(), transfer_guard.get());
 
@@ -158,9 +162,4 @@ void wroc_shm_buffer::on_commit()
 
 void wroc_shm_buffer::on_unlock()
 {
-}
-
-void wroc_shm_buffer::on_read(wren_commands* commands, std::vector<ref<wren_semaphore>>& waits)
-{
-    // TODO: Memory barrier after initial transfer
 }

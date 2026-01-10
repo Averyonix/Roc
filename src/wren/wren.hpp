@@ -9,6 +9,7 @@
 struct wren_image;
 struct wren_semaphore;
 struct wren_commands;
+struct wren_queue;
 
 // -----------------------------------------------------------------------------
 
@@ -162,17 +163,8 @@ struct wren_context : wrei_object
         u32 active_samplers;
     } stats;
 
-    u32 queue_family;
-    VkQueue queue;
-
-    VkCommandPool cmd_pool;
-    VkCommandBuffer cmd;
-
-    ref<wren_semaphore> queue_sema;
-    std::deque<ref<wren_commands>> submissions;
-
-    std::atomic<u64> wait_thread_submitted;
-    std::jthread     wait_thread;
+    ref<wren_queue> graphics_queue;
+    ref<wren_queue> transfer_queue;
     ref<wrei_event_loop> event_loop;
 
     std::vector<VkSemaphore> free_binary_semaphores;
@@ -197,6 +189,36 @@ struct wren_context : wrei_object
 };
 
 ref<wren_context> wren_create(wren_features, wrei_event_loop*);
+
+// -----------------------------------------------------------------------------
+
+enum class wren_queue_type
+{
+    graphics,
+    transfer,
+};
+
+struct wren_queue : wrei_object
+{
+    wren_context* ctx;
+
+    wren_queue_type type;
+    u32 family;
+    VkQueue queue;
+
+    VkCommandPool cmd_pool;
+    VkCommandBuffer cmd;
+
+    ref<wren_semaphore> queue_sema;
+    std::deque<ref<wren_commands>> submissions;
+
+    std::atomic<u64> wait_thread_submitted;
+    std::jthread     wait_thread;
+
+    ~wren_queue();
+};
+
+wren_queue* wren_get_queue(wren_context*, wren_queue_type);
 
 // -----------------------------------------------------------------------------
 
@@ -233,7 +255,7 @@ u64  wren_semaphore_advance(   wren_semaphore*, u64 inc = 1);
 
 struct wren_commands : wrei_object
 {
-    wren_context* ctx;
+    wren_queue* queue;
 
     VkCommandBuffer buffer;
     std::vector<ref<wrei_object>> objects;
@@ -243,7 +265,7 @@ struct wren_commands : wrei_object
     ~wren_commands();
 };
 
-ref<wren_commands> wren_commands_begin(wren_context*);
+ref<wren_commands> wren_commands_begin(wren_queue*);
 
 void wren_commands_protect_object(wren_commands*, wrei_object*);
 void wren_commands_submit(       wren_commands*, std::span<const wren_syncpoint> waits, std::span<const wren_syncpoint> signals);
@@ -251,6 +273,7 @@ void wren_commands_submit(       wren_commands*, std::span<const wren_syncpoint>
 // TODO: This is a blocking operation and a temporary solution
 //       Replace with an asynchronous callback
 void wren_wait_idle(wren_context*);
+void wren_wait_idle(wren_queue*);
 
 // -----------------------------------------------------------------------------
 

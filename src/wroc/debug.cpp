@@ -159,7 +159,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             stats.last_events_handled = server->event_loop->stats.events_handled;
         }
 
-        ImGui_Text("Elapsed:       {:.1f}s", wroc_get_elapsed_milliseconds() / 1000.0);
+        ImGui_Text("Elapsed:       {}", wrei_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
         ImGui_Text("Events:        {}/s", stats.events_per_second);
         ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
 
@@ -171,12 +171,12 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
 
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Show DMA-BUFs", &server->renderer->show_dmabufs);
+    ImGui::Checkbox("Copy DMA-BUFs", &server->renderer->copy_dmabufs);
 
     ImGui::Checkbox("Host Wait", &server->renderer->host_wait);
 
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Wait DMA-BUFs", &server->renderer->wait_dmabufs);
+    ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->noisy_dmabufs);
 
     {
         ImGui::SetNextItemWidth(second_column_offset + 11);
