@@ -310,6 +310,21 @@ auto wrei_unix_check_ce(  auto t, auto... allowed) { errno = 0; return wrei_unix
 
 // -----------------------------------------------------------------------------
 
+inline
+u64 wrei_eventfd_read(int fd)
+{
+    u64 count = 0;
+    return (wrei_unix_check_n1(read(fd, &count, sizeof(count)), EAGAIN, EINTR) == sizeof(count)) ? count : 0;
+}
+
+inline
+void wrei_eventfd_signal(int fd, u64 inc)
+{
+    wrei_unix_check_n1(write(fd, &inc, sizeof(inc)));
+}
+
+// -----------------------------------------------------------------------------
+
 template<typename T> std::string wrei_to_string(const wrei_vec<2, T>& vec) { return std::format("({}, {})",         vec.x, vec.y);               }
 template<typename T> std::string wrei_to_string(const wrei_vec<3, T>& vec) { return std::format("({}, {}, {})",     vec.x, vec.y, vec.z);        }
 template<typename T> std::string wrei_to_string(const wrei_vec<4, T>& vec) { return std::format("({}, {}, {}, {})", vec.x, vec.y, vec.z, vec.w); }

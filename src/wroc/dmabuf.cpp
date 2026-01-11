@@ -172,6 +172,11 @@ const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedba
 
 void wroc_dma_buffer::on_commit(wroc_surface* surface)
 {
+    if (!server->renderer->copy_dmabufs) {
+        release();
+        return;
+    }
+
     auto* wren = dmabuf_image->ctx;
     auto queue = wren_get_queue(wren, wren_queue_type::transfer);
     auto commands = wren_commands_begin(queue);
@@ -220,22 +225,20 @@ void wroc_dma_buffer::on_commit(wroc_surface* surface)
         }),
     }));
 
-    if (server->renderer->copy_dmabufs) {
-        wren->vk.CmdCopyImage2(commands->buffer, wrei_ptr_to(VkCopyImageInfo2 {
-            .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
-            .srcImage = dmabuf_image->image,
-            .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .dstImage = image->image,
-            .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .regionCount = 1,
-            .pRegions = wrei_ptr_to(VkImageCopy2 {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
-                .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-                .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-                .extent = {image->extent.x, image->extent.y, 1},
-            }),
-        }));
-    }
+    wren->vk.CmdCopyImage2(commands->buffer, wrei_ptr_to(VkCopyImageInfo2 {
+        .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
+        .srcImage = dmabuf_image->image,
+        .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .dstImage = image->image,
+        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .regionCount = 1,
+        .pRegions = wrei_ptr_to(VkImageCopy2 {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
+            .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+            .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+            .extent = {image->extent.x, image->extent.y, 1},
+        }),
+    }));
 
     wren->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,

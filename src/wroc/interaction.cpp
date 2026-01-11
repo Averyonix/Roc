@@ -240,6 +240,7 @@ bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
                         focus_cycle(reverse, server->seat->pointer.get());
                     }
                 }
+                return true;
             }
         }
         break;default:

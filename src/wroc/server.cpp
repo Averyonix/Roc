@@ -103,10 +103,11 @@ void wroc_run(int argc, char* argv[])
 
     wrei_init_log(wrei_log_level::trace, log_file ? log_file->c_str() : nullptr);
 
-    ref<wroc_server> server_ref = wrei_create<wroc_server>();
+    auto server_ref = wrei_create<wroc_server>();
     server = server_ref.get();
-    server->event_loop = wrei_event_loop_create();
-    log_warn("server = {}", (void*)server);
+    auto event_loop = wrei_event_loop_create();
+    server->event_loop = event_loop;
+    log_warn("Server = {}", (void*)server);
 
     if (backend_type == wroc_backend_type::direct) {
         server->main_mod = wroc_modifiers::super;
@@ -137,7 +138,7 @@ void wroc_run(int argc, char* argv[])
     server->socket = wl_display_add_socket_auto(server->display);
 
     auto wl_event_loop = wl_display_get_event_loop(server->display);
-    auto _ = wrei_event_loop_add_fd(server->event_loop.get(), wl_event_loop_get_fd(wl_event_loop), EPOLLIN,
+    auto display_event_source = wrei_event_loop_add_fd(event_loop.get(), wl_event_loop_get_fd(wl_event_loop), EPOLLIN,
         [&](int fd, u32 events) {
             server->client_flushes_pending++;
             wrei_unix_check_n1(wl_event_loop_dispatch(wl_event_loop, 0));
@@ -202,7 +203,7 @@ void wroc_run(int argc, char* argv[])
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    wrei_event_loop_run(server->event_loop.get());
+    wrei_event_loop_run(event_loop.get());
 
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_IGN);
@@ -212,23 +213,32 @@ void wroc_run(int argc, char* argv[])
     log_info("Compositor shutting down");
 
     // Keep Wren alive until all other resources have been destroyed safely
+    log_info("Flushing wren submissions");
     ref wren = server->renderer->wren;
     wren_wait_idle(wren.get());
 
+    log_info("Destroying: backend");
     server->backend = nullptr;
 
+    log_info("Destroying: clients");
     wl_display_destroy_clients(server->display);
 
+    log_info("Destroying: renderer");
     server->renderer = nullptr;
 
+    log_info("Destroying: wl_display");
     wl_display_destroy(server->display);
-    log_info("Display destroyed");
+    display_event_source->mark_defunct();
+    display_event_source = nullptr;
 
+    log_info("Destroying: server");
     server_ref = nullptr;
 
-    log_info("Server destroyed");
-
+    log_info("Destroying: wren");
     wren = nullptr;
+
+    log_info("Destroying: event loop");
+    event_loop = nullptr;
 
     log_info("Shutdown complete");
 }

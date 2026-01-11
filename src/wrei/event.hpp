@@ -8,7 +8,7 @@ struct wrei_event_source;
 struct wrei_task
 {
     std::move_only_function<void()> callback;
-    std::atomic<bool>* sync;
+    std::atomic_flag* sync;
 };
 
 struct wrei_event_loop : wrei_object
@@ -18,8 +18,9 @@ struct wrei_event_loop : wrei_object
     std::thread::id main_thread;
 
     moodycamel::ConcurrentQueue<wrei_task> queue;
-    std::atomic<u32> pending;
-    int task_fd;
+
+    u64 tasks_available;
+    ref<wrei_event_source> task_source;
 
     int epoll_fd;
 
@@ -38,14 +39,40 @@ struct wrei_event_source : wrei_object
     virtual ~wrei_event_source();
 
     virtual void handle(const epoll_event&) = 0;
+
+    void mark_defunct()
+    {
+        fd = -1;
+    }
 };
 
 ref<wrei_event_loop> wrei_event_loop_create();
 void wrei_event_loop_run( wrei_event_loop*);
 void wrei_event_loop_stop(wrei_event_loop*);
 void wrei_event_loop_add( wrei_event_loop*, u32 events, wrei_event_source*);
-void wrei_event_loop_enqueue(wrei_event_loop*, std::move_only_function<void()> task);
-void wrei_event_loop_enqueue_and_wait(wrei_event_loop*, std::move_only_function<void()> task);
+
+template<typename Lambda>
+void wrei_event_loop_enqueue(wrei_event_loop* loop, Lambda&& task)
+{
+    loop->queue.enqueue({ .callback = std::move(task) });
+    if (std::this_thread::get_id() == loop->main_thread) {
+        loop->tasks_available++;
+    } else {
+        wrei_eventfd_signal(loop->task_source->fd, 1);
+    }
+}
+
+template<typename Lambda>
+void wrei_event_loop_enqueue_and_wait(wrei_event_loop* loop, Lambda&& task)
+{
+    assert(std::this_thread::get_id() != loop->main_thread);
+
+    std::atomic_flag done = false;
+    // We can avoid moving `task` entirely since its lifetime is guaranteed
+    loop->queue.enqueue({ .callback = [&task] { task(); }, .sync = &done });
+    wrei_eventfd_signal(loop->task_source->fd, 1);
+    done.wait(false);
+}
 
 // -----------------------------------------------------------------------------
 
