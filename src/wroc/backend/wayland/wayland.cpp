@@ -120,7 +120,7 @@ wroc_wayland_backend::~wroc_wayland_backend()
     zwp_pointer_constraints_v1_destroy(pointer_constraints);
 #endif
 
-    zxdg_decoration_manager_v1_destroy(decoration_manager);
+    if (decoration_manager) zxdg_decoration_manager_v1_destroy(decoration_manager);
     wl_compositor_destroy(wl_compositor);
     xdg_wm_base_destroy(xdg_wm_base);
     wl_seat_destroy(seat);

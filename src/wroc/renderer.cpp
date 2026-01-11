@@ -63,6 +63,35 @@ void wroc_render_frame(wroc_output* output)
     auto commands = wren_commands_begin(queue);
     auto cmd = commands->buffer;
 
+    struct frame_guard : wrei_object
+    {
+        wroc_renderer_frame_data frame_data;
+        weak<wroc_output> output;
+
+        ~frame_guard()
+        {
+            server->renderer->available_frames.emplace_back(std::move(frame_data));
+
+            wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
+                if (output) {
+                    output->frames_in_flight--;
+                    wroc_output_try_dispatch_frame(output.get());
+                }
+            });
+        }
+    };
+    auto guard = wrei_create<frame_guard>();
+    guard->output = output;
+    wren_commands_protect_object(commands.get(), guard.get());
+
+    wroc_renderer_frame_data* frame = &guard->frame_data;
+    if (!renderer->available_frames.empty()) {
+        *frame = std::move(renderer->available_frames.back());
+        renderer->available_frames.pop_back();
+    } else {
+        log_error("RENDERER NEW FRAME");
+    }
+
     wren_transition(wren, commands.get(), current,
         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
         0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
@@ -122,23 +151,23 @@ void wroc_render_frame(wroc_output* output)
     auto flush_draws = [&] {
         if (rect_id_start == rect_id) return;
 
-        if (renderer->rects.count < rect_id) {
-            auto new_size = wrei_compute_geometric_growth(renderer->rects.count, rect_id);
+        if (frame->rects.count < rect_id) {
+            auto new_size = wrei_compute_geometric_growth(frame->rects.count, rect_id);
             log_debug("Renderer - reallocating rect buffer, size: {}", new_size);
-            if (renderer->rects.buffer && rect_id_start) {
+            if (frame->rects.buffer && rect_id_start) {
                 // Previous draws using this buffer, keep alive until all draws complete
                 log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
-                wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
+                wren_commands_protect_object(commands.get(), frame->rects.buffer.get());
             }
-            renderer->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect)), new_size};
+            frame->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect)), new_size};
         }
 
         if (!renderer->rects_cpu.empty()) {
-            std::memcpy(renderer->rects.host() + rect_id_start, renderer->rects_cpu.data() + rect_id_start, (rect_id - rect_id_start) * sizeof(wroc_shader_rect));
+            std::memcpy(frame->rects.host() + rect_id_start, renderer->rects_cpu.data() + rect_id_start, (rect_id - rect_id_start) * sizeof(wroc_shader_rect));
         }
 
         wroc_shader_rect_input si = {};
-        si.rects = renderer->rects.device();
+        si.rects = frame->rects.device();
         si.output_size = current_extent;
         wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
         if (renderer->options >= wroc_render_options::separate_draws) {
@@ -376,32 +405,9 @@ void wroc_render_frame(wroc_output* output)
         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    wren_commands_protect_object(commands.get(), renderer->rects.buffer.get());
-
-    std::vector<wren_syncpoint> waits;
-    waits.emplace_back(acquire_sync);
-
     auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
 
-    struct frame_guard : wrei_object
-    {
-        weak<wroc_output> output;
-
-        ~frame_guard()
-        {
-            wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
-                if (output) {
-                    output->frames_in_flight--;
-                    wroc_output_try_dispatch_frame(output.get());
-                }
-            });
-        }
-    };
-    auto guard = wrei_create<frame_guard>();
-    guard->output = output;
-    wren_commands_protect_object(commands.get(), guard.get());
-
-    wren_commands_submit(commands.get(), waits, {{present_sema.get()}});
+    wren_commands_submit(commands.get(), {acquire_sync}, {{present_sema.get()}});
 
     // Present
 
@@ -415,8 +421,17 @@ void wroc_render_frame(wroc_output* output)
 
     auto elapsed = wroc_get_elapsed_milliseconds();
 
-    // TODO: Track latency per application and dispatch done events for optimal pacing
     for (wroc_surface* surface : server->surfaces) {
+        if (surface->role == wroc_surface_role::none) continue;
+
+        wroc_output* surface_output = nullptr;
+        auto surface_frame = wroc_surface_get_frame(surface);
+        auto centroid = surface_frame.origin + surface_frame.extent * 0.5;
+        wroc_output_layout_clamp_position(server->output_layout.get(), centroid, &surface_output);
+
+        // Only dispatch frame callbacks for the surface's primary output
+        if (surface_output != output) continue;
+
         while (auto* callback = surface->current.frame_callbacks.front()) {
             // log_trace("Sending frame callback: {}", (void*)callback);
             wroc_send(wl_callback_send_done, callback, elapsed);

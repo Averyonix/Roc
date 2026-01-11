@@ -230,6 +230,7 @@ struct wroc_coord_space
     }
 };
 
+rect2f64 wroc_surface_get_frame(wroc_surface*);
 wroc_coord_space wroc_surface_get_coord_space(wroc_surface*);
 vec2f64 wroc_surface_pos_from_global(wroc_surface*, vec2f64 global_pos);
 vec2f64 wroc_surface_pos_to_global(wroc_surface*, vec2f64 surface_pos);
@@ -524,6 +525,7 @@ struct wroc_buffer : wrei_object
     void release();
 
     bool is_ready;
+    bool has_been_current = false;
     void ready(wroc_surface*);
 
 protected:
@@ -871,6 +873,11 @@ enum class wroc_render_options
 };
 WREI_DECORATE_FLAG_ENUM(wroc_render_options)
 
+struct wroc_renderer_frame_data
+{
+    wren_array<struct wroc_shader_rect> rects;
+};
+
 struct wroc_renderer : wrei_object
 {
     struct {
@@ -887,7 +894,7 @@ struct wroc_renderer : wrei_object
 
     ref<wren_pipeline> pipeline;
 
-    wren_array<struct wroc_shader_rect> rects;
+    std::vector<wroc_renderer_frame_data> available_frames;
     std::vector<struct wroc_shader_rect> rects_cpu;
 
     ref<wren_image> background;
@@ -896,7 +903,7 @@ struct wroc_renderer : wrei_object
     bool show_debug_cursor = false;
 
     bool vsync = true;
-    bool host_wait = true;
+    bool host_wait = false;
     bool copy_dmabufs = true;
     bool noisy_dmabufs = false;
 

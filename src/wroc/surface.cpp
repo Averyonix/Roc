@@ -171,6 +171,8 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
                 surface->buffer = nullptr;
             } else if (to.buffer->is_ready) {
                 surface->buffer = to.buffer_lock;
+            } else {
+                to.buffer->has_been_current = true;
             }
         }
     }
@@ -333,6 +335,34 @@ void wroc_surface_raise(wroc_surface* surface)
 
     auto i = std::ranges::find(server->surfaces, surface);
     std::rotate(i, i + 1, server->surfaces.end());
+}
+
+rect2f64 wroc_surface_get_frame(wroc_surface* surface)
+{
+    switch (surface->role) {
+        break;case wroc_surface_role::cursor:
+            // Consider only hotspot as pointer's "frame"
+            return {server->seat->pointer->position, vec2f64(1.0), wrei_xywh};
+        break;case wroc_surface_role::xdg_toplevel:
+            if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+                return wroc_toplevel_get_layout_rect(toplevel);
+            }
+        break;case wroc_surface_role::xdg_popup: {
+            if (auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface)) {
+                auto space = wroc_surface_get_coord_space(surface);
+                aabb2f64 geom = wroc_xdg_surface_get_geometry(xdg_surface);
+                return { space.to_global(geom.min), space.to_global(geom.max), wrei_minmax };
+            }
+        }
+        break;default: {
+            auto space = wroc_surface_get_coord_space(surface);
+            aabb2f64 buffer_dst = surface->buffer_dst;
+            return { space.to_global(buffer_dst.min), space.to_global(buffer_dst.max), wrei_minmax };
+        }
+    }
+
+    log_warn("Surface has no valid frame!");
+    return {};
 }
 
 wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)

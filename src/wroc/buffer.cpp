@@ -14,6 +14,7 @@ const struct wl_buffer_interface wroc_wl_buffer_impl = {
     auto guard = lock();
 
     is_ready = false;
+    has_been_current = false;
     on_commit(surface);
 
     return guard;
@@ -38,7 +39,7 @@ void wroc_buffer::ready(wroc_surface* surface)
 {
     is_ready = true;
 
-    if (surface->current.buffer.get() == this) {
+    if (has_been_current) {
         surface->buffer = lock();
     }
 }

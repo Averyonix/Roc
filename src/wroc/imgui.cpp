@@ -314,7 +314,7 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
         ~frame_guard()
         {
             if (imgui) {
-                imgui->available_frames.emplace_back(frame_data);
+                imgui->available_frames.emplace_back(std::move(frame_data));
             }
         }
     };
