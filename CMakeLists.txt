@@ -205,6 +205,7 @@ target_sources(wroc PUBLIC
     src/wroc/scene.cpp
     src/wroc/debug.cpp
     src/wroc/process.cpp
+    src/wroc/decoration.cpp
 
     src/wroc/applets/launcher.cpp
 
