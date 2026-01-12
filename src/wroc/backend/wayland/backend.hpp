@@ -50,13 +50,13 @@ struct wroc_wayland_backend : wroc_backend
     struct wl_registry* wl_registry = {};
     struct wl_compositor* wl_compositor;
     struct xdg_wm_base* xdg_wm_base = {};
-    struct zxdg_decoration_manager_v1* decoration_manager = {};
+    struct zxdg_decoration_manager_v1* zxdg_decoration_manager_v1 = {};
 #if WROC_BACKEND_RELATIVE_POINTER
-    struct zwp_relative_pointer_manager_v1* relative_pointer_manager = {};
-    struct zwp_pointer_constraints_v1* pointer_constraints = {};
+    struct zwp_relative_pointer_manager_v1* zwp_relative_pointer_manager_v1 = {};
+    struct zwp_pointer_constraints_v1* zwp_pointer_constraints_v1 = {};
 #endif
 
-    struct wl_seat* seat = {};
+    struct wl_seat* wl_seat = {};
 
     u32 next_window_id = 1;
     std::vector<ref<wroc_wayland_output>> outputs;

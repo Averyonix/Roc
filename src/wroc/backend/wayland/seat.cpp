@@ -24,7 +24,7 @@ void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surfac
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
 #if !WROC_BACKEND_RELATIVE_POINTER
-    pointer->current_output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(pointer->server->backend.get()), surface);
+    pointer->current_output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(server->backend.get()), surface);
 
     wroc_backend_pointer_absolute(pointer, sx, sy);
 #else
@@ -185,7 +185,7 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
 
 #if WROC_BACKEND_RELATIVE_POINTER
-    pointer->relative_pointer = zwp_relative_pointer_manager_v1_get_relative_pointer(backend->relative_pointer_manager, wl_pointer);
+    pointer->relative_pointer = zwp_relative_pointer_manager_v1_get_relative_pointer(backend->zwp_relative_pointer_manager_v1, wl_pointer);
     zwp_relative_pointer_v1_add_listener(pointer->relative_pointer, &wroc_zwp_relative_pointer_v1_listener, pointer);
     for (auto& output : backend->outputs) {
         wroc_wayland_backend_update_pointer_constraint(output.get());

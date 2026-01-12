@@ -21,36 +21,43 @@ void wroc_listen_registry_global(void* data, wl_registry*, u32 name, const char*
 {
     auto* backend = static_cast<wroc_wayland_backend*>(data);
 
-    bool matched;
+    auto match_interface = [&](const wl_interface* wl_interface, auto member) -> bool {
+        if (strcmp(interface, wl_interface->name) != 0) {
+            return false;
+        }
 
-#define IF_BIND_INTERFACE(Interface, Member, ...) \
-    matched = strcmp(interface, Interface.name) == 0; \
-    if (matched) { \
-        u32 wroc_version_bind_global = std::min(version, u32(Interface.version)); \
-        backend->Member = static_cast<decltype(backend->Member)>(wl_registry_bind(backend->wl_registry, name, &Interface, wroc_version_bind_global)); \
-        log_info("wl_registry::global(name = {:2}, interface = {:41}, version = {:2} ({}))", name, interface, version, wroc_version_bind_global); \
-        { __VA_ARGS__ } \
-        break; \
+        u32 bound_version = std::min(version, u32(wl_interface->version));
+
+        backend->*member = static_cast<std::remove_cvref_t<decltype(backend->*member)>>(
+            wl_registry_bind(backend->wl_registry, name, wl_interface, bound_version));
+
+        log_info("wl_global[{:2} : {:41}], version = {} (bound: {})", name, interface, version, bound_version);
+
+        return true;
+    };
+
+#define MATCH_BEGIN                if (false) {}
+#define MATCH_INTERFACE(Interface) else if (match_interface(&Interface##_interface, &wroc_wayland_backend::Interface))
+#define MATCH_END                  else log_trace("wl_global[{:2} : {:41}], version = {}", name, interface, version);
+
+    MATCH_BEGIN
+    MATCH_INTERFACE(wl_compositor) {}
+    MATCH_INTERFACE(xdg_wm_base) {
+        xdg_wm_base_add_listener(backend->xdg_wm_base, &wroc_xdg_wm_base_listener, backend);
     }
-
-    do {
-        IF_BIND_INTERFACE(wl_compositor_interface, wl_compositor)
-        IF_BIND_INTERFACE(xdg_wm_base_interface, xdg_wm_base, {
-            xdg_wm_base_add_listener(backend->xdg_wm_base, &wroc_xdg_wm_base_listener, backend);
-        })
-        IF_BIND_INTERFACE(zxdg_decoration_manager_v1_interface, decoration_manager)
-        IF_BIND_INTERFACE(wl_seat_interface, seat, {
-            wl_seat_add_listener(backend->seat, &wroc_wl_seat_listener, backend);
-        })
+    MATCH_INTERFACE(zxdg_decoration_manager_v1) {}
+    MATCH_INTERFACE(wl_seat) {
+        wl_seat_add_listener(backend->wl_seat, &wroc_wl_seat_listener, backend);
+    }
 #if WROC_BACKEND_RELATIVE_POINTER
-        IF_BIND_INTERFACE(zwp_relative_pointer_manager_v1_interface, relative_pointer_manager);
-        IF_BIND_INTERFACE(zwp_pointer_constraints_v1_interface, pointer_constraints);
+    MATCH_INTERFACE(zwp_relative_pointer_manager_v1){}
+    MATCH_INTERFACE(zwp_pointer_constraints_v1) {}
 #endif
+    MATCH_END
 
-        log_trace("wl_registry::global(name = {:2}, interface = {:41}, version = {:2})", name, interface, version);
-    } while (false);
-
-#undef IF_BIND_INTERFACE
+#undef MATCH_BEGIN
+#undef MATCH_INTERFACE
+#undef MATCH_END
 }
 
 static
@@ -97,7 +104,6 @@ void wroc_wayland_backend_init()
 
     backend->event_source = wrei_event_loop_add_fd(server->event_loop.get(), wl_display_get_fd(backend->wl_display), EPOLLIN,
         [backend = backend.get()](int fd, u32 events) {
-
             wroc_listen_backend_display_read(backend, fd, events);
         });
 
@@ -116,14 +122,14 @@ wroc_wayland_backend::~wroc_wayland_backend()
     outputs.clear();
 
 #if WROC_BACKEND_RELATIVE_POINTER
-    zwp_relative_pointer_manager_v1_destroy(relative_pointer_manager);
-    zwp_pointer_constraints_v1_destroy(pointer_constraints);
+    zwp_relative_pointer_manager_v1_destroy(zwp_relative_pointer_manager_v1);
+    zwp_pointer_constraints_v1_destroy(zwp_pointer_constraints_v1);
 #endif
 
-    if (decoration_manager) zxdg_decoration_manager_v1_destroy(decoration_manager);
+    if (zxdg_decoration_manager_v1) zxdg_decoration_manager_v1_destroy(zxdg_decoration_manager_v1);
     wl_compositor_destroy(wl_compositor);
     xdg_wm_base_destroy(xdg_wm_base);
-    wl_seat_destroy(seat);
+    wl_seat_destroy(wl_seat);
 
     wl_registry_destroy(wl_registry);
 

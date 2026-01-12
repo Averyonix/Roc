@@ -204,7 +204,7 @@ void wroc_wayland_backend_update_pointer_constraint(wroc_wayland_output* output)
     log_info("Locking pointer...");
 
     output->locked_pointer = zwp_pointer_constraints_v1_lock_pointer(
-        backend->pointer_constraints,
+        backend->zwp_pointer_constraints_v1,
         output->wl_surface,
         backend->pointer->wl_pointer,
         nullptr,
@@ -246,8 +246,8 @@ void wroc_wayland_backend::create_output()
     xdg_toplevel_set_app_id(output->toplevel, PROGRAM_NAME);
     xdg_toplevel_set_title(output->toplevel, output->desc.name.c_str());
 
-    if (decoration_manager) {
-        output->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(decoration_manager, output->toplevel);
+    if (zxdg_decoration_manager_v1) {
+        output->decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(zxdg_decoration_manager_v1, output->toplevel);
         zxdg_toplevel_decoration_v1_add_listener(output->decoration, &wroc_zxdg_toplevel_decoration_v1_listener, output.get());
         zxdg_toplevel_decoration_v1_set_mode(output->decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     } else {
