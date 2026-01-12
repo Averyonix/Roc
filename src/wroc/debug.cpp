@@ -159,6 +159,8 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             stats.last_events_handled = server->event_loop->stats.events_handled;
         }
 
+        ImGui_Text("Date:          {}", wrei_time_to_string(std::chrono::system_clock::now(), wrei_time_format::date_pretty));
+        ImGui_Text("Time:          {}", wrei_time_to_string(std::chrono::system_clock::now(), wrei_time_format::datetime));
         ImGui_Text("Elapsed:       {}", wrei_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
         ImGui_Text("Events:        {}/s", stats.events_per_second);
         ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);

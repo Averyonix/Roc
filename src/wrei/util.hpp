@@ -198,6 +198,8 @@ std::chrono::system_clock::time_point wrei_time_current()
 enum class wrei_time_format
 {
     iso8601,
+    date_pretty,
+    datetime,
     datetime_ms,
     time,
     time_ms,
