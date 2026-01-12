@@ -34,6 +34,20 @@ void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* p
     toplevel->anchor.relative = new_anchor_rel;
 }
 
+static
+void drop_focus()
+{
+    log_warn("Dropping focus");
+    wroc_keyboard_clear_focus(server->seat->keyboard.get());
+}
+
+static
+void close_window(wroc_toplevel* toplevel)
+{
+    log_warn("Closing window");
+    wroc_toplevel_close(toplevel);
+}
+
 bool wroc_handle_movesize_interaction(const wroc_event& base_event)
 {
     auto mods = wroc_get_active_modifiers();
@@ -43,15 +57,13 @@ bool wroc_handle_movesize_interaction(const wroc_event& base_event)
             auto& event = static_cast<const wroc_keyboard_event&>(base_event);
             if (event.key.pressed && mods >= wroc_modifiers::mod) {
                 if (event.key.upper() == XKB_KEY_S) {
-                    log_warn("dropping focus");
-                    wroc_keyboard_clear_focus(server->seat->keyboard.get());
+                    drop_focus();
                     return true;
                 }
                 else if (event.key.upper() == XKB_KEY_Q) {
                     auto* surface = server->seat->keyboard->focused_surface.get();
                     if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-                        log_warn("closing window");
-                        wroc_toplevel_close(toplevel);
+                        close_window(toplevel);
                     }
                     return true;
                 }
@@ -60,7 +72,18 @@ bool wroc_handle_movesize_interaction(const wroc_event& base_event)
         break;case wroc_event_type::pointer_button: {
             auto& event = static_cast<const wroc_pointer_event&>(base_event);
             if (event.button.pressed) {
+                if (event.button.button == BTN_EXTRA) {
+                    drop_focus();
+                    return true;
+                }
                 if (mods >= wroc_modifiers::mod) {
+                    if (event.button.button == BTN_MIDDLE) {
+                        wroc_toplevel* toplevel = nullptr;
+                        wroc_get_surface_under_cursor(&toplevel);
+                        if (toplevel) {
+                            close_window(toplevel);
+                        }
+                    }
 
                     wroc_toplevel* toplevel;
                     wroc_get_surface_under_cursor(&toplevel);
