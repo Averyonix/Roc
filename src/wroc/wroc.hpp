@@ -323,6 +323,8 @@ struct wroc_subsurface : wroc_surface_addon
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::subsurface; }
 };
 
+wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface*);
+
 // -----------------------------------------------------------------------------
 
 enum class wroc_xdg_surface_committed_state : u32

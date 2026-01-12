@@ -110,6 +110,16 @@ bool wroc_subsurface::is_synchronized()
     return synchronized || (parent && parent->role_addon && parent->role_addon->is_synchronized());
 }
 
+wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface* subsurface)
+{
+    auto* parent = subsurface->parent.get();
+    if (auto* parent_ss = wroc_surface_get_addon<wroc_subsurface>(parent)) {
+        return wroc_subsurface_get_root_surface(parent_ss);
+    } else {
+        return parent;
+    }
+}
+
 const struct wl_subsurface_interface wroc_wl_subsurface_impl = {
     .destroy      = wroc_surface_addon_destroy,
     .set_position = wroc_wl_subsurface_set_position,

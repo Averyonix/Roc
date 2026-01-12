@@ -37,13 +37,28 @@ wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** p_toplevel)
         auto* surface_under_cursor = surface_accepts_input(surface, pointer->position);
         if (!surface_under_cursor) continue;
 
-        if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-            if (p_toplevel) *p_toplevel = toplevel;
-            return surface_under_cursor;
-        }
-        if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
-            if (p_toplevel) *p_toplevel = popup->root_toplevel.get();
-            return surface_under_cursor;
+        if (p_toplevel) {
+            switch (surface->role) {
+                break;case wroc_surface_role::xdg_toplevel:
+                    if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+                        *p_toplevel = toplevel;
+                    }
+                break;case wroc_surface_role::xdg_popup:
+                    if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface)) {
+                        *p_toplevel = popup->root_toplevel.get();
+                    }
+                break;case wroc_surface_role::subsurface:
+                    if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(surface)) {
+                        auto* root = wroc_subsurface_get_root_surface(subsurface);
+                        if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(root)) {
+                            *p_toplevel = toplevel;
+                        }
+                    }
+                break;case wroc_surface_role::cursor:
+                      case wroc_surface_role::drag_icon:
+                      case wroc_surface_role::none:
+                    ;
+            }
         }
 
         return surface_under_cursor;
