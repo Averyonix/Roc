@@ -51,6 +51,30 @@ void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resour
     surface->pending.committed |= wroc_xdg_surface_committed_state::geometry;
 }
 
+static
+aabb2i32 compute_fallback_geometry(wroc_surface* surface)
+{
+    aabb2i32 bounds = surface->buffer_dst;
+
+    auto expand_bounds = [&](this auto&& expand_bounds, vec2i32 pos, wroc_surface* s) -> void {
+        aabb2i32 dst = s->buffer_dst;
+
+        bounds.min = glm::min(bounds.min, dst.min + pos);
+        bounds.max = glm::max(bounds.max, dst.max + pos);
+
+        for (auto& ss : s->current.surface_stack) {
+            if (!ss || ss.get() == s) continue;
+            if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(ss.get())) {
+                expand_bounds(pos + subsurface->current.position, ss.get());
+            }
+        }
+    };
+
+    expand_bounds({}, surface);
+
+    return bounds;
+}
+
 void wroc_xdg_surface::on_commit(wroc_surface_commit_flags flags)
 {
     // TODO: Order of addon commit updates
@@ -104,9 +128,10 @@ const struct xdg_surface_interface wroc_xdg_surface_impl = {
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
 {
+    // TODO: Clamp geometry always?
     return (xdg_surface->current.committed >= wroc_xdg_surface_committed_state::geometry)
         ? xdg_surface->current.geometry
-        : xdg_surface->surface->buffer_dst;
+        : rect2i32(compute_fallback_geometry(xdg_surface->surface.get()));
 }
 
 rect2f64 wroc_toplevel_get_layout_rect(wroc_toplevel* toplevel, rect2i32* p_geometry)
