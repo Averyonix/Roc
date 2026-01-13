@@ -65,3 +65,44 @@ const struct zxdg_toplevel_decoration_v1_interface wroc_zxdg_toplevel_decoration
     .set_mode = set_mode,
     .unset_mode = unset_mode,
 };
+
+// -----------------------------------------------------------------------------
+
+const u32 wroc_org_kde_kwin_server_decoration_manager_version = 1;
+
+static constexpr auto kde_decoration_mode = ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_MODE_SERVER;
+
+static
+void kwin_decoration_manager_create(wl_client* client, wl_resource* resource, u32 id, wl_resource* surface)
+{
+    auto decoration = wroc_resource_create(client, &org_kde_kwin_server_decoration_interface, wl_resource_get_version(resource), id);
+    wroc_resource_set_implementation(decoration, &wroc_org_kde_kwin_server_decoration_impl, nullptr);
+
+    wroc_send(org_kde_kwin_server_decoration_send_mode, decoration, kde_decoration_mode);
+}
+
+const struct org_kde_kwin_server_decoration_manager_interface wroc_org_kde_kwin_server_decoration_manager_impl = {
+    .create = kwin_decoration_manager_create,
+};
+
+void wroc_org_kde_kwin_server_decoration_manager_bind_global(wl_client* client, void* data, u32 version, u32 id)
+{
+    auto resource = wroc_resource_create(client, &org_kde_kwin_server_decoration_manager_interface, version, id);
+    wroc_resource_set_implementation(resource, &wroc_org_kde_kwin_server_decoration_manager_impl, nullptr);
+
+    wroc_send(org_kde_kwin_server_decoration_manager_send_default_mode, resource, kde_decoration_mode);
+}
+
+static
+void request_mode(wl_client* client, wl_resource* resource, u32 _mode)
+{
+    auto mode = org_kde_kwin_server_decoration_manager_mode(_mode);
+    if (mode != kde_decoration_mode) {
+        log_error("org.kde.kwin-server-decoration :: client requested mode: {}", magic_enum::enum_name(mode));
+    }
+}
+
+const struct org_kde_kwin_server_decoration_interface wroc_org_kde_kwin_server_decoration_impl = {
+    .release = wroc_simple_resource_destroy_callback,
+    .request_mode = request_mode,
+};

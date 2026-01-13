@@ -15,6 +15,11 @@
             "commit": "01a4cff8f9190b7f3731e4d1cef818ca675e9a42",
             "repo": "https://github.com/ocornut/imgui.git"
         },
+        "kde-protocols": {
+            "branch": "master",
+            "commit": "57313b812d57010befc94f93d21187065742f4f2",
+            "repo": "https://github.com/KDE/plasma-wayland-protocols.git"
+        },
         "magic-enum": {
             "branch": "master",
             "commit": "2e6e8bfff361c2c40990426c462b44af6c27820b",

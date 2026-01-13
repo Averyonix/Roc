@@ -24,8 +24,8 @@ def ensure_dir(path: Path | str) -> Path:
     os.makedirs(path, exist_ok=True)
     return Path(path)
 
-cwd = Path(".")
-build_dir  = ensure_dir(".build")
+cwd = Path(".").absolute()
+build_dir  = ensure_dir(cwd / ".build")
 vendor_dir = ensure_dir(build_dir / "3rdparty")
 
 # -----------------------------------------------------------------------------
@@ -150,6 +150,8 @@ def list_wayland_protocols():
     wayland_protocols.append((system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml", "pointer-gestures-unstable-v1"))
     wayland_protocols.append((system_protocol_dir / "unstable/relative-pointer/relative-pointer-unstable-v1.xml", "relative-pointer-unstable-v1"))
     wayland_protocols.append((system_protocol_dir / "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"))
+
+    wayland_protocols.append((dep_dir("kde-protocols") / "src/protocols/server-decoration.xml", "server-decoration"))
 
     return wayland_protocols
 
