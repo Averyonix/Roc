@@ -519,11 +519,12 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
 }
 
 static
-void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_unaccel)
+void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 _rel_unaccel)
 {
     // log_trace("pointer({:.3f}, {:.3f})", pos.x, pos.y);
 
-    auto surface_under_cursor = wroc_get_surface_under_cursor();
+    wroc_toplevel* toplevel_under_cursor = nullptr;
+    auto surface_under_cursor = wroc_get_surface_under_cursor(&toplevel_under_cursor);
 
     auto* focused_surface = server->implicit_grab_surface ? server->implicit_grab_surface.get() : surface_under_cursor;
 
@@ -540,6 +541,12 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 rel_un
             auto time_us = time.count();
 
             // log_warn("relative[{}:{}] - {}, {}", time_us >> 32, time_us & 0xFFFF'FFFF, wrei_to_string(rel), wrei_to_string(rel_unaccel));
+
+            bool force_accel = toplevel_under_cursor
+                && toplevel_under_cursor->tweaks.force_accel
+                && wroc_resource_get_client(toplevel_under_cursor->resource) == wl_resource_get_client(resource);
+
+            auto rel_unaccel = force_accel ? rel : _rel_unaccel;
 
             wroc_send(zwp_relative_pointer_v1_send_relative_motion, resource,
                 time_us >> 32, time_us & 0xFFFF'FFFF,

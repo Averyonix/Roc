@@ -421,6 +421,10 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
         weak<wroc_output> output;
     } fullscreen;
 
+    struct {
+        bool force_accel = false;
+    } tweaks;
+
     virtual void on_commit(wroc_surface_commit_flags) final override;
 
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_toplevel; }

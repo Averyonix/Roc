@@ -11,6 +11,8 @@ struct wroc_debug_gui : wrei_object
     bool show_log_window = false;
     bool show_demo_window = false;
 
+    weak<wroc_toplevel> toplevel;
+
     struct {
         u32 frames = 0;
         std::chrono::steady_clock::time_point last_report;
@@ -57,6 +59,14 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 {
     if (!debug->show_debug_menu) return;
 
+    {
+        wroc_surface* surface = server->seat->keyboard->focused_surface.get();
+        if (wroc_toplevel* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
+            debug->toplevel = toplevel;
+        }
+    }
+    auto* toplevel = debug->toplevel.get();
+
     defer { ImGui::End(); };
     ImGui::Begin(PROJECT_NAME, &debug->show_debug_menu);
 
@@ -82,17 +92,16 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         server->backend->create_output();
     }
 
-
     ImGui::Separator();
 
     // Focused window toggles
 
     {
-        wroc_surface* surface = server->seat->keyboard->focused_surface.get();
-        wroc_toplevel* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface);
-
         ImGui::BeginDisabled(!toplevel);
         defer { ImGui::EndDisabled(); };
+
+        ImGui_Text("App ID:        {}", toplevel ? toplevel->current.app_id : "N/A");
+        ImGui_Text("Title:         {}", toplevel ? toplevel->current.title : "N/A");
 
         {
             bool force_rescale = toplevel && toplevel->layout_size.has_value();
@@ -132,6 +141,10 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
                 wroc_toplevel_set_size(toplevel, vec2i32{size[0], size[1]});
                 wroc_toplevel_flush_configure(toplevel);
             }
+        }
+
+        {
+            ImGui::Checkbox("Force Accel", toplevel ? &toplevel->tweaks.force_accel : wrei_ptr_to(false));
         }
     }
 
