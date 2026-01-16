@@ -1,6 +1,8 @@
 #include "wroc.hpp"
 #include <wayland-client-protocol.h>
 
+#define WROC_NOISY_DRAG 0
+
 const u32 wroc_wl_data_device_manager_version = 3;
 
 static
@@ -40,7 +42,7 @@ void wroc_wl_data_device_manager_bind_global(wl_client* client, void* data, u32 
 static
 void wroc_wl_data_offer_receive(wl_client* client, wl_resource* resource, const char* mime_type, int fd)
 {
-    log_warn("wl_data_offer::receieve(mime = \"{}\", fd = {})", mime_type, fd);
+    log_warn("<- wl_data_offer.receieve(mime = \"{}\", fd = {})", mime_type, fd);
 
     auto* offer = wroc_get_userdata<wroc_data_offer>(resource);
 
@@ -58,29 +60,32 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
 {
     auto* data_offer = wroc_get_userdata<wroc_data_offer>(resource);
 
+#if WROC_NOISY_DRAG
+    log_warn("<- wl_data_offer.set_actions({}, {})",
+        wrei_bitfield_to_string(wl_data_device_manager_dnd_action(dnd_actions)),
+        wrei_enum_to_string(wl_data_device_manager_dnd_action(preferred_action)));
+#endif
+
     if (!data_offer->source) {
-        log_warn("wl_data_offer::set_actions failed: source {} was destroyed", (void*)data_offer->source.get());
+        log_warn("   wl_data_offer.set_actions failed: source {} was destroyed", (void*)data_offer->source.get());
     }
 
-    log_warn("wl_data_offer::set_actions()");
-    if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) log_warn(" - copy{}", a == preferred_action ? " *" : "");
-    if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE) log_warn(" - move{}", a == preferred_action ? " *" : "");
-    if (auto a = dnd_actions & WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK)  log_warn(" - ask{}",  a == preferred_action ? " *" : "");
-
-    if (data_offer->source->dnd_actions >= wl_data_device_manager_dnd_action(preferred_action)) {
-        data_offer->action = wl_data_device_manager_dnd_action(preferred_action);
-        log_warn("  selecting preferred action");
+    wl_data_device_manager_dnd_action new_action = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
+    if (preferred_action && data_offer->source->dnd_actions >= wl_data_device_manager_dnd_action(preferred_action)) {
+        new_action = wl_data_device_manager_dnd_action(preferred_action);
     } else {
         auto matched = data_offer->source->dnd_actions & wl_data_device_manager_dnd_action(preferred_action);
-        log_warn("  matching: {:#b}", u32(matched));
-        if (matched) {
-            matched = matched & wl_data_device_manager_dnd_action(1u << std::countr_zero(u32(matched)));
-        }
-        log_warn("  selected: {:#b}", u32(matched));
-        data_offer->action = matched;
+        if      (matched >= WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK)  matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK;
+        else if (matched >= WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY;
+        else if (matched >= WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE) matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE;
+        new_action = matched;
     }
 
-    wroc_send(wl_data_offer_send_action, data_offer->resource, data_offer->action);
+    if (new_action != data_offer->action) {
+        data_offer->action = new_action;
+        log_warn("-> wl_data_offer.send_action({}, {})", (void*)data_offer->resource, wrei_enum_to_string(new_action));
+        wroc_send(wl_data_offer_send_action, data_offer->resource, data_offer->action);
+    }
 }
 
 static
@@ -88,19 +93,21 @@ void wroc_wl_data_offer_accept(wl_client* client, wl_resource* resource, u32 ser
 {
     // TODO: Validate serial
 
-    log_warn("wl_data_offer::accept({})", mime_type ? mime_type : "null");
+#if WROC_NOISY_DRAG
+    log_warn("<- wl_data_offer.accept({})", mime_type ? mime_type : "nullptr");
+#endif
 
     auto* offer = wroc_get_userdata<wroc_data_offer>(resource);
 
     if (!offer->source) {
-        log_warn("wl_data_offer::accept failed: source {} was destroyed", (void*)offer->source.get());
+        log_warn("    wl_data_offer.accept failed: source {} was destroyed", (void*)offer->source.get());
         return;
     }
 
     auto& drag = server->data_manager.drag;
 
     if (offer->source.get() != drag.source.get()) {
-        log_warn("  not active drag, ignoring...");
+        log_warn("   not active drag, ignoring...");
         return;
     }
 
@@ -108,23 +115,31 @@ void wroc_wl_data_offer_accept(wl_client* client, wl_resource* resource, u32 ser
     if (!mime_type) {
         matches = false;
     } else if (std::ranges::find_if(offer->source->mime_types, [&](auto& t) { return t == mime_type; }) == offer->source->mime_types.end()) {
-        log_warn("wl_data_offer::accept - mime type \"{}\" not supported", mime_type);
+        log_warn("    wl_data_offer.accept - mime type \"{}\" not supported", mime_type);
         matches = false;
     }
 
+    std::string new_target;
+
     if (matches) {
-        log_warn("Offer added to drag");
-        drag.offer = offer;
-        offer->mime_type = mime_type;
-        if (drag.source && drag.source->resource) {
-            wroc_send(wl_data_source_send_target, drag.source->resource, mime_type);
+        new_target = mime_type;
+        if (offer->mime_type != mime_type) {
+            offer->mime_type = mime_type;
+        }
+
+        if (drag.offer.get() != offer) {
+            log_warn("    drag.offer = {}", (void*)offer);
+            drag.offer = offer;
         }
     } else if (drag.offer.get() == offer) {
-        log_warn("Offer removed from drag");
+        log_warn("    drag.offer = nullptr");
         drag.offer = nullptr;
-        if (drag.source && drag.source->resource) {
-            wroc_send(wl_data_source_send_target, drag.source->resource, nullptr);
-        }
+    }
+
+    if (drag.source && new_target != drag.source->target) {
+        drag.source->target = new_target;
+        log_debug("-> wl_data_source.send_target({}, {})", (void*)drag.source->resource, new_target.empty() ? "nullptr" : new_target.c_str());
+        wroc_send(wl_data_source_send_target, drag.source->resource, new_target.empty() ? nullptr : new_target.c_str());
     }
 }
 
@@ -137,7 +152,7 @@ void wroc_data_manager_end_grab()
 static
 void wroc_wl_data_offer_finish(wl_client* client, wl_resource* resource)
 {
-    log_warn("wl_data_offer::finish()");
+    log_warn("<- wl_data_offer.finish()");
 
     auto* offer = wroc_get_userdata<wroc_data_offer>(resource);
 
@@ -159,7 +174,7 @@ const struct wl_data_offer_interface wroc_wl_data_offer_impl = {
 
 wroc_data_offer::~wroc_data_offer()
 {
-    log_warn("wl_data_offer::destroyed");
+    log_warn("<- wl_data_offer.destroyed");
 }
 
 // -----------------------------------------------------------------------------
@@ -167,7 +182,7 @@ wroc_data_offer::~wroc_data_offer()
 static
 void wroc_wl_data_source_offer(wl_client* client, wl_resource* resource, const char* mime_type)
 {
-    log_warn("wl_data_source::offer({})", mime_type);
+    log_warn("<- wl_data_source.offer({})", mime_type);
     auto* data_source = wroc_get_userdata<wroc_data_source>(resource);
     data_source->mime_types.emplace_back(mime_type);
 }
@@ -175,7 +190,7 @@ void wroc_wl_data_source_offer(wl_client* client, wl_resource* resource, const c
 static
 void wroc_wl_data_source_set_actions(wl_client* client, wl_resource* resource, u32 dnd_actions)
 {
-    log_warn("wl_data_source::set_actions()");
+    log_warn("<- wl_data_source.set_actions()");
     if (dnd_actions >= WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) log_warn(" - copy");
     if (dnd_actions >= WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE) log_warn(" - move");
     if (dnd_actions >= WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK)  log_warn(" - ask");
@@ -188,10 +203,14 @@ static
 void wroc_wl_data_source_destroy(wl_client* client, wl_resource* resource)
 {
     auto* source = wroc_get_userdata<wroc_data_source>(resource);
-    log_debug("data source destroyed: {}", (void*)source);
+    log_debug("<- wl_data_source.destroy({})", (void*)source);
+
+    // Immediately end drag if we were the current drag source to avoid ghost drag events
     if (server->data_manager.drag.source.get() == source) {
         wroc_data_manager_end_grab();
     }
+
+    wl_resource_destroy(source->resource);
 }
 
 const struct wl_data_source_interface wroc_wl_data_source_impl = {
@@ -203,6 +222,9 @@ const struct wl_data_source_interface wroc_wl_data_source_impl = {
 wroc_data_source::~wroc_data_source()
 {
     log_warn("wroc_data_source::destroyed");
+    if (server->data_manager.drag.source.get() == this) {
+        wroc_data_manager_end_grab();
+    }
     std::erase(server->data_manager.sources, this);
 }
 
@@ -275,7 +297,7 @@ void wroc_wl_data_device_set_selection(wl_client* client, wl_resource* resource,
 
     server->data_manager.selection = data_source;
 
-    log_warn("wl_data_device::set_selection({})", (void*)data_source);
+    log_warn("<- wl_data_device.set_selection({})", (void*)data_source);
 
     if (auto* surface = server->seat->keyboard->focused_surface.get(); surface && surface->resource) {
         if (auto* focused_client = wroc_resource_get_client(surface->resource)) {
@@ -304,7 +326,9 @@ void wroc_data_manager_update_drag(wroc_surface* target_surface)
             }
 
             auto pos = wroc_surface_pos_from_global(target_surface, server->seat->pointer->position);
-            log_warn("Drag moved in {} - {} [{}]", (void*)target_surface, wrei_to_string(pos), time);
+#if WROC_NOISY_DRAG
+            log_warn("-> wl_data_device.motion({}, {}, {:.2f}, {:.2f})", time, (void*)target_surface, pos.x, pos.y);
+#endif
             wroc_send(wl_data_device_send_motion, device->resource,
                 time,
                 wl_fixed_from_double(pos.x),
@@ -317,7 +341,7 @@ void wroc_data_manager_update_drag(wroc_surface* target_surface)
         for (auto* device : server->data_manager.devices) {
             if (wroc_resource_get_client(device->resource) != wroc_resource_get_client(drag.offered_surface->resource)) continue;
 
-            log_warn("Drag left: {}", (void*)target_surface);
+            log_warn("-> wl_data_device.leave({})", (void*)target_surface);
             wroc_send(wl_data_device_send_leave, device->resource);
         }
     }
@@ -329,7 +353,7 @@ void wroc_data_manager_update_drag(wroc_surface* target_surface)
             if (wroc_resource_get_client(device->resource) != wroc_resource_get_client(target_surface->resource)) continue;
 
             auto pos = wroc_surface_pos_from_global(target_surface, server->seat->pointer->position);
-            log_warn("Drag entered {} at {}", (void*)target_surface, wrei_to_string(pos));
+            log_warn("-> wl_data_device.enter({}, {:.2f}, {:.2f})", (void*)target_surface, pos.x, pos.y);
             auto* offer_resource = wroc_data_device_offer(device, drag.source.get());
             wroc_send(wl_data_device_send_enter, device->resource,
                 wl_display_next_serial(server->display),
@@ -345,8 +369,10 @@ void wroc_data_manager_finish_drag()
 {
     auto& drag = server->data_manager.drag;
 
+    // End drag operation regardless of operation
+    defer { wroc_data_manager_end_grab(); };
+
     if (!drag.source || !drag.device) {
-        drag = {};
         return;
     }
 

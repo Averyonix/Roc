@@ -26,6 +26,7 @@ wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** p_toplevel)
 
     auto* pointer = server->seat->pointer.get();
     for (auto* surface : server->surfaces | std::views::reverse) {
+        if (surface->role == wroc_surface_role::none) continue;
 
         // Cursor and drag icons don't accept input
         // TODO: Move this into `wroc_surface_point_accepts_input`

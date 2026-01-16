@@ -115,8 +115,6 @@ wroc_shm_pool::~wroc_shm_pool()
 
 void wroc_shm_buffer::on_commit(wroc_surface* surface)
 {
-    log_trace("shm_buffer committed, transferring");
-
     if (!pool->mapping) {
         wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "Tried to commit buffer from shm pool with previous mapping failure");
         release();
@@ -140,8 +138,6 @@ void wroc_shm_buffer::on_commit(wroc_surface* surface)
 
         ~shm_transfer_guard()
         {
-            log_trace("shm_buffer transfer complete, releasing");
-
             lock->buffer->release();
 
             if (surface) {

@@ -423,6 +423,7 @@ void wroc_render_frame(wroc_output* output)
 
     for (wroc_surface* surface : server->surfaces) {
         if (surface->role == wroc_surface_role::none) continue;
+        if (!surface->current.frame_callbacks.front()) continue;
 
         wroc_output* surface_output = nullptr;
         auto surface_frame = wroc_surface_get_frame(surface);

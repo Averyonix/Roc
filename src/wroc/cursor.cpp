@@ -77,24 +77,28 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
     bool created;
     auto* cursor_surface = surface ? wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created) : nullptr;
     if (cursor_surface) {
-        log_debug("wroc_cursor_surface {}, hotspot = {}", created ? "created" : "reused", wrei_to_string(hotspot));
+        // log_debug("wroc_cursor_surface {}, hotspot = {}", created ? "created" : "reused", wrei_to_string(hotspot));
         surface->buffer_dst.origin = -hotspot;
     }
 
     // TODO: Track and update only last focused surface
     //       OR track cursor at the client level directly
 
-    u32 count = 0;
-    for (auto* target_surface : server->surfaces) {
-        if (!target_surface->resource) continue;
-        if (wroc_resource_get_client(target_surface->resource) != client) continue;
-        if (target_surface->role == wroc_surface_role::cursor) continue;
+#if 0
+    if (wrei_is_log_level_enabled(wrei_log_level::debug)) {
+        u32 count = 0;
+        for (auto* target_surface : server->surfaces) {
+            if (!target_surface->resource) continue;
+            if (wroc_resource_get_client(target_surface->resource) != client) continue;
+            if (target_surface->role == wroc_surface_role::cursor) continue;
 
-        target_surface->cursor = cursor_surface;
-        count++;
+            target_surface->cursor = cursor_surface;
+            count++;
+        }
+
+        log_debug("cursor updated for {} surface(s)", count);
     }
-
-    log_debug("cursor updated for {} surface(s)", count);
+#endif
 }
 
 void wroc_cursor_surface::on_commit(wroc_surface_commit_flags)

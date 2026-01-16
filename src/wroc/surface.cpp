@@ -361,7 +361,7 @@ rect2f64 wroc_surface_get_frame(wroc_surface* surface)
         }
     }
 
-    log_warn("Surface has no valid frame!");
+    log_error("Surface with role \"{}\" has no valid frame!", magic_enum::enum_name(surface->role));
     return {};
 }
 
@@ -394,7 +394,7 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
             }
     }
 
-    log_warn("Surface has no valid position!");
+    log_error("Surface with role \"{}\" has no valid position!", magic_enum::enum_name(surface->role));
     return {{}, {1, 1}};
 }
 

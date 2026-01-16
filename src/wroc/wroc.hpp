@@ -801,6 +801,7 @@ struct wroc_pointer_constraint : wroc_surface_addon
 // -----------------------------------------------------------------------------
 
 WREI_DECORATE_FLAG_ENUM(wl_data_device_manager_dnd_action)
+WREI_DEFINE_ENUM_NAME_PROPS(wl_data_device_manager_dnd_action, "WL_DATA_DEVICE_MANAGER_DND_ACTION_", "");
 
 struct wroc_data_source : wrei_object
 {
@@ -809,6 +810,9 @@ struct wroc_data_source : wrei_object
     bool cancelled = false;
 
     wroc_resource resource;
+
+    // Current target mime_type, used for feedback
+    std::string target;
 
     ~wroc_data_source();
 };

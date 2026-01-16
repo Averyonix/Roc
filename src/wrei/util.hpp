@@ -6,6 +6,50 @@
 
 // -----------------------------------------------------------------------------
 
+template<typename Enum>
+struct wrei_enum_name_props
+{
+    static constexpr usz prefix = 0;
+    static constexpr usz suffix = 0;
+};
+
+#define WREI_DEFINE_ENUM_NAME_PROPS(Enum, Prefix, Suffix) \
+    template<> \
+    struct wrei_enum_name_props<Enum> \
+    { \
+        static constexpr usz prefix = std::string_view(Prefix).size(); \
+        static constexpr usz suffix = std::string_view(Suffix).size(); \
+    }
+
+template<typename Enum>
+std::string_view wrei_enum_to_string(Enum value)
+{
+    std::string_view name = magic_enum::enum_name(value);
+    name.remove_prefix(wrei_enum_name_props<Enum>::prefix);
+    name.remove_suffix(wrei_enum_name_props<Enum>::suffix);
+    return name;
+}
+
+template<typename Enum>
+std::string wrei_bitfield_to_string(Enum value)
+{
+    std::string result;
+
+    using Type = std::underlying_type_t<Enum>;
+    Type v = std::to_underlying(value);
+
+    while (v) {
+        Type lsb = Type(1) << std::countr_zero(v);
+        if (!result.empty()) result += "|";
+        result += wrei_enum_to_string(Enum(lsb));
+        v &= ~lsb;
+    }
+
+    return result;
+}
+
+// -----------------------------------------------------------------------------
+
 template<typename Fn>
 struct wrei_defer_guard
 {
