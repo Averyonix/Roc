@@ -24,6 +24,7 @@
     DO(GetDisplayPlaneSupportedDisplaysKHR) \
     DO(GetDisplayPlaneCapabilitiesKHR) \
     DO(CreateDisplayPlaneSurfaceKHR) \
+    DO(GetPhysicalDeviceSurfacePresentModesKHR) \
 
 #define WREN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \

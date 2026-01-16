@@ -88,13 +88,50 @@ void swapchain_recreate(wren_swapchain* swapchain)
     // TODO: Better sync
     wren_wait_idle(wren_get_queue(ctx, wren_queue_type::graphics));
 
-    u32 min_image_count = 4;
-    // VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    VkPresentModeKHR present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+    // Select present mode
+
+    std::vector<VkPresentModeKHR> available_present_modes;
+    wren_vk_enumerate(available_present_modes, ctx->vk.GetPhysicalDeviceSurfacePresentModesKHR, ctx->physical_device, swapchain->surface);
+
+    auto present_mode = std::ranges::contains(available_present_modes, VK_PRESENT_MODE_MAILBOX_KHR)
+        ? VK_PRESENT_MODE_MAILBOX_KHR
+        : VK_PRESENT_MODE_FIFO_KHR;
+
+    // Get surface capabilities
+
+    VkSurfaceCapabilities2KHR caps2 = {
+        .sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
+    };
+    wren_check(ctx->vk.GetPhysicalDeviceSurfaceCapabilities2KHR(ctx->physical_device, wrei_ptr_to(VkPhysicalDeviceSurfaceInfo2KHR {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+        .pNext = wrei_ptr_to(VkSurfacePresentModeEXT {
+            .sType = VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_EXT,
+            .presentMode = present_mode,
+        }),
+        .surface = swapchain->surface,
+    }), &caps2));
+    auto caps = caps2.surfaceCapabilities;
+
+    // Determine min image count
+
+    u32 desired_image_count;
+    switch (present_mode) {
+        break;case VK_PRESENT_MODE_MAILBOX_KHR: desired_image_count = 4;
+        break;case VK_PRESENT_MODE_FIFO_KHR:    desired_image_count = 2;
+        break;default: std::unreachable();
+    }
+    auto min_image_count = std::max(desired_image_count, caps.minImageCount);
+    if (caps.maxImageCount) min_image_count = std::min(min_image_count, caps.maxImageCount);
+
+    // (Re)create swapchain
+
+    auto old_swapchain = swapchain->swapchain;
+
+    log_debug("{} swapchain with presentMode: {}, minImageCount: {}",
+        old_swapchain ? "Recreating" : "Creating",  string_VkPresentModeKHR(present_mode), min_image_count);
 
     VkExtent2D extent { swapchain->pending.extent.x, swapchain->pending.extent.y };
 
-    auto old_swapchain = swapchain->swapchain;
     wren_check(ctx->vk.CreateSwapchainKHR(ctx->device, wrei_ptr_to(VkSwapchainCreateInfoKHR {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .pNext = wrei_ptr_to(VkSwapchainPresentModesCreateInfoEXT {
