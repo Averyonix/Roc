@@ -64,8 +64,6 @@ void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 time
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
 
-    log_debug("pointer_button({} = {})", libevdev_event_code_get_name(EV_KEY, button), state == WL_POINTER_BUTTON_STATE_PRESSED ? "press" : "release");
-
     switch (state) {
         break;case WL_POINTER_BUTTON_STATE_PRESSED:  pointer->press(button);
         break;case WL_POINTER_BUTTON_STATE_RELEASED: pointer->release(button);
@@ -73,39 +71,19 @@ void wroc_listen_wl_pointer_button(void* data, wl_pointer*, u32 serial, u32 time
 }
 
 static
-void wroc_listen_wl_pointer_axis(void* data, wl_pointer*, u32 time, u32 axis, wl_fixed_t value)
-{
-    log_debug("pointer_axis(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), wl_fixed_to_double(value));
-}
-
-static
 void wroc_listen_wl_pointer_frame(void* data, wl_pointer*)
 {
-    // log_info("pointer_frame");
+    // TODO: Accumulate until frame
 }
 
-static
-void wroc_listen_wl_pointer_axis_source(void* data, wl_pointer*, u32 axis_source)
-{
-    log_debug("pointer_axis_source({})", magic_enum::enum_name(wl_pointer_axis_source(axis_source)));
-}
-
-static
-void wroc_listen_wl_pointer_axis_stop(void* data, wl_pointer*, u32 time, u32 axis)
-{
-    log_debug("pointer_axis_stop({})", magic_enum::enum_name(wl_pointer_axis(axis)));
-}
-
-static
-void wroc_listen_wl_pointer_axis_discrete(void* data, wl_pointer*, u32 axis, i32 discrete)
-{
-    log_debug("pointer_axis_discrete(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), discrete);
-}
+#define WROC_WAYLAND_BACKEND_NOISY_POINTER_AXIS 0
 
 static
 void wroc_listen_wl_pointer_axis_value120(void* data, wl_pointer*, u32 axis, i32 value120)
 {
+#if WROC_WAYLAND_BACKEND_NOISY_POINTER_AXIS
     log_debug("pointer_axis_value120(axis = {}, value = {})", magic_enum::enum_name(wl_pointer_axis(axis)), value120);
+#endif
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
 
@@ -118,9 +96,11 @@ void wroc_listen_wl_pointer_axis_value120(void* data, wl_pointer*, u32 axis, i32
 static
 void wroc_listen_wl_pointer_axis_relative_direction(void* data, wl_pointer*, u32 axis, u32 direction)
 {
+#if WROC_WAYLAND_BACKEND_NOISY_POINTER_AXIS
     log_debug("pointer_axis_relative_direction(axis = {}, direction = {})",
         magic_enum::enum_name(wl_pointer_axis(axis)),
         magic_enum::enum_name(wl_pointer_axis_relative_direction(direction)));
+#endif
 }
 
 const wl_pointer_listener wroc_wl_pointer_listener {
@@ -128,11 +108,11 @@ const wl_pointer_listener wroc_wl_pointer_listener {
     .leave                   = wroc_listen_wl_pointer_leave,
     .motion                  = wroc_listen_wl_pointer_motion,
     .button                  = wroc_listen_wl_pointer_button,
-    .axis                    = wroc_listen_wl_pointer_axis,
+    WROC_STUB_QUIET(axis),
     .frame                   = wroc_listen_wl_pointer_frame,
-    .axis_source             = wroc_listen_wl_pointer_axis_source,
-    .axis_stop               = wroc_listen_wl_pointer_axis_stop,
-    .axis_discrete           = wroc_listen_wl_pointer_axis_discrete,
+    WROC_STUB_QUIET(axis_source),
+    WROC_STUB_QUIET(axis_stop),
+    WROC_STUB_QUIET(axis_discrete),
     .axis_value120           = wroc_listen_wl_pointer_axis_value120,
     .axis_relative_direction = wroc_listen_wl_pointer_axis_relative_direction,
 };

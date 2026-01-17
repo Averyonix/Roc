@@ -102,6 +102,7 @@ function(init_target target_name)
         -Wno-unused-parameter
         -Wno-nested-anon-types
         -Wimplicit-fallthrough
+        -Wno-gnu-case-range
 
         # -Wno-unused-const-variable
         # -Wno-unused-function
@@ -126,6 +127,7 @@ target_sources(wrei PUBLIC
     src/wrei/format.cpp
     src/wrei/object.cpp
     src/wrei/event.cpp
+    src/wrei/stacktrace.cpp
     )
 target_include_directories(wrei PUBLIC
     src

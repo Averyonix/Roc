@@ -23,11 +23,21 @@ struct wrei_log_entry
 {
     wrei_log_level level;
     std::chrono::system_clock::time_point timestamp;
-    std::string message;
+    u32 start;
+    u32 len;
+    u32 line_start;
+    u32 lines;
+    const struct wrei_stacktrace* stacktrace;
+
+    std::string_view message() const noexcept;
 };
-struct wrei_log_history : std::span<const wrei_log_entry>
+struct wrei_log_history
 {
     std::unique_lock<std::recursive_mutex> mutex;
+    std::span<const wrei_log_entry> entries;
+    u32 lines;
+
+    const wrei_log_entry* find(u32 line) const noexcept;
 };
 wrei_log_history wrei_log_get_history();
 void wrei_log_set_history_enabled(bool enabled);

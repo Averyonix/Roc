@@ -407,7 +407,7 @@ void wroc_seat_pointer_update_state(wroc_seat_pointer* pointer, wroc_key_action 
         }
 
         if (action == wroc_key_action::release ? pointer->pressed.dec(button) : pointer->pressed.inc(button)) {
-            log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), magic_enum::enum_name(action));
+            // log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), magic_enum::enum_name(action));
             if (action != wroc_key_action::enter) {
                 wroc_post_event(wroc_pointer_event {
                     .type = wroc_event_type::pointer_button,

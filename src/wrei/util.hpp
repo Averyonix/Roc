@@ -290,26 +290,12 @@ std::string wrei_escape_utf8(std::string_view in)
 // -----------------------------------------------------------------------------
 
 inline
-std::string wrei_stacktrace_dump(usz skip = 0)
-{
-    auto stacktrace = std::stacktrace::current(skip + 1);
-    std::stringstream ss;
-    ss << stacktrace;
-    return ss.str();
-}
-
-inline
 void wrei_log_unix_error(std::string_view message, int err = 0)
 {
     err = err ?: errno;
 
-    // 1 - wrei_log_unix_error
-    // 2 - wrei_unix_check_helper<*>::check
-    // 3 - wrei_unix_check_*
-    static constexpr usz stackframe_skips = 3;
-
-    if (message.empty()) { log_error("({}) {}\n{}",              err, strerror(err), wrei_stacktrace_dump(stackframe_skips)); }
-    else                 { log_error("{}: ({}) {}\n{}", message, err, strerror(err), wrei_stacktrace_dump(stackframe_skips)); }
+    if (message.empty()) { log_error("({}) {}",              err, strerror(err)); }
+    else                 { log_error("{}: ({}) {}", message, err, strerror(err)); }
 }
 
 enum class wrei_unix_error_behavior : u32
@@ -503,3 +489,145 @@ void wrei_debugkill()
 {
     std::terminate();
 }
+
+// -----------------------------------------------------------------------------
+
+constexpr
+u8 wrei_hex_to_value(char digit)
+{
+    switch (digit) {
+        break;case 'a' ... 'f': return 10 + digit - 'a';
+        break;case 'A' ... 'F': return 10 + digit - 'A';
+        break;case '0' ... '9': return digit - '0';
+        break;default:
+            std::unreachable();
+    }
+}
+
+constexpr
+vec4u8 wrei_color_from_hex(std::string_view str)
+{
+    vec4u8 color;
+    if (str.starts_with("#")) str.remove_prefix(1);
+
+    auto hex_to_value = [&](u32 i) -> u8 {
+        return wrei_hex_to_value(str[i]) * 16 + wrei_hex_to_value(str[i + 1]);
+    };
+
+    assert(str.size() >= 6);
+
+    color.x = hex_to_value(0);
+    color.y = hex_to_value(2);
+    color.z = hex_to_value(4);
+    color.w = str.size() >= 8 ? hex_to_value(6) : 255;
+
+    return color;
+}
+
+// -----------------------------------------------------------------------------
+
+inline
+u64 wrei_hash_mix(u64 x)
+{
+    // From boost
+    // https://github.com/boostorg/container_hash/blob/060d4aea6b5b59d2c9146b7d8e994735b2c0a582/include/boost/container_hash/detail/hash_mix.hpp#L67-L81
+
+    static constexpr u64 m = (u64(0xe9846af) << 32) + 0x9b1a615d;
+
+    x ^= x >> 32;
+    x *= m;
+    x ^= x >> 32;
+    x *= m;
+    x ^= x >> 28;
+
+    return x;
+}
+
+template<typename T>
+inline
+void wrei_hash_combine(usz& seed, const T& v)
+{
+    // From boost
+    // https://github.com/boostorg/container_hash/blob/060d4aea6b5b59d2c9146b7d8e994735b2c0a582/include/boost/container_hash/hash.hpp#L469-L473
+
+    seed = wrei_hash_mix(seed + 0x9e3779b9 + std::hash<T>{}(v));
+}
+
+inline
+void wrei_hash_range(usz& seed, auto start, auto end)
+{
+    for (; start != end; ++start) {
+        wrei_hash_combine(seed, *start);
+    }
+}
+
+inline
+usz wrei_hash_range(auto start, auto end)
+{
+    usz seed = 0;
+    wrei_hash_range(seed, start, end);
+    return seed;
+}
+
+#define WREI_MAKE_RANGE_HASHABLE(Type) \
+    template<> struct std::hash<Type> { \
+        usz operator()(const Type& v) { return wrei_hash_range(v.begin(), v.end()); } \
+    };
+
+inline
+usz wrei_hash_variadic(const auto& first, const auto&... rest)
+{
+    usz seed = 0;
+    wrei_hash_combine(seed, first);
+    (wrei_hash_combine(seed, rest), ...);
+    return seed;
+}
+
+#define WREI_MAKE_STRUCT_HASHABLE(Type, ...) \
+    template<> struct std::hash<Type> { \
+        usz operator()(const Type& v) { return wrei_hash_variadic(__VA_ARGS__); } \
+    };
+
+// -----------------------------------------------------------------------------
+
+struct wrei_stacktrace_entry_data
+{
+    bool populated = false;
+    std::string description;
+    std::filesystem::path source_file;
+    u32 source_line;
+};
+
+struct wrei_stacktrace_entry
+{
+    const wrei_stacktrace_entry_data* data;
+
+    const std::string& description() const noexcept { return data->description; }
+    const std::filesystem::path& source_file() const noexcept { return data->source_file; }
+    u32 source_line() const noexcept { return data->source_line; }
+};
+
+struct wrei_stacktrace
+{
+    std::vector<wrei_stacktrace_entry> entries;
+
+    wrei_stacktrace() = default;
+
+    void populate(struct wrei_stacktrace_cache& cache, const std::stacktrace& stacktrace);
+
+    usz size() const noexcept { return entries.size(); }
+    wrei_stacktrace_entry at(usz i) const { return entries.at(i); }
+
+    auto begin() const noexcept { return entries.begin(); }
+    auto end() const noexcept { return entries.end(); }
+};
+
+std::string wrei_to_string(const wrei_stacktrace& st);
+
+struct wrei_stacktrace_cache
+{
+    ankerl::unordered_dense::segmented_map<std::stacktrace_entry, wrei_stacktrace_entry_data> entries;
+    ankerl::unordered_dense::segmented_map<std::stacktrace, wrei_stacktrace> traces;
+
+    std::pair<const wrei_stacktrace*, bool> insert(const std::stacktrace& st);
+};

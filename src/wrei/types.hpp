@@ -39,6 +39,7 @@ using vec2f64 = wrei_vec<2, f64>;
 using vec3f32 = wrei_vec<3, f32>;
 
 using vec4f32 = wrei_vec<4, f32>;
+using vec4u8  = wrei_vec<4,  u8>;
 
 // -----------------------------------------------------------------------------
 

@@ -14,6 +14,11 @@ struct wroc_debug_gui : wrei_object
     weak<wroc_toplevel> toplevel;
 
     struct {
+        i64 selected = -1;
+        bool show;
+    } log;
+
+    struct {
         u32 frames = 0;
         std::chrono::steady_clock::time_point last_report;
         std::chrono::steady_clock::duration frametime;
@@ -306,37 +311,213 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
         wrei_log_clear_history();
     }
 
+    ImGui::SameLine();
+    if (ImGui::Button("TEST")) {
+        log_error("TEST\nThis is a multi-line test.\nThis is another line.");
+    }
+
+    ImGui::SameLine();
+    ImGui::Checkbox("Details", &debug->log.show);
+
+    static constexpr auto make_color = [](std::string_view hex) { return vec4f32(wrei_color_from_hex(hex)) / 255.f; };
+    static constexpr auto to_imvec =   [](vec4f32 v)            { return ImVec4(v.x, v.y, v.z, v.w); };
+
+    static constexpr vec4f32 color_trace      = make_color("#63686D");
+    static constexpr vec4f32 color_debug      = make_color("#16a085");
+    static constexpr vec4f32 color_info       = make_color("#1d99f3");
+    static constexpr vec4f32 color_warn       = make_color("#fdbc4b");
+    static constexpr vec4f32 color_error      = make_color("#c0392b");
+    static constexpr vec4f32 color_fatal      = make_color("#c0392b");
+    static constexpr vec4f32 color_hover_bg   = make_color("#242424");
+    static constexpr vec4f32 color_active_bg  = make_color("#0b3b5e");
+    static constexpr vec4f32 color_stacktrace = make_color("#9a5cb3");
+
+    int hovered = -1;
+
     ImGui::Separator();
 
     ImGui::BeginChild("scroll-region", ImVec2(), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_HorizontalScrollbar);
     defer { ImGui::EndChild(); };
 
+    // We need to track the baseline position of the current child window as otherwise
+    // the offset into the *parent* window is incorrectly applied instead, resulting in
+    // twice the expected content padding.
+    auto base_x = ImGui::GetCursorPosX();
+
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, to_imvec(color_hover_bg));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, to_imvec(color_active_bg));
+    defer { ImGui::PopStyleColor(2); };
+
+    // Font metrics for computing spacing
+    auto font_height = ImGui::CalcTextSize("").y;
+    auto spacing = ImGui::GetStyle().ItemSpacing.y;
+    auto line_height = font_height + spacing;
+
+    auto draw_entry = [&](int id, const wrei_log_entry& entry, bool* hovered = nullptr) ->  bool {
+        std::optional<ImVec4> color;
+        const char* format;
+
+        switch (entry.level) {
+            break;case wrei_log_level::trace: format = "[TRACE] %.*s"; color = to_imvec(color_trace);
+            break;case wrei_log_level::debug: format = "[DEBUG] %.*s"; color = to_imvec(color_debug);
+            break;case wrei_log_level::info:  format = " [INFO] %.*s"; color = to_imvec(color_info);
+            break;case wrei_log_level::warn:  format = " [WARN] %.*s"; color = to_imvec(color_warn);
+            break;case wrei_log_level::error: format = "[ERROR] %.*s"; color = to_imvec(color_error);
+            break;case wrei_log_level::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
+        }
+
+        if (color) ImGui::PushStyleColor(ImGuiCol_Text, *color);
+        ImGui::PushID(id);
+
+        // We need to manually set Y positions for each following line in
+        // multi-line messages as ImGui only honours "ImGuiSelectableFlags_AllowOverlap"
+        // for the *first* item following a Selectable.
+        auto y = ImGui::GetCursorPosY();
+
+        bool selected = ImGui::Selectable("##selectable", false,
+            ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
+            ImVec2(0, font_height + (std::max(1u, entry.lines) - 1) * line_height));
+        if (hovered) {
+            *hovered = ImGui::IsItemHovered();
+        }
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(base_x);
+
+        auto message = entry.message();
+
+        usz new_line = message.find_first_of('\n');
+        if (new_line == std::string::npos) {
+            ImGui::Text(format, message.size(), message.data());
+        } else {
+            ImGui::Text(format, new_line, message.data());
+            do {
+                y += line_height;
+                ImGui::SetCursorPos(ImVec2(base_x, y));
+                auto start = new_line + 1;
+                new_line = message.find_first_of('\n', start);
+                i32 len = std::min(new_line, message.size()) - start;
+                ImGui::Text("        %.*s", len, message.data() + start);
+            } while (new_line != std::string::npos);
+        }
+
+        if (color) ImGui::PopStyleColor();
+        ImGui::PopID();
+        return selected;
+    };
+
     auto history = wrei_log_get_history();
+
     ImGuiListClipper clipper;
-    clipper.Begin(history.size());
+
+    // ImGui's clipper requires equally sized elements, so we clip to lines
+    clipper.Begin(history.lines, line_height);
     while (clipper.Step()) {
-        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-            const auto& entry = history[i];
-            std::optional<ImVec4> color;
-            const char* format;
-            switch (entry.level) {
-                break;case wrei_log_level::trace: format = "[TRACE] %s"; color = ImVec4( 99/255., 104/255., 109/255., 1.0);
-                break;case wrei_log_level::debug: format = "[DEBUG] %s"; color = ImVec4( 22/255., 160/255., 133/255., 1.0);
-                break;case wrei_log_level::info:  format = " [INFO] %s"; color = ImVec4( 29/255., 153/255., 243/255., 1.0);
-                break;case wrei_log_level::warn:  format = " [WARN] %s"; color = ImVec4(253/255., 188/255.,  75/255., 1.0);
-                break;case wrei_log_level::error: format = "[ERROR] %s"; color = ImVec4(192/255.,  57/255.,  43/255., 1.0);
-                break;case wrei_log_level::fatal: format = "[FATAL] %s"; color = ImVec4(192/255.,  57/255.,  43/255., 1.0);
+
+        // DisplayStart and DisplayEnd represent *line* indices,
+        // so we need to find the first log entry that contains that line.
+        auto entry = history.find(clipper.DisplayStart);
+        if (!entry) continue;
+
+        // Then offset the cursor position back to handle cases where the
+        // clipper starts partway through a multi-line message.
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - (clipper.DisplayStart - entry->line_start) * line_height);
+
+        int line = entry->line_start;
+        while (line < clipper.DisplayEnd) {
+            auto i = entry - history.entries.data();
+
+            bool is_hovered;
+            if (draw_entry(i, *entry, &is_hovered)) {
+                debug->log.selected = (debug->log.selected == i) ? -1 : i;
+            }
+            if (is_hovered) {
+                hovered = i;
             }
 
-            if (color) ImGui::PushStyleColor(ImGuiCol_Text, *color);
-            ImGui::Text(format, entry.message.c_str());
-            if (color) ImGui::PopStyleColor();
+            line += entry->lines;
+            ++entry;
         }
     }
-    ImGui::Separator();
+
+    // We need an extra dummy item to trigger the final spacing
+    // Otherwise the log contents are clipped off early
+    ImGui::Dummy(ImVec2(0, 0));
 
     if (scroll_to_bottom || (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())) {
         ImGui::SetScrollHereY(1.f);
+    }
+
+    // Log Details for selected log entry
+
+    if (debug->log.selected >= i64(history.entries.size())) {
+        debug->log.selected = -1;
+    }
+
+    if (debug->log.show) {
+        defer { ImGui::End(); };
+        if (ImGui::Begin(debug->log.selected >= 0
+                ? "Log Details (locked)###Log Details"
+                : "Log Details###Log Details", &debug->log.show)) {
+            auto effective = debug->log.selected >= 0 ? debug->log.selected : hovered;
+            if (effective != -1) {
+                base_x = ImGui::GetCursorPosX();
+                auto& entry = history.entries[effective];
+
+                {
+                    // Timestamp
+
+                    ImGui::PushID(0);
+                    ImGui::Selectable("##selectable", false, ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns);
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(wrei_time_to_string(entry.timestamp, wrei_time_format::datetime_ms).c_str());
+                    ImGui::PopID();
+                }
+
+                ImGui::Separator();
+
+                {
+                    // Log message
+
+                    ImGui::PushID(0);
+                    draw_entry(0, entry);
+                    ImGui::PopID();
+                }
+
+                ImGui::Separator();
+
+                {
+                    // Stacktrace
+
+                    ImGui::PushID(1);
+                    ImGui::PushStyleColor(ImGuiCol_Text, to_imvec(color_stacktrace));
+                    defer {
+                        ImGui::PopStyleColor();
+                        ImGui::PopID();
+                    };
+
+                    for (auto[i, e] : *entry.stacktrace | std::views::enumerate) {
+                        ImGui::PushID(i);
+                        defer {  ImGui::PopID(); };
+
+                        auto text = std::format("{:4}# {} at {}:{}", i, e.description(), e.source_file().c_str(), e.source_line());
+                        auto size = ImGui::CalcTextSize(text.c_str(), nullptr, false, ImGui::GetContentRegionAvail().x);
+
+                        ImGui::Selectable("##selectable", false,
+                            ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
+                            ImVec2(0, size.y));
+
+                        ImGui::SameLine();
+                        ImGui::SetCursorPosX(base_x);
+                        ImGui::TextWrapped("%s", text.c_str());
+
+                    }
+                }
+            }
+        }
+    }
+
+    if (!debug->log.show) {
+        debug->log.selected = -1;
     }
 }
 
