@@ -72,32 +72,38 @@ void wroc_cursor_create()
     cursor->fallback.hotspot = {image->xhot, image->yhot};
 }
 
+#define WROC_NOISY_CURSOR_SURFACE 0
+
 void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surface, vec2i32 hotspot)
 {
     bool created;
     auto* cursor_surface = surface ? wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created) : nullptr;
     if (cursor_surface) {
-        // log_debug("wroc_cursor_surface {}, hotspot = {}", created ? "created" : "reused", wrei_to_string(hotspot));
+#if WROC_NOISY_CURSOR_SURFACE
+        log_debug("wroc_cursor_surface {}, hotspot = {}", created ? "created" : "reused", wrei_to_string(hotspot));
+#endif
         surface->buffer_dst.origin = -hotspot;
     }
 
+#if WROC_NOISY_CURSOR_SURFACE
+    u32 count = 0;
+#endif
+
     // TODO: Track and update only last focused surface
     //       OR track cursor at the client level directly
+    for (auto* target_surface : server->surfaces) {
+        if (!target_surface->resource) continue;
+        if (wroc_resource_get_client(target_surface->resource) != client) continue;
+        if (target_surface->role == wroc_surface_role::cursor) continue;
 
-#if 0
-    if (wrei_is_log_level_enabled(wrei_log_level::debug)) {
-        u32 count = 0;
-        for (auto* target_surface : server->surfaces) {
-            if (!target_surface->resource) continue;
-            if (wroc_resource_get_client(target_surface->resource) != client) continue;
-            if (target_surface->role == wroc_surface_role::cursor) continue;
-
-            target_surface->cursor = cursor_surface;
-            count++;
-        }
-
-        log_debug("cursor updated for {} surface(s)", count);
+        target_surface->cursor = cursor_surface;
+#if WROC_NOISY_CURSOR_SURFACE
+        count++;
+#endif
     }
+
+#if WROC_NOISY_CURSOR_SURFACE
+    log_debug("cursor updated for {} surface(s)", count);
 #endif
 }
 
