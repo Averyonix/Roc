@@ -97,7 +97,9 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         server->backend->create_output();
     }
 
-    ImGui::Separator();
+    auto category_separator = [] { ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal, 2.f); };
+
+    category_separator();
 
     // Focused window toggles
 
@@ -153,7 +155,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         }
     }
 
-    ImGui::Separator();
+    category_separator();
 
     // Frametime
 
@@ -185,7 +187,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     }
 
-    ImGui::Separator();
+    category_separator();
 
     bool try_dispatch_frames = false;
     try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
@@ -220,7 +222,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         });
     }
 
-    ImGui::Separator();
+    category_separator();
 
     // Allocations
 
@@ -258,7 +260,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         }
     }
 
-    ImGui::Separator();
+    category_separator();
 
     // Screenshot
 
@@ -266,7 +268,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         server->renderer->screenshot_queued = true;
     }
 
-    ImGui::Separator();
+    category_separator();
     ImGui::Dummy(ImVec2(0.f, 0.f));
 
     // Application launch
@@ -357,7 +359,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
     auto line_height = font_height + spacing;
 
     auto draw_entry = [&](int id, const wrei_log_entry& entry, bool* hovered = nullptr) ->  bool {
-        std::optional<ImVec4> color;
+        ImVec4 color;
         const char* format;
 
         switch (entry.level) {
@@ -369,8 +371,12 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
             break;case wrei_log_level::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
         }
 
-        if (color) ImGui::PushStyleColor(ImGuiCol_Text, *color);
+        ImGui::PushStyleColor(ImGuiCol_Text, color);
         ImGui::PushID(id);
+        defer {
+            ImGui::PopID();
+            ImGui::PopStyleColor();
+        };
 
         // We need to manually set Y positions for each following line in
         // multi-line messages as ImGui only honours "ImGuiSelectableFlags_AllowOverlap"
@@ -405,8 +411,6 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
             } while (new_line != std::string::npos);
         }
 
-        if (color) ImGui::PopStyleColor();
-        ImGui::PopID();
         return selected;
     };
 
@@ -416,6 +420,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
 
     // ImGui's clipper requires equally sized elements, so we clip to lines
     clipper.Begin(history.lines, line_height);
+
     while (clipper.Step()) {
 
         // DisplayStart and DisplayEnd represent *line* indices,
@@ -443,6 +448,8 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
             ++entry;
         }
     }
+
+    clipper.End();
 
     // We need an extra dummy item to trigger the final spacing
     // Otherwise the log contents are clipped off early

@@ -141,17 +141,21 @@ build_xwayland_satellite()
 
 def list_wayland_protocols():
     wayland_protocols = []
+    def add(path, name=None):
+        wayland_protocols.append((path, name or path.stem))
+
     system_protocol_dir = Path("/usr/share/wayland-protocols")
 
-    wayland_protocols.append((system_protocol_dir / "stable/xdg-shell/xdg-shell.xml", "xdg-shell"))
-    wayland_protocols.append((system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml", "linux-dmabuf-v1"))
-    wayland_protocols.append((system_protocol_dir / "stable/viewporter/viewporter.xml", "viewporter"))
-    wayland_protocols.append((system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml", "xdg-decoration-unstable-v1"))
-    wayland_protocols.append((system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml", "pointer-gestures-unstable-v1"))
-    wayland_protocols.append((system_protocol_dir / "unstable/relative-pointer/relative-pointer-unstable-v1.xml", "relative-pointer-unstable-v1"))
-    wayland_protocols.append((system_protocol_dir / "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"))
+    add(system_protocol_dir / "stable/xdg-shell/xdg-shell.xml")
+    add(system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml")
+    add(system_protocol_dir / "stable/viewporter/viewporter.xml")
 
-    wayland_protocols.append((dep_dir("kde-protocols") / "src/protocols/server-decoration.xml", "server-decoration"))
+    add(system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+    add(system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml")
+    add(system_protocol_dir / "unstable/relative-pointer/relative-pointer-unstable-v1.xml")
+    add(system_protocol_dir / "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml")
+
+    add(dep_dir("kde-protocols") / "src/protocols/server-decoration.xml")
 
     return wayland_protocols
 

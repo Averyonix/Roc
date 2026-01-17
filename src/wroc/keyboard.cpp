@@ -230,7 +230,7 @@ void wroc_seat_keyboard_update_state(wroc_seat_keyboard* kb, wroc_key_action act
             }
         }
 
-        updated |= xkb_state_update_key(kb->state, key + 8, action == wroc_key_action::release ?  XKB_KEY_UP : XKB_KEY_DOWN);
+        updated |= xkb_state_update_key(kb->state, wroc_key_to_xkb(key), action == wroc_key_action::release ?  XKB_KEY_UP : XKB_KEY_DOWN);
     }
 
     wroc_seat_keyboard_handle_component_updates(kb, updated);
@@ -328,6 +328,9 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
     wroc_surface_raise(surface);
 }
 
+#define WROC_NOISY_KEYBOARD 0
+
+#if WROC_NOISY_KEYBOARD
 static
 void wroc_debug_print_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& event)
 {
@@ -348,18 +351,14 @@ void wroc_debug_print_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& eve
         log_debug("key <{}> (sym: {}, evdev: {}) = {}", name, sym, evdev_keycode, pressed ? "press" : "release");
     }
 }
+#endif
 
 static
 void wroc_keyboard_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& event)
 {
+#if WROC_NOISY_KEYBOARD
     wroc_debug_print_key(kb, event);
-
-    // TODO: Proper compositor keybind handling
-    if (event.key.upper() == XKB_KEY_Print && event.key.pressed) {
-        log_debug("PRINT OVERRIDE, saving screenshot");
-        server->renderer->screenshot_queued = true;
-        return;
-    }
+#endif
 
     for (auto* resource : kb->resources) {
         if (!wroc_keyboard_resource_matches_focus_client(kb, resource)) continue;

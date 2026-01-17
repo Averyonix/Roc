@@ -104,11 +104,14 @@ void wrei_log(wrei_log_level level, std::string_view message)
 {
     auto& state = wrei_log_state;
 
-    std::scoped_lock _ { state.mutex };
-
     if (state.log_level > level) return;
 
+    // Strip trailing newlines
+    while (message.ends_with('\n')) message.remove_suffix(1);
+
     auto timestamp = wrei_time_current();
+
+    std::scoped_lock _ { state.mutex };
 
     if (state.history.enabled) {
         auto[stacktrace, added] = state.stacktraces.insert(std::stacktrace::current(1));
