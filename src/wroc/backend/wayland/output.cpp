@@ -190,7 +190,25 @@ const zxdg_toplevel_decoration_v1_listener wroc_zxdg_toplevel_decoration_v1_list
 
 // -----------------------------------------------------------------------------
 
-#if WROC_BACKEND_RELATIVE_POINTER
+static
+void locked(void* data, zwp_locked_pointer_v1*)
+{
+    log_debug("Wayland backend - pointer locked");
+    static_cast<wroc_wayland_output*>(data)->locked = true;
+}
+
+static
+void unlocked(void* data, zwp_locked_pointer_v1*)
+{
+    log_debug("Wayland backend - pointer unlocked");
+    static_cast<wroc_wayland_output*>(data)->locked = false;
+}
+
+const zwp_locked_pointer_v1_listener wroc_zwp_locked_pointer_v1_listener {
+    .locked   = locked,
+    .unlocked = unlocked,
+};
+
 void wroc_wayland_backend_update_pointer_constraint(wroc_wayland_output* output)
 {
     if (output->locked_pointer) return;
@@ -209,8 +227,8 @@ void wroc_wayland_backend_update_pointer_constraint(wroc_wayland_output* output)
         backend->pointer->wl_pointer,
         nullptr,
         ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
+    zwp_locked_pointer_v1_add_listener(output->locked_pointer, &wroc_zwp_locked_pointer_v1_listener, output);
 }
-#endif
 
 void wroc_wayland_backend::create_output()
 {
@@ -254,9 +272,7 @@ void wroc_wayland_backend::create_output()
         log_warn("Server side decorations are not supported, backend outputs will remain undecorated");
     }
 
-#if WROC_BACKEND_RELATIVE_POINTER
     wroc_wayland_backend_update_pointer_constraint(output.get());
-#endif
 
     wl_surface_commit(output->wl_surface);
 }
@@ -269,9 +285,7 @@ wroc_wayland_output::~wroc_wayland_output()
     swapchain = nullptr;
     wren->vk.DestroySurfaceKHR(wren->instance, surface, nullptr);
 
-#if WROC_BACKEND_RELATIVE_POINTER
     if (locked_pointer) zwp_locked_pointer_v1_destroy(locked_pointer);
-#endif
 
     if (decoration)  zxdg_toplevel_decoration_v1_destroy(decoration);
     if (toplevel)    xdg_toplevel_destroy(toplevel);

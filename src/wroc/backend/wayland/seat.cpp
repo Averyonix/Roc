@@ -6,15 +6,12 @@
 
 // -----------------------------------------------------------------------------
 
-#if !WROC_BACKEND_RELATIVE_POINTER
 static
 void wroc_backend_pointer_absolute(wroc_wayland_pointer* pointer, wl_fixed_t sx, wl_fixed_t sy)
 {
     vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
-    // TODO: To logical coordinates
     pointer->absolute(pointer->current_output.get(), pos);
 }
-#endif
 
 static
 void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surface* surface, wl_fixed_t sx, wl_fixed_t sy)
@@ -23,16 +20,9 @@ void wroc_listen_wl_pointer_enter(void* data, wl_pointer*, u32 serial, wl_surfac
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
     pointer->last_serial = serial;
-#if !WROC_BACKEND_RELATIVE_POINTER
     pointer->current_output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(server->backend.get()), surface);
 
     wroc_backend_pointer_absolute(pointer, sx, sy);
-#else
-    auto output = wroc_wayland_backend_find_output_for_surface(static_cast<wroc_wayland_backend*>(server->backend.get()), surface);
-    vec2f64 pos = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
-    // TODO: To logical coordinates
-    pointer->absolute(output, pos);
-#endif
 
     wl_pointer_set_cursor(pointer->wl_pointer, serial, nullptr, 0, 0);
 }
@@ -51,11 +41,10 @@ void wroc_listen_wl_pointer_leave(void* data, wl_pointer*, u32 serial, wl_surfac
 static
 void wroc_listen_wl_pointer_motion(void* data, wl_pointer*, u32 time, wl_fixed_t sx, wl_fixed_t sy)
 {
-#if !WROC_BACKEND_RELATIVE_POINTER
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
 
+    if (pointer->current_output->locked) return;
     wroc_backend_pointer_absolute(pointer, sx, sy);
-#endif
 }
 
 static
@@ -119,7 +108,6 @@ const wl_pointer_listener wroc_wl_pointer_listener {
 
 // -----------------------------------------------------------------------------
 
-#if WROC_BACKEND_RELATIVE_POINTER
 static
 void relative_motion(void* data,
     zwp_relative_pointer_v1* zwp_relative_pointer_v1,
@@ -131,6 +119,7 @@ void relative_motion(void* data,
     wl_fixed_t dy_unaccel)
 {
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
+    if (!pointer->current_output->locked) return;
     auto delta = vec2f64(wl_fixed_to_double(dx_unaccel), wl_fixed_to_double(dy_unaccel));
     pointer->relative(delta);
 }
@@ -138,14 +127,12 @@ void relative_motion(void* data,
 const zwp_relative_pointer_v1_listener wroc_zwp_relative_pointer_v1_listener {
     .relative_motion = relative_motion,
 };
-#endif
 
 wroc_wayland_pointer::~wroc_wayland_pointer()
 {
     wl_pointer_release(wl_pointer);
-#if WROC_BACKEND_RELATIVE_POINTER
+
     zwp_relative_pointer_v1_destroy(relative_pointer);
-#endif
 }
 
 static
@@ -164,13 +151,11 @@ void wroc_pointer_set(wroc_wayland_backend* backend, struct wl_pointer* wl_point
 
     wl_pointer_add_listener(wl_pointer, &wroc_wl_pointer_listener, pointer);
 
-#if WROC_BACKEND_RELATIVE_POINTER
     pointer->relative_pointer = zwp_relative_pointer_manager_v1_get_relative_pointer(backend->zwp_relative_pointer_manager_v1, wl_pointer);
     zwp_relative_pointer_v1_add_listener(pointer->relative_pointer, &wroc_zwp_relative_pointer_v1_listener, pointer);
     for (auto& output : backend->outputs) {
         wroc_wayland_backend_update_pointer_constraint(output.get());
     }
-#endif
 
     server->seat->pointer->attach(pointer);
 }
@@ -211,25 +196,13 @@ void wroc_listen_wl_keyboard_leave(void* data, wl_keyboard*, u32 serial, wl_surf
     kb->leave();
 }
 
-static
-void wroc_listen_wl_keyboard_modifiers(void* data, wl_keyboard*, u32 serial, u32 mods_depressed, u32 mods_latched, u32 mods_locked, u32 group)
-{
-    // Upstream modifier state is ignored
-}
-
-static
-void wroc_listen_wl_keyboard_repeat_info(void* data, wl_keyboard*, i32 rate, i32 delay)
-{
-    // Upstream repeat info is ignored
-}
-
 const wl_keyboard_listener wroc_wl_keyboard_listener {
     .keymap      = wroc_listen_wl_keyboard_keymap,
     .enter       = wroc_listen_wl_keyboard_enter,
     .leave       = wroc_listen_wl_keyboard_leave,
     .key         = wroc_listen_wl_keyboard_key,
-    .modifiers   = wroc_listen_wl_keyboard_modifiers,
-    .repeat_info = wroc_listen_wl_keyboard_repeat_info,
+    WROC_STUB_QUIET(modifiers),
+    WROC_STUB_QUIET(repeat_info),
 };
 
 wroc_wayland_keyboard::~wroc_wayland_keyboard()

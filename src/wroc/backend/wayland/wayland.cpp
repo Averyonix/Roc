@@ -49,10 +49,8 @@ void wroc_listen_registry_global(void* data, wl_registry*, u32 name, const char*
     MATCH_INTERFACE(wl_seat) {
         wl_seat_add_listener(backend->wl_seat, &wroc_wl_seat_listener, backend);
     }
-#if WROC_BACKEND_RELATIVE_POINTER
     MATCH_INTERFACE(zwp_relative_pointer_manager_v1){}
     MATCH_INTERFACE(zwp_pointer_constraints_v1) {}
-#endif
     MATCH_END
 
 #undef MATCH_BEGIN
@@ -121,10 +119,8 @@ wroc_wayland_backend::~wroc_wayland_backend()
 
     outputs.clear();
 
-#if WROC_BACKEND_RELATIVE_POINTER
     zwp_relative_pointer_manager_v1_destroy(zwp_relative_pointer_manager_v1);
     zwp_pointer_constraints_v1_destroy(zwp_pointer_constraints_v1);
-#endif
 
     if (zxdg_decoration_manager_v1) zxdg_decoration_manager_v1_destroy(zxdg_decoration_manager_v1);
     wl_compositor_destroy(wl_compositor);
