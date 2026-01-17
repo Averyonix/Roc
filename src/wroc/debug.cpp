@@ -15,7 +15,7 @@ struct wroc_debug_gui : wrei_object
 
     struct {
         i64 selected = -1;
-        bool show;
+        bool show_details;
     } log;
 
     struct {
@@ -317,20 +317,23 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
     }
 
     ImGui::SameLine();
-    ImGui::Checkbox("Details", &debug->log.show);
+    ImGui::Checkbox("Details", &debug->log.show_details);
 
     static constexpr auto make_color = [](std::string_view hex) { return vec4f32(wrei_color_from_hex(hex)) / 255.f; };
     static constexpr auto to_imvec =   [](vec4f32 v)            { return ImVec4(v.x, v.y, v.z, v.w); };
 
-    static constexpr vec4f32 color_trace      = make_color("#63686D");
-    static constexpr vec4f32 color_debug      = make_color("#16a085");
-    static constexpr vec4f32 color_info       = make_color("#1d99f3");
-    static constexpr vec4f32 color_warn       = make_color("#fdbc4b");
-    static constexpr vec4f32 color_error      = make_color("#c0392b");
-    static constexpr vec4f32 color_fatal      = make_color("#c0392b");
-    static constexpr vec4f32 color_hover_bg   = make_color("#242424");
-    static constexpr vec4f32 color_active_bg  = make_color("#0b3b5e");
-    static constexpr vec4f32 color_stacktrace = make_color("#9a5cb3");
+    static constexpr vec4f32 color_trace = make_color("#63686D");
+    static constexpr vec4f32 color_debug = make_color("#16a085");
+    static constexpr vec4f32 color_info  = make_color("#1d99f3");
+    static constexpr vec4f32 color_warn  = make_color("#fdbc4b");
+    static constexpr vec4f32 color_error = make_color("#c0392b");
+    static constexpr vec4f32 color_fatal = make_color("#c0392b");
+
+    static constexpr vec4f32 color_hover_bg  = make_color("#242424");
+    static constexpr vec4f32 color_active_bg = make_color("#0b3b5e");
+
+    static constexpr vec4f32 color_stacktrace_description = make_color("#ffffff");
+    static constexpr vec4f32 color_stacktrace_location    = make_color("#9a5cb3");
 
     int hovered = -1;
 
@@ -375,7 +378,9 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
         auto y = ImGui::GetCursorPosY();
 
         bool selected = ImGui::Selectable("##selectable", false,
-            ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
+            ImGuiSelectableFlags_AllowOverlap
+            | ImGuiSelectableFlags_SpanAllColumns
+            | ((hovered && *hovered) ? ImGuiSelectableFlags_Highlight : 0),
             ImVec2(0, font_height + (std::max(1u, entry.lines) - 1) * line_height));
         if (hovered) {
             *hovered = ImGui::IsItemHovered();
@@ -426,7 +431,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
         while (line < clipper.DisplayEnd) {
             auto i = entry - history.entries.data();
 
-            bool is_hovered;
+            bool is_hovered = i == debug->log.selected;
             if (draw_entry(i, *entry, &is_hovered)) {
                 debug->log.selected = (debug->log.selected == i) ? -1 : i;
             }
@@ -453,20 +458,21 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
         debug->log.selected = -1;
     }
 
-    if (debug->log.show) {
+    if (debug->log.show_details) {
         defer { ImGui::End(); };
         if (ImGui::Begin(debug->log.selected >= 0
                 ? "Log Details (locked)###Log Details"
-                : "Log Details###Log Details", &debug->log.show)) {
+                : "Log Details###Log Details", &debug->log.show_details, ImGuiWindowFlags_HorizontalScrollbar)) {
             auto effective = debug->log.selected >= 0 ? debug->log.selected : hovered;
             if (effective != -1) {
                 base_x = ImGui::GetCursorPosX();
                 auto& entry = history.entries[effective];
 
+                int section_id = 0;
                 {
                     // Timestamp
 
-                    ImGui::PushID(0);
+                    ImGui::PushID(section_id++);
                     ImGui::Selectable("##selectable", false, ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns);
                     ImGui::SameLine();
                     ImGui::TextUnformatted(wrei_time_to_string(entry.timestamp, wrei_time_format::datetime_ms).c_str());
@@ -478,7 +484,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
                 {
                     // Log message
 
-                    ImGui::PushID(0);
+                    ImGui::PushID(section_id++);
                     draw_entry(0, entry);
                     ImGui::PopID();
                 }
@@ -488,35 +494,41 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
                 {
                     // Stacktrace
 
-                    ImGui::PushID(1);
-                    ImGui::PushStyleColor(ImGuiCol_Text, to_imvec(color_stacktrace));
-                    defer {
-                        ImGui::PopStyleColor();
-                        ImGui::PopID();
-                    };
+                    ImGui::PushID(section_id++);
+                    defer { ImGui::PopID(); };
 
                     for (auto[i, e] : *entry.stacktrace | std::views::enumerate) {
+                        if (e.description().empty() && e.source_file().empty()) continue;
+
                         ImGui::PushID(i);
                         defer {  ImGui::PopID(); };
 
-                        auto text = std::format("{:4}# {} at {}:{}", i, e.description(), e.source_file().c_str(), e.source_line());
-                        auto size = ImGui::CalcTextSize(text.c_str(), nullptr, false, ImGui::GetContentRegionAvail().x);
+                        auto height = e.source_file().empty() ? font_height : font_height + line_height;
 
+                        auto y = ImGui::GetCursorPosY();
                         ImGui::Selectable("##selectable", false,
                             ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
-                            ImVec2(0, size.y));
+                            ImVec2(0, height));
 
                         ImGui::SameLine();
                         ImGui::SetCursorPosX(base_x);
-                        ImGui::TextWrapped("%s", text.c_str());
+                        ImGui::PushStyleColor(ImGuiCol_Text, to_imvec(color_stacktrace_description));
+                        ImGui::Text("%4li# %s", i, e.description().c_str());
+                        ImGui::PopStyleColor();
 
+                        if (!e.source_file().empty()) {
+                            ImGui::SetCursorPos(ImVec2(base_x, y + line_height));
+                            ImGui::PushStyleColor(ImGuiCol_Text, to_imvec(color_stacktrace_location));
+                            ImGui::Text("      %s:%u", e.source_file().c_str(), e.source_line());
+                            ImGui::PopStyleColor();
+                        }
                     }
                 }
             }
         }
     }
 
-    if (!debug->log.show) {
+    if (!debug->log.show_details) {
         debug->log.selected = -1;
     }
 }

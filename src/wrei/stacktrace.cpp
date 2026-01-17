@@ -31,6 +31,16 @@ void wrei_stacktrace::populate(struct wrei_stacktrace_cache& cache, const std::s
         if (!cached.populated) {
             cached.description = e.description();
             cached.source_file = e.source_file();
+
+            if (!cached.source_file.empty()) {
+                try {
+                    cached.source_file = std::filesystem::canonical(cached.source_file);
+                } catch (...) {
+                    // Fall-back to lexically normal
+                    cached.source_file = cached.source_file.lexically_normal();
+                }
+            }
+
             cached.source_line = e.source_line();
             cached.populated = true;
         }
