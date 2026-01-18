@@ -61,7 +61,7 @@ ref<wren_queue> wren_queue_init(wren_context* ctx, wren_queue_type type, u32 fam
     queue->type = type;
     queue->family = family;
 
-    log_debug("Queue created of type \"{}\" with family {}", magic_enum::enum_name(type), family);
+    log_debug("Queue created of type \"{}\" with family {}", wrei_enum_to_string(type), family);
 
     ctx->vk.GetDeviceQueue(ctx->device, family, 0, &queue->queue);
 

@@ -361,7 +361,7 @@ rect2f64 wroc_surface_get_frame(wroc_surface* surface)
         }
     }
 
-    log_error("Surface with role \"{}\" has no valid frame!", magic_enum::enum_name(surface->role));
+    log_error("Surface with role \"{}\" has no valid frame!", wrei_enum_to_string(surface->role));
     return {};
 }
 
@@ -394,7 +394,7 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
             }
     }
 
-    log_error("Surface with role \"{}\" has no valid position!", magic_enum::enum_name(surface->role));
+    log_error("Surface with role \"{}\" has no valid position!", wrei_enum_to_string(surface->role));
     return {{}, {1, 1}};
 }
 
@@ -415,14 +415,14 @@ bool wroc_surface_put_addon(wroc_surface* surface, wroc_surface_addon* addon)
     auto role = addon->get_role();
     if (role != wroc_surface_role::none) {
         if (surface->role_addon) {
-            log_error("Surface already has addon for role {}", magic_enum::enum_name(surface->role));
+            log_error("Surface already has addon for role {}", wrei_enum_to_string(surface->role));
             return false;
         }
 
         if (surface->role == wroc_surface_role::none) {
             surface->role = role;
         } else if (surface->role != role) {
-            log_error("Surface already has role {}, can't change to {}", magic_enum::enum_name(surface->role), magic_enum::enum_name(role));
+            log_error("Surface already has role {}, can't change to {}", wrei_enum_to_string(surface->role), wrei_enum_to_string(role));
             return false;
         }
 

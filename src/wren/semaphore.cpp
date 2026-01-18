@@ -37,7 +37,7 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, VkSemaphoreType typ
         semaphore->semaphore = ctx->free_binary_semaphores.back();
         ctx->free_binary_semaphores.pop_back();
     } else {
-        log_debug("Allocating new semaphore of type: {}", magic_enum::enum_name(type));
+        log_debug("Allocating new semaphore of type: {}", wrei_enum_to_string(type));
         wren_check(ctx->vk.CreateSemaphore(ctx->device, wrei_ptr_to(VkSemaphoreCreateInfo {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             .pNext = wrei_ptr_to(VkSemaphoreTypeCreateInfo {

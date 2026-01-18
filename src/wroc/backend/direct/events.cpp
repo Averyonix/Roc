@@ -144,7 +144,7 @@ void handle_device_removed(wroc_input_device* device)
 void wroc_backend_handle_libinput_event(wroc_direct_backend* backend, libinput_event* event)
 {
     // auto type = libinput_event_get_type(event);
-    // log_debug("libinput event: {}", magic_enum::enum_name(type));
+    // log_debug("libinput event: {}", wrei_enum_to_string(type));
 
     auto event_type = libinput_event_get_type(event);
     if (event_type == LIBINPUT_EVENT_NONE) return;
@@ -165,6 +165,6 @@ void wroc_backend_handle_libinput_event(wroc_direct_backend* backend, libinput_e
         break;case LIBINPUT_EVENT_POINTER_AXIS:   /* ignored */
         break;case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL: handle_pointer_scroll_wheel(device, libinput_event_get_pointer_event(event));
         break;default:
-            log_warn("unhandled libinput event: {} ({})", magic_enum::enum_name(event_type), u32(event_type));
+            log_warn("unhandled libinput event: {} ({})", wrei_enum_to_string(event_type), u32(event_type));
     }
 }

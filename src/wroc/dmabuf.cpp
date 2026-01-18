@@ -181,7 +181,7 @@ void wroc_dma_buffer::on_commit(wroc_surface* surface)
     auto queue = wren_get_queue(wren, wren_queue_type::transfer);
     auto commands = wren_commands_begin(queue);
 
-    // log_error("submitting DMA-BUF transfer on queue, type = \"{}\"", magic_enum::enum_name(queue->type));
+    // log_error("submitting DMA-BUF transfer on queue, type = \"{}\"", wrei_enum_to_string(queue->type));
 
     std::vector<ref<wren_semaphore>> semaphores;
     std::vector<wren_syncpoint> waits;

@@ -185,8 +185,8 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
     log_debug("  model = {}", desc.model);
     log_debug("  position = {}", wrei_to_string(wl_output->position));
     log_debug("  physical size = {}x{}mm", desc.physical_size_mm.x, desc.physical_size_mm.y);
-    log_debug("  transform = {}", magic_enum::enum_name(desc.transform));
-    log_debug("  subpixel_layout = {}", magic_enum::enum_name(desc.subpixel));
+    log_debug("  transform = {}", wrei_enum_to_string(desc.transform));
+    log_debug("  subpixel_layout = {}", wrei_enum_to_string(desc.subpixel));
     log_debug("  scale = {:.2f}", desc.scale);
 
     wroc_send(wl_output_send_geometry, client_resource,

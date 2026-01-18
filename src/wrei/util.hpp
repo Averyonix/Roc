@@ -323,7 +323,7 @@ struct wrei_unix_check_helper
 
         if (!error_occured || (... || (error_code == allowed))) return res;
 
-        wrei_log_unix_error(std::format("unix_check<{}>", magic_enum::enum_name(B)), error_code);
+        wrei_log_unix_error(std::format("unix_check<{}>", wrei_enum_to_string(B)), error_code);
 
         return res;
     }

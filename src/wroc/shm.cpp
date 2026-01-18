@@ -79,7 +79,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
     shm_buffer->offset = offset;
 
     if (!shm_buffer->format) {
-        log_error("Unsupported format: {}", magic_enum::enum_name(wl_shm_format(format)));
+        log_error("Unsupported format: {}", wrei_enum_to_string(wl_shm_format(format)));
         wrei_debugbreak();
     }
 

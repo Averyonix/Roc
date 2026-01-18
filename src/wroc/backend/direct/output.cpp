@@ -126,7 +126,7 @@ void create_output(wroc_direct_backend* backend, const VkDisplayPropertiesKHR& d
     output->desc.current_mode = mode_idx;
     output->desc.preferred_mode = mode_idx;
 
-    log_debug("  Alpha mode: {}", magic_enum::enum_name(alpha_mode));
+    log_debug("  Alpha mode: {}", wrei_enum_to_string(alpha_mode));
 
     backend->outputs.emplace_back(output);
 

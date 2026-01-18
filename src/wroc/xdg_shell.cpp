@@ -690,12 +690,12 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
     log_error("xdg_popup<{}> created:", (void*)popup);
     log_error("  size = {}", wrei_to_string(rules.size));
     log_error("  anchor_rect = {}", wrei_to_string(rules.anchor_rect));
-    log_error("  anchor = {}", magic_enum::enum_name(rules.anchor));
-    log_error("  gravity = {}", magic_enum::enum_name(rules.gravity));
+    log_error("  anchor = {}", wrei_enum_to_string(rules.anchor));
+    log_error("  gravity = {}", wrei_enum_to_string(rules.gravity));
     u32 adjustment = rules.constraint_adjustment;
     while (adjustment) {
         u32 lsb = 1u << std::countr_zero(adjustment);
-        log_error("  adjustment |= {}", magic_enum::enum_name(xdg_positioner_constraint_adjustment(lsb)));
+        log_error("  adjustment |= {}", wrei_enum_to_string(xdg_positioner_constraint_adjustment(lsb)));
         adjustment &= ~lsb;
     }
     log_error("  offset = {}", wrei_to_string(rules.offset));

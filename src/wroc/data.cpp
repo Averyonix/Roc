@@ -379,7 +379,7 @@ void wroc_data_manager_finish_drag()
     if (drag.offer && drag.offer->device && drag.offer->source) {
         if (drag.offer->action && drag.source->dnd_actions >= drag.offer->action) {
             log_warn("Drag completed with offer");
-            log_warn("  action = {}", magic_enum::enum_name(drag.offer->action));
+            log_warn("  action = {}", wrei_enum_to_string(drag.offer->action));
             log_warn("  mime_type = {}", drag.offer->mime_type);
             wroc_send(wl_data_device_send_drop, drag.offer->device->resource);
             wroc_send(wl_data_source_send_dnd_drop_performed, drag.source->resource);
