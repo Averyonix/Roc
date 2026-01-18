@@ -149,6 +149,9 @@ def list_wayland_protocols():
     add(system_protocol_dir / "stable/xdg-shell/xdg-shell.xml")
     add(system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml")
     add(system_protocol_dir / "stable/viewporter/viewporter.xml")
+    add(system_protocol_dir / "stable/tablet/tablet-v2.xml")
+
+    add(system_protocol_dir / "staging/cursor-shape/cursor-shape-v1.xml")
 
     add(system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
     add(system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml")

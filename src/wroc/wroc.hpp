@@ -204,7 +204,7 @@ struct wroc_surface : wrei_object
     weak<wroc_surface_addon> role_addon;
     std::vector<ref<wroc_surface_addon>> addons;
 
-    std::optional<weak<wroc_cursor_surface>> cursor;
+    weak<wroc_surface> cursor;
 
     ref<wroc_buffer_lock> buffer;
 
@@ -861,16 +861,31 @@ struct wroc_cursor_surface : wroc_surface_addon
     virtual wroc_surface_role get_role() final override { return wroc_surface_role::cursor; }
 };
 
+struct wroc_cursor_shape
+{
+    ref<wren_image> image;
+    vec2i32         hotspot;
+};
+
+struct wroc_cursor_texture
+{
+    wren_image* image;
+    vec2i32     hotspot;
+};
+
 struct wroc_cursor : wrei_object
 {
-    struct {
-        ref<wren_image> image;
-        vec2i32         hotspot;
-    } fallback;
+    const char* theme;
+    int size;
+
+    wrei_enum_map<wp_cursor_shape_device_v1_shape, ref<wroc_surface>> shapes;
 };
 
 void wroc_cursor_create();
-void wroc_cursor_set(wroc_cursor*, wl_client* client, wroc_surface* cursor_surface, vec2i32 hotspot);
+void wroc_cursor_set(wroc_cursor*, wl_client*, wroc_surface* cursor_surface, vec2i32 hotspot);
+void wroc_cursor_set(wroc_cursor*, wl_client*, wp_cursor_shape_device_v1_shape);
+wroc_surface* wroc_cursor_get_shape(wroc_cursor*, wp_cursor_shape_device_v1_shape);
+wroc_surface* wroc_cursor_get_current(wroc_seat_pointer*, wroc_cursor*);
 
 // -----------------------------------------------------------------------------
 
@@ -954,6 +969,8 @@ struct wroc_imgui : wrei_object
 
     bool wants_mouse;
     bool wants_keyboard;
+
+    wp_cursor_shape_device_v1_shape cursor_shape;
 };
 
 struct alignas(u64) wroc_imgui_texture

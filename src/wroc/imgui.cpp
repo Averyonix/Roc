@@ -4,6 +4,27 @@
 #include "wroc_imgui_shader.hpp"
 #include "shaders/imgui.h"
 
+static
+wp_cursor_shape_device_v1_shape from_imgui_cursor(ImGuiMouseCursor cursor)
+{
+    switch (cursor) {
+        break;case ImGuiMouseCursor_None:       return {};
+        break;case ImGuiMouseCursor_Arrow:      return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+        break;case ImGuiMouseCursor_TextInput:  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_TEXT;
+        break;case ImGuiMouseCursor_ResizeAll:  return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_ALL_RESIZE;
+        break;case ImGuiMouseCursor_ResizeNS:   return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE;
+        break;case ImGuiMouseCursor_ResizeEW:   return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
+        break;case ImGuiMouseCursor_ResizeNESW: return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NESW_RESIZE;
+        break;case ImGuiMouseCursor_ResizeNWSE: return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NWSE_RESIZE;
+        break;case ImGuiMouseCursor_Hand:       return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRAB;
+        break;case ImGuiMouseCursor_Wait:       return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_WAIT;
+        break;case ImGuiMouseCursor_Progress:   return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_PROGRESS;
+        break;case ImGuiMouseCursor_NotAllowed: return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NOT_ALLOWED;
+    }
+
+    std::unreachable();
+}
+
 void wroc_imgui_init()
 {
     auto* wren = server->renderer->wren.get();
@@ -38,6 +59,8 @@ void wroc_imgui_init()
 
         io.Fonts->SetTexID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get()));
     }
+
+    imgui->cursor_shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
 
     wroc_launcher_init();
 }
@@ -289,7 +312,6 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
     }
 
     auto& io = ImGui::GetIO();
-    io.MouseDrawCursor = io.WantCaptureMouse;
 
     ImGui::NewFrame();
 
@@ -299,6 +321,7 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
     ImGui::Render();
 
     imgui->wants_mouse = io.WantCaptureMouse;
+    imgui->cursor_shape = from_imgui_cursor(ImGui::GetMouseCursor());
     imgui->wants_keyboard = io.WantCaptureKeyboard;
 
     auto data = ImGui::GetDrawData();

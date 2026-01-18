@@ -188,6 +188,7 @@ void wroc_run(int argc, char* argv[])
     WROC_GLOBAL(zwp_pointer_constraints_v1);
     WROC_GLOBAL(zxdg_decoration_manager_v1);
     WROC_GLOBAL(org_kde_kwin_server_decoration_manager);
+    WROC_GLOBAL(wp_cursor_shape_manager_v1);
 
     // Run
 

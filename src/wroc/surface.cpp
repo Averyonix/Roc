@@ -26,6 +26,9 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     surface->pending.surface_stack.emplace_back(surface);
     surface->pending.committed |= wroc_surface_committed_state::surface_stack;
 
+    // Use default cursor
+    surface->cursor = wroc_cursor_get_shape(server->cursor.get(), WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_surface_impl, surface);
 
     // Enter primary output unconditionally

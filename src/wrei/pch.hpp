@@ -137,6 +137,7 @@ extern "C" {
 #include <pointer-constraints-unstable-v1-protocol.h>
 #include <xdg-decoration-unstable-v1-protocol.h>
 #include <server-decoration-protocol.h>
+#include <cursor-shape-v1-protocol.h>
 
 // -----------------------------------------------------------------------------
 

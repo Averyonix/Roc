@@ -301,21 +301,14 @@ void wroc_render_frame(wroc_output* output)
 
     // Draw cursor
 
-    if (!server->imgui->wants_mouse) {
+    {
         auto* pointer = server->seat->pointer.get();
 
-        // TODO: Move this to cursor.cpp
-        if (pointer->focused_surface && pointer->focused_surface->cursor) {
-            // If surface is focused and has cursor set, render cursor surface (possibly hidden)
-            if (auto* cursor_surface = pointer->focused_surface->cursor->get()) {
-                draw_surface(cursor_surface->surface.get(), pointer->position, vec2f64(1.0));
-            }
-        } else {
-            // ... else fall back to default cursor
-            auto* cursor = server->cursor.get();
-            auto& fallback = cursor->fallback;
-            auto pos = pointer->position - vec2f64(fallback.hotspot);
-            draw(fallback.image.get(), {pos, fallback.image->extent, wrei_xywh}, {{}, fallback.image->extent, wrei_xywh});
+        auto* surface = server->imgui->wants_mouse
+            ? wroc_cursor_get_shape(server->cursor.get(), server->imgui->cursor_shape)
+            : wroc_cursor_get_current(pointer, server->cursor.get());
+        if (surface) {
+            draw_surface(surface, pointer->position, vec2f64(1.0));
         }
     }
 

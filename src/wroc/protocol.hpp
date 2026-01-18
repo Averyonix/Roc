@@ -126,3 +126,6 @@ WROC_INTERFACE(zxdg_toplevel_decoration_v1);
 
 WROC_INTERFACE(org_kde_kwin_server_decoration_manager, true);
 WROC_INTERFACE(org_kde_kwin_server_decoration);
+
+WROC_INTERFACE(wp_cursor_shape_manager_v1, true);
+WROC_INTERFACE(wp_cursor_shape_device_v1);
