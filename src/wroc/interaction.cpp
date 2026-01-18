@@ -13,25 +13,27 @@ void wroc_begin_move_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* poi
     server->movesize.grabbed_toplevel = toplevel;
     server->movesize.pointer_grab = pointer->position;
     server->movesize.surface_grab = toplevel->anchor.position;
-    server->movesize.directions = directions;
+    server->movesize.relative = {
+        directions >= wroc_directions::horizontal ? 1 : 0,
+        directions >= wroc_directions::vertical   ? 1 : 0,
+    };
     server->interaction_mode = wroc_interaction_mode::move;
 }
 
-void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* pointer, vec2i32 new_anchor_rel, wroc_directions directions)
+void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* pointer, wroc_edges edges)
 {
     if (!toplevel_is_interactable(toplevel)) return;
 
     server->movesize.grabbed_toplevel = toplevel;
     server->movesize.pointer_grab = pointer->position;
     server->movesize.surface_grab = wroc_toplevel_get_layout_rect(toplevel).extent;
-    server->movesize.directions = directions;
     server->interaction_mode = wroc_interaction_mode::size;
 
-    // Update surface anchor position
-    // TODO: Should this be a function on wroc_toplevel itself?
+    vec2f64 edge_rel = wroc_edges_to_relative(edges);
+    vec2f64 delta = edge_rel - toplevel->anchor.relative;
 
-    toplevel->anchor.position += vec2f64(new_anchor_rel - toplevel->anchor.relative) * server->movesize.surface_grab;
-    toplevel->anchor.relative = new_anchor_rel;
+    server->movesize.relative.x = edge_rel.x == 0.5 ? 0 : (delta.x ? 1.0 / delta.x : 0);
+    server->movesize.relative.y = edge_rel.y == 0.5 ? 0 : (delta.y ? 1.0 / delta.y : 0);
 }
 
 static
@@ -104,16 +106,17 @@ bool wroc_handle_movesize_interaction(const wroc_event& base_event)
 
                         } else if (event.button.button == BTN_RIGHT) {
 
-                            vec2i32 anchor_rel = toplevel->anchor.relative;
-                            if      (nine_slice.x > 1) anchor_rel.x = 0;
-                            else if (nine_slice.x < 1) anchor_rel.x = 1;
-                            if      (nine_slice.y > 1) anchor_rel.y = 0;
-                            else if (nine_slice.y < 1) anchor_rel.y = 1;
+                            wroc_edges edges = {};
+                            if      (nine_slice.x > 1) edges |= wroc_edges::right;
+                            else if (nine_slice.x < 1) edges |= wroc_edges::left;
+                            if      (nine_slice.y > 1) edges |= wroc_edges::bottom;
+                            else if (nine_slice.y < 1) edges |= wroc_edges::top;
 
                             if (nine_slice.x == 1 && nine_slice.y == 1) {
                                 wroc_begin_move_interaction(toplevel, event.pointer, dirs);
                             } else {
-                                wroc_begin_resize_interaction(toplevel, event.pointer, anchor_rel, dirs);
+                                wroc_toplevel_set_anchor_relative(toplevel, wroc_edges_to_relative(wroc_edges_inverse(edges)));
+                                wroc_begin_resize_interaction(toplevel, event.pointer, edges);
                             }
                         }
                     }
@@ -130,9 +133,7 @@ bool wroc_handle_movesize_interaction(const wroc_event& base_event)
                 auto& movesize = server->movesize;
                 if (auto* toplevel = movesize.grabbed_toplevel.get(); toplevel && toplevel_is_interactable(toplevel)) {
 
-                    auto delta = event.pointer->position - movesize.pointer_grab;
-                    if (!(movesize.directions >= wroc_directions::horizontal)) delta.x = 0;
-                    if (!(movesize.directions >= wroc_directions::vertical))   delta.y = 0;
+                    auto delta = (event.pointer->position - movesize.pointer_grab) * movesize.relative;
 
                     // TODO: Re-snap to pixel coordinates for appropriate output?
 
@@ -142,7 +143,7 @@ bool wroc_handle_movesize_interaction(const wroc_event& base_event)
 
                     } else if (server->interaction_mode == wroc_interaction_mode::size) {
                         // Resize
-                        auto new_size = vec2i32(movesize.surface_grab) + (vec2i32(delta) * (vec2i32(1) - toplevel->anchor.relative * vec2i32(2)));
+                        auto new_size = vec2i32(movesize.surface_grab + delta);
 
                         new_size = glm::max(new_size, vec2i32{100, 100});
 

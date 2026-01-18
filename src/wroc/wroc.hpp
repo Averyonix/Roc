@@ -16,6 +16,7 @@ struct wroc_server;
 struct wren_renderer;
 struct wroc_output;
 struct wroc_surface;
+struct wroc_toplevel;
 struct wroc_buffer;
 struct wroc_buffer_lock;
 struct wroc_cursor_surface;
@@ -379,8 +380,9 @@ WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_configure_state)
 enum class wroc_xdg_toplevel_committed_state : u32
 {
     none,
-    title  = 1 << 0,
-    app_id = 1 << 1
+    parent = 1 << 0,
+    title  = 1 << 1,
+    app_id = 1 << 2,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_committed_state)
 
@@ -388,6 +390,7 @@ struct wroc_xdg_toplevel_state
 {
     wroc_xdg_toplevel_committed_state committed = wroc_xdg_toplevel_committed_state::none;
 
+    weak<wroc_toplevel> parent;
     std::string title;
     std::string app_id;
 };
@@ -411,7 +414,7 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
 
     struct {
         vec2f64 position;
-        vec2i32 relative;
+        vec2f64 relative;
     } anchor;
 
     std::optional<vec2f64> layout_size;
@@ -435,6 +438,8 @@ void wroc_toplevel_set_size(wroc_toplevel*, vec2i32 size);
 void wroc_toplevel_set_state(wroc_toplevel*, xdg_toplevel_state, bool enabled);
 void wroc_toplevel_flush_configure(wroc_toplevel*);
 void wroc_toplevel_close(wroc_toplevel*);
+
+void wroc_toplevel_set_anchor_relative(wroc_toplevel*, vec2f64 anchor_rel);
 
 /**
  * Update the size of the toplevel in the layout space.
@@ -1024,6 +1029,39 @@ enum class wroc_interaction_mode : u32
     zone,
 };
 
+enum class wroc_edges : u32
+{
+    none = 0,
+
+    left   = 1 << 0,
+    right  = 1 << 1,
+    top    = 1 << 2,
+    bottom = 1 << 3,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_edges);
+
+inline
+wroc_edges wroc_edges_inverse(wroc_edges edges)
+{
+    wroc_edges out = {};
+    if      (edges >= wroc_edges::left)   out |= wroc_edges::right;
+    else if (edges >= wroc_edges::right)  out |= wroc_edges::left;
+    if      (edges >= wroc_edges::top)    out |= wroc_edges::bottom;
+    else if (edges >= wroc_edges::bottom) out |= wroc_edges::top;
+    return out;
+}
+
+inline
+vec2f64 wroc_edges_to_relative(wroc_edges edges)
+{
+    vec2f64 rel{0.5, 0.5};
+    if      (edges >= wroc_edges::left)   rel.x = 0;
+    else if (edges >= wroc_edges::right)  rel.x = 1;
+    if      (edges >= wroc_edges::top)    rel.y = 0;
+    else if (edges >= wroc_edges::bottom) rel.y = 1;
+    return rel;
+}
+
 enum class wroc_directions : u32
 {
     horizontal = 1 << 0,
@@ -1068,7 +1106,7 @@ struct wroc_server : wrei_object
         weak<wroc_toplevel> grabbed_toplevel;
         vec2f64 pointer_grab;
         vec2f64 surface_grab;
-        wroc_directions directions;
+        vec2f64 relative;
     } movesize;
 
     struct {
@@ -1121,7 +1159,7 @@ u32 wroc_get_elapsed_milliseconds();
 wroc_modifiers wroc_get_active_modifiers();
 
 void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_directions);
-void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, vec2i32 anchor_rel, wroc_directions);
+void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_edges);
 
 wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** toplevel = nullptr);
 

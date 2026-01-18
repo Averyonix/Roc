@@ -144,7 +144,7 @@ rect2f64 wroc_toplevel_get_layout_rect(wroc_toplevel* toplevel, rect2i32* p_geom
     }
 
     auto extent = toplevel->layout_size ? *toplevel->layout_size : vec2f64(geom.extent);
-    auto offset = toplevel->anchor.position - extent * vec2f64(toplevel->anchor.relative);
+    auto offset = toplevel->anchor.position - extent * toplevel->anchor.relative;
     return {offset, extent, wrei_xywh};
 }
 
@@ -183,8 +183,14 @@ void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resourc
     wroc_begin_move_interaction(toplevel, pointer, wroc_directions::horizontal | wroc_directions::vertical);
 }
 
+void wroc_toplevel_set_anchor_relative(wroc_toplevel* toplevel, vec2f64 anchor_rel)
+{
+    toplevel->anchor.position += vec2f64(anchor_rel - toplevel->anchor.relative) * wroc_toplevel_get_layout_rect(toplevel).extent;
+    toplevel->anchor.relative = anchor_rel;
+}
+
 static
-void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial, u32 edges)
+void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial, u32 wl_edges)
 {
     // TODO: Check serial
 
@@ -197,21 +203,21 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
         return;
     }
 
-    vec2i32 anchor_rel = toplevel->anchor.relative;
-    wroc_directions dirs = {};
-    switch (edges) {
+    wroc_edges edges;
+    switch (wl_edges) {
         break;case XDG_TOPLEVEL_RESIZE_EDGE_NONE: return;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP:          ; anchor_rel.y = 1;    dirs = wroc_directions::vertical;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:       ; anchor_rel.y = 0;    dirs = wroc_directions::vertical;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:         ; anchor_rel.x = 1;    dirs = wroc_directions::horizontal;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:        ; anchor_rel.x = 0;    dirs = wroc_directions::horizontal;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:     ; anchor_rel = {1, 1}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:    ; anchor_rel = {0, 1}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:  ; anchor_rel = {1, 0}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: ; anchor_rel = {0, 0}; dirs = wroc_directions::horizontal | wroc_directions::vertical;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP:          edges = wroc_edges::top;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:       edges = wroc_edges::bottom;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:         edges = wroc_edges::left;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:        edges = wroc_edges::right;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:     edges = wroc_edges::top | wroc_edges::left;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:    edges = wroc_edges::top | wroc_edges::right;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:  edges = wroc_edges::bottom | wroc_edges::left;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: edges = wroc_edges::bottom | wroc_edges::right;
     }
 
-    wroc_begin_resize_interaction(toplevel, pointer, anchor_rel, dirs);
+    wroc_toplevel_set_anchor_relative(toplevel, wroc_edges_to_relative(wroc_edges_inverse(edges)));
+    wroc_begin_resize_interaction(toplevel, pointer, edges);
 }
 
 static
@@ -231,6 +237,14 @@ void wroc_xdg_toplevel_unset_fullscreen(wl_client* client, wl_resource* resource
 }
 
 static
+void wroc_xdg_toplevel_set_parent(wl_client* client, wl_resource* resource, wl_resource* parent)
+{
+    auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
+    toplevel->pending.parent = wroc_get_userdata<wroc_toplevel>(parent);
+    toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::parent;
+}
+
+static
 void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
 {
     wroc_toplevel_set_size(toplevel, {0, 0});
@@ -247,25 +261,47 @@ void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
     wroc_xdg_surface_flush_configure(toplevel->base());
 }
 
+static
+void toplevel_anchor_to_parent(wroc_toplevel* toplevel)
+{
+    if (!toplevel->current.parent || !toplevel->current.parent->surface) return;
+
+    rect2f64 parent_frame = wroc_surface_get_frame(toplevel->current.parent->surface.get());
+    toplevel->anchor.position = parent_frame.origin + parent_frame.extent * 0.5;
+    toplevel->anchor.relative = {0.5, 0.5};
+
+    // TODO: Ensure layering
+}
+
+static
+void wroc_xdg_toplevel_on_initial_size(wroc_toplevel* toplevel)
+{
+    auto geom = wroc_xdg_surface_get_geometry(toplevel->base());
+    log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
+    wroc_toplevel_set_size(toplevel, geom.extent);
+    wroc_toplevel_flush_configure(toplevel);
+}
+
 void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 {
+    if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
+    if (pending.committed >= wroc_xdg_toplevel_committed_state::app_id) current.app_id = pending.app_id;
+    if (pending.committed >= wroc_xdg_toplevel_committed_state::parent) {
+        current.parent = pending.parent;
+        toplevel_anchor_to_parent(this);
+    }
+
+    current.committed |= pending.committed;
+    pending = {};
+
     if (!initial_configure_complete) {
         initial_configure_complete = true;
         wroc_xdg_toplevel_on_initial_commit(this);
     }
     else if (!initial_size_receieved) {
         initial_size_receieved = true;
-        auto geom = wroc_xdg_surface_get_geometry(base());
-        log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
-        wroc_toplevel_set_size(this, geom.extent);
-        wroc_toplevel_flush_configure(this);
+        wroc_xdg_toplevel_on_initial_size(this);
     }
-
-    if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
-    if (pending.committed >= wroc_xdg_toplevel_committed_state::app_id) current.app_id = pending.app_id;
-
-    current.committed |= pending.committed;
-    pending = {};
 
     // NOTE: This will always see up-to-date xdg_surface state, as xdg_toplevel will always
     //       come after xdg_surface in the addon list.
@@ -274,7 +310,7 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .destroy    = wroc_surface_addon_destroy,
-    WROC_STUB(set_parent),
+    .set_parent = wroc_xdg_toplevel_set_parent,
     .set_title  = wroc_xdg_toplevel_set_title,
     .set_app_id = wroc_xdg_toplevel_set_app_id,
     WROC_STUB(show_window_menu),
