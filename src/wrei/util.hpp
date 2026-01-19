@@ -97,7 +97,8 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
     inline constexpr bool     operator< (EnumType  l, EnumType r) { return !(l >= r);                                                                } \
     inline constexpr EnumType operator& (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) & std::to_underlying(r));                  } \
     inline constexpr EnumType operator~ (EnumType  v)             { return EnumType(~std::to_underlying(v));                                         } \
-    inline constexpr EnumType operator-=(EnumType& l, EnumType r) { return l = EnumType(std::to_underlying(l) & ~std::to_underlying(r));             }
+    inline constexpr EnumType operator-=(EnumType& l, EnumType r) { return l = EnumType(std::to_underlying(l) & ~std::to_underlying(r));             } \
+    inline constexpr bool wrei_flags_empty(EnumType v)            { return !std::to_underlying(v);                                                   } \
 
 // -----------------------------------------------------------------------------
 

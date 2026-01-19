@@ -51,8 +51,8 @@ void wrei_log(wrei_log_level level, std::format_string<Args...> fmt, Args&&... a
     wrei_log(level, std::vformat(fmt.get(), std::make_format_args(args...)));
 }
 
-#define log_trace(fmt, ...) if (wrei_is_log_level_enabled(wrei_log_level::trace)) wrei_log(wrei_log_level::trace, std::format(fmt __VA_OPT__(,) __VA_ARGS__))
-#define log_debug(fmt, ...) if (wrei_is_log_level_enabled(wrei_log_level::debug)) wrei_log(wrei_log_level::debug, std::format(fmt __VA_OPT__(,) __VA_ARGS__))
-#define log_info( fmt, ...) if (wrei_is_log_level_enabled(wrei_log_level::info )) wrei_log(wrei_log_level::info,  std::format(fmt __VA_OPT__(,) __VA_ARGS__))
-#define log_warn( fmt, ...) if (wrei_is_log_level_enabled(wrei_log_level::warn )) wrei_log(wrei_log_level::warn,  std::format(fmt __VA_OPT__(,) __VA_ARGS__))
-#define log_error(fmt, ...) if (wrei_is_log_level_enabled(wrei_log_level::error)) wrei_log(wrei_log_level::error, std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define log_trace(fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::trace)) wrei_log(wrei_log_level::trace, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_debug(fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::debug)) wrei_log(wrei_log_level::debug, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_info( fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::info )) wrei_log(wrei_log_level::info,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_warn( fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::warn )) wrei_log(wrei_log_level::warn,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_error(fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::error)) wrei_log(wrei_log_level::error, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)

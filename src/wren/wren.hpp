@@ -126,7 +126,6 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
 enum class wren_features
 {
-    none,
     dmabuf = 1 << 0,
 };
 WREI_DECORATE_FLAG_ENUM(wren_features)
@@ -352,8 +351,6 @@ struct wren_array
 
 enum class wren_image_usage
 {
-    none,
-
     transfer = 1 << 0,  // Transfer dst
     texture  = 1 << 1,  // Sampled
     render   = 1 << 2,  // Color attachment

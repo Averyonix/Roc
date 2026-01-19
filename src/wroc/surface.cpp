@@ -216,7 +216,7 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     // Update commit flags
 
     to.committed |= from.committed;
-    from.committed = wroc_surface_committed_state::none;
+    from.committed = {};
 }
 
 static
@@ -231,7 +231,7 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
             wroc_surface_commit_state(surface, surface->pending, surface->cached);
         }
     } else {
-        if (surface->cached.committed > wroc_surface_committed_state::none) {
+        if (!wrei_flags_empty(surface->cached.committed)) {
             // Apply remaining cached state
             wroc_surface_commit_state(surface, surface->pending, surface->cached);
             wroc_surface_commit_state(surface, surface->cached, surface->current);

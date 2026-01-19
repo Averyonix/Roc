@@ -147,7 +147,6 @@ enum class wroc_surface_role
 
 enum class wroc_surface_commit_flags
 {
-    none,
     from_parent = 1 << 0,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_commit_flags)
@@ -166,7 +165,6 @@ void wroc_surface_addon_destroy(wl_client*, wl_resource*);
 
 enum class wroc_surface_committed_state : u32
 {
-    none,
     buffer        = 1 << 0,
     offset        = 1 << 1,
     opaque_region = 1 << 2,
@@ -266,8 +264,6 @@ T* wroc_surface_get_or_create_addon(wroc_surface* surface, bool* created = nullp
 
 enum class wroc_viewport_committed_state : u32
 {
-    none,
-
     source      = 1 << 0,
     destination = 1 << 1,
 };
@@ -296,7 +292,6 @@ struct wroc_viewport : wroc_surface_addon
 
 enum class wroc_subsurface_committed_state : u32
 {
-    none,
     position,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_subsurface_committed_state)
@@ -330,7 +325,6 @@ wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface*);
 
 enum class wroc_xdg_surface_committed_state : u32
 {
-    none,
     geometry = 1 << 0,
     ack      = 1 << 1,
 };
@@ -338,7 +332,7 @@ WREI_DECORATE_FLAG_ENUM(wroc_xdg_surface_committed_state)
 
 struct wrox_xdg_surface_state
 {
-    wroc_xdg_surface_committed_state committed = wroc_xdg_surface_committed_state::none;
+    wroc_xdg_surface_committed_state committed = {};
 
     rect2i32 geometry;
     u32 acked_serial;
@@ -370,7 +364,6 @@ struct wroc_xdg_shell_role_addon : wroc_surface_addon
 
 enum class wroc_xdg_toplevel_configure_state : u32
 {
-    none,
     bounds = 1 << 0,
     size   = 1 << 1,
     states = 1 << 2,
@@ -379,7 +372,6 @@ WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_configure_state)
 
 enum class wroc_xdg_toplevel_committed_state : u32
 {
-    none,
     parent = 1 << 0,
     title  = 1 << 1,
     app_id = 1 << 2,
@@ -388,7 +380,7 @@ WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_committed_state)
 
 struct wroc_xdg_toplevel_state
 {
-    wroc_xdg_toplevel_committed_state committed = wroc_xdg_toplevel_committed_state::none;
+    wroc_xdg_toplevel_committed_state committed = {};
 
     weak<wroc_toplevel> parent;
     std::string title;
@@ -625,8 +617,6 @@ void wroc_seat_init_pointer(wroc_seat*);
 
 enum class wroc_modifiers : u32
 {
-    none,
-
     mod    = 1 << 0,
     super  = 1 << 1,
     shift  = 1 << 2,
@@ -763,8 +753,6 @@ struct wroc_seat_pointer : wrei_object
 
 enum class wroc_pointer_constraint_committed_state
 {
-    none,
-
     position_hint = 1 << 0,
     region        = 1 << 1,
     region_unset  = 1 << 2,
@@ -896,8 +884,6 @@ wroc_surface* wroc_cursor_get_current(wroc_seat_pointer*, wroc_cursor*);
 
 enum class wroc_render_options
 {
-    none,
-
     no_dmabuf      = 1 << 0,
     separate_draws = 1 << 1,
 };
@@ -1031,8 +1017,6 @@ enum class wroc_interaction_mode : u32
 
 enum class wroc_edges : u32
 {
-    none = 0,
-
     left   = 1 << 0,
     right  = 1 << 1,
     top    = 1 << 2,

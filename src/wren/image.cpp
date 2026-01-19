@@ -311,7 +311,7 @@ VkImageAspectFlagBits plane_to_aspect(u32 i)
 
 ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params, wren_image_usage usage)
 {
-    assert(usage != wren_image_usage::none);
+    assert(!wrei_flags_empty(usage));
 
     auto props = get_modifier_props(ctx, params.format, params.modifier, usage >= wren_image_usage::render);
     if (!props) {
@@ -535,7 +535,7 @@ ref<wren_image> wren_image_create(
     wren_format format,
     wren_image_usage usage)
 {
-    assert(usage != wren_image_usage::none);
+    assert(!wrei_flags_empty(usage));
 
 #if WROC_PREFER_GBM_IMAGES
     return (format->drm != DRM_FORMAT_INVALID && ctx->features >= wren_features::dmabuf)

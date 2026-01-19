@@ -4,10 +4,10 @@
 const u32 wroc_xdg_wm_base_version = 7;
 
 static
-void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id);
+void create_positioner(wl_client* client, wl_resource* resource, u32 id);
 
 static
-void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
+void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
     auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);;
@@ -19,8 +19,8 @@ void wroc_xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, 
 
 const struct xdg_wm_base_interface wroc_xdg_wm_base_impl = {
     .destroy           = wroc_simple_resource_destroy_callback,
-    .create_positioner = wroc_xdg_wm_base_create_positioner,
-    .get_xdg_surface   = wroc_xdg_wm_base_get_xdg_surface,
+    .create_positioner = create_positioner,
+    .get_xdg_surface   = get_xdg_surface,
     WROC_STUB(pong),
 };
 
@@ -33,7 +33,7 @@ void wroc_xdg_wm_base_bind_global(wl_client* client, void* data, u32 version, u3
 // -----------------------------------------------------------------------------
 
 static
-void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32 id)
+void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_toplevel_interface, wl_resource_get_version(resource), id);
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
@@ -44,7 +44,7 @@ void wroc_xdg_surface_get_toplevel(wl_client* client, wl_resource* resource, u32
 }
 
 static
-void wroc_xdg_surface_set_window_geometry(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
+void set_window_geometry(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
     auto* surface = wroc_get_userdata<wroc_xdg_surface>(resource);
     surface->pending.geometry = {{x, y}, {width, height}, wrei_xywh};
@@ -100,7 +100,7 @@ void wroc_xdg_surface::on_commit(wroc_surface_commit_flags flags)
 }
 
 static
-void wroc_xdg_surface_ack_configure(wl_client* client, wl_resource* resource, u32 serial)
+void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
 {
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
 
@@ -116,14 +116,14 @@ void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
 }
 
 static
-void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* parent, wl_resource* positioner);
+void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* parent, wl_resource* positioner);
 
 const struct xdg_surface_interface wroc_xdg_surface_impl = {
     .destroy             = wroc_surface_addon_destroy,
-    .get_toplevel        = wroc_xdg_surface_get_toplevel,
-    .get_popup           = wroc_xdg_surface_get_popup,
-    .set_window_geometry = wroc_xdg_surface_set_window_geometry,
-    .ack_configure       = wroc_xdg_surface_ack_configure,
+    .get_toplevel        = get_toplevel,
+    .get_popup           = get_popup,
+    .set_window_geometry = set_window_geometry,
+    .ack_configure       = ack_configure,
 };
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
@@ -151,7 +151,7 @@ rect2f64 wroc_toplevel_get_layout_rect(wroc_toplevel* toplevel, rect2i32* p_geom
 // -----------------------------------------------------------------------------
 
 static
-void wroc_xdg_toplevel_set_title(wl_client* client, wl_resource* resource, const char* title)
+void toplevel_set_title(wl_client* client, wl_resource* resource, const char* title)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     toplevel->pending.title = title ? std::string{title} : std::string{};
@@ -159,7 +159,7 @@ void wroc_xdg_toplevel_set_title(wl_client* client, wl_resource* resource, const
 }
 
 static
-void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, const char* app_id)
+void toplevel_set_app_id(wl_client* client, wl_resource* resource, const char* app_id)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     toplevel->pending.app_id = app_id ? std::string{app_id} : std::string{};
@@ -167,7 +167,7 @@ void wroc_xdg_toplevel_set_app_id(wl_client* client, wl_resource* resource, cons
 }
 
 static
-void wroc_xdg_toplevel_move(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial)
+void toplevel_move(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial)
 {
     // TODO: Check serial
 
@@ -190,7 +190,7 @@ void wroc_toplevel_set_anchor_relative(wroc_toplevel* toplevel, vec2f64 anchor_r
 }
 
 static
-void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial, u32 wl_edges)
+void toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat, u32 serial, u32 wl_edges)
 {
     // TODO: Check serial
 
@@ -221,7 +221,7 @@ void wroc_xdg_toplevel_resize(wl_client* client, wl_resource* resource, wl_resou
 }
 
 static
-void wroc_xdg_toplevel_set_fullscreen(wl_client* client, wl_resource* resource, wl_resource* requested_output)
+void toplevel_set_fullscreen(wl_client* client, wl_resource* resource, wl_resource* requested_output)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     wroc_output* output;
@@ -230,14 +230,14 @@ void wroc_xdg_toplevel_set_fullscreen(wl_client* client, wl_resource* resource, 
 }
 
 static
-void wroc_xdg_toplevel_unset_fullscreen(wl_client* client, wl_resource* resource)
+void toplevel_unset_fullscreen(wl_client* client, wl_resource* resource)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     wroc_toplevel_set_fullscreen(toplevel, nullptr);
 }
 
 static
-void wroc_xdg_toplevel_set_parent(wl_client* client, wl_resource* resource, wl_resource* parent)
+void toplevel_set_parent(wl_client* client, wl_resource* resource, wl_resource* parent)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
     toplevel->pending.parent = wroc_get_userdata<wroc_toplevel>(parent);
@@ -245,7 +245,7 @@ void wroc_xdg_toplevel_set_parent(wl_client* client, wl_resource* resource, wl_r
 }
 
 static
-void wroc_xdg_toplevel_on_initial_commit(wroc_toplevel* toplevel)
+void toplevel_on_initial_commit(wroc_toplevel* toplevel)
 {
     wroc_toplevel_set_size(toplevel, {0, 0});
     wroc_toplevel_set_state(toplevel, XDG_TOPLEVEL_STATE_ACTIVATED, true);
@@ -274,7 +274,7 @@ void toplevel_anchor_to_parent(wroc_toplevel* toplevel)
 }
 
 static
-void wroc_xdg_toplevel_on_initial_size(wroc_toplevel* toplevel)
+void toplevel_on_initial_size(wroc_toplevel* toplevel)
 {
     auto geom = wroc_xdg_surface_get_geometry(toplevel->base());
     log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
@@ -296,11 +296,11 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 
     if (!initial_configure_complete) {
         initial_configure_complete = true;
-        wroc_xdg_toplevel_on_initial_commit(this);
+        toplevel_on_initial_commit(this);
     }
     else if (!initial_size_receieved) {
         initial_size_receieved = true;
-        wroc_xdg_toplevel_on_initial_size(this);
+        toplevel_on_initial_size(this);
     }
 
     // NOTE: This will always see up-to-date xdg_surface state, as xdg_toplevel will always
@@ -310,18 +310,18 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     .destroy    = wroc_surface_addon_destroy,
-    .set_parent = wroc_xdg_toplevel_set_parent,
-    .set_title  = wroc_xdg_toplevel_set_title,
-    .set_app_id = wroc_xdg_toplevel_set_app_id,
+    .set_parent = toplevel_set_parent,
+    .set_title  = toplevel_set_title,
+    .set_app_id = toplevel_set_app_id,
     WROC_STUB(show_window_menu),
-    .move       = wroc_xdg_toplevel_move,
-    .resize     = wroc_xdg_toplevel_resize,
+    .move       = toplevel_move,
+    .resize     = toplevel_resize,
     WROC_STUB(set_max_size),
     WROC_STUB(set_min_size),
     WROC_STUB(set_maximized),
     WROC_STUB(unset_maximized),
-    .set_fullscreen   = wroc_xdg_toplevel_set_fullscreen,
-    .unset_fullscreen = wroc_xdg_toplevel_unset_fullscreen,
+    .set_fullscreen   = toplevel_set_fullscreen,
+    .unset_fullscreen = toplevel_unset_fullscreen,
     WROC_STUB(set_minimized),
 };
 
@@ -357,7 +357,7 @@ void wroc_toplevel_set_state(wroc_toplevel* toplevel, xdg_toplevel_state state, 
 void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
 {
     auto& configure = toplevel->configure;
-    if (configure.pending == wroc_xdg_toplevel_configure_state::none) return;
+    if (wrei_flags_empty(configure.pending)) return;
 
     // TODO: We probably shouldn't always wait for a commit after an ack_configure?
     //       If the surface acks and then never submits, we would softlock on further configures
@@ -444,7 +444,7 @@ void wroc_toplevel_update_fullscreen_size(wroc_toplevel* toplevel)
 
 // -----------------------------------------------------------------------------
 
-void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource, u32 id)
+void create_positioner(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_positioner_interface, wl_resource_get_version(resource), id);
     auto* positioner = wrei_create_unsafe<wroc_positioner>();
@@ -452,72 +452,25 @@ void wroc_xdg_wm_base_create_positioner(wl_client* client, wl_resource* resource
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_positioner_impl, positioner);
 }
 
-static
-void wroc_xdg_positioner_set_size(wl_client* client, wl_resource* resource, i32 width, i32 height)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.size = {width, height};
-}
-
-static
-void wroc_xdg_positioner_set_anchor_rect(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.anchor_rect = {{x, y}, {width, height}, wrei_xywh};
-}
-
-static
-void wroc_xdg_positioner_set_anchor(wl_client* client, wl_resource* resource, u32 anchor)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.anchor = xdg_positioner_anchor(anchor);
-}
-
-static
-void wroc_xdg_positioner_set_gravity(wl_client* client, wl_resource* resource, u32 gravity)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.gravity = xdg_positioner_gravity(gravity);
-}
-
-static
-void wroc_xdg_positioner_set_constraint_adjustment(wl_client* client, wl_resource* resource, u32 constraint_adjustment)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.constraint_adjustment = xdg_positioner_constraint_adjustment(constraint_adjustment);
-}
-
-static
-void wroc_xdg_positioner_set_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.offset = {x, y};
-}
-
-static
-void wroc_xdg_positioner_set_reactive(wl_client* client, wl_resource* resource)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.reactive = true;
-}
-
-static
-void wroc_xdg_positioner_set_parent_size(wl_client* client, wl_resource* resource, i32 width, i32 height)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.parent_size = {width, height};
-}
-
-static
-void wroc_xdg_positioner_set_parent_configure(wl_client* client, wl_resource* resource, u32 serial)
-{
-    wroc_get_userdata<wroc_positioner>(resource)->rules.parent_configure = serial;
-}
+#define POSITIONER_SET(Name, Expr, ...) \
+    .set_##Name = [](wl_client* client, wl_resource* resource __VA_OPT__(,) __VA_ARGS__) { \
+        wroc_get_userdata<wroc_positioner>(resource)->rules.Name = (Expr); \
+    }
 
 const struct xdg_positioner_interface wroc_xdg_positioner_impl = {
-    .destroy                   = wroc_simple_resource_destroy_callback,
-    .set_size                  = wroc_xdg_positioner_set_size,
-    .set_anchor_rect           = wroc_xdg_positioner_set_anchor_rect,
-    .set_anchor                = wroc_xdg_positioner_set_anchor,
-    .set_gravity               = wroc_xdg_positioner_set_gravity,
-    .set_constraint_adjustment = wroc_xdg_positioner_set_constraint_adjustment,
-    .set_offset                = wroc_xdg_positioner_set_offset,
-    .set_reactive              = wroc_xdg_positioner_set_reactive,
-    .set_parent_size           = wroc_xdg_positioner_set_parent_size,
-    .set_parent_configure      = wroc_xdg_positioner_set_parent_configure,
+    .destroy = wroc_simple_resource_destroy_callback,
+    POSITIONER_SET(size,                  vec2i32(width, height),                       i32 width, i32 height),
+    POSITIONER_SET(anchor_rect,           rect2i32({x, y}, {width, height}, wrei_xywh), i32 x, i32 y, i32 width, i32 height),
+    POSITIONER_SET(anchor,                xdg_positioner_anchor(anchor),                u32 anchor),
+    POSITIONER_SET(gravity,               xdg_positioner_gravity(gravity),              u32 gravity),
+    POSITIONER_SET(constraint_adjustment, xdg_positioner_constraint_adjustment(constraint_adjustment), u32 constraint_adjustment),
+    POSITIONER_SET(offset,                vec2i32(x, y),                                i32 x, i32 y),
+    POSITIONER_SET(reactive,              true),
+    POSITIONER_SET(parent_size,           vec2i32(width, height),                       i32 width, i32 height),
+    POSITIONER_SET(parent_configure,      serial,                                       u32 serial),
 };
+
+#undef POSITIONER_SET
 
 struct wroc_xdg_positioner_axis_rules
 {
@@ -530,7 +483,7 @@ struct wroc_xdg_positioner_axis_rules
 };
 
 static
-wroc_axis_region wroc_xdg_positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rules, wroc_axis_region constraint)
+wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rules, wroc_axis_region constraint)
 {
     log_debug("wroc_xdg_position_apply_axis");
     log_debug("  constraint = ({} ; {})", constraint.pos, constraint.size);
@@ -646,7 +599,7 @@ wroc_axis_region wroc_xdg_positioner_apply_axis(const wroc_xdg_positioner_axis_r
     case Prefix##_BOTTOM_RIGHT: return {rel.x,     rel.y    };
 
 template<typename T>
-wrei_vec<2, T> wroc_xdg_positioner_anchor_to_rel(xdg_positioner_anchor anchor, wrei_vec<2, T> rel)
+wrei_vec<2, T> positioner_anchor_to_rel(xdg_positioner_anchor anchor, wrei_vec<2, T> rel)
 {
     switch (anchor) {
         WROC_WAYLAND_EDGES_TO_REL_CASES(XDG_POSITIONER_ANCHOR)
@@ -654,7 +607,7 @@ wrei_vec<2, T> wroc_xdg_positioner_anchor_to_rel(xdg_positioner_anchor anchor, w
 }
 
 template<typename T>
-wrei_vec<2, T> wroc_xdg_positioner_gravity_to_rel(xdg_positioner_gravity gravity, wrei_vec<2, T> rel)
+wrei_vec<2, T> positioner_gravity_to_rel(xdg_positioner_gravity gravity, wrei_vec<2, T> rel)
 {
     switch (gravity) {
         WROC_WAYLAND_EDGES_TO_REL_CASES(XDG_POSITIONER_GRAVITY)
@@ -662,10 +615,10 @@ wrei_vec<2, T> wroc_xdg_positioner_gravity_to_rel(xdg_positioner_gravity gravity
 }
 
 static
-void wroc_xdg_positioner_apply_axis_from_rules(const wroc_positioner_rules& rules, rect2i32 constraint, rect2i32& target, u32 axis)
+void positioner_apply_axis_from_rules(const wroc_positioner_rules& rules, rect2i32 constraint, rect2i32& target, u32 axis)
 {
-    auto anchor = wroc_xdg_positioner_anchor_to_rel(rules.anchor, rules.anchor_rect.extent);
-    auto gravity = wroc_xdg_positioner_gravity_to_rel(rules.gravity, rules.size);
+    auto anchor = positioner_anchor_to_rel(rules.anchor, rules.anchor_rect.extent);
+    auto gravity = positioner_gravity_to_rel(rules.gravity, rules.size);
     static constexpr std::array flip_adjustments   = { XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X,   XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y   };
     static constexpr std::array slide_adjustments  = { XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X,  XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y  };
     static constexpr std::array resize_adjustments = { XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_X, XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_Y };
@@ -685,24 +638,24 @@ void wroc_xdg_positioner_apply_axis_from_rules(const wroc_positioner_rules& rule
         .pos = constraint.origin[axis] - offset,
         .size = constraint.extent[axis],
     };
-    auto region = wroc_xdg_positioner_apply_axis(axis_rules, constraint_region);
+    auto region = positioner_apply_axis(axis_rules, constraint_region);
     log_debug("  final position: ({}, {}), offset = {}", region.pos, region.size, offset);
     target.origin[axis] = region.pos + offset;
     target.extent[axis] = region.size;
 }
 
 static
-rect2i32 wroc_xdg_positioner_apply(const wroc_positioner_rules& rules, rect2i32 constraint)
+rect2i32 positioner_apply(const wroc_positioner_rules& rules, rect2i32 constraint)
 {
     rect2i32 target;
-    wroc_xdg_positioner_apply_axis_from_rules(rules, constraint, target, 0);
-    wroc_xdg_positioner_apply_axis_from_rules(rules, constraint, target, 1);
+    positioner_apply_axis_from_rules(rules, constraint, target, 0);
+    positioner_apply_axis_from_rules(rules, constraint, target, 1);
     return target;
 }
 
 // -----------------------------------------------------------------------------
 
-void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _parent, wl_resource* positioner)
+void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _parent, wl_resource* positioner)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
     auto* base = wroc_get_userdata<wroc_xdg_surface>(resource);
@@ -743,7 +696,7 @@ void wroc_xdg_surface_get_popup(wl_client* client, wl_resource* resource, u32 id
 }
 
 static
-void wroc_xdg_popup_position(wroc_popup* popup)
+void popup_position(wroc_popup* popup)
 {
     auto* parent = popup->parent.get();
     auto* parent_surface = parent->surface.get();
@@ -763,7 +716,7 @@ void wroc_xdg_popup_position(wroc_popup* popup)
             constraint = rect;
         }
     }
-    auto geometry = wroc_xdg_positioner_apply(popup->positioner->rules, constraint);
+    auto geometry = positioner_apply(popup->positioner->rules, constraint);
 
     popup->position = geometry.origin;
 
@@ -782,7 +735,7 @@ void wroc_popup::on_commit(wroc_surface_commit_flags)
         initial_configure_complete = true;
 
         if (parent) {
-            wroc_xdg_popup_position(this);
+            popup_position(this);
         } else {
             log_error("xdg_popup has no parent set at commit time, can't configure");
         }
@@ -792,7 +745,7 @@ void wroc_popup::on_commit(wroc_surface_commit_flags)
 }
 
 static
-void wroc_xdg_popup_reposition(wl_client* client, wl_resource* resource, wl_resource* _positioner, u32 token)
+void popup_reposition(wl_client* client, wl_resource* resource, wl_resource* _positioner, u32 token)
 {
     log_warn("xdg_popup::reposition(token = {})", token);
 
@@ -802,13 +755,13 @@ void wroc_xdg_popup_reposition(wl_client* client, wl_resource* resource, wl_reso
     popup->positioner = positioner;
     popup->reposition_token = token;
 
-    wroc_xdg_popup_position(popup);
+    popup_position(popup);
 
     // TODO: We should double buffer the new geometry until the client has committed in response to the new configure
 }
 
 const struct xdg_popup_interface wroc_xdg_popup_impl = {
-    .destroy    = wroc_surface_addon_destroy,
+    .destroy = wroc_surface_addon_destroy,
     WROC_STUB(grab),
-    .reposition = wroc_xdg_popup_reposition,
+    .reposition = popup_reposition,
 };

@@ -102,7 +102,7 @@ void wroc_subsurface::on_commit(wroc_surface_commit_flags flags)
     // Commit flags
 
     current.committed |= pending.committed;
-    pending.committed = wroc_subsurface_committed_state::none;
+    pending.committed = {};
 }
 
 bool wroc_subsurface::is_synchronized()
