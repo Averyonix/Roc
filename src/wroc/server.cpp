@@ -176,6 +176,7 @@ void wroc_run(int argc, char* argv[])
     WROC_GLOBAL(wl_shm);
     if (!(render_options >= wroc_render_options::no_dmabuf)) {
         WROC_GLOBAL(zwp_linux_dmabuf_v1);
+        WROC_GLOBAL(wp_linux_drm_syncobj_manager_v1);
     }
     WROC_GLOBAL(wl_compositor);
     WROC_GLOBAL(wl_subcompositor);

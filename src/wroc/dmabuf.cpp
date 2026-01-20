@@ -138,7 +138,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     log_warn("Importing DMA-BUF, size = {}, format = {}, mod = {}",
         wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params.modifier));
     buffer->dmabuf_image = wren_image_import_dmabuf(server->renderer->wren.get(), params, wren_image_usage::texture);
-    buffer->image = wren_image_create(server->renderer->wren.get(), params.extent, params.format, wren_image_usage::texture | wren_image_usage::transfer);
+    buffer->image = buffer->dmabuf_image;
 
     return buffer;
 }
@@ -170,6 +170,50 @@ const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedba
     .destroy = wroc_simple_resource_destroy_callback,
 };
 
+static
+void make_ready(wroc_dma_buffer* buffer, weak<wroc_surface> surface, std::chrono::steady_clock::time_point start)
+{
+    if (server->renderer->noisy_dmabufs) {
+        log_warn("DMA-BUF transfer completed in {}", wrei_duration_to_string(std::chrono::steady_clock::now() - start));
+    }
+    // TODO: Ensure ordering of buffers via surface state queue
+    if (surface) {
+        buffer->ready(surface.get());
+    }
+}
+
+static
+void dmabuf_wait_syncobj(wroc_buffer_lock* lock, wren_semaphore* timeline, u64 point, weak<wroc_surface> surface, std::chrono::steady_clock::time_point start)
+{
+    wren_semaphore_wait_value(timeline, point);
+
+    wrei_event_loop_enqueue(server->event_loop.get(), [lock, timeline, surface, start] {
+        auto* dmabuf = static_cast<wroc_dma_buffer*>(lock->buffer.get());
+        make_ready(dmabuf, surface, start);
+        wrei_remove_ref(lock);
+        wrei_remove_ref(timeline);
+    });
+}
+
+static
+void dmabuf_wait_implicit(wroc_buffer_lock* lock, weak<wroc_surface> surface, std::chrono::steady_clock::time_point start)
+{
+    auto* dmabuf_image = static_cast<wren_image_dmabuf*>(lock->buffer->image.get());
+
+    for (auto& plane : dmabuf_image->dma_params.planes) {
+        wrei_unix_check_n1(poll(wrei_ptr_to(pollfd {
+            .fd = plane.fd,
+            .events = POLLIN,
+        }), 1, -1));
+    }
+
+    wrei_event_loop_enqueue(server->event_loop.get(), [lock, surface, start] {
+        auto* dmabuf = static_cast<wroc_dma_buffer*>(lock->buffer.get());
+        make_ready(dmabuf, surface, start);
+        wrei_remove_ref(lock);
+    });
+}
+
 void wroc_dma_buffer::on_commit(wroc_surface* surface)
 {
     if (!server->renderer->copy_dmabufs) {
@@ -177,35 +221,59 @@ void wroc_dma_buffer::on_commit(wroc_surface* surface)
         return;
     }
 
-    auto* wren = dmabuf_image->ctx;
-    auto queue = wren_get_queue(wren, wren_queue_type::transfer);
-    auto commands = wren_commands_begin(queue);
+    auto start = std::chrono::steady_clock::now();
 
-    // log_error("submitting DMA-BUF transfer on queue, type = \"{}\"", wrei_enum_to_string(queue->type));
+    auto* syncobj_surface = wroc_surface_get_addon<wroc_syncobj_surface>(surface);
+    bool use_syncobj = true;
 
-    std::vector<ref<wren_semaphore>> semaphores;
-    std::vector<wren_syncpoint> waits;
-
-    for (auto& plane : dmabuf_image->dma_params.planes) {
-        dma_buf_export_sync_file data {
-            .flags = DMA_BUF_SYNC_READ,
-            .fd = -1,
-        };
-        if (wrei_unix_check_n1(drmIoctl(plane.fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &data)) != 0) {
-            wrei_debugkill();
-        };
-        if (data.fd != -1) {
-            auto sema = wren_semaphore_import_syncfile(commands->queue->ctx, data.fd);
-            if (sema) {
-                semaphores.emplace_back(sema);
-                waits.emplace_back(sema.get());
-            } else {
-                log_error("Failed to import syncfile into Vulkan");
-            }
-        } else {
-            log_error("Failed to export syncfile from DMA-BUF");
-        }
+    if (!syncobj_surface) {
+        use_syncobj = false;
+    } else if (!syncobj_surface->acquire_timeline && !syncobj_surface->release_timeline) {
+        log_error("Surface has syncobj_surface attached, but did not submit any timeline semaphores");
+        use_syncobj = false;
+    } else if (!syncobj_surface->acquire_timeline) {
+        wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_ACQUIRE_POINT, "Missing acquire point");
+        use_syncobj = false;
+    } else if (!syncobj_surface->release_timeline) {
+        wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_RELEASE_POINT, "Missing release point");
+        use_syncobj = false;
+    } else if (syncobj_surface->acquire_timeline.get() == syncobj_surface->release_timeline.get()
+            && syncobj_surface->acquire_point >= syncobj_surface->release_point) {
+        wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_CONFLICTING_POINTS, "Acquire and release use the same syncobj, but acquire point is not less than release point");
+        use_syncobj = false;
     }
+
+    if (use_syncobj) {
+
+        // Consume the committed timelines
+        auto acquire_timeline = std::exchange(syncobj_surface->acquire_timeline, nullptr);
+        auto acquire_point = syncobj_surface->acquire_point;
+
+        release_timeline = std::exchange(syncobj_surface->release_timeline, nullptr);
+        release_point = syncobj_surface->release_point;
+
+        // TODO: Thread pool?
+
+        std::thread {
+            dmabuf_wait_syncobj,
+            wrei_add_ref(lock().get()),
+            wrei_add_ref(acquire_timeline.get()),
+            acquire_point,
+            weak(surface),
+            start
+        }.detach();
+    } else {
+        std::thread {
+            dmabuf_wait_implicit,
+            wrei_add_ref(lock().get()),
+            weak(surface),
+            start
+        }.detach();
+    }
+
+#if 0
+    // TODO: We should still include these barriers for correctness, even if the driver works
+    //       fine without them (or at least seems too).
 
     wren->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -214,29 +282,16 @@ void wroc_dma_buffer::on_commit(wroc_surface* surface)
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
             .srcAccessMask = 0,
-            .dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
-            .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+            // .dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+            // .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
             .newLayout = VK_IMAGE_LAYOUT_GENERAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
             .dstQueueFamilyIndex = queue->family,
             .image = dmabuf_image->image,
             .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-        }),
-    }));
-
-    wren->vk.CmdCopyImage2(commands->buffer, wrei_ptr_to(VkCopyImageInfo2 {
-        .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
-        .srcImage = dmabuf_image->image,
-        .srcImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .dstImage = image->image,
-        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .regionCount = 1,
-        .pRegions = wrei_ptr_to(VkImageCopy2 {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
-            .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-            .dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-            .extent = {image->extent.x, image->extent.y, 1},
         }),
     }));
 
@@ -257,36 +312,17 @@ void wroc_dma_buffer::on_commit(wroc_surface* surface)
             .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
         }),
     }));
-
-    struct dmabuf_transfer_guard : wrei_object
-    {
-        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-        weak<wroc_surface> surface;
-        ref<wroc_buffer_lock> lock;
-
-        ~dmabuf_transfer_guard()
-        {
-            if (server->renderer->noisy_dmabufs) {
-                log_warn("DMA-BUF transfer completed in {}", wrei_duration_to_string(std::chrono::steady_clock::now() - start));
-            }
-            lock->buffer->release();
-            if (surface) {
-                lock->buffer->ready(surface.get());
-            }
-        }
-    };
-
-    auto guard = wrei_create<dmabuf_transfer_guard>();
-    guard->surface = surface;
-    guard->lock = lock();
-    wren_commands_protect_object(commands.get(), guard.get());
-
-    wren_commands_submit(commands.get(), waits, {});
+#endif
 }
 
 void wroc_dma_buffer::on_unlock()
 {
+    release();
+    if (release_timeline) {
+        wren_semaphore_signal_value(release_timeline.get(), release_point);
 
+        release_timeline = nullptr;
+    }
 }
 
 void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)

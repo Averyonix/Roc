@@ -593,8 +593,33 @@ struct wroc_dma_buffer : wroc_buffer
 {
     ref<wren_image_dmabuf> dmabuf_image;
 
+    ref<wren_semaphore> release_timeline;
+    u64 release_point;
+
     virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
+};
+
+// -----------------------------------------------------------------------------
+
+struct wroc_syncobj_timeline : wrei_object
+{
+    ref<wren_semaphore> syncobj;
+
+    wroc_resource resource;
+};
+
+struct wroc_syncobj_surface : wroc_surface_addon
+{
+    wroc_resource resource;
+
+    ref<wren_semaphore> release_timeline;
+    u64 release_point;
+
+    ref<wren_semaphore> acquire_timeline;
+    u64 acquire_point;
+
+    void on_commit(wroc_surface_commit_flags) final override;
 };
 
 // -----------------------------------------------------------------------------

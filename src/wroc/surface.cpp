@@ -76,6 +76,7 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
+    surface->pending.buffer_lock = nullptr;
     surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_buffer>(wl_buffer) : nullptr;
     surface->pending.committed |= wroc_surface_committed_state::buffer;
 
@@ -144,40 +145,17 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     // Update buffer
 
     if (from.committed >= wroc_surface_committed_state::buffer) {
-        if (&from == &surface->pending) {
-            // If commit from pending, acquire buffer lock or clear
-            if (from.buffer) {
-                if (from.buffer->resource) {
-                    to.buffer = from.buffer;
-                    to.buffer_lock = to.buffer->commit(surface);
-                } else {
-                    log_warn("Pending buffer was destroyed, surface contents will be cleared");
-                    to.buffer = nullptr;
-                    to.buffer_lock = nullptr;
-                }
-            } else if (to.buffer) {
-                log_warn("Null buffer was attached, surface contents will be cleared");
-                to.buffer = nullptr;
-                to.buffer_lock = nullptr;
-            }
-        } else {
-            // Else transfer committed buffer and lock to next state
+        if (from.buffer && from.buffer->resource) {
             to.buffer      = std::move(from.buffer);
             to.buffer_lock = std::move(from.buffer_lock);
+        } else {
+            log_warn("Pending buffer was destroyed or null buffer attached, surface contents will be cleared");
+            to.buffer = nullptr;
+            to.buffer_lock = nullptr;
         }
 
         from.buffer = nullptr;
         from.buffer_lock = nullptr;
-
-        if (&to == &surface->current) {
-            if (!to.buffer) {
-                surface->buffer = nullptr;
-            } else if (to.buffer->is_ready) {
-                surface->buffer = to.buffer_lock;
-            } else {
-                to.buffer->has_been_current = true;
-            }
-        }
     }
 
     // Update opaque region
@@ -224,19 +202,29 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
 {
     bool synchronized = wroc_surface_is_synchronized(surface);
     bool apply = !synchronized || flags >= wroc_surface_commit_flags::from_parent;
+    wroc_surface_committed_state committed;
+    wroc_surface_state* to;
     if (synchronized) {
         if (flags >= wroc_surface_commit_flags::from_parent) {
+            committed = surface->cached.committed;
             wroc_surface_commit_state(surface, surface->cached, surface->current);
+            to = &surface->current;
         } else {
+            committed = surface->pending.committed;
             wroc_surface_commit_state(surface, surface->pending, surface->cached);
+            to = &surface->cached;
         }
     } else {
         if (!wrei_flags_empty(surface->cached.committed)) {
             // Apply remaining cached state
+            committed = surface->pending.committed | surface->cached.committed ;
             wroc_surface_commit_state(surface, surface->pending, surface->cached);
             wroc_surface_commit_state(surface, surface->cached, surface->current);
+            to = &surface->current;
         } else {
+            committed = surface->pending.committed;
             wroc_surface_commit_state(surface, surface->pending, surface->current);
+            to = &surface->current;
         }
     }
 
@@ -254,8 +242,27 @@ void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
         addon->on_commit(flags);
     }
 
+    // Buffer commit
+    // This must happen after committing addons so that acquire/release fences are available
+
+    if (!to->buffer_lock && to->buffer) {
+        to->buffer_lock = to->buffer->commit(surface);
+    }
+
     if (!apply) {
         return;
+    }
+
+    // Buffer activation
+
+    if (committed >= wroc_surface_committed_state::buffer) {
+        if (!to->buffer) {
+            surface->buffer = nullptr;
+        } else if (to->buffer->is_ready) {
+            surface->buffer = to->buffer_lock;
+        } else {
+            to->buffer->has_been_current = true;
+        }
     }
 
     // Update subsurfaces

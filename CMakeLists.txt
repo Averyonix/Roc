@@ -193,6 +193,7 @@ target_sources(wroc PUBLIC
     src/wroc/renderer.cpp
     src/wroc/buffer.cpp
     src/wroc/dmabuf.cpp
+    src/wroc/syncobj.cpp
     src/wroc/seat.cpp
     src/wroc/shm.cpp
     src/wroc/surface.cpp

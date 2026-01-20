@@ -129,3 +129,7 @@ WROC_INTERFACE(org_kde_kwin_server_decoration);
 
 WROC_INTERFACE(wp_cursor_shape_manager_v1, true);
 WROC_INTERFACE(wp_cursor_shape_device_v1);
+
+WROC_INTERFACE(wp_linux_drm_syncobj_manager_v1, true);
+WROC_INTERFACE(wp_linux_drm_syncobj_timeline_v1);
+WROC_INTERFACE(wp_linux_drm_syncobj_surface_v1);
