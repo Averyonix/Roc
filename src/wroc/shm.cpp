@@ -1,4 +1,4 @@
-#include "wroc.hpp"
+#include "protocol.hpp"
 
 const u32 wroc_wl_shm_version = 2;
 

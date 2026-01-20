@@ -1,5 +1,4 @@
-#include "wroc.hpp"
-#include "util.hpp"
+#include "protocol.hpp"
 
 static
 void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resource, u32 id, wl_resource* _surface, wl_resource* parent)
@@ -121,7 +120,7 @@ wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface* subsurface)
 }
 
 const struct wl_subsurface_interface wroc_wl_subsurface_impl = {
-    .destroy      = wroc_surface_addon_destroy,
+    .destroy      = wroc_simple_resource_destroy_callback,
     .set_position = wroc_wl_subsurface_set_position,
     .place_above  = wroc_wl_subsurface_place_above,
     .place_below  = wroc_wl_subsurface_place_below,

@@ -1,5 +1,4 @@
-#include "wroc.hpp"
-#include "util.hpp"
+#include "protocol.hpp"
 
 const u32 wroc_wp_viewporter_version = 1;
 
@@ -50,7 +49,7 @@ void wroc_wp_viewport_set_destination(wl_client* client, wl_resource* resource, 
 
 const struct wp_viewport_interface wroc_wp_viewport_impl
 {
-    .destroy = wroc_surface_addon_destroy,
+    .destroy = wroc_simple_resource_destroy_callback,
     .set_source = wroc_wp_viewport_set_source,
     .set_destination = wroc_wp_viewport_set_destination,
 };

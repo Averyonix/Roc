@@ -1,5 +1,4 @@
-#include "wroc.hpp"
-#include "util.hpp"
+#include "protocol.hpp"
 
 const u32 wroc_xdg_wm_base_version = 7;
 
@@ -119,7 +118,7 @@ static
 void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* parent, wl_resource* positioner);
 
 const struct xdg_surface_interface wroc_xdg_surface_impl = {
-    .destroy             = wroc_surface_addon_destroy,
+    .destroy             = wroc_simple_resource_destroy_callback,
     .get_toplevel        = get_toplevel,
     .get_popup           = get_popup,
     .set_window_geometry = set_window_geometry,
@@ -309,7 +308,7 @@ void wroc_toplevel::on_commit(wroc_surface_commit_flags)
 }
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
-    .destroy    = wroc_surface_addon_destroy,
+    .destroy    = wroc_simple_resource_destroy_callback,
     .set_parent = toplevel_set_parent,
     .set_title  = toplevel_set_title,
     .set_app_id = toplevel_set_app_id,
@@ -761,7 +760,7 @@ void popup_reposition(wl_client* client, wl_resource* resource, wl_resource* _po
 }
 
 const struct xdg_popup_interface wroc_xdg_popup_impl = {
-    .destroy = wroc_surface_addon_destroy,
+    .destroy = wroc_simple_resource_destroy_callback,
     WROC_STUB(grab),
     .reposition = popup_reposition,
 };

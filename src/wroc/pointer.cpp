@@ -1,4 +1,4 @@
-#include "wroc.hpp"
+#include "protocol.hpp"
 
 #include "wroc/event.hpp"
 
@@ -201,13 +201,13 @@ const struct zwp_pointer_constraints_v1_interface wroc_zwp_pointer_constraints_v
 };
 
 const struct zwp_locked_pointer_v1_interface wroc_zwp_locked_pointer_v1_impl {
-    .destroy = wroc_surface_addon_destroy,
+    .destroy = wroc_simple_resource_destroy_callback,
     .set_cursor_position_hint = pointer_constraints_set_cursor_position_hint,
     .set_region = pointer_constraints_set_region,
 };
 
 const struct zwp_confined_pointer_v1_interface wroc_zwp_confined_pointer_v1_impl {
-    .destroy = wroc_surface_addon_destroy,
+    .destroy = wroc_simple_resource_destroy_callback,
     .set_region = pointer_constraints_set_region,
 };
 

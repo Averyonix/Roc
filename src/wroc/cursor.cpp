@@ -1,4 +1,4 @@
-#include "wroc.hpp"
+#include "protocol.hpp"
 
 static
 std::vector<std::string> wroc_cursor_list_themes()

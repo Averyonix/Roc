@@ -1,5 +1,4 @@
-#include "wroc.hpp"
-#include "util.hpp"
+#include "protocol.hpp"
 
 const u32 wroc_wl_seat_version = 10;
 

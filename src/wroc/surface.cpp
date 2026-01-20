@@ -1,6 +1,4 @@
-#include "wroc.hpp"
-#include "util.hpp"
-
+#include "protocol.hpp"
 
 const u32 wroc_wl_compositor_version = 6;
 const u32 wroc_wl_subcompositor_version = 1;
@@ -460,10 +458,4 @@ void wroc_surface_addon_detach(wroc_surface_addon* addon)
         addon->surface->role_addon = nullptr;
     }
     addon->surface = nullptr;
-}
-
-void wroc_surface_addon_destroy(wl_client*, wl_resource* resource)
-{
-    wroc_surface_addon_detach(wroc_get_userdata<wroc_surface_addon>(resource));
-    wl_resource_destroy(resource);
 }

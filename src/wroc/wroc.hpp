@@ -1,6 +1,5 @@
 #pragma once
 
-#include "protocol.hpp"
 #include "util.hpp"
 
 #include "wrei/pch.hpp"
@@ -161,7 +160,6 @@ struct wroc_surface_addon : wrei_object
 };
 
 void wroc_surface_addon_detach(wroc_surface_addon* addon);
-void wroc_surface_addon_destroy(wl_client*, wl_resource*);
 
 enum class wroc_surface_committed_state : u32
 {

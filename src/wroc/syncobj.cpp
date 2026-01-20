@@ -1,4 +1,4 @@
-#include "wroc.hpp"
+#include "protocol.hpp"
 
 const u32 wroc_wp_linux_drm_syncobj_manager_v1_version = 1;
 

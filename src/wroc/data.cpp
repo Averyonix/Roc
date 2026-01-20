@@ -1,5 +1,4 @@
-#include "wroc.hpp"
-#include <wayland-client-protocol.h>
+#include "protocol.hpp"
 
 #define WROC_NOISY_DRAG 0
 

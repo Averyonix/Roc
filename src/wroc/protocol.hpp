@@ -4,6 +4,16 @@
 #include "wrei/object.hpp"
 
 #include "util.hpp"
+#include "wroc.hpp"
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+T* wroc_try_get_userdata(wl_resource* resource)
+{
+    if (!resource) return nullptr;
+    return dynamic_cast<T*>(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
+}
 
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)
@@ -61,6 +71,9 @@ void wroc_resource_set_implementation(wl_resource* resource, const void* impleme
 inline
 void wroc_simple_resource_destroy_callback(wl_client* client, wl_resource* resource)
 {
+    if (auto* addon = wroc_try_get_userdata<wroc_surface_addon>(resource)) {
+        wroc_surface_addon_detach(addon);
+    }
     wl_resource_destroy(resource);
 }
 

@@ -1,4 +1,4 @@
-#include "wroc.hpp"
+#include "protocol.hpp"
 
 const u32 wroc_zwp_pointer_gestures_v1_version = 3;
 
