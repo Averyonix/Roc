@@ -30,7 +30,7 @@ void handle_keyboard_key(wroc_input_device* device, libinput_event_keyboard* eve
         break;case LIBINPUT_KEY_STATE_PRESSED:
             if (keycode == KEY_PAUSE) {
                 log_error("PAUSE HIT - EMERGENCY SHUTDOWN");
-                std::terminate();
+                wrei_debugkill();
             }
             device->keyboard->press(keycode);
         break;case LIBINPUT_KEY_STATE_RELEASED:

@@ -144,7 +144,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     backend->seat = libseat_open_seat(&wroc_seat_listener, nullptr);
     if (!backend->seat) {
         log_error("Failed to open seat");
-        std::terminate();
+        wrei_debugkill();
     }
 
     backend->seat_name = libseat_seat_name(backend->seat);
@@ -163,7 +163,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     backend->libinput = libinput_udev_create_context(&wroc_libinput_interface, backend, backend->udev);
     if (!backend->libinput) {
         log_error("Failed to create libinput context");
-        std::terminate();
+        wrei_debugkill();
     }
 
 	libinput_log_set_handler(backend->libinput, log_libinput);
@@ -172,7 +172,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     auto res = wrei_unix_check_n1(libinput_udev_assign_seat(backend->libinput, backend->seat_name));
     if (res < 0) {
         log_error("Libinput failed to acquire seat");
-        std::terminate();
+        wrei_debugkill();
     }
 
     int libinput_fd = libinput_get_fd(backend->libinput);
@@ -181,7 +181,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     handle_libinput_readable(backend,libinput_fd, EPOLLIN);
     if (backend->input_devices.empty()) {
         log_error("Libinput initialization failed, no keyboard or mouse detected");
-        std::terminate();
+        wrei_debugkill();
     }
 
     backend->libinput_event_source = wrei_event_loop_add_fd(server->event_loop.get(), libinput_fd, EPOLLIN,

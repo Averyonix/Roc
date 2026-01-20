@@ -53,7 +53,7 @@ void wrei_event_loop_run(wrei_event_loop* loop)
                 // At this point, we can't assume that we'll receieve any future FD events.
                 // Since this includes all user input, the only safe thing to do is
                 // immediately terminate to avoid locking out the user's system.
-                std::terminate();
+                wrei_debugkill();
             }
         }
 

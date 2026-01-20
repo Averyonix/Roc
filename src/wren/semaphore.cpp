@@ -77,7 +77,7 @@ ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context* ctx, int syncobj
     // passing an invalid opaque fd, as it's invalid API usage, this is best left
     // as a flag that must be explicitly enabled.
 
-    auto semaphore = wren_semaphore_create(ctx, VK_SEMAPHORE_TYPE_TIMELINE);
+    auto semaphore = wren_semaphore_create(ctx, wren_semaphore_type::timeline);
     wren_check(ctx->vk.ImportSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkImportSemaphoreFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
         .semaphore = semaphore->semaphore,
@@ -155,7 +155,7 @@ u64 wren_semaphore_get_value(wren_semaphore* semaphore)
         break;case wren_semaphore_type::syncobj:
             wrei_unix_check_n1(drmSyncobjQuery2(ctx->drm_fd, &semaphore->syncobj, &value, 1, 0));
         break;default:
-            std::unreachable();
+            wrei_unreachable();
     }
 
     return value;
@@ -179,7 +179,7 @@ void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value)
                 &semaphore->syncobj, &value, 1, INT64_MAX, 0, &first_signalled));
         }
         break;default:
-            std::unreachable();
+            wrei_unreachable();
     }
 
 }
@@ -198,7 +198,7 @@ void wren_semaphore_signal_value(wren_semaphore* semaphore, u64 value)
         break;case wren_semaphore_type::syncobj:
             wrei_unix_check_n1(drmSyncobjTimelineSignal(ctx->drm_fd, &semaphore->syncobj, &value, 1));
         break;default:
-            std::unreachable();
+            wrei_unreachable();
     }
 
 }

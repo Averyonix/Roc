@@ -28,7 +28,12 @@ void acquire_thread(weak<wren_swapchain> swapchain)
         }
 
         u32 image_index = wren_swapchain::invalid_index;
-        wren_check(ctx->vk.AcquireNextImageKHR(ctx->device, swapchain->swapchain, UINT64_MAX, swapchain->acquire_semaphore->semaphore, nullptr, &image_index));
+        auto res = wren_check(ctx->vk.AcquireNextImageKHR(ctx->device,
+            swapchain->swapchain, UINT64_MAX, swapchain->acquire_semaphore->semaphore, nullptr, &image_index), VK_SUBOPTIMAL_KHR);
+        if (res == VK_SUBOPTIMAL_KHR) {
+            log_warn("TODO: Swapchain image was acquired but marked as suboptimal");
+        }
+        // TODO: Handle VK_ERROR_OUT_OF_DATE_KHR
 
         if (swapchain->destroy_requested) {
             log_debug("Swapchain destroy requested after acquire, closing...");
@@ -118,7 +123,7 @@ void swapchain_recreate(wren_swapchain* swapchain)
     switch (present_mode) {
         break;case VK_PRESENT_MODE_MAILBOX_KHR: desired_image_count = 4;
         break;case VK_PRESENT_MODE_FIFO_KHR:    desired_image_count = 2;
-        break;default: std::unreachable();
+        break;default: wrei_unreachable();
     }
     auto min_image_count = std::max(desired_image_count, caps.minImageCount);
     if (caps.maxImageCount) min_image_count = std::min(min_image_count, caps.maxImageCount);

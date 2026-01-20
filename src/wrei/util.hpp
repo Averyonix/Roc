@@ -482,13 +482,25 @@ constexpr usz wrei_round_up_power2(usz v) noexcept
 inline
 void wrei_debugbreak()
 {
+    std::cerr << std::stacktrace::current() << std::endl;
     raise(SIGTRAP);
 }
 
 [[noreturn]] inline
 void wrei_debugkill()
 {
+    std::cerr << std::stacktrace::current() << std::endl;
     std::terminate();
+}
+
+[[noreturn]] inline
+void wrei_unreachable()
+{
+#ifdef NDEBUG
+    std::unreachable();
+#else
+    wrei_debugkill();
+#endif
 }
 
 // -----------------------------------------------------------------------------
@@ -501,7 +513,7 @@ u8 wrei_hex_to_value(char digit)
         break;case 'A' ... 'F': return 10 + digit - 'A';
         break;case '0' ... '9': return digit - '0';
         break;default:
-            std::unreachable();
+            wrei_unreachable();
     }
 }
 

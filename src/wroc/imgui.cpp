@@ -22,7 +22,7 @@ wp_cursor_shape_device_v1_shape from_imgui_cursor(ImGuiMouseCursor cursor)
         break;case ImGuiMouseCursor_NotAllowed: return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NOT_ALLOWED;
     }
 
-    std::unreachable();
+    wrei_unreachable();
 }
 
 void wroc_imgui_init()
