@@ -139,6 +139,8 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
 
     // libseat
 
+	setenv("XDG_SESSION_TYPE", "wayland", true);
+
     backend->seat = libseat_open_seat(&wroc_seat_listener, nullptr);
     if (!backend->seat) {
         log_error("Failed to open seat");
