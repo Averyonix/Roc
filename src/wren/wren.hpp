@@ -6,6 +6,13 @@
 
 #include "functions.hpp"
 
+// Import DRM sync objects as Vulkan timeline semaphores.
+// WARNING: This is not valid behaviour by the Vulkan spec and only works
+// when the driver uses syncobjs as the underlying type for its opaque fds.
+#define WREN_IMPORT_SYNCOBJ_AS_TIMELINE 0
+
+// -----------------------------------------------------------------------------
+
 struct wren_image;
 struct wren_semaphore;
 struct wren_commands;
@@ -221,15 +228,22 @@ wren_queue* wren_get_queue(wren_context*, wren_queue_type);
 
 // -----------------------------------------------------------------------------
 
+enum class wren_semaphore_type : u32
+{
+    binary,
+    timeline,
+    syncobj,
+};
+
 struct wren_semaphore : wrei_object
 {
     wren_context* ctx;
 
-    VkSemaphoreType type;
-    VkSemaphore semaphore;
-
-    u64 observed;
-    u64 submitted;
+    wren_semaphore_type type;
+    union {
+        VkSemaphore semaphore;
+        u32 syncobj;
+    };
 
     ~wren_semaphore();
 };
@@ -241,14 +255,14 @@ struct wren_syncpoint
     VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 };
 
-ref<wren_semaphore> wren_semaphore_create(wren_context*, VkSemaphoreType, u64 initial_value = 0);
+ref<wren_semaphore> wren_semaphore_create(wren_context*, wren_semaphore_type, u64 initial_value = 0);
+ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context*, int syncobj_fd);
 ref<wren_semaphore> wren_semaphore_import_syncfile(wren_context*, int sync_fd);
 int                 wren_semaphore_export_syncfile(wren_semaphore*);
 
-u64  wren_semaphore_get_value( wren_semaphore*);
-void wren_semaphore_wait_value(wren_semaphore*, u64 value);
-void wren_semaphore_wait(      wren_semaphore*);
-u64  wren_semaphore_advance(   wren_semaphore*, u64 inc = 1);
+u64  wren_semaphore_get_value(   wren_semaphore*);
+void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
+void wren_semaphore_signal_value(wren_semaphore*, u64 value);
 
 // -----------------------------------------------------------------------------
 

@@ -8,7 +8,7 @@ wren_image_swapchain::~wren_image_swapchain()
 static
 void request_acquire(wren_swapchain* swapchain)
 {
-    swapchain->acquire_semaphore = wren_semaphore_create(swapchain->ctx, VK_SEMAPHORE_TYPE_BINARY);
+    swapchain->acquire_semaphore = wren_semaphore_create(swapchain->ctx, wren_semaphore_type::binary);
     swapchain->current_index = wren_swapchain::invalid_index;
 
     swapchain->can_acquire = true;
@@ -240,7 +240,7 @@ std::pair<wren_image*, wren_syncpoint> wren_swapchain_acquire_image(wren_swapcha
 
 void wren_swapchain_present(wren_swapchain* swapchain, std::span<const wren_syncpoint> waits)
 {
-    assert(std::ranges::all_of(waits, [](auto& s) { return s.semaphore->type == VK_SEMAPHORE_TYPE_BINARY; }));
+    assert(std::ranges::all_of(waits, [](auto& s) { return s.semaphore->type == wren_semaphore_type::binary; }));
 
     std::vector<VkSemaphore> semas(waits.size());
     for (u32 i = 0; i < waits.size(); ++i) {

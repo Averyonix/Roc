@@ -27,7 +27,7 @@
         },
         "slang": {
             "branch": "master",
-            "commit": "6534d832ffd6226571ce05becb678e0119aaed5a",
+            "commit": "749a076a576fe866490c35ba5010cb5a880cd129",
             "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
@@ -57,7 +57,7 @@
         },
         "xwayland-satellite": {
             "branch": "main",
-            "commit": "72245e108f3b03c3c4474d2de9de2d1830849603",
+            "commit": "ed1cef792b4def3321ff9ab5479df09609f17a69",
             "repo": "https://github.com/Supreeeme/xwayland-satellite.git"
         }
     }

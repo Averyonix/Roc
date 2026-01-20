@@ -193,7 +193,7 @@ struct wrei_ref
 
     // Queries
 
-    operator bool() const { return value; }
+    explicit operator bool() const { return value; }
     T*        get() const { return value; }
     T* operator->() const { return value; }
 
@@ -251,7 +251,7 @@ struct wrei_weak
     constexpr bool operator==(const wrei_weak<T>& other) { return get() == other.get(); }
     constexpr bool operator!=(const wrei_weak<T>& other) { return get() != other.get(); }
 
-    operator bool() const { return value && wrei_allocation_from(value)->version == version; }
+    explicit operator bool() const { return value && wrei_allocation_from(value)->version == version; }
     T*        get() const { return *this ? value : nullptr; }
     T* operator->() const { return value; }
 

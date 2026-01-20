@@ -100,6 +100,7 @@
     DO(RegisterDisplayEventEXT) \
     DO(ImportSemaphoreFdKHR) \
     DO(GetSemaphoreFdKHR) \
+    DO(SignalSemaphore) \
 
 #define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

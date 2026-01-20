@@ -70,7 +70,7 @@ def fetch_dep(dir: Path, entry) -> Path:
         run(cmds)
         if commit is not None:
             run(["git", "checkout", commit])
-    elif args.update:
+    elif args.update or not commit:
         print(f"Updating [{repo}]")
         run(["git", "fetch", "origin", branch], cwd=dir)
         run(["git", "checkout", branch], cwd=dir)
@@ -152,6 +152,7 @@ def list_wayland_protocols():
     add(system_protocol_dir / "stable/tablet/tablet-v2.xml")
 
     add(system_protocol_dir / "staging/cursor-shape/cursor-shape-v1.xml")
+    add(system_protocol_dir / "staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml")
 
     add(system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
     add(system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml")

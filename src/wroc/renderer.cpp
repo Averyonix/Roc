@@ -398,7 +398,7 @@ void wroc_render_frame(wroc_output* output)
         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    auto present_sema = wren_semaphore_create(wren, VK_SEMAPHORE_TYPE_BINARY);
+    auto present_sema = wren_semaphore_create(wren, wren_semaphore_type::binary);
 
     wren_commands_submit(commands.get(), {acquire_sync}, {{present_sema.get()}});
 
