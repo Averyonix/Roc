@@ -109,6 +109,7 @@ void wroc_run(int argc, char* argv[])
     server->event_loop = event_loop;
     log_warn("Server = {}", (void*)server);
 
+    server->backend_type = backend_type;
     if (backend_type == wroc_backend_type::direct) {
         server->main_mod = wroc_modifiers::super;
         server->main_mod_evdev = KEY_LEFTMETA;
@@ -126,12 +127,12 @@ void wroc_run(int argc, char* argv[])
     // Init libwayland
 
     if ((getenv("WROC_WAYLAND_DEBUG_SERVER")?:"")[0]!=0) {
-        setenv("WAYLAND_DEBUG", "1", true);
+        wroc_setenv("WAYLAND_DEBUG", "1");
     } else {
-        unsetenv("WAYLAND_DEBUG");
+        wroc_setenv("WAYLAND_DEBUG", nullptr);
     }
     server->display = wl_display_create();
-    unsetenv("WAYLAND_DEBUG");
+    wroc_setenv("WAYLAND_DEBUG", nullptr);
 
     wl_display_set_default_max_buffer_size(server->display, 4096);
 
@@ -194,8 +195,9 @@ void wroc_run(int argc, char* argv[])
     // Run
 
     log_warn("WAYLAND_DISPLAY={}", server->socket);
+    wroc_setenv("WAYLAND_DISPLAY", server->socket.c_str(), wroc_setenv_options::system_wide);
     if (backend_type == wroc_backend_type::direct) {
-        setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, true);
+        wroc_setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, wroc_setenv_options::system_wide);
     }
     if (x11_socket) {
         wroc_spawn("xwayland-satellite", {"xwayland-satellite", x11_socket->c_str()}, {});

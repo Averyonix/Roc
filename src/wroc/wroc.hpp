@@ -1079,6 +1079,7 @@ WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
 struct wroc_server : wrei_object
 {
+    wroc_backend_type backend_type;
     ref<wroc_backend>  backend;
     ref<wroc_renderer> renderer;
     ref<wroc_seat>     seat;
@@ -1177,3 +1178,12 @@ struct wroc_spawn_cwd_action { const char* cwd; };
 using wroc_spawn_action = std::variant<wroc_spawn_env_action, wroc_spawn_x11_action>;
 pid_t wroc_spawn(std::string_view file, std::span<const std::string_view> argv, std::span<const wroc_spawn_action>);
 void wroc_spawn(GAppInfo* app_info, std::span<const wroc_spawn_action>);
+
+enum class wroc_setenv_options
+{
+    // Imports the environment variable into the systemd environment
+    system_wide = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_setenv_options)
+
+void wroc_setenv(const char* name, const char* value, wroc_setenv_options options = {});

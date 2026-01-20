@@ -89,12 +89,12 @@ void wroc_wayland_backend_init()
     server->backend = backend;
 
     if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
-        setenv("WAYLAND_DEBUG", "1", true);
+        wroc_setenv("WAYLAND_DEBUG", "1");
     } else {
-        unsetenv("WAYLAND_DEBUG");
+        wroc_setenv("WAYLAND_DEBUG", nullptr);
     }
     backend->wl_display = wl_display_connect(nullptr);
-    unsetenv("WAYLAND_DEBUG");
+    wroc_setenv("WAYLAND_DEBUG", nullptr);
     backend->wl_registry = wl_display_get_registry(backend->wl_display);
 
     wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend.get());
