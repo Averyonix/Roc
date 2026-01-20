@@ -217,28 +217,37 @@ void dmabuf_wait_implicit(wroc_buffer_lock* lock, weak<wroc_surface> surface, st
 
 void wroc_dma_buffer::on_commit(wroc_surface* surface)
 {
+    auto start = std::chrono::steady_clock::now();
+
+    auto* syncobj_surface = wroc_surface_get_addon<wroc_syncobj_surface>(surface);
+
+    if (syncobj_surface && syncobj_surface->release_timeline) {
+        // Ensure that we *always* signal a release timeline
+        // if given, to avoid deadlocking the client
+        release_timeline = std::exchange(syncobj_surface->release_timeline, nullptr);
+        release_point = syncobj_surface->release_point;
+    } else {
+        release_timeline = nullptr;
+    }
+
     if (!server->renderer->copy_dmabufs) {
         release();
         return;
     }
 
-    auto start = std::chrono::steady_clock::now();
-
-    auto* syncobj_surface = wroc_surface_get_addon<wroc_syncobj_surface>(surface);
     bool use_syncobj = true;
-
     if (!syncobj_surface) {
         use_syncobj = false;
-    } else if (!syncobj_surface->acquire_timeline && !syncobj_surface->release_timeline) {
-        log_error("Surface has syncobj_surface attached, but did not submit any timeline semaphores");
+    } else if (!syncobj_surface->acquire_timeline && !release_timeline) {
+        log_error("Surface has syncobj_surface attached, but did not submit any acquire or release points");
         use_syncobj = false;
     } else if (!syncobj_surface->acquire_timeline) {
         wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_ACQUIRE_POINT, "Missing acquire point");
         use_syncobj = false;
-    } else if (!syncobj_surface->release_timeline) {
+    } else if (!release_timeline) {
         wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_RELEASE_POINT, "Missing release point");
         use_syncobj = false;
-    } else if (syncobj_surface->acquire_timeline.get() == syncobj_surface->release_timeline.get()
+    } else if (syncobj_surface->acquire_timeline.get() == release_timeline.get()
             && syncobj_surface->acquire_point >= syncobj_surface->release_point) {
         wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_CONFLICTING_POINTS, "Acquire and release use the same syncobj, but acquire point is not less than release point");
         use_syncobj = false;
@@ -249,9 +258,6 @@ void wroc_dma_buffer::on_commit(wroc_surface* surface)
         // Consume the committed timelines
         auto acquire_timeline = std::exchange(syncobj_surface->acquire_timeline, nullptr);
         auto acquire_point = syncobj_surface->acquire_point;
-
-        release_timeline = std::exchange(syncobj_surface->release_timeline, nullptr);
-        release_point = syncobj_surface->release_point;
 
         // TODO: Thread pool?
 
@@ -359,7 +365,7 @@ void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
     int rw, ro;
     if (!wrei_allocate_shm_file_pair(size, &rw, &ro)) {
         log_error("Failed to allocate shared memory pair");
-        std::terminate();
+        wrei_debugkill();
     }
 
     void* dst = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, rw, 0);
