@@ -249,21 +249,21 @@ bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
             auto& event = static_cast<const wroc_pointer_event&>(base_event);
             if (event.axis.delta.y && mods >= wroc_modifiers::mod) {
                 if (server->interaction_mode == wroc_interaction_mode::normal) {
-
                     log_warn("Beginning focus cycle under pointer");
                     server->interaction_mode = wroc_interaction_mode::focus_cycle;
 
-                    server->focus.cycled = server->seat->keyboard->focused_surface.get();
-                    focus_cycle(mods >= wroc_modifiers::shift, server->seat->pointer.get());
-                } else {
-                    log_warn("Cycling focus under pointer: {}", event.axis.delta.y);
-
-                    auto reverse = event.axis.delta.y > 0;
-                    i32 count = i32(std::abs(event.axis.delta.y));
-                    for (i32 i = 0; i < count; ++i) {
-                        focus_cycle(reverse, server->seat->pointer.get());
-                    }
+                    server->focus.cycled = nullptr;
+                    focus_cycle(false, server->seat->pointer.get());
                 }
+
+                log_warn("Cycling focus under pointer: {}", event.axis.delta.y);
+
+                auto reverse = event.axis.delta.y > 0;
+                i32 count = i32(std::abs(event.axis.delta.y));
+                for (i32 i = 0; i < count; ++i) {
+                    focus_cycle(reverse, server->seat->pointer.get());
+                }
+
                 return true;
             }
         }

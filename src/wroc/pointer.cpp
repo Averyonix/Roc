@@ -485,7 +485,6 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
 
     if (seat->keyboard && pressed) {
         if (toplevel_under_cursor) {
-            log_debug("trying to enter keyboard...");
             wroc_keyboard_enter(seat->keyboard.get(), toplevel_under_cursor->surface.get());
         } else {
             wroc_keyboard_clear_focus(seat->keyboard.get());
@@ -494,7 +493,7 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
 
     if (surface_under_cursor) {
         if (pressed && pointer->pressed.size() == 1) {
-            log_info("Starting implicit grab");
+            // log_trace("Starting implicit grab");
             server->implicit_grab_surface = surface_under_cursor;
         }
     }
@@ -511,7 +510,7 @@ void wroc_pointer_button(wroc_seat_pointer* pointer, u32 button, bool pressed)
     }
 
     if (!pressed && pointer->pressed.empty() && server->implicit_grab_surface) {
-        log_info("Ending implicit grab");
+        // log_trace("Ending implicit grab");
         wroc_data_manager_finish_drag();
         server->implicit_grab_surface = {};
         wroc_pointer_update_focus(pointer, surface_under_cursor);

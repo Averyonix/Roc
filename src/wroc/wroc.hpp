@@ -122,6 +122,7 @@ void wroc_output_layout_init();
 void wroc_output_layout_add_output(wroc_output_layout*, wroc_output*);
 void wroc_output_layout_remove_output(wroc_output_layout*, wroc_output*);
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos, wroc_output** output = nullptr);
+wroc_output* wroc_output_layout_output_for_surface(wroc_output_layout*, wroc_surface*);
 
 // -----------------------------------------------------------------------------
 

@@ -261,15 +261,46 @@ void toplevel_on_initial_commit(wroc_toplevel* toplevel)
 }
 
 static
+void toplevel_clamp_to_layout(wroc_toplevel* toplevel)
+{
+    // Find output for toplevel
+    auto* output = wroc_output_layout_output_for_surface(server->output_layout.get(), toplevel->surface.get());
+    if (!output) return;
+
+    auto frame = wroc_toplevel_get_layout_rect(toplevel);
+    auto bounds = output->layout_rect;
+
+    // Constrain bounds by layout padding
+    auto& c = server->zone.config;
+    bounds.origin += vec2f64{c.external_padding.left, c.external_padding.top};
+    bounds.extent -= vec2f64{
+        c.external_padding.left + c.external_padding.right,
+        c.external_padding.top + c.external_padding.bottom
+    };
+
+    // Constrain
+    auto constrained = wrei_rect_constrain(frame, bounds);
+
+    // Apply
+    wroc_toplevel_set_size(toplevel, constrained.extent);
+    toplevel->anchor.position = constrained.origin;
+    toplevel->anchor.relative = {};
+}
+
+static
 void toplevel_anchor_to_parent(wroc_toplevel* toplevel)
 {
     if (!toplevel->current.parent || !toplevel->current.parent->surface) return;
 
     rect2f64 parent_frame = wroc_surface_get_frame(toplevel->current.parent->surface.get());
     toplevel->anchor.position = parent_frame.origin + parent_frame.extent * 0.5;
-    toplevel->anchor.relative = {0.5, 0.5};
+    toplevel->anchor.relative = wroc_edges_to_relative({});
 
-    // TODO: Ensure layering
+    if (toplevel->initial_size_receieved) {
+        toplevel_clamp_to_layout(toplevel);
+    }
+
+    // TODO: Ensure child windows are layered on top of their parents
 }
 
 static
@@ -279,6 +310,19 @@ void toplevel_on_initial_size(wroc_toplevel* toplevel)
     log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
     wroc_toplevel_set_size(toplevel, geom.extent);
     wroc_toplevel_flush_configure(toplevel);
+
+    if (!toplevel->current.parent && !toplevel->fullscreen.output) {
+        log_debug("Centering new window on cursor");
+
+        toplevel->anchor.position = server->seat->pointer->position;
+        toplevel->anchor.relative = wroc_edges_to_relative({});
+    }
+
+    toplevel_clamp_to_layout(toplevel);
+
+    // TODO: Proper map lifecycle tracking
+    //       This should be triggered when the first buffer is actually prepared for the surface
+    wroc_keyboard_enter(server->seat->keyboard.get(), toplevel->surface.get());
 }
 
 void wroc_toplevel::on_commit(wroc_surface_commit_flags)

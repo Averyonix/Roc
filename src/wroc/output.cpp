@@ -73,6 +73,15 @@ vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 gl
     return closest;
 }
 
+wroc_output* wroc_output_layout_output_for_surface(wroc_output_layout* layout, wroc_surface* surface)
+{
+    auto frame = wroc_surface_get_frame(surface);
+    auto centroid = frame.origin + frame.extent * 0.5;
+    wroc_output* output = nullptr;
+    wroc_output_layout_clamp_position(layout, centroid, &output);
+    return output;
+}
+
 static
 void wroc_output_update(wroc_output_layout* layout)
 {

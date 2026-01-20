@@ -123,10 +123,8 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             bool fullscreen = toplevel && toplevel->fullscreen.output;
             if (ImGui::Checkbox("Fullscreen", &fullscreen) && toplevel) {
                 if (fullscreen) {
-                    auto rect = wroc_toplevel_get_layout_rect(toplevel);
-                    auto point = rect.origin + rect.extent * 0.5;
-                    wroc_output* output;
-                    wroc_output_layout_clamp_position(server->output_layout.get(), point, &output);
+                    auto output = wroc_output_layout_output_for_surface(
+                        server->output_layout.get(), toplevel->surface.get());
                     if (output) {
                         wroc_toplevel_set_fullscreen(toplevel, output);
                     }

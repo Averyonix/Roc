@@ -450,6 +450,22 @@ bool wrei_rect_intersects(const wrei_rect<T>& a, const wrei_rect<T>& b, wrei_rec
     return intersects;
 }
 
+template<typename T>
+wrei_rect<T> wrei_rect_constrain(wrei_rect<T> rect, const wrei_rect<T>& bounds)
+{
+    static constexpr auto constrain_axis = [](T start, T length, T& origin, T& extent) {
+        if (extent > length) {
+            origin = start;
+            extent = length;
+        } else {
+            origin = std::max(origin, start) - std::max(T(0), (origin + extent) - (start + length));
+        }
+    };
+    constrain_axis(bounds.origin.x, bounds.extent.x, rect.origin.x, rect.extent.x);
+    constrain_axis(bounds.origin.y, bounds.extent.y, rect.origin.y, rect.extent.y);
+    return rect;
+}
+
 // -----------------------------------------------------------------------------
 
 inline

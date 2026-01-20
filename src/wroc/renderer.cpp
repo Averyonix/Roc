@@ -418,10 +418,7 @@ void wroc_render_frame(wroc_output* output)
         if (surface->role == wroc_surface_role::none) continue;
         if (!surface->current.frame_callbacks.front()) continue;
 
-        wroc_output* surface_output = nullptr;
-        auto surface_frame = wroc_surface_get_frame(surface);
-        auto centroid = surface_frame.origin + surface_frame.extent * 0.5;
-        wroc_output_layout_clamp_position(server->output_layout.get(), centroid, &surface_output);
+        auto surface_output = wroc_output_layout_output_for_surface(server->output_layout.get(), surface);
 
         // Only dispatch frame callbacks for the surface's primary output
         if (surface_output != output) continue;
