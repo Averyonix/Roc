@@ -44,7 +44,11 @@ void wrei_event_loop_run(wrei_event_loop* loop)
 
         // Check for new fd events
 
-        i32 timeout = loop->tasks_available ? 0 : -1;
+        i32 timeout = 0;
+        if (!loop->tasks_available) {
+            loop->stats.poll_waits++;
+            timeout = -1;
+        }
         i32 count = wrei_unix_check_n1(epoll_wait(loop->epoll_fd, events.data(), events.size(), timeout), EAGAIN, EINTR);
         if (count < 0) {
             if (errno == EAGAIN || errno == EINTR) {

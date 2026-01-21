@@ -63,7 +63,12 @@ void wrei_log_clear_history()
 wrei_log_history wrei_log_get_history()
 {
     std::unique_lock lock { wrei_log_state.mutex };
-    return { std::move(lock), wrei_log_state.history.entries, wrei_log_state.history.lines };
+    return {
+        std::move(lock),
+        wrei_log_state.history.entries,
+        wrei_log_state.history.lines,
+        wrei_log_state.history.buffer.size()
+    };
 }
 
 std::string_view wrei_log_entry::message() const noexcept

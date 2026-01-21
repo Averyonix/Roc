@@ -26,6 +26,10 @@ struct wroc_debug_gui : wrei_object
 
         u64 last_events_handled = 0;
         u64 events_per_second = 0;
+
+        // Statistic helper
+        u64 last_poll_waits = 0;
+        u64 poll_waits_per_second = 0;
     } stats;
 
     struct {
@@ -175,12 +179,15 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
             stats.events_per_second = glm::round((server->event_loop->stats.events_handled - stats.last_events_handled) / seconds);
             stats.last_events_handled = server->event_loop->stats.events_handled;
+
+            stats.poll_waits_per_second = glm::round((server->event_loop->stats.poll_waits - stats.last_poll_waits) / seconds);
+            stats.last_poll_waits = server->event_loop->stats.poll_waits;
         }
 
         ImGui_Text("Date:          {}", wrei_time_to_string(std::chrono::system_clock::now(), wrei_time_format::date_pretty));
         ImGui_Text("Time:          {}", wrei_time_to_string(std::chrono::system_clock::now(), wrei_time_format::datetime));
         ImGui_Text("Elapsed:       {}", wrei_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
-        ImGui_Text("Events:        {}/s", stats.events_per_second);
+        ImGui_Text("Events:        {}/s ({}/s)", stats.events_per_second, stats.poll_waits_per_second);
         ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
 
     }
@@ -295,8 +302,15 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 void wroc_imgui_show_log(wroc_debug_gui* debug)
 {
     if (!debug->show_log_window) return;
+
+    auto history = wrei_log_get_history();
+
     defer { ImGui::End(); };
-    if (!ImGui::Begin("Log", &debug->show_log_window, ImGuiWindowFlags_NoCollapse)) return;
+    if (!ImGui::Begin(std::format("Log ({} entries - {})###Log",
+            history.entries.size(),
+            wrei_byte_size_to_string(history.entries.size_bytes() + history.buffer_size)
+        ).c_str(),
+        &debug->show_log_window, ImGuiWindowFlags_NoCollapse)) return;
 
     auto scroll_to_bottom = ImGui::Button("Follow");
 
@@ -411,8 +425,6 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
 
         return selected;
     };
-
-    auto history = wrei_log_get_history();
 
     ImGuiListClipper clipper;
 

@@ -36,6 +36,7 @@ struct wrei_log_history
     std::unique_lock<std::recursive_mutex> mutex;
     std::span<const wrei_log_entry> entries;
     u32 lines;
+    usz buffer_size;
 
     const wrei_log_entry* find(u32 line) const noexcept;
 };

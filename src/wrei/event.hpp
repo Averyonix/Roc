@@ -26,6 +26,7 @@ struct wrei_event_loop : wrei_object
 
     struct {
         u64 events_handled;
+        u64 poll_waits;
     } stats;
 
     ~wrei_event_loop();
