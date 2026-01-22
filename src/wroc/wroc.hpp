@@ -135,6 +135,57 @@ struct wroc_region : wrei_object
 
 // -----------------------------------------------------------------------------
 
+using wroc_commit_id = u32;
+
+// TODO: Reuse memory for packets
+template<typename T>
+struct wroc_surface_state_packet
+{
+    T state;
+    wroc_commit_id id;
+};
+
+/**
+ * Helper base for implementing surface components that must maintain buffered state
+ *
+ * This is not mandatory, as surface addons simply provide virtual commit/apply implementations.
+ * However it is strongly recommended unless an addon has no state or requires special handling.
+ */
+template<typename T>
+struct wroc_surface_state_queue_base
+{
+    // To facilitate efficient commits, pending state is prepared within the queue itself
+    T* pending;
+    std::deque<wroc_surface_state_packet<T>> cached;
+    T current;
+
+    wroc_surface_state_queue_base()
+    {
+        pending = &cached.emplace_back().state;
+    }
+};
+
+template<typename T>
+void wroc_surface_state_queue_commit(T* base, wroc_commit_id id)
+{
+    if (wrei_flags_empty(base->pending->committed)) {
+        return;
+    }
+    base->cached.back().id = id;
+    base->pending = &base->cached.emplace_back().state;
+}
+
+template<typename T, typename ApplyFn>
+void wroc_surface_state_queue_apply(T* base, wroc_commit_id id, ApplyFn&& apply_fn)
+{
+    while (base->cached.size() > 1) {
+        auto& packet = base->cached.front();
+        if (packet.id > id) break;
+        apply_fn(base, packet.state, packet.id);
+        base->cached.pop_front();
+    }
+}
+
 enum class wroc_surface_role
 {
     none,
@@ -145,19 +196,15 @@ enum class wroc_surface_role
     xdg_popup,
 };
 
-enum class wroc_surface_commit_flags
-{
-    from_parent = 1 << 0,
-};
-WREI_DECORATE_FLAG_ENUM(wroc_surface_commit_flags)
-
 struct wroc_surface_addon : wrei_object
 {
     weak<wroc_surface> surface;
 
-    virtual void on_commit(wroc_surface_commit_flags) = 0;
-    virtual bool is_synchronized() { return false; }
-    virtual wroc_surface_role get_role() { return wroc_surface_role::none; }
+    // Enqueue new state packet with the given commit id
+    virtual void commit(wroc_commit_id) = 0;
+
+    // Apply all queued commits up to and including the specified commit id
+    virtual void apply(wroc_commit_id) = 0;
 };
 
 void wroc_surface_addon_detach(wroc_surface_addon* addon);
@@ -173,6 +220,12 @@ enum class wroc_surface_committed_state : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
 
+struct wroc_surface_stack_element
+{
+    weak<wroc_surface> surface;
+    vec2i32 position;
+};
+
 struct wroc_surface_state
 {
     wroc_surface_committed_state committed;
@@ -184,27 +237,24 @@ struct wroc_surface_state
     region2i32 opaque_region;
     region2i32 input_region;
     f64 buffer_scale;
-    std::vector<weak<wroc_surface>> surface_stack;
+
+    // This tracks layer and position for all subsurfaces in the stack
+    // This state is set from the subsurface, but owned and updated on the parent surface
+    std::vector<wroc_surface_stack_element> surface_stack;
 };
 
-struct wroc_surface : wrei_object
+struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_state>
 {
     wroc_resource resource;
 
-    wroc_surface_state pending;
-    wroc_surface_state cached;
-    wroc_surface_state current = {
-        .input_region = {{{0, 0}, {INT32_MAX, INT32_MAX}, wrei_minmax}},
-        .buffer_scale = 1.f
-    };
+    wroc_commit_id next_commit_id = 1;
+    wroc_commit_id applied_commit_id = 0;
 
     wroc_surface_role role = wroc_surface_role::none;
     weak<wroc_surface_addon> role_addon;
     std::vector<ref<wroc_surface_addon>> addons;
 
     weak<wroc_surface> cursor;
-
-    ref<wroc_buffer_lock> buffer;
 
     rect2i32 buffer_dst; // in surface coordinates, origin represents "offset" surface property
     rect2f64 buffer_src; // in buffer coordinates
@@ -228,17 +278,26 @@ struct wroc_coord_space
     }
 };
 
+// Attempts to dequeue state packets
+void wroc_surface_flush_apply(wroc_surface*);
+
 rect2f64 wroc_surface_get_frame(wroc_surface*);
 wroc_coord_space wroc_surface_get_coord_space(wroc_surface*);
 vec2f64 wroc_surface_pos_from_global(wroc_surface*, vec2f64 global_pos);
 vec2f64 wroc_surface_pos_to_global(wroc_surface*, vec2f64 surface_pos);
 
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 surface_pos);
-bool wroc_surface_is_synchronized(wroc_surface*);
+// bool wroc_surface_is_synchronized(wroc_surface*);
 
 void wroc_surface_raise(wroc_surface*);
 
-bool wroc_surface_put_addon(wroc_surface*, wroc_surface_addon*);
+bool wroc_surface_put_addon_impl(wroc_surface*, wroc_surface_addon*, wroc_surface_role);
+
+template<typename T>
+bool wroc_surface_put_addon(wroc_surface* surface, T* addon)
+{
+    return wroc_surface_put_addon_impl(surface, addon, T::role);
+}
 
 wroc_surface_addon* wroc_surface_get_addon(wroc_surface*, const std::type_info&);
 template<typename T>
@@ -275,47 +334,35 @@ struct wroc_viewport_state
     vec2i32 destination;
 };
 
-struct wroc_viewport : wroc_surface_addon
+struct wroc_viewport : wroc_surface_addon, wroc_surface_state_queue_base<wroc_viewport_state>
 {
+    static constexpr wroc_surface_role role = wroc_surface_role::none;
+
     weak<wroc_surface> parent;
 
     wroc_resource resource;
 
-    wroc_viewport_state pending;
-    wroc_viewport_state current;
-
-    virtual void on_commit(wroc_surface_commit_flags) final override;
+    virtual void commit(wroc_commit_id) final override;
+    virtual void apply(wroc_commit_id) final override;
 };
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_subsurface_committed_state : u32
-{
-    position,
-};
-WREI_DECORATE_FLAG_ENUM(wroc_subsurface_committed_state)
-
-struct wroc_subsurface_state
-{
-    wroc_subsurface_committed_state committed;
-    vec2i32 position;
-};
-
 struct wroc_subsurface : wroc_surface_addon
 {
+    static constexpr wroc_surface_role role = wroc_surface_role::subsurface;
+
     weak<wroc_surface> parent;
 
     wroc_resource resource;
 
-    wroc_subsurface_state pending;
-    wroc_subsurface_state current;
+    // TODO: This is a temporary transitionary helper until we have a proper scene graph
+    vec2i32 position() const;
 
     bool synchronized = true;
 
-    virtual void on_commit(wroc_surface_commit_flags) final override;
-    virtual bool is_synchronized() final override;
-
-    virtual wroc_surface_role get_role() final override { return wroc_surface_role::subsurface; }
+    virtual void commit(wroc_commit_id) final override {};
+    virtual void apply(wroc_commit_id) final override {};
 };
 
 wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface*);
@@ -337,16 +384,16 @@ struct wrox_xdg_surface_state
     u32 acked_serial;
 };
 
-struct wroc_xdg_surface : wroc_surface_addon
+struct wroc_xdg_surface : wroc_surface_addon, wroc_surface_state_queue_base<wrox_xdg_surface_state>
 {
-    wroc_resource resource;
+    static constexpr wroc_surface_role role = wroc_surface_role::none;
 
-    wrox_xdg_surface_state pending;
-    wrox_xdg_surface_state current;
+    wroc_resource resource;
 
     u32 sent_configure_serial = {};
 
-    virtual void on_commit(wroc_surface_commit_flags) final override;
+    virtual void commit(wroc_commit_id) final override;
+    virtual void apply(wroc_commit_id) final override;
 };
 
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface*);
@@ -386,12 +433,11 @@ struct wroc_xdg_toplevel_state
     std::string app_id;
 };
 
-struct wroc_toplevel : wroc_xdg_shell_role_addon
+struct wroc_toplevel : wroc_xdg_shell_role_addon, wroc_surface_state_queue_base<wroc_xdg_toplevel_state>
 {
-    wroc_resource resource;
+    static constexpr wroc_surface_role role = wroc_surface_role::xdg_toplevel;
 
-    wroc_xdg_toplevel_state pending;
-    wroc_xdg_toplevel_state current;
+    wroc_resource resource;
 
     bool initial_configure_complete;
     bool initial_size_receieved;
@@ -419,9 +465,8 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon
         bool force_accel = false;
     } tweaks;
 
-    virtual void on_commit(wroc_surface_commit_flags) final override;
-
-    virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_toplevel; }
+    virtual void commit(wroc_commit_id) final override;
+    virtual void apply(wroc_commit_id) final override;
 };
 
 void wroc_toplevel_set_bounds(wroc_toplevel*, vec2i32 bounds);
@@ -481,6 +526,8 @@ struct wroc_positioner : wrei_object
 
 struct wroc_popup : wroc_xdg_shell_role_addon
 {
+    static constexpr wroc_surface_role role = wroc_surface_role::xdg_popup;
+
     wroc_resource resource;
 
     ref<wroc_positioner> positioner;
@@ -493,9 +540,8 @@ struct wroc_popup : wroc_xdg_shell_role_addon
     // Position of popup, in surface coordinates, relative to parent surface origin
     vec2f64 position;
 
-    virtual void on_commit(wroc_surface_commit_flags) final override;
-
-    virtual wroc_surface_role get_role() final override { return wroc_surface_role::xdg_popup; }
+    virtual void commit(wroc_commit_id) final override;
+    virtual void apply(wroc_commit_id) final override;
 };
 
 // -----------------------------------------------------------------------------
@@ -526,9 +572,7 @@ struct wroc_buffer : wrei_object
     bool released = true;
     void release();
 
-    bool is_ready;
-    bool has_been_current = false;
-    void ready(wroc_surface*);
+    virtual bool is_ready() = 0;
 
 protected:
     virtual void on_commit(wroc_surface*) = 0;
@@ -572,6 +616,10 @@ struct wroc_shm_buffer : wroc_buffer
     i32 stride;
     wren_format format;
 
+    bool pending_transfer;
+
+    virtual bool is_ready() final override;
+
     virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
 };
@@ -592,8 +640,15 @@ struct wroc_dma_buffer : wroc_buffer
 {
     ref<wren_image_dmabuf> dmabuf_image;
 
+    bool needs_wait = false;
+
+    ref<wren_semaphore> acquire_timeline;
+    u64 acquire_point;
+
     ref<wren_semaphore> release_timeline;
     u64 release_point;
+
+    virtual bool is_ready() final override;
 
     virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
@@ -610,6 +665,8 @@ struct wroc_syncobj_timeline : wrei_object
 
 struct wroc_syncobj_surface : wroc_surface_addon
 {
+    static constexpr wroc_surface_role role = wroc_surface_role::none;
+
     wroc_resource resource;
 
     ref<wren_semaphore> release_timeline;
@@ -618,7 +675,8 @@ struct wroc_syncobj_surface : wroc_surface_addon
     ref<wren_semaphore> acquire_timeline;
     u64 acquire_point;
 
-    void on_commit(wroc_surface_commit_flags) final override;
+    virtual void commit(wroc_commit_id) final override {};
+    virtual void apply(wroc_commit_id) final override {}
 };
 
 // -----------------------------------------------------------------------------
@@ -796,18 +854,18 @@ enum class wroc_pointer_constraint_type
     confined,
 };
 
-struct wroc_pointer_constraint : wroc_surface_addon
+struct wroc_pointer_constraint : wroc_surface_addon, wroc_surface_state_queue_base<wroc_pointer_constraint_state>
 {
+    static constexpr wroc_surface_role role = wroc_surface_role::none;
+
     wroc_resource resource;
 
     wroc_pointer_constraint_type type;
     weak<wroc_seat_pointer> pointer;
     zwp_pointer_constraints_v1_lifetime lifetime;
 
-    wroc_pointer_constraint_state pending;
-    wroc_pointer_constraint_state current;
-
-    virtual void on_commit(wroc_surface_commit_flags) final override;
+    virtual void commit(wroc_commit_id) final override;
+    virtual void apply(wroc_commit_id) final override;
 
     void activate();
     void deactivate();
@@ -864,18 +922,20 @@ void wroc_data_manager_finish_drag();
 
 struct wroc_drag_icon : wroc_surface_addon
 {
-    virtual void on_commit(wroc_surface_commit_flags) final override;
+    static constexpr wroc_surface_role role = wroc_surface_role::drag_icon;
 
-    virtual wroc_surface_role get_role() final override { return wroc_surface_role::drag_icon; }
+    virtual void commit(wroc_commit_id) final override {};
+    virtual void apply(wroc_commit_id) final override {};
 };
 
 // -----------------------------------------------------------------------------
 
 struct wroc_cursor_surface : wroc_surface_addon
 {
-    virtual void on_commit(wroc_surface_commit_flags) final override;
+    static constexpr wroc_surface_role role = wroc_surface_role::cursor;
 
-    virtual wroc_surface_role get_role() final override { return wroc_surface_role::cursor; }
+    virtual void commit(wroc_commit_id) final override {};
+    virtual void apply(wroc_commit_id) final override {};
 };
 
 struct wroc_cursor_shape
@@ -944,8 +1004,8 @@ struct wroc_renderer : wrei_object
 
     bool vsync = true;
     bool host_wait = false;
-    bool copy_dmabufs = true;
     bool noisy_dmabufs = false;
+    bool noisy_stutters = false;
 
     u32 max_frames_in_flight = 2;
 

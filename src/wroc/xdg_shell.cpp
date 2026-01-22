@@ -46,8 +46,8 @@ static
 void set_window_geometry(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i32 height)
 {
     auto* surface = wroc_get_userdata<wroc_xdg_surface>(resource);
-    surface->pending.geometry = {{x, y}, {width, height}, wrei_xywh};
-    surface->pending.committed |= wroc_xdg_surface_committed_state::geometry;
+    surface->pending->geometry = {{x, y}, {width, height}, wrei_xywh};
+    surface->pending->committed |= wroc_xdg_surface_committed_state::geometry;
 }
 
 static
@@ -61,10 +61,10 @@ aabb2i32 compute_fallback_geometry(wroc_surface* surface)
         bounds.min = glm::min(bounds.min, dst.min + pos);
         bounds.max = glm::max(bounds.max, dst.max + pos);
 
-        for (auto& ss : s->current.surface_stack) {
+        for (auto&[ss, position] : s->current.surface_stack) {
             if (!ss || ss.get() == s) continue;
             if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(ss.get())) {
-                expand_bounds(pos + subsurface->current.position, ss.get());
+                expand_bounds(pos + subsurface->position(), ss.get());
             }
         }
     };
@@ -74,28 +74,36 @@ aabb2i32 compute_fallback_geometry(wroc_surface* surface)
     return bounds;
 }
 
-void wroc_xdg_surface::on_commit(wroc_surface_commit_flags flags)
+void wroc_xdg_surface::commit(wroc_commit_id id)
 {
-    // TODO: Order of addon commit updates
+    wroc_surface_state_queue_commit(this, id);
+}
 
-    // Update geometry
+static
+void xdg_surface_apply(wroc_xdg_surface* self, wrox_xdg_surface_state& from, wroc_commit_id id)
+{
+    auto& to = self->current;
 
-    if (pending.committed >= wroc_xdg_surface_committed_state::geometry) {
-        if (!pending.geometry.extent.x || !pending.geometry.extent.y) {
+    if (from.committed >= wroc_xdg_surface_committed_state::geometry) {
+        if (!from.geometry.extent.x || !from.geometry.extent.y) {
             log_warn("Zero size invalid geometry committed, treating as if geometry never set!");
-            current.committed -= wroc_xdg_surface_committed_state::geometry;
-            pending.committed -= wroc_xdg_surface_committed_state::geometry;
+            to.committed -= wroc_xdg_surface_committed_state::geometry;
+            from.committed -= wroc_xdg_surface_committed_state::geometry;
         } else {
-            current.geometry = pending.geometry;
+            to.geometry = from.geometry;
         }
     }
 
-    if (pending.committed >= wroc_xdg_surface_committed_state::ack) {
-        current.acked_serial = pending.acked_serial;
+    if (from.committed >= wroc_xdg_surface_committed_state::ack) {
+        to.acked_serial = from.acked_serial;
     }
 
-    current.committed |= pending.committed;
-    pending = {};
+    to.committed |= from.committed;
+}
+
+void wroc_xdg_surface::apply(wroc_commit_id id)
+{
+    wroc_surface_state_queue_apply(this, id, xdg_surface_apply);
 }
 
 static
@@ -104,8 +112,8 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
 
     log_info("Client acked configure: {}", serial);
-    xdg_surface->pending.acked_serial = serial;
-    xdg_surface->pending.committed |= wroc_xdg_surface_committed_state::ack;
+    xdg_surface->pending->acked_serial = serial;
+    xdg_surface->pending->committed |= wroc_xdg_surface_committed_state::ack;
 }
 
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
@@ -153,16 +161,16 @@ static
 void toplevel_set_title(wl_client* client, wl_resource* resource, const char* title)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
-    toplevel->pending.title = title ? std::string{title} : std::string{};
-    toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::title;
+    toplevel->pending->title = title ? std::string{title} : std::string{};
+    toplevel->pending->committed |= wroc_xdg_toplevel_committed_state::title;
 }
 
 static
 void toplevel_set_app_id(wl_client* client, wl_resource* resource, const char* app_id)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
-    toplevel->pending.app_id = app_id ? std::string{app_id} : std::string{};
-    toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::app_id;
+    toplevel->pending->app_id = app_id ? std::string{app_id} : std::string{};
+    toplevel->pending->committed |= wroc_xdg_toplevel_committed_state::app_id;
 }
 
 static
@@ -239,8 +247,8 @@ static
 void toplevel_set_parent(wl_client* client, wl_resource* resource, wl_resource* parent)
 {
     auto* toplevel = wroc_get_userdata<wroc_toplevel>(resource);
-    toplevel->pending.parent = wroc_get_userdata<wroc_toplevel>(parent);
-    toplevel->pending.committed |= wroc_xdg_toplevel_committed_state::parent;
+    toplevel->pending->parent = wroc_get_userdata<wroc_toplevel>(parent);
+    toplevel->pending->committed |= wroc_xdg_toplevel_committed_state::parent;
 }
 
 static
@@ -325,17 +333,29 @@ void toplevel_on_initial_size(wroc_toplevel* toplevel)
     wroc_keyboard_enter(server->seat->keyboard.get(), toplevel->surface.get());
 }
 
-void wroc_toplevel::on_commit(wroc_surface_commit_flags)
+void wroc_toplevel::commit(wroc_commit_id id)
 {
-    if (pending.committed >= wroc_xdg_toplevel_committed_state::title)  current.title  = pending.title;
-    if (pending.committed >= wroc_xdg_toplevel_committed_state::app_id) current.app_id = pending.app_id;
-    if (pending.committed >= wroc_xdg_toplevel_committed_state::parent) {
-        current.parent = pending.parent;
-        toplevel_anchor_to_parent(this);
+    wroc_surface_state_queue_commit(this, id);
+}
+
+static
+void toplevel_apply(wroc_toplevel* self, wroc_xdg_toplevel_state& from, wroc_commit_id id)
+{
+    auto& to = self->current;
+
+    if (from.committed >= wroc_xdg_toplevel_committed_state::title)  to.title  = from.title;
+    if (from.committed >= wroc_xdg_toplevel_committed_state::app_id) to.app_id = from.app_id;
+    if (from.committed >= wroc_xdg_toplevel_committed_state::parent) {
+        to.parent = from.parent;
+        toplevel_anchor_to_parent(self);
     }
 
-    current.committed |= pending.committed;
-    pending = {};
+    to.committed |= from.committed;
+}
+
+void wroc_toplevel::apply(wroc_commit_id id)
+{
+    wroc_surface_state_queue_apply(this, id, toplevel_apply);
 
     if (!initial_configure_complete) {
         initial_configure_complete = true;
@@ -359,8 +379,9 @@ const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
     WROC_STUB(show_window_menu),
     .move       = toplevel_move,
     .resize     = toplevel_resize,
-    WROC_STUB(set_max_size),
-    WROC_STUB(set_min_size),
+    // TODO: These should still be implemented, just silencing for now!
+    WROC_STUB_QUIET(set_max_size),
+    WROC_STUB_QUIET(set_min_size),
     WROC_STUB(set_maximized),
     WROC_STUB(unset_maximized),
     .set_fullscreen   = toplevel_set_fullscreen,
@@ -772,8 +793,9 @@ void popup_position(wroc_popup* popup)
     wroc_xdg_surface_flush_configure(base);
 }
 
-void wroc_popup::on_commit(wroc_surface_commit_flags)
+void wroc_popup::commit(wroc_commit_id)
 {
+    // TODO: Move this to apply and sort out state
     if (!initial_configure_complete) {
         initial_configure_complete = true;
 
@@ -785,6 +807,11 @@ void wroc_popup::on_commit(wroc_surface_commit_flags)
 
         wroc_surface_raise(surface.get());
     }
+}
+
+void wroc_popup::apply(wroc_commit_id)
+{
+    // TODO
 }
 
 static

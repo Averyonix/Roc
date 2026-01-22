@@ -198,12 +198,12 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
 
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Copy DMA-BUFs", &server->renderer->copy_dmabufs);
+    ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->noisy_dmabufs);
 
     ImGui::Checkbox("Host Wait", &server->renderer->host_wait);
 
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->noisy_dmabufs);
+    ImGui::Checkbox("Noisy Stutters", &server->renderer->noisy_stutters);
 
     {
         ImGui::SetNextItemWidth(second_column_offset + 11);

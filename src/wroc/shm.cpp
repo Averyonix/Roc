@@ -115,45 +115,42 @@ wroc_shm_pool::~wroc_shm_pool()
 
 void wroc_shm_buffer::on_commit(wroc_surface* surface)
 {
-    if (!pool->mapping) {
-        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FD, "Tried to commit buffer from shm pool with previous mapping failure");
-        release();
-        return;
+    pending_transfer = true;
+}
+
+bool wroc_shm_buffer::is_ready()
+{
+    if (pending_transfer) {
+        auto mapping = pool->mapping;
+
+        auto queue = wren_get_queue(image->ctx, wren_queue_type::graphics);
+        auto commands = wren_commands_begin(queue);
+        wren_image_update(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
+
+        struct shm_transfer_guard : wrei_object
+        {
+            ref<wroc_buffer_lock> lock;
+            // Protect mapping for duration of transfer
+            // This must be destroyed before buffer, in case buffer is holding last reference to shm_pool
+            ref<wroc_shm_mapping> mapping;
+
+            ~shm_transfer_guard()
+            {
+                // Release buffer as soon as transfer has completed
+                lock->buffer->release();
+            }
+        };
+        auto transfer_guard = wrei_create<shm_transfer_guard>();
+        transfer_guard->lock = lock();
+        transfer_guard->mapping = mapping;
+        wren_commands_protect_object(commands.get(), transfer_guard.get());
+
+        wren_commands_submit(commands.get(), {}, {});
+
+        pending_transfer = false;
     }
 
-    auto mapping = pool->mapping;
-
-    auto queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
-    auto commands = wren_commands_begin(queue);
-    wren_image_update(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
-
-    // Release resources as soon as transfer has completed
-    struct shm_transfer_guard : wrei_object
-    {
-        weak<wroc_surface> surface;
-        ref<wroc_buffer_lock> lock;
-        // Protect mapping for duration of transfer
-        // This must be destroyed before buffer, in case buffer is holding last reference to shm_pool
-        ref<wroc_shm_mapping> mapping;
-
-        ~shm_transfer_guard()
-        {
-            lock->buffer->release();
-
-            if (surface) {
-                lock->buffer->ready(surface.get());
-            }
-        }
-    };
-    auto transfer_guard = wrei_create<shm_transfer_guard>();
-    transfer_guard->surface = surface;
-    transfer_guard->lock = lock();
-    transfer_guard->mapping = mapping;
-    wren_commands_protect_object(commands.get(), transfer_guard.get());
-
-    wren_commands_submit(commands.get(), {}, {});
-
-    // TODO: Buffer transitions
+    return true;
 }
 
 void wroc_shm_buffer::on_unlock()

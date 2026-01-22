@@ -12,7 +12,7 @@ wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** p_toplevel)
         if (!surface) return nullptr;
         if (!surface->current.buffer) return nullptr;
 
-        for (auto& s : surface->current.surface_stack | std::views::reverse) {
+        for (auto&[s, pos] : surface->current.surface_stack | std::views::reverse) {
             if (s.get() == surface) {
                 if (wroc_surface_point_accepts_input(s.get(), wroc_surface_pos_from_global(surface, cursor_pos))) {
                     return s.get();

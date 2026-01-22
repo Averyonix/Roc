@@ -420,16 +420,6 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     wroc_data_manager_update_drag(surface_under_cursor);
 }
 
-void wroc_drag_icon::on_commit(wroc_surface_commit_flags)
-{
-    if (surface->current.committed >= wroc_surface_committed_state::offset) {
-        surface->buffer_dst.origin += surface->current.delta;
-
-        log_debug("drag_icon_commit, delta = {}, offset = {}",
-            wrei_to_string(surface->current.delta), wrei_to_string(surface->buffer_dst.origin));
-    }
-}
-
 const struct wl_data_device_interface wroc_wl_data_device_impl = {
     .start_drag    = wroc_wl_data_device_start_drag,
     .set_selection = wroc_wl_data_device_set_selection,

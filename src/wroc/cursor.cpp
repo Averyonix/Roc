@@ -89,19 +89,6 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
     set_cursor_states(client, surface);
 }
 
-void wroc_cursor_surface::on_commit(wroc_surface_commit_flags)
-{
-    if (surface->current.committed >= wroc_surface_committed_state::offset) {
-        surface->buffer_dst.origin += surface->current.delta;
-
-#if WROC_NOISY_CURSOR_SURFACE
-        log_debug("wroc_cursor_surface, delta = {}, hotspot = {}",
-            wrei_to_string(surface->current.delta),
-            wrei_to_string(-surface->buffer_dst.origin));
-#endif
-    }
-}
-
 // -----------------------------------------------------------------------------
 
 static constexpr auto shape_names = [] {
@@ -167,8 +154,8 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
 
     auto cursor_buffer = wrei_create<wroc_shm_buffer>();
     cursor_buffer->released = false;
-    cursor_buffer->is_ready = true;
-    surface->buffer = cursor_buffer->lock();
+    surface->current.buffer = cursor_buffer;
+    surface->current.buffer_lock = cursor_buffer->lock();
 
     XcursorImage* image = XcursorLibraryLoadImage(shape_names[shape], cursor->theme, cursor->size);
     if (!image) {

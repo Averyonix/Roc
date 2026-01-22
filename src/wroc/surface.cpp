@@ -21,8 +21,11 @@ void wroc_wl_compositor_create_surface(wl_client* client, wl_resource* resource,
     server->surfaces.emplace_back(surface);
 
     // Add surface to its own surface stack
-    surface->pending.surface_stack.emplace_back(surface);
-    surface->pending.committed |= wroc_surface_committed_state::surface_stack;
+    surface->pending->surface_stack.emplace_back(surface);
+    surface->pending->committed |= wroc_surface_committed_state::surface_stack;
+
+    surface->current.input_region = {{{0, 0}, {INT32_MAX, INT32_MAX}, wrei_minmax}},
+    surface->current.buffer_scale = 1.f;
 
     // Use default cursor
     surface->cursor = wroc_cursor_get_shape(server->cursor.get(), WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
@@ -74,17 +77,17 @@ void wroc_wl_surface_attach(wl_client* client, wl_resource* resource, wl_resourc
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    surface->pending.buffer_lock = nullptr;
-    surface->pending.buffer = wl_buffer ? wroc_get_userdata<wroc_buffer>(wl_buffer) : nullptr;
-    surface->pending.committed |= wroc_surface_committed_state::buffer;
+    surface->pending->buffer_lock = nullptr;
+    surface->pending->buffer = wl_buffer ? wroc_get_userdata<wroc_buffer>(wl_buffer) : nullptr;
+    surface->pending->committed |= wroc_surface_committed_state::buffer;
 
     if (x || y) {
         if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
             wroc_post_error(resource, WL_SURFACE_ERROR_INVALID_OFFSET,
                 "Non-zero offset not allowed in wl_surface::attach since version {}", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
-            surface->pending.delta = { x, y };
-            surface->pending.committed |= wroc_surface_committed_state::offset;
+            surface->pending->delta = { x, y };
+            surface->pending->committed |= wroc_surface_committed_state::offset;
         }
     }
 }
@@ -94,7 +97,7 @@ void wroc_wl_surface_frame(wl_client* client, wl_resource* resource, u32 callbac
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
     auto new_resource = wroc_resource_create(client, &wl_callback_interface, 1, callback);
-    surface->pending.frame_callbacks.emplace_back(new_resource);
+    surface->pending->frame_callbacks.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, nullptr, surface);
 }
 
@@ -104,11 +107,11 @@ void wroc_wl_surface_set_opaque_region(wl_client* client, wl_resource* resource,
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
     auto* region = wroc_get_userdata<wroc_region>(opaque_region);
     if (region) {
-        surface->pending.opaque_region = region->region;
+        surface->pending->opaque_region = region->region;
     } else {
-        surface->pending.opaque_region.clear();
+        surface->pending->opaque_region.clear();
     }
-    surface->pending.committed |= wroc_surface_committed_state::opaque_region;
+    surface->pending->committed |= wroc_surface_committed_state::opaque_region;
 }
 
 static
@@ -117,25 +120,27 @@ void wroc_wl_surface_set_input_region(wl_client* client, wl_resource* resource, 
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
     auto* region = wroc_get_userdata<wroc_region>(input_region);
     if (region) {
-        surface->pending.input_region = region->region;
+        surface->pending->input_region = region->region;
     } else {
-        surface->pending.input_region.clear();
-        surface->pending.input_region.add({{0, 0}, {INT32_MAX, INT32_MAX}, wrei_minmax});
+        surface->pending->input_region.clear();
+        surface->pending->input_region.add({{0, 0}, {INT32_MAX, INT32_MAX}, wrei_minmax});
     }
-    surface->pending.committed |= wroc_surface_committed_state::input_region;
+    surface->pending->committed |= wroc_surface_committed_state::input_region;
 }
 
 static
 void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32 y)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    surface->pending.delta = { x, y };
-    surface->pending.committed |= wroc_surface_committed_state::offset;
+    surface->pending->delta = { x, y };
+    surface->pending->committed |= wroc_surface_committed_state::offset;
 }
 
 static
-void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, wroc_surface_state& to)
+void apply_state(wroc_surface* surface, wroc_surface_state& from)
 {
+    auto& to = surface->current;
+
     // Update frame callbacks
 
     to.frame_callbacks.take_and_append_all(std::move(from.frame_callbacks));
@@ -171,15 +176,12 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     // Update offset delta
 
     if (from.committed >= wroc_surface_committed_state::offset) {
-        to.delta = from.delta;
-    } else {
-        to.delta = {};
-        to.committed -= wroc_surface_committed_state::offset;
+        to.delta += from.delta;
     }
 
     // Update surface stack
 
-    if (std::erase_if(from.surface_stack, [](auto& w) { return !w; })) {
+    if (std::erase_if(from.surface_stack, [](auto& w) { return !w.surface; })) {
         // Clean out tombstones
         from.committed |= wroc_surface_committed_state::surface_stack;
     }
@@ -195,91 +197,97 @@ void wroc_surface_commit_state(wroc_surface* surface, wroc_surface_state& from, 
     from.committed = {};
 }
 
-static
-void wroc_surface_commit(wroc_surface* surface, wroc_surface_commit_flags flags)
-{
-    bool synchronized = wroc_surface_is_synchronized(surface);
-    bool apply = !synchronized || flags >= wroc_surface_commit_flags::from_parent;
-    wroc_surface_committed_state committed;
-    wroc_surface_state* to;
-    if (synchronized) {
-        if (flags >= wroc_surface_commit_flags::from_parent) {
-            committed = surface->cached.committed;
-            wroc_surface_commit_state(surface, surface->cached, surface->current);
-            to = &surface->current;
-        } else {
-            committed = surface->pending.committed;
-            wroc_surface_commit_state(surface, surface->pending, surface->cached);
-            to = &surface->cached;
-        }
-    } else {
-        if (!wrei_flags_empty(surface->cached.committed)) {
-            // Apply remaining cached state
-            committed = surface->pending.committed | surface->cached.committed ;
-            wroc_surface_commit_state(surface, surface->pending, surface->cached);
-            wroc_surface_commit_state(surface, surface->cached, surface->current);
-            to = &surface->current;
-        } else {
-            committed = surface->pending.committed;
-            wroc_surface_commit_state(surface, surface->pending, surface->current);
-            to = &surface->current;
-        }
-    }
-
-    // Buffer rects
-
-    if (apply && surface->current.buffer) {
-        surface->buffer_src = {{}, surface->current.buffer->extent, wrei_xywh};
-        // TODO: inverse buffer_transform
-        surface->buffer_dst.extent = vec2f64(surface->current.buffer->extent) / surface->current.buffer_scale;
-    }
-
-    // Commit addons
-
-    for (auto& addon : surface->addons) {
-        addon->on_commit(flags);
-    }
-
-    // Buffer commit
-    // This must happen after committing addons so that acquire/release fences are available
-
-    if (!to->buffer_lock && to->buffer) {
-        to->buffer_lock = to->buffer->commit(surface);
-    }
-
-    if (!apply) {
-        return;
-    }
-
-    // Buffer activation
-
-    if (committed >= wroc_surface_committed_state::buffer) {
-        if (!to->buffer) {
-            surface->buffer = nullptr;
-        } else if (to->buffer->is_ready) {
-            surface->buffer = to->buffer_lock;
-        } else {
-            to->buffer->has_been_current = true;
-        }
-    }
-
-    // Update subsurfaces
-
-    for (auto& s : surface->current.surface_stack) {
-
-        // Skip self
-        if (s.get() == surface) continue;
-
-        wroc_surface_commit(s.get(), wroc_surface_commit_flags::from_parent);
-    }
-}
+#define WROC_NOISY_COMMIT 0
 
 static
 void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-    wroc_surface_commit(surface, {});
+#if WROC_NOISY_COMMIT
+    log_debug("New surface commit (id = {})", surface->next_commit_id);
+#endif
+
+    auto& packet = surface->cached.back();
+    packet.id = surface->next_commit_id++;
+
+    for (auto& addon : surface->addons) {
+        addon->commit(packet.id);
+    }
+
+    // Commit and begin acquisition process for buffers
+
+    if (packet.state.committed >= wroc_surface_committed_state::buffer) {
+        if (packet.state.buffer) {
+            packet.state.buffer_lock = packet.state.buffer->commit(surface);
+        }
+    }
+
+    surface->pending = &surface->cached.emplace_back().state;
+
+    // We need to make sure the surface stack remains persistently in pending
+    // TODO: We really want to recycle surface state packets
+    surface->pending->surface_stack.append_range(packet.state.surface_stack);
+}
+
+void wroc_surface_flush_apply(wroc_surface* surface)
+{
+    auto prev_applied_commit_id = surface->applied_commit_id;
+
+    while (surface->cached.size() > 1) {
+        auto& packet = surface->cached.front();
+
+        bool ready = !packet.state.buffer_lock || packet.state.buffer_lock->buffer->is_ready();
+        if (!ready) break;
+
+        apply_state(surface, packet.state);
+
+        surface->applied_commit_id = packet.id;
+        surface->cached.pop_front();
+
+        for (auto& addon : surface->addons) {
+            addon->apply(surface->applied_commit_id);
+        }
+    }
+
+    if (surface->applied_commit_id == prev_applied_commit_id) return;
+
+#if WROC_NOISY_COMMIT
+    log_debug("Applied commits {} -> {}", prev_applied_commit_id, surface->applied_commit_id);
+#endif
+
+    // Update buffer_src/buffer_dst
+
+    if (surface->current.committed >= wroc_surface_committed_state::offset) {
+        surface->buffer_dst.origin += surface->current.delta;
+
+        surface->current.committed -= wroc_surface_committed_state::offset;
+        surface->current.delta = {};
+    }
+
+    if (surface->current.buffer) {
+        surface->buffer_src = {{}, surface->current.buffer->extent, wrei_xywh};
+        // TODO: inverse buffer_transform
+        surface->buffer_dst.extent = vec2f64(surface->current.buffer->extent) / surface->current.buffer_scale;
+    }
+
+    // TODO: This logic should be in viewporter.cpp
+
+    if (auto* viewport = wroc_surface_get_addon<wroc_viewport>(surface)) {
+        auto& current = viewport->current;
+        if (current.committed >= wroc_viewport_committed_state::source) {
+            surface->buffer_src = current.source;
+        }
+        if (current.committed >= wroc_viewport_committed_state::destination) {
+            surface->buffer_dst.extent = current.destination;
+        } else if (current.committed >= wroc_viewport_committed_state::source) {
+            surface->buffer_dst.extent = current.source.extent;
+        }
+
+#if WROC_NOISY_COMMIT
+        log_debug("buffer src = {}, dst = {}", wrei_to_string(surface->buffer_src), wrei_to_string(surface->buffer_dst));
+#endif
+    }
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
@@ -307,8 +315,9 @@ wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
 
-    wroc_surface_destroy_state(this, pending);
-    wroc_surface_destroy_state(this, cached);
+    for (auto& packet : cached) {
+        wroc_surface_destroy_state(this, packet.state);
+    }
     wroc_surface_destroy_state(this, current);
 
     log_warn("wroc_surface DESTROY, this = {}", (void*)this);
@@ -332,10 +341,10 @@ bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 surface_pos
     return accepts_input;
 }
 
-bool wroc_surface_is_synchronized(wroc_surface* surface)
-{
-    return surface->role_addon && surface->role_addon->is_synchronized();
-}
+// bool wroc_surface_is_synchronized(wroc_surface* surface)
+// {
+//     return surface->role_addon && surface->role_addon->is_synchronized();
+// }
 
 void wroc_surface_raise(wroc_surface* surface)
 {
@@ -384,7 +393,7 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
         break;case wroc_surface_role::subsurface:
             if (auto* subsurface = static_cast<wroc_subsurface*>(surface->role_addon.get()); subsurface && subsurface->parent) {
                 auto space = wroc_surface_get_coord_space(subsurface->parent.get());
-                return {space.origin + vec2f64(subsurface->current.position) * space.scale, space.scale};
+                return {space.origin + vec2f64(subsurface->position()) * space.scale, space.scale};
             }
         break;case wroc_surface_role::xdg_popup:
             if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface); popup && popup->parent) {
@@ -418,9 +427,8 @@ vec2f64 wroc_surface_pos_to_global(wroc_surface* surface, vec2f64 surface_pos)
 
 // -----------------------------------------------------------------------------
 
-bool wroc_surface_put_addon(wroc_surface* surface, wroc_surface_addon* addon)
+bool wroc_surface_put_addon_impl(wroc_surface* surface, wroc_surface_addon* addon, wroc_surface_role role)
 {
-    auto role = addon->get_role();
     if (role != wroc_surface_role::none) {
         if (surface->role_addon) {
             log_error("Surface already has addon for role {}", wrei_enum_to_string(surface->role));

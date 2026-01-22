@@ -52,6 +52,10 @@ void wroc_render_frame(wroc_output* output)
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
 
+    for (auto* surface : server->surfaces) {
+        wroc_surface_flush_apply(surface);
+    }
+
     output->frames_in_flight++;
 
     auto[current, acquire_sync] = wren_swapchain_acquire_image(output->swapchain.get());
@@ -196,10 +200,10 @@ void wroc_render_frame(wroc_output* output)
 
         // log_trace("drawing surface: {} (stack.size = {})", (void*)surface, surface->current.surface_stack.size());
 
-        auto* buffer = surface->buffer ? surface->buffer->buffer.get() : nullptr;
+        auto* buffer = surface->current.buffer ? surface->current.buffer.get() : nullptr;
         if (!buffer || !buffer->image) return;
 
-        for (auto& s : surface->current.surface_stack) {
+        for (auto&[s, s_pos] : surface->current.surface_stack) {
             if (s.get() == surface) {
 
                 // Draw self
@@ -210,10 +214,10 @@ void wroc_render_frame(wroc_output* output)
 
                 draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
 
-            } else if (auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(s.get())) {
+            } else {
 
                 // Draw subsurface
-                draw_surface(s.get(), pos + vec2f64(subsurface->current.position) * scale, scale, opacity);
+                draw_surface(s.get(), pos + vec2f64(s_pos) * scale, scale, opacity);
             }
         }
     };
@@ -223,7 +227,7 @@ void wroc_render_frame(wroc_output* output)
     auto draw_xdg_surfaces = [&](bool show_cycled) {
         for (auto* surface : server->surfaces) {
             // TODO: Generic "mapped" state tracking
-            if (!surface->buffer) continue;
+            if (!surface->current.buffer) continue;
 
             auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
             if (!xdg_surface) continue;
@@ -416,17 +420,32 @@ void wroc_render_frame(wroc_output* output)
 
     for (wroc_surface* surface : server->surfaces) {
         if (surface->role == wroc_surface_role::none) continue;
-        if (!surface->current.frame_callbacks.front()) continue;
 
         auto surface_output = wroc_output_layout_output_for_surface(server->output_layout.get(), surface);
 
         // Only dispatch frame callbacks for the surface's primary output
         if (surface_output != output) continue;
 
-        while (auto* callback = surface->current.frame_callbacks.front()) {
-            // log_trace("Sending frame callback: {}", (void*)callback);
-            wroc_send(wl_callback_send_done, callback, elapsed);
-            wl_resource_destroy(callback);
+        auto dispatch = [&](wroc_resource_list& callbacks) {
+            while (auto* callback = callbacks.front()) {
+                // log_trace("Sending frame callback: {}", (void*)callback);
+                wroc_send(wl_callback_send_done, callback, elapsed);
+                wl_resource_destroy(callback);
+            }
+        };
+
+        // Frame callbacks are a special case of surface state.
+        // We want to dispatch *all* committed frame callbacks,
+        // even if the frame hasn't been rendered yet, to ensure
+        // smooth frame pacing even if a buffer is delayed.
+        dispatch(surface->current.frame_callbacks);
+        for (auto& packet : surface->cached) {
+            if (packet.id) {
+                if (renderer->noisy_stutters && packet.state.frame_callbacks.front()) {
+                    log_warn("Stutter detected - dispatching early frame callbacks for commit {}", packet.id);
+                }
+                dispatch(packet.state.frame_callbacks);
+            }
         }
     }
 }

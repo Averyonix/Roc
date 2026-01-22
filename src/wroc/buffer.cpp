@@ -13,8 +13,6 @@ const struct wl_buffer_interface wroc_wl_buffer_impl = {
     released = false;
     auto guard = lock();
 
-    is_ready = false;
-    has_been_current = false;
     on_commit(surface);
 
     return guard;
@@ -31,16 +29,6 @@ void wroc_buffer::release()
 
     if (resource) {
         wroc_send(wl_buffer_send_release, resource);
-    }
-}
-
-
-void wroc_buffer::ready(wroc_surface* surface)
-{
-    is_ready = true;
-
-    if (has_been_current) {
-        surface->buffer = lock();
     }
 }
 

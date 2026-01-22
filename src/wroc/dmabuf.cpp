@@ -171,114 +171,85 @@ const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedba
     .destroy = wroc_simple_resource_destroy_callback,
 };
 
-static
-void make_ready(wroc_dma_buffer* buffer, weak<wroc_surface> surface, std::chrono::steady_clock::time_point start)
+#define WROC_VERY_NOISY_DMABUF_WAIT 0
+
+bool wroc_dma_buffer::is_ready()
 {
-    if (server->renderer->noisy_dmabufs) {
-        log_warn("DMA-BUF transfer completed in {}", wrei_duration_to_string(std::chrono::steady_clock::now() - start));
+    if (!needs_wait) return true;
+
+    bool ready;
+    if (acquire_timeline) {
+        auto point = wren_semaphore_get_value(acquire_timeline.get());
+        ready = point >= acquire_point;
+        if (server->renderer->noisy_dmabufs) {
+            if (ready) {
+#if WROC_VERY_NOISY_DMABUF_WAIT
+                log_debug("Waiting for explicit sync point {} - ready", acquire_point);
+#endif
+            } else {
+                log_warn("Waiting for explicit sync point {} - not ready, latest is {}", acquire_point, point);
+            }
+        }
+    } else {
+        ready = true;
+        for (auto& plane : dmabuf_image->dma_params.planes) {
+            if (wrei_unix_check_n1(poll(wrei_ptr_to(pollfd {
+                .fd = plane.fd,
+                .events = POLLIN,
+            }), 1, 0)) < 1) {
+                if (server->renderer->noisy_dmabufs) {
+                    log_warn("Waiting for implicit sync - fd {} not ready yet", plane.fd);
+                }
+                ready = false;
+                break;
+            }
+        }
+#if WROC_VERY_NOISY_DMABUF_WAIT
+        if (ready && server->renderer->noisy_dmabufs) {
+            log_debug("Waiting for implicit sync - ready");
+        }
+#endif
     }
-    // TODO: Ensure ordering of buffers via surface state queue
-    if (surface) {
-        buffer->ready(surface.get());
-    }
-}
 
-static
-void dmabuf_wait_syncobj(wroc_buffer_lock* lock, wren_semaphore* timeline, u64 point, weak<wroc_surface> surface, std::chrono::steady_clock::time_point start)
-{
-    wren_semaphore_wait_value(timeline, point);
-
-    wrei_event_loop_enqueue(server->event_loop.get(), [lock, timeline, surface, start] {
-        auto* dmabuf = static_cast<wroc_dma_buffer*>(lock->buffer.get());
-        make_ready(dmabuf, surface, start);
-        wrei_remove_ref(lock);
-        wrei_remove_ref(timeline);
-    });
-}
-
-static
-void dmabuf_wait_implicit(wroc_buffer_lock* lock, weak<wroc_surface> surface, std::chrono::steady_clock::time_point start)
-{
-    auto* dmabuf_image = static_cast<wren_image_dmabuf*>(lock->buffer->image.get());
-
-    for (auto& plane : dmabuf_image->dma_params.planes) {
-        wrei_unix_check_n1(poll(wrei_ptr_to(pollfd {
-            .fd = plane.fd,
-            .events = POLLIN,
-        }), 1, -1));
-    }
-
-    wrei_event_loop_enqueue(server->event_loop.get(), [lock, surface, start] {
-        auto* dmabuf = static_cast<wroc_dma_buffer*>(lock->buffer.get());
-        make_ready(dmabuf, surface, start);
-        wrei_remove_ref(lock);
-    });
+    if (ready) needs_wait = false;
+    return ready;
 }
 
 void wroc_dma_buffer::on_commit(wroc_surface* surface)
 {
-    auto start = std::chrono::steady_clock::now();
-
     auto* syncobj_surface = wroc_surface_get_addon<wroc_syncobj_surface>(surface);
 
-    if (syncobj_surface && syncobj_surface->release_timeline) {
-        // Ensure that we *always* signal a release timeline
-        // if given, to avoid deadlocking the client
-        release_timeline = std::exchange(syncobj_surface->release_timeline, nullptr);
-        release_point = syncobj_surface->release_point;
-    } else {
-        release_timeline = nullptr;
+    acquire_timeline = nullptr;
+    release_timeline = nullptr;
+
+    if (syncobj_surface) {
+        if (syncobj_surface->release_timeline) {
+            release_timeline = std::exchange(syncobj_surface->release_timeline, nullptr);
+            release_point = syncobj_surface->release_point;
+        }
+
+        if (syncobj_surface->acquire_timeline) {
+            acquire_timeline = std::exchange(syncobj_surface->acquire_timeline, nullptr);
+            acquire_point = syncobj_surface->acquire_point;
+        }
     }
 
-    if (!server->renderer->copy_dmabufs) {
-        release();
-        return;
-    }
+    needs_wait = true;
 
-    bool use_syncobj = true;
     if (!syncobj_surface) {
-        use_syncobj = false;
-    } else if (!syncobj_surface->acquire_timeline && !release_timeline) {
+    } else if (!acquire_timeline && !release_timeline) {
         log_error("Surface has syncobj_surface attached, but did not submit any acquire or release points");
-        use_syncobj = false;
-    } else if (!syncobj_surface->acquire_timeline) {
+    } else if (!acquire_timeline) {
         wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_ACQUIRE_POINT, "Missing acquire point");
-        use_syncobj = false;
     } else if (!release_timeline) {
         wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_NO_RELEASE_POINT, "Missing release point");
-        use_syncobj = false;
-    } else if (syncobj_surface->acquire_timeline.get() == release_timeline.get()
-            && syncobj_surface->acquire_point >= syncobj_surface->release_point) {
+    } else if (acquire_timeline.get() == release_timeline.get()
+            && acquire_point >= release_point) {
         wroc_post_error(resource, WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_CONFLICTING_POINTS, "Acquire and release use the same syncobj, but acquire point is not less than release point");
-        use_syncobj = false;
-    }
-
-    if (use_syncobj) {
-
-        // Consume the committed timelines
-        auto acquire_timeline = std::exchange(syncobj_surface->acquire_timeline, nullptr);
-        auto acquire_point = syncobj_surface->acquire_point;
-
-        // TODO: Thread pool?
-
-        std::thread {
-            dmabuf_wait_syncobj,
-            wrei_add_ref(lock().get()),
-            wrei_add_ref(acquire_timeline.get()),
-            acquire_point,
-            weak(surface),
-            start
-        }.detach();
-    } else {
-        std::thread {
-            dmabuf_wait_implicit,
-            wrei_add_ref(lock().get()),
-            weak(surface),
-            start
-        }.detach();
     }
 
 #if 0
+
     // TODO: We should still include these barriers for correctness, even if the driver works
     //       fine without them (or at least seems too).
 

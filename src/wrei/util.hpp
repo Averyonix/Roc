@@ -102,9 +102,12 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
-#define WREI_DELETE_COPY_MOVE(Type)         \
+#define WREI_DELETE_COPY(Type) \
                Type(const Type& ) = delete; \
     Type& operator=(const Type& ) = delete; \
+
+#define WREI_DELETE_COPY_MOVE(Type)         \
+    WREI_DELETE_COPY(Type)                  \
                Type(      Type&&) = delete; \
     Type& operator=(      Type&&) = delete;
 

@@ -12,8 +12,8 @@ void wroc_wl_subcompositor_get_subsurface(wl_client* client, wl_resource* resour
     subsurface->parent = wroc_get_userdata<wroc_surface>(parent);
 
     // Add subsurface to top of its parent's surface stack
-    subsurface->parent->pending.surface_stack.emplace_back(subsurface->surface.get());
-    subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
+    subsurface->parent->pending->surface_stack.emplace_back(subsurface->surface.get());
+    subsurface->parent->pending->committed |= wroc_surface_committed_state::surface_stack;
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_subsurface_impl, subsurface);
 }
@@ -32,23 +32,44 @@ void wroc_wl_subcompositor_bind_global(wl_client* client, void* data, u32 versio
 // -----------------------------------------------------------------------------
 
 static
+auto find_in_stack(auto& stack, wroc_surface* surface)
+{
+    return std::ranges::find_if(stack, [&](const auto& layer) {
+        return layer.surface.get() == surface;
+    });
+}
+
+vec2i32 wroc_subsurface::position() const
+{
+    return find_in_stack(parent->pending->surface_stack, surface.get())->position;
+}
+
+static
 void wroc_wl_subsurface_set_position(wl_client* client, wl_resource* resource, i32 x, i32 y)
 {
     auto* subsurface = wroc_get_userdata<wroc_subsurface>(resource);
-    subsurface->pending.position = {x, y};
-    subsurface->pending.committed |= wroc_subsurface_committed_state::position;
+    auto* parent = subsurface->parent.get();
+
+    auto& surface_stack = parent->pending->surface_stack;
+
+    auto cur = find_in_stack(surface_stack, subsurface->surface.get());
+
+    cur->position = {x, y};
+
+    parent->pending->committed |= wroc_surface_committed_state::surface_stack;
 }
 
 static
 void wroc_wl_subsurface_place(wl_resource* resource, wl_resource* _sibling, bool above)
 {
     auto subsurface = wroc_get_userdata<wroc_subsurface>(resource);
+    auto parent = subsurface->parent.get();
     auto sibling = wroc_get_userdata<wroc_surface>(_sibling);
 
-    auto& surface_stack = subsurface->parent->pending.surface_stack;
+    auto& surface_stack = parent->pending->surface_stack;
 
-    auto cur = std::ranges::find(surface_stack, subsurface->surface.get(), &wrei_weak<wroc_surface>::get);
-    auto sib = std::ranges::find(surface_stack, sibling,                   &wrei_weak<wroc_surface>::get);
+    auto cur = find_in_stack(surface_stack, subsurface->surface.get());
+    auto sib = find_in_stack(surface_stack, sibling);
 
     if (cur == surface_stack.end()) return wroc_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Compositor error: surface not in stack!");
     if (sib == surface_stack.end()) return wroc_post_error(subsurface->resource, WL_SUBSURFACE_ERROR_BAD_SURFACE, "Sibling not found in stack");
@@ -57,7 +78,7 @@ void wroc_wl_subsurface_place(wl_resource* resource, wl_resource* _sibling, bool
     if (cur > sib) std::rotate(sib + i32(above), cur, cur + 1);
     else           std::rotate(cur, cur + 1, sib + i32(above));
 
-    subsurface->parent->pending.committed |= wroc_surface_committed_state::surface_stack;
+    parent->pending->committed |= wroc_surface_committed_state::surface_stack;
 }
 
 static
@@ -84,29 +105,6 @@ void wroc_wl_subsurface_set_desync(wl_client* client, wl_resource* resource)
 {
     log_warn("Subsurface mode set to: desynchronized");
     wroc_get_userdata<wroc_subsurface>(resource)->synchronized = false;
-}
-
-void wroc_subsurface::on_commit(wroc_surface_commit_flags flags)
-{
-    // Subsurface specific state is always applied immediately on parent commit, regardless of subsurface commits
-    // (Layer order is tracked in parent state)
-    if (!(flags >= wroc_surface_commit_flags::from_parent)) return;
-
-    // Position
-
-    if (pending.committed >= wroc_subsurface_committed_state::position) {
-        current.position = pending.position;
-    }
-
-    // Commit flags
-
-    current.committed |= pending.committed;
-    pending.committed = {};
-}
-
-bool wroc_subsurface::is_synchronized()
-{
-    return synchronized || (parent && parent->role_addon && parent->role_addon->is_synchronized());
 }
 
 wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface* subsurface)

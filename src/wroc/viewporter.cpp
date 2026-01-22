@@ -35,16 +35,16 @@ static
 void wroc_wp_viewport_set_source(wl_client* client, wl_resource* resource, wl_fixed_t x, wl_fixed_t y, wl_fixed_t width, wl_fixed_t height)
 {
     auto* viewport = wroc_get_userdata<wroc_viewport>(resource);
-    viewport->pending.committed |= wroc_viewport_committed_state::source;
-    viewport->pending.source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}, wrei_xywh};
+    viewport->pending->committed |= wroc_viewport_committed_state::source;
+    viewport->pending->source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}, wrei_xywh};
 }
 
 static
 void wroc_wp_viewport_set_destination(wl_client* client, wl_resource* resource, i32 width, i32 height)
 {
     auto* viewport = wroc_get_userdata<wroc_viewport>(resource);
-    viewport->pending.committed |= wroc_viewport_committed_state::destination;
-    viewport->pending.destination = {width, height};
+    viewport->pending->committed |= wroc_viewport_committed_state::destination;
+    viewport->pending->destination = {width, height};
 }
 
 const struct wp_viewport_interface wroc_wp_viewport_impl
@@ -54,40 +54,40 @@ const struct wp_viewport_interface wroc_wp_viewport_impl
     .set_destination = wroc_wp_viewport_set_destination,
 };
 
-void wroc_viewport::on_commit(wroc_surface_commit_flags)
+void wroc_viewport::commit(wroc_commit_id id)
 {
-    if (pending.committed >= wroc_viewport_committed_state::source) {
-        if (pending.source == rect2f64{{-1, -1}, {-1, -1}, wrei_xywh}) {
+    wroc_surface_state_queue_commit(this, id);
+}
+
+static
+void apply_state(wroc_viewport* self, wroc_viewport_state& from, wroc_commit_id id)
+{
+    auto& to = self->current;
+
+    if (from.committed >= wroc_viewport_committed_state::source) {
+        if (from.source == rect2f64{{-1, -1}, {-1, -1}, wrei_xywh}) {
             log_debug("wp_viewport source unset");
-            current.committed -= wroc_viewport_committed_state::source;
+            to.committed -= wroc_viewport_committed_state::source;
         } else {
-            log_debug("wp_viewport source = {}", wrei_to_string(pending.source));
-            current.source = pending.source;
-            current.committed |= wroc_viewport_committed_state::source;
+            log_debug("wp_viewport source = {}", wrei_to_string(from.source));
+            to.source = from.source;
+            to.committed |= wroc_viewport_committed_state::source;
         }
     }
 
-    if (pending.committed >= wroc_viewport_committed_state::destination) {
-        if (pending.destination == vec2i32{-1, -1}) {
+    if (from.committed >= wroc_viewport_committed_state::destination) {
+        if (from.destination == vec2i32{-1, -1}) {
             log_debug("wp_viewport destination unset");
-            current.committed -= wroc_viewport_committed_state::destination;
+            to.committed -= wroc_viewport_committed_state::destination;
         } else {
-            log_debug("wp_viewport destination = {}", wrei_to_string(pending.destination));
-            current.destination = pending.destination;
-            current.committed |= wroc_viewport_committed_state::destination;
+            log_debug("wp_viewport destination = {}", wrei_to_string(from.destination));
+            to.destination = from.destination;
+            to.committed |= wroc_viewport_committed_state::destination;
         }
     }
+}
 
-    pending.committed = {};
-
-    if (current.committed >= wroc_viewport_committed_state::source) {
-        surface->buffer_src = current.source;
-    }
-    if (current.committed >= wroc_viewport_committed_state::destination) {
-        surface->buffer_dst.extent = current.destination;
-    } else if (current.committed >= wroc_viewport_committed_state::source) {
-        surface->buffer_dst.extent = current.source.extent;
-    }
-
-    // log_debug("buffer src = {}, dst = {}", wrei_to_string(surface->buffer_src), wrei_to_string(surface->buffer_dst));
+void wroc_viewport::apply(wroc_commit_id id)
+{
+    wroc_surface_state_queue_apply(this, id, apply_state);
 }

@@ -8,8 +8,6 @@ void wroc_zwp_relative_pointer_manager_v1_bind_global(wl_client* client, void* d
 {
     auto new_resource = wroc_resource_create(client, &zwp_relative_pointer_manager_v1_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_manager_v1_impl, nullptr);
-
-    log_error("RELATIVE POINTER MANAGER CREATED");
 }
 
 static
@@ -19,8 +17,6 @@ void get_relative_pointer(wl_client* client, wl_resource* resource, uint32_t id,
     auto* pointer = wroc_get_userdata<wroc_seat_pointer>(_pointer);
     pointer->relative_pointers.emplace_back(new_resource);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_relative_pointer_v1_impl, pointer);
-
-    log_error("RELATIVE POINTER CREATED");
 }
 
 const struct zwp_relative_pointer_manager_v1_interface wroc_zwp_relative_pointer_manager_v1_impl {
@@ -40,8 +36,6 @@ void wroc_zwp_pointer_constraints_v1_bind_global(wl_client* client, void* data, 
 {
     auto* new_resource = wroc_resource_create(client, &zwp_pointer_constraints_v1_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_zwp_pointer_constraints_v1_impl, nullptr);
-
-    log_error("POINTER CONSTRAINT INTERFACE BOUND");
 }
 
 static
@@ -55,7 +49,7 @@ void constrain_pointer(
     wl_resource* _region,
     u32 lifetime)
 {
-    log_error("POINTER CONSTRAINT CREATED: type = {}, lifetime = {}",
+    log_debug("Pointer constraint created: type = {}, lifetime = {}",
         wrei_enum_to_string(type),
         wrei_enum_to_string(zwp_pointer_constraints_v1_lifetime(lifetime)));
 
@@ -102,22 +96,32 @@ void confine_pointer(auto ...args)
     constrain_pointer(wroc_pointer_constraint_type::confined, args...);
 }
 
-void wroc_pointer_constraint::on_commit(wroc_surface_commit_flags)
+void wroc_pointer_constraint::commit(wroc_commit_id id)
 {
-    if (pending.committed >= wroc_pointer_constraint_committed_state::region) {
-        current.region = std::move(pending.region);
-        current.committed |= wroc_pointer_constraint_committed_state::region;
-    } else if (pending.committed >= wroc_pointer_constraint_committed_state::region_unset) {
-        current.committed -= wroc_pointer_constraint_committed_state::region;
+    wroc_surface_state_queue_commit(this, id);
+}
+
+static
+void apply_pointer_constraint_state(wroc_pointer_constraint* constraint, wroc_pointer_constraint_state& from, wroc_commit_id id)
+{
+    auto& to = constraint->current;
+
+    if (from.committed >= wroc_pointer_constraint_committed_state::region) {
+        to.region = std::move(from.region);
+        to.committed |= wroc_pointer_constraint_committed_state::region;
+    } else if (from.committed >= wroc_pointer_constraint_committed_state::region_unset) {
+        to.committed -= wroc_pointer_constraint_committed_state::region;
     }
 
-    if (pending.committed >= wroc_pointer_constraint_committed_state::position_hint) {
-        current.position_hint = pending.position_hint;
-        current.committed |= wroc_pointer_constraint_committed_state::position_hint;
+    if (from.committed >= wroc_pointer_constraint_committed_state::position_hint) {
+        to.position_hint = from.position_hint;
+        to.committed |= wroc_pointer_constraint_committed_state::position_hint;
     }
+}
 
-    current.committed |= pending.committed;
-    pending = {};
+void wroc_pointer_constraint::apply(wroc_commit_id id)
+{
+    wroc_surface_state_queue_apply(this, id, apply_pointer_constraint_state);
 }
 
 void wroc_pointer_constraint::activate()
@@ -130,7 +134,7 @@ void wroc_pointer_constraint::activate()
         pointer->active_constraint->deactivate();
     }
 
-    log_error("POINTER CONSTRAINT {} ACTIVATED", wrei_enum_to_string(type));
+    log_debug("Pointer constraint {} activated", wrei_enum_to_string(type));
 
     pointer->active_constraint = this;
 
@@ -151,7 +155,7 @@ void wroc_pointer_constraint::deactivate()
 
     pointer->active_constraint = nullptr;
 
-    log_error("POINTER CONSTRAINT DEACTIVATED");
+    log_debug("Pointer constraint deactivated");
 
     switch (type) {
         break;case wroc_pointer_constraint_type::locked:
@@ -163,8 +167,8 @@ void wroc_pointer_constraint::deactivate()
 
 wroc_pointer_constraint::~wroc_pointer_constraint()
 {
-    log_error("POINTER CONSTRIANT DESTROYED, deactivating");
     if (pointer->active_constraint == this) {
+        log_debug("Active pointer constraint destroyed, deactivating");
         pointer->active_constraint = nullptr;
     }
 }
@@ -175,12 +179,12 @@ void pointer_constraints_set_region(wl_client* client, wl_resource* resource, wl
     auto* constraint = wroc_get_userdata<wroc_pointer_constraint>(resource);
     if (_region) {
         auto* region = wroc_get_userdata<wroc_region>(_region);
-        constraint->pending.region = region->region;
-        constraint->pending.committed |= wroc_pointer_constraint_committed_state::region;
-        constraint->pending.committed -= wroc_pointer_constraint_committed_state::region_unset;
+        constraint->pending->region = region->region;
+        constraint->pending->committed |= wroc_pointer_constraint_committed_state::region;
+        constraint->pending->committed -= wroc_pointer_constraint_committed_state::region_unset;
     } else {
-        constraint->pending.committed |= wroc_pointer_constraint_committed_state::region_unset;
-        constraint->pending.committed -= wroc_pointer_constraint_committed_state::region;
+        constraint->pending->committed |= wroc_pointer_constraint_committed_state::region_unset;
+        constraint->pending->committed -= wroc_pointer_constraint_committed_state::region;
     }
 }
 
@@ -188,8 +192,8 @@ static
 void pointer_constraints_set_cursor_position_hint(wl_client* client, wl_resource* resource, wl_fixed_t sx, wl_fixed_t sy)
 {
     auto* constraint = wroc_get_userdata<wroc_pointer_constraint>(resource);
-    constraint->pending.position_hint = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
-    constraint->pending.committed |= wroc_pointer_constraint_committed_state::position_hint;
+    constraint->pending->position_hint = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
+    constraint->pending->committed |= wroc_pointer_constraint_committed_state::position_hint;
 
     // log_error("CONSTRAINT SET CURSOR POSITION HINT: {}", wrei_to_string(constraint->pending.position_hint));
 }
