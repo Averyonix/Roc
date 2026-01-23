@@ -196,12 +196,9 @@ void wroc_render_frame(wroc_output* output)
     // Surface helper
 
     auto draw_surface = [&](this auto&& draw_surface, wroc_surface* surface, vec2f64 pos, vec2f64 scale, f64 opacity = 1.0) -> void {
-        if (!surface) return;
+        if (!surface || !surface->mapped) return;
 
         // log_trace("drawing surface: {} (stack.size = {})", (void*)surface, surface->current.surface_stack.size());
-
-        auto* buffer = surface->current.buffer ? surface->current.buffer.get() : nullptr;
-        if (!buffer || !buffer->image) return;
 
         for (auto&[s, s_pos] : surface->current.surface_stack) {
             if (s.get() == surface) {
@@ -212,7 +209,7 @@ void wroc_render_frame(wroc_output* output)
                 dst.extent *= scale;
                 dst.origin += pos;
 
-                draw(buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
+                draw(surface->current.buffer->image.get(), dst, surface->buffer_src, vec4f32(opacity, opacity, opacity, opacity));
 
             } else {
 
@@ -226,8 +223,7 @@ void wroc_render_frame(wroc_output* output)
 
     auto draw_xdg_surfaces = [&](bool show_cycled) {
         for (auto* surface : server->surfaces) {
-            // TODO: Generic "mapped" state tracking
-            if (!surface->current.buffer) continue;
+            if (!surface->mapped) continue;
 
             auto* xdg_surface = wroc_surface_get_addon<wroc_xdg_surface>(surface);
             if (!xdg_surface) continue;

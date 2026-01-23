@@ -156,6 +156,7 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
     cursor_buffer->released = false;
     surface->current.buffer = cursor_buffer;
     surface->current.buffer_lock = cursor_buffer->lock();
+    surface->mapped = true;
 
     XcursorImage* image = XcursorLibraryLoadImage(shape_names[shape], cursor->theme, cursor->size);
     if (!image) {

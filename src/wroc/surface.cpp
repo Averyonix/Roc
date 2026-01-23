@@ -136,6 +136,56 @@ void wroc_wl_surface_offset(wl_client* client, wl_resource* resource, i32 x, i32
     surface->pending->committed |= wroc_surface_committed_state::offset;
 }
 
+bool wroc_surface_is_focusable(wroc_surface* surface)
+{
+    return surface->mapped && surface->role == wroc_surface_role::xdg_toplevel;
+}
+
+static
+void refocus_on_unmap()
+{
+    auto first = std::ranges::find_if(server->surfaces, wroc_surface_is_focusable);
+    auto target = first == server->surfaces.end() ? nullptr : *first;
+    log_error("Refocusing -> {}", (void*)target);
+    wroc_keyboard_enter(server->seat->keyboard.get(), target);
+}
+
+static
+void surface_set_mapped(wroc_surface* surface, bool mapped)
+{
+    if (mapped == surface->mapped) return;
+    surface->mapped = mapped;
+
+    log_error("Surface {} was {}", (void*)surface, mapped ? "mapped" : "unmapped");
+
+    for (auto& addon : surface->addons) {
+        addon->on_mapped_change();
+    }
+
+    if (!mapped) {
+        if (surface == server->seat->keyboard->focused_surface.get()) {
+            refocus_on_unmap();
+        }
+
+        if (surface == server->seat->pointer->focused_surface.get()) {
+            // TODO: Re-check surface under pointer
+            server->seat->pointer->focused_surface = nullptr;
+        }
+    }
+}
+
+static
+void update_map_state(wroc_surface* surface)
+{
+    bool can_be_mapped =
+           surface->current.buffer
+        && surface->current.buffer->image
+        && surface->role_addon
+        && surface->resource;
+
+    surface_set_mapped(surface, can_be_mapped);
+}
+
 static
 void apply_state(wroc_surface* surface, wroc_surface_state& from)
 {
@@ -209,7 +259,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 #endif
 
     auto& packet = surface->cached.back();
-    packet.id = surface->next_commit_id++;
+    packet.id = ++surface->committed;
 
     for (auto& addon : surface->addons) {
         addon->commit(packet.id);
@@ -232,7 +282,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 
 void wroc_surface_flush_apply(wroc_surface* surface)
 {
-    auto prev_applied_commit_id = surface->applied_commit_id;
+    auto prev_applied_commit_id = surface->applied;
 
     while (surface->cached.size() > 1) {
         auto& packet = surface->cached.front();
@@ -242,15 +292,15 @@ void wroc_surface_flush_apply(wroc_surface* surface)
 
         apply_state(surface, packet.state);
 
-        surface->applied_commit_id = packet.id;
+        surface->applied = packet.id;
         surface->cached.pop_front();
 
         for (auto& addon : surface->addons) {
-            addon->apply(surface->applied_commit_id);
+            addon->apply(surface->applied);
         }
     }
 
-    if (surface->applied_commit_id == prev_applied_commit_id) return;
+    if (surface->applied == prev_applied_commit_id) return;
 
 #if WROC_NOISY_COMMIT
     log_debug("Applied commits {} -> {}", prev_applied_commit_id, surface->applied_commit_id);
@@ -288,10 +338,24 @@ void wroc_surface_flush_apply(wroc_surface* surface)
         log_debug("buffer src = {}, dst = {}", wrei_to_string(surface->buffer_src), wrei_to_string(surface->buffer_dst));
 #endif
     }
+
+    // Handle map/unmap
+
+    update_map_state(surface);
+}
+
+static
+void surface_destroy(wl_client* client, wl_resource* resource)
+{
+    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+
+    surface_set_mapped(surface, false);
+
+    wl_resource_destroy(resource);
 }
 
 const struct wl_surface_interface wroc_wl_surface_impl = {
-    .destroy              = wroc_simple_resource_destroy_callback,
+    .destroy              = surface_destroy,
     .attach               = wroc_wl_surface_attach,
     WROC_STUB_QUIET(damage),
     .frame                = wroc_wl_surface_frame,
@@ -320,7 +384,7 @@ wroc_surface::~wroc_surface()
     }
     wroc_surface_destroy_state(this, current);
 
-    log_warn("wroc_surface DESTROY, this = {}", (void*)this);
+    log_warn("Surface {} was destroyed", (void*)this);
 }
 
 bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 surface_pos)
@@ -461,9 +525,14 @@ wroc_surface_addon* wroc_surface_get_addon(wroc_surface* surface, const std::typ
 void wroc_surface_addon_detach(wroc_surface_addon* addon)
 {
     if (!addon->surface) return;
-    std::erase_if(addon->surface->addons, [&](const auto& a) { return a.get() == addon; });
-    if (addon->surface->role_addon == addon) {
-        addon->surface->role_addon = nullptr;
+
+    auto* surface = addon->surface.get();
+
+    if (surface->role_addon == addon) {
+        surface->role_addon = nullptr;
+        surface_set_mapped(surface, false);
     }
     addon->surface = nullptr;
+
+    std::erase_if(surface->addons, [&](const auto& a) { return a.get() == addon; });
 }

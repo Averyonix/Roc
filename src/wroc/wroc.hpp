@@ -205,6 +205,8 @@ struct wroc_surface_addon : wrei_object
 
     // Apply all queued commits up to and including the specified commit id
     virtual void apply(wroc_commit_id) = 0;
+
+    virtual void on_mapped_change() {}
 };
 
 void wroc_surface_addon_detach(wroc_surface_addon* addon);
@@ -247,8 +249,8 @@ struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_st
 {
     wroc_resource resource;
 
-    wroc_commit_id next_commit_id = 1;
-    wroc_commit_id applied_commit_id = 0;
+    wroc_commit_id committed = 0;
+    wroc_commit_id applied = 0;
 
     wroc_surface_role role = wroc_surface_role::none;
     weak<wroc_surface_addon> role_addon;
@@ -256,8 +258,13 @@ struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_st
 
     weak<wroc_surface> cursor;
 
-    rect2i32 buffer_dst; // in surface coordinates, origin represents "offset" surface property
-    rect2f64 buffer_src; // in buffer coordinates
+    // In surface coordinates, origin represents "offset" surface property
+    rect2i32 buffer_dst;
+
+    // In buffer coordinates
+    rect2f64 buffer_src;
+
+    bool mapped;
 
     ~wroc_surface();
 };
@@ -290,6 +297,7 @@ bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 surface_pos);
 // bool wroc_surface_is_synchronized(wroc_surface*);
 
 void wroc_surface_raise(wroc_surface*);
+bool wroc_surface_is_focusable(wroc_surface*);
 
 bool wroc_surface_put_addon_impl(wroc_surface*, wroc_surface_addon*, wroc_surface_role);
 
@@ -467,6 +475,8 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon, wroc_surface_state_queue_base<
 
     virtual void commit(wroc_commit_id) final override;
     virtual void apply(wroc_commit_id) final override;
+
+    virtual void on_mapped_change() final override;
 };
 
 void wroc_toplevel_set_bounds(wroc_toplevel*, vec2i32 bounds);

@@ -171,8 +171,7 @@ void focus_cycle(bool reverse, wroc_seat_pointer* pointer)
     if (server->surfaces.empty()) return;
 
     auto in_cycle = [&](wroc_surface* surface) {
-        // TODO: Track derived "mapped" state
-        return surface->current.buffer && wroc_surface_get_addon<wroc_toplevel>(surface)
+        return wroc_surface_is_focusable(surface)
             && (!pointer || wroc_surface_point_accepts_input(surface, wroc_surface_pos_from_global(surface, pointer->position)));
     };
 

@@ -294,9 +294,14 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
 {
     if (surface == kb->focused_surface.get()) return;
 
+    if (surface && !wroc_surface_is_focusable(surface)) {
+        log_error("wroc_keyboard_enter failed: surface is not focusable");
+        return;
+    }
+
     wroc_keyboard_clear_focus(kb);
 
-    if (!surface->resource) return;
+    if (!surface) return;
 
     // TODO: Consolidate "client seat" into a with client's wl_keyboard/wl_pointer handles
     //       To deduplicate code between this and `wroc_pointer`

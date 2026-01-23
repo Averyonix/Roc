@@ -10,7 +10,7 @@ wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** p_toplevel)
 
     auto surface_accepts_input = [&](this auto&& surface_accepts_input, wroc_surface* surface, vec2f64 cursor_pos) -> wroc_surface* {
         if (!surface) return nullptr;
-        if (!surface->current.buffer) return nullptr;
+        if (!surface->mapped) return nullptr;
 
         for (auto&[s, pos] : surface->current.surface_stack | std::views::reverse) {
             if (s.get() == surface) {

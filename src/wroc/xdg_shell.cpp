@@ -318,19 +318,6 @@ void toplevel_on_initial_size(wroc_toplevel* toplevel)
     log_debug("Initial surface size: {}", wrei_to_string(geom.extent));
     wroc_toplevel_set_size(toplevel, geom.extent);
     wroc_toplevel_flush_configure(toplevel);
-
-    if (!toplevel->current.parent && !toplevel->fullscreen.output) {
-        log_debug("Centering new window on cursor");
-
-        toplevel->anchor.position = server->seat->pointer->position;
-        toplevel->anchor.relative = wroc_edges_to_relative({});
-    }
-
-    toplevel_clamp_to_layout(toplevel);
-
-    // TODO: Proper map lifecycle tracking
-    //       This should be triggered when the first buffer is actually prepared for the surface
-    wroc_keyboard_enter(server->seat->keyboard.get(), toplevel->surface.get());
 }
 
 void wroc_toplevel::commit(wroc_commit_id id)
@@ -369,6 +356,39 @@ void wroc_toplevel::apply(wroc_commit_id id)
     // NOTE: This will always see up-to-date xdg_surface state, as xdg_toplevel will always
     //       come after xdg_surface in the addon list.
     wroc_toplevel_flush_configure(this);
+}
+
+void wroc_toplevel::on_mapped_change()
+{
+    if (surface->mapped) {
+
+        // Center mapped toplevels on cursor
+        // TODO: For initial client windows, use cursor position from when client was first launched?
+
+        if (!current.parent && !fullscreen.output) {
+            log_debug("Centering mapped toplevel on cursor");
+
+            anchor.position = server->seat->pointer->position;
+            anchor.relative = wroc_edges_to_relative({});
+        }
+
+        // Re-clamp
+
+        if (!fullscreen.output) {
+            toplevel_clamp_to_layout(this);
+        }
+
+        // Newly mapped toplevels pull focus
+        // TODO: Configurable handling for this?
+
+        wroc_keyboard_enter(server->seat->keyboard.get(), surface.get());
+    } else {
+        if (this == server->movesize.grabbed_toplevel.get()) {
+            server->movesize.grabbed_toplevel = nullptr;
+            // TODO: We'll need a function for cancelling more complex interactions
+            server->interaction_mode = wroc_interaction_mode::normal;
+        }
+    }
 }
 
 const struct xdg_toplevel_interface wroc_xdg_toplevel_impl = {
