@@ -218,7 +218,10 @@ enum class wroc_surface_committed_state : u32
     opaque_region = 1 << 2,
     input_region  = 1 << 3,
     buffer_scale  = 1 << 4,
+
+    // Subsurface related state
     surface_stack = 1 << 5,
+    parent_commit = 1 << 6,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
 
@@ -239,6 +242,7 @@ struct wroc_surface_state
     region2i32 opaque_region;
     region2i32 input_region;
     f64 buffer_scale;
+    wroc_commit_id parent_commit;
 
     // This tracks layer and position for all subsurfaces in the stack
     // This state is set from the subsurface, but owned and updated on the parent surface
@@ -294,7 +298,6 @@ vec2f64 wroc_surface_pos_from_global(wroc_surface*, vec2f64 global_pos);
 vec2f64 wroc_surface_pos_to_global(wroc_surface*, vec2f64 surface_pos);
 
 bool wroc_surface_point_accepts_input(wroc_surface*, vec2f64 surface_pos);
-// bool wroc_surface_is_synchronized(wroc_surface*);
 
 void wroc_surface_raise(wroc_surface*);
 bool wroc_surface_is_focusable(wroc_surface*);
@@ -307,11 +310,16 @@ bool wroc_surface_put_addon(wroc_surface* surface, T* addon)
     return wroc_surface_put_addon_impl(surface, addon, T::role);
 }
 
+wroc_surface_addon* wroc_surface_get_role_addon(wroc_surface*, wroc_surface_role);
 wroc_surface_addon* wroc_surface_get_addon(wroc_surface*, const std::type_info&);
 template<typename T>
 T* wroc_surface_get_addon(wroc_surface* surface)
 {
-    return static_cast<T*>(wroc_surface_get_addon(surface, typeid(T)));
+    if constexpr (T::role != wroc_surface_role::none) {
+        return static_cast<T*>(wroc_surface_get_role_addon(surface, T::role));
+    } else {
+        return static_cast<T*>(wroc_surface_get_addon(surface, typeid(T)));
+    }
 }
 
 template<typename T>
@@ -356,6 +364,8 @@ struct wroc_viewport : wroc_surface_addon, wroc_surface_state_queue_base<wroc_vi
 
 // -----------------------------------------------------------------------------
 
+#define WROC_NOISY_SUBSURFACES 0
+
 struct wroc_subsurface : wroc_surface_addon
 {
     static constexpr wroc_surface_role role = wroc_surface_role::subsurface;
@@ -368,8 +378,9 @@ struct wroc_subsurface : wroc_surface_addon
     vec2i32 position() const;
 
     bool synchronized = true;
+    bool last_synchronized = true;
 
-    virtual void commit(wroc_commit_id) final override {};
+    virtual void commit(wroc_commit_id) final override;
     virtual void apply(wroc_commit_id) final override {};
 };
 

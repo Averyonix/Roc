@@ -96,15 +96,17 @@ void wroc_wl_subsurface_place_below(wl_client* client, wl_resource* resource, wl
 static
 void wroc_wl_subsurface_set_sync(wl_client* client, wl_resource* resource)
 {
-    log_warn("Subsurface mode set to: synchronized");
-    wroc_get_userdata<wroc_subsurface>(resource)->synchronized = true;
+    auto* subsurface = wroc_get_userdata<wroc_subsurface>(resource);
+    if (!subsurface->synchronized) log_warn("Subsurface mode set to: synchronized");
+    subsurface->synchronized = true;
 }
 
 static
 void wroc_wl_subsurface_set_desync(wl_client* client, wl_resource* resource)
 {
-    log_warn("Subsurface mode set to: desynchronized");
-    wroc_get_userdata<wroc_subsurface>(resource)->synchronized = false;
+    auto* subsurface = wroc_get_userdata<wroc_subsurface>(resource);
+    if (subsurface->synchronized) log_warn("Subsurface mode set to: desynchronized");
+    subsurface->synchronized = false;
 }
 
 wroc_surface* wroc_subsurface_get_root_surface(wroc_subsurface* subsurface)
@@ -125,3 +127,27 @@ const struct wl_subsurface_interface wroc_wl_subsurface_impl = {
     .set_sync     = wroc_wl_subsurface_set_sync,
     .set_desync   = wroc_wl_subsurface_set_desync,
 };
+
+void wroc_subsurface::commit(wroc_commit_id id)
+{
+    if (synchronized) {
+        if (parent) {
+            surface->pending->parent_commit = parent->committed + 1;
+            surface->pending->committed |= wroc_surface_committed_state::parent_commit;
+#if WROC_NOISY_SUBSURFACES
+            log_debug("Synchronized subsurface committed, waiting for parent commit: {}", surface->pending->parent_commit);
+#endif
+        } else {
+            log_error("Synchronized subsurface committed, but parent surface is dead!");
+        }
+    } else if (last_synchronized) {
+        // Disabling synchronization should remove parent commit requirement from all previously unapplied synchronized state
+        log_warn("Synchronization disabled for subsurface, removing requirement for all currently un-applied state packets");
+        for (auto& packet : surface->cached) {
+            if (packet.id) {
+                packet.state.committed -= wroc_surface_committed_state::parent_commit;
+            }
+        }
+    }
+    last_synchronized = synchronized;
+}

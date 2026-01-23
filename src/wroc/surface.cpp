@@ -202,7 +202,9 @@ void apply_state(wroc_surface* surface, wroc_surface_state& from)
             to.buffer      = std::move(from.buffer);
             to.buffer_lock = std::move(from.buffer_lock);
         } else {
-            log_warn("Pending buffer was destroyed or null buffer attached, surface contents will be cleared");
+            if (from.buffer) {
+                log_warn("Pending buffer was destroyed, surface contents will be cleared");
+            }
             to.buffer = nullptr;
             to.buffer_lock = nullptr;
         }
@@ -254,12 +256,12 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = wroc_get_userdata<wroc_surface>(resource);
 
-#if WROC_NOISY_COMMIT
-    log_debug("New surface commit (id = {})", surface->next_commit_id);
-#endif
-
     auto& packet = surface->cached.back();
     packet.id = ++surface->committed;
+
+#if WROC_NOISY_COMMIT
+    log_debug("New surface commit (id = {})", packet.id);
+#endif
 
     for (auto& addon : surface->addons) {
         addon->commit(packet.id);
@@ -280,6 +282,35 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
     surface->pending->surface_stack.append_range(packet.state.surface_stack);
 }
 
+static
+bool is_blocked_by_parent_commit(wroc_surface* surface, wroc_surface_state& state, wroc_commit_id id)
+{
+    if (!(state.committed >= wroc_surface_committed_state::parent_commit)) return false;
+
+    auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(surface);
+    if (subsurface
+            && subsurface->parent
+            && subsurface->parent->applied < state.parent_commit) {
+#if WROC_NOISY_SUBSURFACES
+        log_warn("synchronized state {} cannot be dequeued, expected parent commit {}, got {}",
+            id, state.parent_commit, subsurface->parent->applied);
+#endif
+        return true;
+    } else {
+        if (!subsurface || !subsurface->parent) {
+            log_warn("Synchronized state {} is orphaned due to missing subsurface or parent, applying", id);
+        }
+#if WROC_NOISY_SUBSURFACES
+        else {
+            log_warn("Synchronized state {} can be dequeued, parent commit {} >= {}",
+                id, subsurface->parent->applied, state.parent_commit);
+        }
+#endif
+    }
+
+    return false;
+}
+
 void wroc_surface_flush_apply(wroc_surface* surface)
 {
     auto prev_applied_commit_id = surface->applied;
@@ -287,8 +318,10 @@ void wroc_surface_flush_apply(wroc_surface* surface)
     while (surface->cached.size() > 1) {
         auto& packet = surface->cached.front();
 
-        bool ready = !packet.state.buffer_lock || packet.state.buffer_lock->buffer->is_ready();
-        if (!ready) break;
+        if (is_blocked_by_parent_commit(surface, packet.state, packet.id)) break;
+
+        // Check for buffer ready
+        if (packet.state.buffer_lock && !packet.state.buffer_lock->buffer->is_ready()) break;
 
         apply_state(surface, packet.state);
 
@@ -303,7 +336,7 @@ void wroc_surface_flush_apply(wroc_surface* surface)
     if (surface->applied == prev_applied_commit_id) return;
 
 #if WROC_NOISY_COMMIT
-    log_debug("Applied commits {} -> {}", prev_applied_commit_id, surface->applied_commit_id);
+    log_debug("Applied commits {} -> {}", prev_applied_commit_id, surface->applied);
 #endif
 
     // Update buffer_src/buffer_dst
@@ -342,6 +375,16 @@ void wroc_surface_flush_apply(wroc_surface* surface)
     // Handle map/unmap
 
     update_map_state(surface);
+
+    // Flush subsurface state recursively
+
+    if (surface->current.surface_stack.size() > 1) {
+        for (auto[s, _] : surface->current.surface_stack) {
+            if (s.get() != surface) {
+                wroc_surface_flush_apply(s.get());
+            }
+        }
+    }
 }
 
 static
@@ -404,11 +447,6 @@ bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 surface_pos
 
     return accepts_input;
 }
-
-// bool wroc_surface_is_synchronized(wroc_surface* surface)
-// {
-//     return surface->role_addon && surface->role_addon->is_synchronized();
-// }
 
 void wroc_surface_raise(wroc_surface* surface)
 {
@@ -513,6 +551,12 @@ bool wroc_surface_put_addon_impl(wroc_surface* surface, wroc_surface_addon* addo
     surface->addons.emplace_back(addon);
 
     return true;
+}
+
+wroc_surface_addon* wroc_surface_get_role_addon(wroc_surface* surface, wroc_surface_role role)
+{
+    if (!surface) return nullptr;
+    return surface->role == role ? surface->role_addon.get() : nullptr;
 }
 
 wroc_surface_addon* wroc_surface_get_addon(wroc_surface* surface, const std::type_info& type)

@@ -70,6 +70,7 @@ void wroc_run(int argc, char* argv[])
         : wroc_backend_type::direct;
 
     bool show_imgui_on_startup = false;
+    bool show_csd = false;
 
     std::optional<std::string> x11_socket;
 
@@ -95,6 +96,8 @@ void wroc_run(int argc, char* argv[])
                 return;
             }
             log_file = argv[++i];
+        } else if (arg == "--csd") {
+            show_csd = true;
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
@@ -188,8 +191,10 @@ void wroc_run(int argc, char* argv[])
     WROC_GLOBAL(wp_viewporter);
     WROC_GLOBAL(zwp_relative_pointer_manager_v1);
     WROC_GLOBAL(zwp_pointer_constraints_v1);
-    WROC_GLOBAL(zxdg_decoration_manager_v1);
-    WROC_GLOBAL(org_kde_kwin_server_decoration_manager);
+    if (!show_csd) {
+        WROC_GLOBAL(zxdg_decoration_manager_v1);
+        WROC_GLOBAL(org_kde_kwin_server_decoration_manager);
+    }
     WROC_GLOBAL(wp_cursor_shape_manager_v1);
 
     // Run
