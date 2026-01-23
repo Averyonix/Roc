@@ -131,7 +131,7 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_features
+enum class wren_features : u32
 {
     dmabuf = 1 << 0,
 };
@@ -198,7 +198,7 @@ ref<wren_context> wren_create(wren_features, wrei_event_loop*);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_queue_type
+enum class wren_queue_type : u32
 {
     graphics,
     transfer,
@@ -363,7 +363,7 @@ struct wren_array
 
 // -----------------------------------------------------------------------------
 
-enum class wren_image_usage
+enum class wren_image_usage : u32
 {
     transfer = 1 << 0,  // Transfer dst
     texture  = 1 << 1,  // Sampled
@@ -418,7 +418,7 @@ ref<wren_sampler> wren_sampler_create(wren_context*, VkFilter mag, VkFilter min)
 
 // -----------------------------------------------------------------------------
 
-enum class wren_blend_mode
+enum class wren_blend_mode : u32
 {
     none,
     premultiplied,

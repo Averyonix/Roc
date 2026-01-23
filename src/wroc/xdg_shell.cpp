@@ -598,9 +598,10 @@ wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rul
         return region;
     }
 
-#define WROC_XDG_POSITIONER_IGNORE_FLIP 0
-#if    !WROC_XDG_POSITIONER_IGNORE_FLIP
-    if (rules.flip) {
+    static constexpr bool ignore_flip = false;
+    static constexpr bool always_slide = false;
+
+    if (rules.flip && !ignore_flip) {
         auto flipped_rules = rules;
         flipped_rules.anchor.pos = rules.anchor.size - rules.anchor.pos;
         flipped_rules.gravity = rules.size - rules.gravity;
@@ -611,13 +612,8 @@ wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rul
             return flipped;
         }
     }
-#endif
 
-#define WROC_XDG_POSITIONER_ALWAYS_SLIDE 0
-#if    !WROC_XDG_POSITIONER_ALWAYS_SLIDE
-    if (rules.slide)
-#endif
-    {
+    if (rules.slide || always_slide) {
         auto overlap = get_overlaps(region);
         log_debug("  attempting slide, overlaps: ({}, {})", overlap.start, overlap.end);
         if (overlap.start > 0 && overlap.end > 0) {

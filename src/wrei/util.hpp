@@ -91,6 +91,7 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
 // -----------------------------------------------------------------------------
 
 #define WREI_DECORATE_FLAG_ENUM(EnumType) \
+    static_assert(std::is_unsigned_v<std::underlying_type_t<EnumType>>); \
     inline constexpr EnumType operator| (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) | std::to_underlying(r));                  } \
     inline constexpr EnumType operator|=(EnumType& l, EnumType r) { return l = l | r;                                                                } \
     inline constexpr bool     operator>=(EnumType  l, EnumType r) { return std::to_underlying(r) == (std::to_underlying(l) & std::to_underlying(r)); } \
@@ -243,7 +244,7 @@ std::chrono::system_clock::time_point wrei_time_current()
     return std::chrono::system_clock::now();
 }
 
-enum class wrei_time_format
+enum class wrei_time_format : u32
 {
     iso8601,
     date_pretty,

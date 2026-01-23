@@ -186,7 +186,7 @@ void wroc_surface_state_queue_apply(T* base, wroc_commit_id id, ApplyFn&& apply_
     }
 }
 
-enum class wroc_surface_role
+enum class wroc_surface_role : u32
 {
     none,
     cursor,
@@ -730,7 +730,7 @@ enum class wroc_modifiers : u32
 };
 WREI_DECORATE_FLAG_ENUM(wroc_modifiers)
 
-enum class wroc_key_action
+enum class wroc_key_action : u32
 {
     press,      // Key was pressed by source
     release,    // Key was released by source
@@ -854,7 +854,7 @@ struct wroc_seat_pointer : wrei_object
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_pointer_constraint_committed_state
+enum class wroc_pointer_constraint_committed_state : u32
 {
     position_hint = 1 << 0,
     region        = 1 << 1,
@@ -869,7 +869,7 @@ struct wroc_pointer_constraint_state
     region2i32 region;
 };
 
-enum class wroc_pointer_constraint_type
+enum class wroc_pointer_constraint_type : u32
 {
     locked,
     confined,
@@ -987,7 +987,7 @@ wroc_surface* wroc_cursor_get_current(wroc_seat_pointer*, wroc_cursor*);
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_render_options
+enum class wroc_render_options : u32
 {
     no_dmabuf      = 1 << 0,
     separate_draws = 1 << 1,
@@ -1260,7 +1260,7 @@ using wroc_spawn_action = std::variant<wroc_spawn_env_action, wroc_spawn_x11_act
 pid_t wroc_spawn(std::string_view file, std::span<const std::string_view> argv, std::span<const wroc_spawn_action>);
 void wroc_spawn(GAppInfo* app_info, std::span<const wroc_spawn_action>);
 
-enum class wroc_setenv_options
+enum class wroc_setenv_options : u32
 {
     // Imports the environment variable into the systemd environment
     system_wide = 1 << 0,

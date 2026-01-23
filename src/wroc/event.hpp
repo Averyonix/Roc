@@ -1,6 +1,6 @@
 #include "wroc.hpp"
 
-enum class wroc_event_type
+enum class wroc_event_type : u32
 {
     output_added,
     output_removed,
