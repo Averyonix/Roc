@@ -205,7 +205,7 @@ ref<wren_swapchain> wren_swapchain_create(wren_context* ctx, VkSurfaceKHR surfac
         }
     }
     if (!found) {
-        log_error("Could not find appropriate swapchain foramt");
+        log_error("Could not find appropriate swapchain format");
         return nullptr;
     }
 

@@ -93,7 +93,7 @@ void wroc_render_frame(wroc_output* output)
         *frame = std::move(renderer->available_frames.back());
         renderer->available_frames.pop_back();
     } else {
-        log_error("RENDERER NEW FRAME");
+        log_debug("Allocating new renderer frame data");
     }
 
     wren_transition(wren, commands.get(), current,
@@ -135,7 +135,7 @@ void wroc_render_frame(wroc_output* output)
 
     auto draw = [&](wren_image* image, rect2f64 dest, rect2f64 source, vec4f32 color = {1, 1, 1, 1}) {
 
-        // log_warn("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
+        // log_debug("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
 
         wren_commands_protect_object(commands.get(), image);
 

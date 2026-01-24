@@ -326,11 +326,6 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("TEST")) {
-        log_error("TEST\nThis is a multi-line test.\nThis is another line.");
-    }
-
-    ImGui::SameLine();
     ImGui::Checkbox("Details", &debug->log.show_details);
 
     static constexpr auto make_color = [](std::string_view hex) { return vec4f32(wrei_color_from_hex(hex)) / 255.f; };

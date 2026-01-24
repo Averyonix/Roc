@@ -134,7 +134,7 @@ void handle_device_added(wroc_direct_backend* backend, struct libinput_device* l
 static
 void handle_device_removed(wroc_input_device* device)
 {
-    log_warn("Device removed - {}", libinput_device_get_name(device->handle));
+    log_debug("Device removed - {}", libinput_device_get_name(device->handle));
 
     std::erase_if(device->backend->input_devices, [&](const auto& d) { return d.get() == device; });
 }

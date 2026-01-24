@@ -97,7 +97,7 @@ static
 void wroc_wl_subsurface_set_sync(wl_client* client, wl_resource* resource)
 {
     auto* subsurface = wroc_get_userdata<wroc_subsurface>(resource);
-    if (!subsurface->synchronized) log_warn("Subsurface mode set to: synchronized");
+    if (!subsurface->synchronized) log_debug("Subsurface mode set to: synchronized");
     subsurface->synchronized = true;
 }
 
@@ -105,7 +105,7 @@ static
 void wroc_wl_subsurface_set_desync(wl_client* client, wl_resource* resource)
 {
     auto* subsurface = wroc_get_userdata<wroc_subsurface>(resource);
-    if (subsurface->synchronized) log_warn("Subsurface mode set to: desynchronized");
+    if (subsurface->synchronized) log_debug("Subsurface mode set to: desynchronized");
     subsurface->synchronized = false;
 }
 

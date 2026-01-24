@@ -86,7 +86,7 @@ void xdg_surface_apply(wroc_xdg_surface* self, wrox_xdg_surface_state& from, wro
 
     if (from.committed >= wroc_xdg_surface_committed_state::geometry) {
         if (!from.geometry.extent.x || !from.geometry.extent.y) {
-            log_warn("Zero size invalid geometry committed, treating as if geometry never set!");
+            log_error("Zero size invalid geometry committed, treating as if geometry never set!");
             to.committed -= wroc_xdg_surface_committed_state::geometry;
             from.committed -= wroc_xdg_surface_committed_state::geometry;
         } else {
@@ -563,9 +563,12 @@ struct wroc_xdg_positioner_axis_rules
     bool resize;
 };
 
+#define WROC_NOISY_POSITIONERS 0
+
 static
 wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rules, wroc_axis_region constraint)
 {
+#if WROC_NOISY_POSITIONERS
     log_debug("wroc_xdg_position_apply_axis");
     log_debug("  constraint = ({} ; {})", constraint.pos, constraint.size);
     log_debug("  anchor = ({} ; {})", rules.anchor.pos, rules.anchor.size);
@@ -573,6 +576,7 @@ wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rul
     log_debug("  flip   = {}", rules.flip);
     log_debug("  slide  = {}", rules.slide);
     log_debug("  resize = {}", rules.resize);
+#endif
 
     auto get_position = [](auto& rules) -> wroc_axis_region {
         return {rules.anchor.pos + rules.gravity - rules.size, rules.size};
@@ -588,10 +592,8 @@ wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rul
     };
 
     auto region = get_position(rules);
-    log_debug("  position = ({} ; {})", region.pos, region.size);
 
     if (is_unconstrained(region)) {
-        log_debug("  already unconstrained!");
         return region;
     }
 
@@ -603,59 +605,43 @@ wroc_axis_region positioner_apply_axis(const wroc_xdg_positioner_axis_rules& rul
         flipped_rules.anchor.pos = rules.anchor.size - rules.anchor.pos;
         flipped_rules.gravity = rules.size - rules.gravity;
         auto flipped = get_position(flipped_rules);
-        log_debug("  flipped = ({} ; {})", flipped.pos, flipped.size);
         if (is_unconstrained(flipped)) {
-            log_debug("  unconstrained by flip!");
             return flipped;
         }
     }
 
     if (rules.slide || always_slide) {
         auto overlap = get_overlaps(region);
-        log_debug("  attempting slide, overlaps: ({}, {})", overlap.start, overlap.end);
         if (overlap.start > 0 && overlap.end > 0) {
-            log_debug("    overlaps both");
             // Overlaps both at start and end, move in direction of gravity until opposite edge is unconstrained
             if (rules.gravity == rules.size) {
-                log_debug("    slide forward");
                 region.pos += overlap.start;
             } else if (rules.gravity == 0) {
-                log_debug("    slide back");
                 region.pos -= overlap.end;
-            } else {
-                log_debug("    no gravity, can't slide");
             }
         } else if (overlap.start > 0) {
             // Overlaps at start, move forward
             region.pos += std::min(overlap.start, -overlap.end);
-            log_debug("    overlaps start, move forward: {}", region.pos);
             return region;
         } else if (overlap.end > 0) {
             // Overlaps at end, move backward
             region.pos -= std::min(overlap.end, -overlap.start);
-            log_debug("    overlaps start, move back: {}", region.pos);
             return region;
         }
     }
 
     if (rules.resize) {
         auto overlap = get_overlaps(region);
-        log_debug("  attempting resize, overlaps: ({}, {})", overlap.start, overlap.end);
         if (overlap.start > 0 && overlap.end > 0) {
-            log_debug("    overlaps both sides, constraint to fit exactly");
             // Overlaps both, fit constraint exactly
             region = constraint;
         } else if (overlap.start > 0 && overlap.start < region.size) {
             // Overlaps start by less than size, clip start
             region.pos  += overlap.start;
             region.size -= overlap.start;
-            log_debug("    overlaps start, clipping ({}, {})", region.pos, region.size);
         } else if (overlap.end > 0 && overlap.end < region.size) {
             // Overlaps end by less than size, clip end
             region.size -= overlap.end;
-            log_debug("    overlaps end, clipping ({}, {})", region.pos, region.size);
-        } else {
-            log_debug("    outside of region entirely");
         }
     }
 
@@ -716,7 +702,6 @@ void positioner_apply_axis_from_rules(const wroc_positioner_rules& rules, rect2i
         .size = constraint.extent[axis],
     };
     auto region = positioner_apply_axis(axis_rules, constraint_region);
-    log_debug("  final position: ({}, {}), offset = {}", region.pos, region.size, offset);
     target.origin[axis] = region.pos + offset;
     target.extent[axis] = region.size;
 }
@@ -731,6 +716,10 @@ rect2i32 positioner_apply(const wroc_positioner_rules& rules, rect2i32 constrain
 }
 
 // -----------------------------------------------------------------------------
+
+#define WROC_NOISY_POPUP 0
+
+WREI_DEFINE_ENUM_NAME_PROPS(xdg_positioner_constraint_adjustment, "XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_", "");
 
 void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _parent, wl_resource* positioner)
 {
@@ -752,22 +741,19 @@ void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _p
         }
     }
 
+#if WROC_NOISY_POPUP
     auto& rules = xdg_positioner->rules;
-    log_error("xdg_popup<{}> created:", (void*)popup);
-    log_error("  size = {}", wrei_to_string(rules.size));
-    log_error("  anchor_rect = {}", wrei_to_string(rules.anchor_rect));
-    log_error("  anchor = {}", wrei_enum_to_string(rules.anchor));
-    log_error("  gravity = {}", wrei_enum_to_string(rules.gravity));
-    u32 adjustment = rules.constraint_adjustment;
-    while (adjustment) {
-        u32 lsb = 1u << std::countr_zero(adjustment);
-        log_error("  adjustment |= {}", wrei_enum_to_string(xdg_positioner_constraint_adjustment(lsb)));
-        adjustment &= ~lsb;
-    }
-    log_error("  offset = {}", wrei_to_string(rules.offset));
-    log_error("  reactive = {}", rules.reactive);
-    log_error("  parent_size = {}", wrei_to_string(rules.parent_size));
-    log_error("  parent_configure = {}", rules.parent_configure);
+    log_debug("xdg_popup<{}> created:", (void*)popup);
+    log_debug("  size = {}", wrei_to_string(rules.size));
+    log_debug("  anchor_rect = {}", wrei_to_string(rules.anchor_rect));
+    log_debug("  anchor = {}", wrei_enum_to_string(rules.anchor));
+    log_debug("  gravity = {}", wrei_enum_to_string(rules.gravity));
+    log_debug("  adjustment = {}", wrei_bitfield_to_string(rules.constraint_adjustment));
+    log_debug("  offset = {}", wrei_to_string(rules.offset));
+    log_debug("  reactive = {}", rules.reactive);
+    log_debug("  parent_size = {}", wrei_to_string(rules.parent_size));
+    log_debug("  parent_configure = {}", rules.parent_configure);
+#endif
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_xdg_popup_impl, popup);
 }
@@ -809,6 +795,7 @@ void popup_position(wroc_popup* popup)
 void wroc_popup::commit(wroc_commit_id)
 {
     // TODO: Move this to apply and sort out state
+
     if (!initial_configure_complete) {
         initial_configure_complete = true;
 
@@ -830,7 +817,7 @@ void wroc_popup::apply(wroc_commit_id)
 static
 void popup_reposition(wl_client* client, wl_resource* resource, wl_resource* _positioner, u32 token)
 {
-    log_warn("xdg_popup::reposition(token = {})", token);
+    log_debug("xdg_popup::reposition(token = {})", token);
 
     auto* popup = wroc_get_userdata<wroc_popup>(resource);
     auto* positioner = wroc_get_userdata<wroc_positioner>(_positioner);

@@ -59,7 +59,7 @@ void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 ser
     xdg_surface_ack_configure(surface, serial);
 
     if (!output->frame_callback) {
-        log_warn("  initial configure, registering frame callbacks");
+        log_debug("  initial configure, registering frame callbacks");
         wroc_register_frame_callback(output);
         wroc_post_event(wroc_output_event {
             .type = wroc_event_type::output_frame_requested,

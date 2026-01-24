@@ -194,8 +194,6 @@ void pointer_constraints_set_cursor_position_hint(wl_client* client, wl_resource
     auto* constraint = wroc_get_userdata<wroc_pointer_constraint>(resource);
     constraint->pending->position_hint = {wl_fixed_to_double(sx), wl_fixed_to_double(sy)};
     constraint->pending->committed |= wroc_pointer_constraint_committed_state::position_hint;
-
-    // log_error("CONSTRAINT SET CURSOR POSITION HINT: {}", wrei_to_string(constraint->pending.position_hint));
 }
 
 const struct zwp_pointer_constraints_v1_interface wroc_zwp_pointer_constraints_v1_impl {

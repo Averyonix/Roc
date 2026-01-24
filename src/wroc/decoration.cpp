@@ -98,7 +98,7 @@ void request_mode(wl_client* client, wl_resource* resource, u32 _mode)
 {
     auto mode = org_kde_kwin_server_decoration_manager_mode(_mode);
     if (mode != kde_decoration_mode) {
-        log_error("org.kde.kwin-server-decoration :: client requested mode: {}", wrei_enum_to_string(mode));
+        log_warn("org.kde.kwin-server-decoration :: client requested mode: {}", wrei_enum_to_string(mode));
     }
 }
 

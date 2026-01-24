@@ -236,7 +236,7 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
 {
     auto* output = static_cast<wroc_wl_output*>(data);
     auto* new_resource = wroc_resource_create(client, &wl_output_interface, version, id);
-    log_warn("OUTPUT BIND: {}", (void*)new_resource);
+    log_debug("Output bind: {}", (void*)new_resource);
     output->resources.emplace_back(new_resource);
     wl_resource_set_implementation(new_resource, &wroc_wl_output_impl, output, nullptr);
 
@@ -253,7 +253,7 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
 static
 void wroc_output_added(wroc_output* output)
 {
-    log_debug("OUTPUT ADDED");
+    log_debug("Output added");
 
     wroc_output_layout_add_output(server->output_layout.get(), output);
 }

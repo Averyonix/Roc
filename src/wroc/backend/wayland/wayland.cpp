@@ -61,7 +61,7 @@ void wroc_listen_registry_global(void* data, wl_registry*, u32 name, const char*
 static
 void wroc_listen_registry_global_remove(void*, wl_registry*, u32 name)
 {
-    log_warn("wl_registry::global_remove(name = {:2})", name);
+    log_debug("wl_registry::global_remove(name = {:2})", name);
 }
 
 const wl_registry_listener wroc_wl_registry_listener {
@@ -74,7 +74,7 @@ int wroc_listen_backend_display_read(wroc_wayland_backend* backend, int fd, u32 
 {
     timespec timeout = {};
     if (wl_display_dispatch_timeout(backend->wl_display, &timeout) == -1) {
-        log_error("  wl_display_read_events failed: {}", strerror(errno));
+        log_error("wl_display_dispatch_timeout failed: {}", strerror(errno));
         backend->event_source = nullptr;
         return false;
     }

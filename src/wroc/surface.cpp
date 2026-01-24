@@ -146,7 +146,7 @@ void refocus_on_unmap()
 {
     auto first = std::ranges::find_if(server->surfaces, wroc_surface_is_focusable);
     auto target = first == server->surfaces.end() ? nullptr : *first;
-    log_error("Refocusing -> {}", (void*)target);
+    log_info("Refocusing -> {}", (void*)target);
     wroc_keyboard_enter(server->seat->keyboard.get(), target);
 }
 
@@ -156,7 +156,7 @@ void surface_set_mapped(wroc_surface* surface, bool mapped)
     if (mapped == surface->mapped) return;
     surface->mapped = mapped;
 
-    log_error("Surface {} was {}", (void*)surface, mapped ? "mapped" : "unmapped");
+    log_info("Surface {} was {}", (void*)surface, mapped ? "mapped" : "unmapped");
 
     for (auto& addon : surface->addons) {
         addon->on_mapped_change();
@@ -302,7 +302,7 @@ bool is_blocked_by_parent_commit(wroc_surface* surface, wroc_surface_state& stat
         }
 #if WROC_NOISY_SUBSURFACES
         else {
-            log_warn("Synchronized state {} can be dequeued, parent commit {} >= {}",
+            log_debug("Synchronized state {} can be dequeued, parent commit {} >= {}",
                 id, subsurface->parent->applied, state.parent_commit);
         }
 #endif
@@ -427,7 +427,7 @@ wroc_surface::~wroc_surface()
     }
     wroc_surface_destroy_state(this, current);
 
-    log_warn("Surface {} was destroyed", (void*)this);
+    log_debug("Surface {} was destroyed", (void*)this);
 }
 
 bool wroc_surface_point_accepts_input(wroc_surface* surface, vec2f64 surface_pos)

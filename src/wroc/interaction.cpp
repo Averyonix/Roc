@@ -39,14 +39,14 @@ void wroc_begin_resize_interaction(wroc_toplevel* toplevel, wroc_seat_pointer* p
 static
 void drop_focus()
 {
-    log_warn("Dropping focus");
+    log_info("Dropping focus");
     wroc_keyboard_clear_focus(server->seat->keyboard.get());
 }
 
 static
 void close_window(wroc_toplevel* toplevel)
 {
-    log_warn("Closing window");
+    log_info("Closing window");
     wroc_toplevel_close(toplevel);
 }
 
@@ -221,7 +221,7 @@ bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
                     && event.key.pressed && mods >= wroc_modifiers::mod) {
                 if (server->interaction_mode == wroc_interaction_mode::normal) {
 
-                    log_warn("Beginning focus cycle");
+                    log_debug("Beginning focus cycle");
                     server->interaction_mode = wroc_interaction_mode::focus_cycle;
 
                     server->focus.cycled = server->seat->keyboard->focused_surface.get();
@@ -229,7 +229,7 @@ bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
 
                     return true;
                 } else {
-                    log_warn("Cyling focus {}", mods >= wroc_modifiers::shift ? "previous" : "next");
+                    log_debug("Cyling focus {}", mods >= wroc_modifiers::shift ? "previous" : "next");
                     focus_cycle(mods >= wroc_modifiers::shift, nullptr);
 
                     return true;
@@ -238,7 +238,7 @@ bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
         }
         break;case wroc_event_type::keyboard_modifiers:
             if (!(mods >= wroc_modifiers::mod) && server->interaction_mode == wroc_interaction_mode::focus_cycle) {
-                log_warn("Ending focus cycle");
+                log_debug("Ending focus cycle");
                 server->interaction_mode = wroc_interaction_mode::normal;
                 if (server->focus.cycled) {
                     wroc_keyboard_enter(server->seat->keyboard.get(), server->focus.cycled.get());
@@ -248,14 +248,14 @@ bool wroc_handle_focus_cycle_interaction(const wroc_event& base_event)
             auto& event = static_cast<const wroc_pointer_event&>(base_event);
             if (event.axis.delta.y && mods >= wroc_modifiers::mod) {
                 if (server->interaction_mode == wroc_interaction_mode::normal) {
-                    log_warn("Beginning focus cycle under pointer");
+                    log_debug("Beginning focus cycle under pointer");
                     server->interaction_mode = wroc_interaction_mode::focus_cycle;
 
                     server->focus.cycled = nullptr;
                     focus_cycle(false, server->seat->pointer.get());
                 }
 
-                log_warn("Cycling focus under pointer: {}", event.axis.delta.y);
+                log_debug("Cycling focus under pointer: {}", event.axis.delta.y);
 
                 auto reverse = event.axis.delta.y > 0;
                 i32 count = i32(std::abs(event.axis.delta.y));

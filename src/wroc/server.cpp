@@ -110,7 +110,7 @@ void wroc_run(int argc, char* argv[])
     server = server_ref.get();
     auto event_loop = wrei_event_loop_create();
     server->event_loop = event_loop;
-    log_warn("Server = {}", (void*)server);
+    log_info("Server = {}", (void*)server);
 
     server->backend_type = backend_type;
     if (backend_type == wroc_backend_type::direct) {
@@ -156,7 +156,7 @@ void wroc_run(int argc, char* argv[])
 
     // Renderer
 
-    log_warn("Initializing renderer");
+    log_info("Initializing renderer");
     wroc_renderer_create(render_options);
 
     // Cursor
@@ -165,15 +165,15 @@ void wroc_run(int argc, char* argv[])
 
     // ImGui
 
-    log_warn("Initializing imgui");
+    log_info("Initializing imgui");
     wroc_imgui_init();
     wroc_debug_gui_init(show_imgui_on_startup);
 
     // Backend
 
-    log_warn("Initializing backend");
+    log_info("Initializing backend");
     wroc_backend_init(backend_type);
-    log_warn("Backend initialized");
+    log_info("Backend initialized");
 
     // Register globals
 
@@ -199,7 +199,7 @@ void wroc_run(int argc, char* argv[])
 
     // Run
 
-    log_warn("WAYLAND_DISPLAY={}", server->socket);
+    log_info("WAYLAND_DISPLAY={}", server->socket);
     wroc_setenv("WAYLAND_DISPLAY", server->socket.c_str(), wroc_setenv_options::system_wide);
     if (backend_type == wroc_backend_type::direct) {
         wroc_setenv("XDG_CURRENT_DESKTOP", PROGRAM_NAME, wroc_setenv_options::system_wide);

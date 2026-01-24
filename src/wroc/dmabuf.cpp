@@ -88,19 +88,6 @@ void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u3
 }
 
 static
-void wroc_dmabuf_resource_destroy(wl_resource* resource)
-{
-    auto* buffer = wroc_get_userdata<wroc_dma_buffer>(resource);
-
-    // log_warn("dmabuf {} destroyed, clearing image", (void*)buffer);
-    // buffer->image = nullptr;
-
-    log_warn("dmabuf {} destroyed", (void*)buffer);
-
-    wrei_remove_ref(buffer);
-}
-
-static
 wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* params_resource, u32 buffer_id, i32 width, i32 height, u32 drm_format, u32 flags)
 {
     auto format = wren_format_from_drm(drm_format);
@@ -129,14 +116,14 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->resource = new_resource;
     buffer->type = wroc_buffer_type::dma;
 
-    wl_resource_set_implementation(new_resource, &wroc_wl_buffer_impl, buffer, wroc_dmabuf_resource_destroy);
+    wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, buffer);
 
     params.format = format;
     params.extent = {width, height};
     params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
     buffer->extent = {width, height};
-    log_warn("Importing DMA-BUF, size = {}, format = {}, mod = {}",
+    log_debug("Importing DMA-BUF, size = {}, format = {}, mod = {}",
         wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params.modifier));
     buffer->dmabuf_image = wren_image_import_dmabuf(server->renderer->wren.get(), params, wren_image_usage::texture);
     buffer->image = buffer->dmabuf_image;

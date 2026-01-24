@@ -110,7 +110,7 @@ void wren_allocate_image_descriptor(wren_image* image)
 
     image->id = *id;
 
-    log_warn("Image allocated ID: {}", std::to_underlying(image->id));
+    log_debug("Image allocated ID: {}", std::to_underlying(image->id));
 
     vk.UpdateDescriptorSets(ctx->device, 1, std::array {
         VkWriteDescriptorSet {
@@ -143,7 +143,7 @@ void wren_allocate_sampler_descriptor(wren_sampler* sampler)
 
     sampler->id = *id;
 
-    log_warn("Sampler allocated ID: {}", std::to_underlying(sampler->id));
+    log_debug("Sampler allocated ID: {}", std::to_underlying(sampler->id));
 
     vk.UpdateDescriptorSets(ctx->device, 1, std::array {
         VkWriteDescriptorSet {

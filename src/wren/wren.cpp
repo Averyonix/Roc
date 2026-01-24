@@ -224,7 +224,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     for (auto& ext : device_extensions) {
         if (!check_extension(ext)) {
             log_error("Extension not present: {}", ext);
-            exit(1);
+            wrei_debugkill();
         }
     }
 

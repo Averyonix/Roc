@@ -350,7 +350,7 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
         *frame = std::move(imgui->available_frames.back());
         imgui->available_frames.pop_back();
     } else {
-        log_error("NEW IMGUI FRAME");
+        log_debug("Allocating new ImGui frame data");
     }
 
     if (frame->vertices.count < usz(data->TotalVtxCount)) {

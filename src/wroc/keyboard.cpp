@@ -174,7 +174,7 @@ static
 void wroc_seat_keyboard_handle_component_updates(wroc_seat_keyboard* kb, xkb_state_component changed_components)
 {
     if (changed_components & (XKB_STATE_MODS_DEPRESSED | XKB_STATE_MODS_LATCHED | XKB_STATE_MODS_LOCKED | XKB_STATE_LAYOUT_EFFECTIVE)) {
-        log_warn("Updated modifiers");
+        log_debug("Updated modifiers");
         wroc_post_event(wroc_keyboard_event {
             .type = wroc_event_type::keyboard_modifiers,
             .keyboard = kb,
@@ -188,7 +188,7 @@ void wroc_seat_keyboard_handle_component_updates(wroc_seat_keyboard* kb, xkb_sta
     }
 
     if (changed_components & XKB_STATE_LEDS) {
-        log_warn("Updated LEDs");
+        log_debug("Updated LEDs");
         wroc_seat_keyboard_update_leds(kb);
     }
 }
@@ -272,6 +272,7 @@ bool wroc_keyboard_resource_matches_focus_client(wroc_seat_keyboard* kb, wl_reso
 void wroc_keyboard_clear_focus(wroc_seat_keyboard* kb)
 {
     if (auto* surface = kb->focused_surface.get(); surface && surface->resource) {
+        log_debug("Keyboard left surface: {}", (void*)surface);
         auto serial = wl_display_next_serial(server->display);
 
         for (auto* resource : kb->resources) {
@@ -295,7 +296,7 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
     if (surface == kb->focused_surface.get()) return;
 
     if (surface && !wroc_surface_is_focusable(surface)) {
-        log_error("wroc_keyboard_enter failed: surface is not focusable");
+        log_error("Keyboard enter failed: surface is not focusable");
         return;
     }
 
@@ -306,7 +307,7 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
     // TODO: Consolidate "client seat" into a with client's wl_keyboard/wl_pointer handles
     //       To deduplicate code between this and `wroc_pointer`
 
-    log_warn("KEYBOARD ENTERED");
+    log_debug("Keyboard entered surface: {}", (void*)surface);
     kb->focused_surface = surface;
 
     auto serial = wl_display_next_serial(server->display);

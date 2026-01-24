@@ -52,9 +52,15 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
 // -----------------------------------------------------------------------------
 
 static
-void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 format)
+void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 _format)
 {
     auto* pool = wroc_get_userdata<wroc_shm_pool>(resource);
+
+    auto format = wren_format_from_shm(wl_shm_format(_format));
+    if (!format) {
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", wrei_enum_to_string(wl_shm_format(_format)));
+        return;
+    }
 
     i32 needed = stride * height + offset;
     if (!pool->mapping) {
@@ -75,20 +81,15 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     shm_buffer->pool = pool;
     shm_buffer->stride = stride;
-    shm_buffer->format = wren_format_from_shm(wl_shm_format(format));
+    shm_buffer->format = format;
     shm_buffer->offset = offset;
-
-    if (!shm_buffer->format) {
-        log_error("Unsupported format: {}", wrei_enum_to_string(wl_shm_format(format)));
-        wrei_debugbreak();
-    }
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
     shm_buffer->image = wren_image_create(server->renderer->wren.get(), shm_buffer->extent, shm_buffer->format,
         wren_image_usage::texture | wren_image_usage::transfer);
 
-    log_warn("shm buffer created {}, format = {}", wrei_to_string(shm_buffer->extent), shm_buffer->format->name);
+    log_debug("Created shared buffer {}, format = {}", wrei_to_string(shm_buffer->extent), shm_buffer->format->name);
 }
 
 static
