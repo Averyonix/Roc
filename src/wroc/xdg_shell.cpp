@@ -361,26 +361,23 @@ void wroc_toplevel::apply(wroc_commit_id id)
 void wroc_toplevel::on_mapped_change()
 {
     if (surface->mapped) {
+        if (fullscreen.output) {
+            wroc_toplevel_update_fullscreen_size(this);
+        } else {
+            // Center mapped toplevels on cursor
+            // TODO: For initial client windows, use cursor position from when client was first launched?
+            if (!current.parent) {
+                log_debug("Centering mapped toplevel on cursor");
 
-        // Center mapped toplevels on cursor
-        // TODO: For initial client windows, use cursor position from when client was first launched?
+                anchor.position = server->seat->pointer->position;
+                anchor.relative = wroc_edges_to_relative({});
+            }
 
-        if (!current.parent && !fullscreen.output) {
-            log_debug("Centering mapped toplevel on cursor");
-
-            anchor.position = server->seat->pointer->position;
-            anchor.relative = wroc_edges_to_relative({});
-        }
-
-        // Re-clamp
-
-        if (!fullscreen.output) {
             toplevel_clamp_to_layout(this);
         }
 
         // Newly mapped toplevels pull focus
         // TODO: Configurable handling for this?
-
         wroc_keyboard_enter(server->seat->keyboard.get(), surface.get());
     } else {
         if (this == server->movesize.grabbed_toplevel.get()) {
