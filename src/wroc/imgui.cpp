@@ -72,11 +72,8 @@ bool wroc_imgui_handle_pointer_event(wroc_imgui* imgui, const wroc_pointer_event
 
     switch (wroc_event_get_type(event)) {
         break;case wroc_event_type::pointer_motion: {
-            if (imgui->output) {
-                vec2f64 subpixel;
-                auto pos = wroc_output_get_pixel(imgui->output.get(), event.pointer->position, &subpixel);
-                io.AddMousePosEvent(pos.x + subpixel.x, pos.y + subpixel.y);
-            }
+            auto pos = event.pointer->position - imgui->layout_rect.origin;
+            io.AddMousePosEvent(pos.x, pos.y);
             // Never consume motion events (for now)
             return false;
         }
@@ -295,14 +292,14 @@ bool wroc_imgui_handle_event(wroc_imgui* imgui, const wroc_event& event)
     return false;
 }
 
-void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands)
+void wroc_imgui_frame(wroc_imgui* imgui, rect2f64 layout_rect)
 {
-    auto* wren = server->renderer->wren.get();
+    imgui->layout_rect = layout_rect;
 
     {
         auto& io = ImGui::GetIO();
 
-        io.DisplaySize = ImVec2(extent.x, extent.y);
+        io.DisplaySize = ImVec2(layout_rect.extent.x, layout_rect.extent.y);
 
         auto now = std::chrono::steady_clock::now();
         if (imgui->last_frame != std::chrono::steady_clock::time_point{}) {
@@ -316,16 +313,30 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
     ImGui::NewFrame();
 
     wroc_debug_gui_frame(server->debug_gui.get());
-    wroc_launcher_frame(server->launcher.get(), extent);
+    wroc_launcher_frame(server->launcher.get(), layout_rect.origin + layout_rect.extent * 0.5);
 
     ImGui::Render();
 
     imgui->wants_mouse = io.WantCaptureMouse;
     imgui->cursor_shape = from_imgui_cursor(ImGui::GetMouseCursor());
     imgui->wants_keyboard = io.WantCaptureKeyboard;
+}
 
+void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 viewport, vec2u32 framebuffer_extent)
+{
     auto data = ImGui::GetDrawData();
-    if (!data->TotalIdxCount) return;
+    if (!data || !data->TotalIdxCount) return;
+
+    // Consider imgui space as "global" for purposes of this function
+
+    viewport.origin -= imgui->layout_rect.origin;
+
+    wroc_coord_space space {
+        .origin = viewport.origin,
+        .scale = viewport.extent / vec2f64(framebuffer_extent),
+    };
+
+    auto* wren = server->renderer->wren.get();
 
     // Dynamically allocated per-frame data
 
@@ -373,9 +384,6 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
         frame->indices.buffer->buffer, frame->indices.byte_offset,
         sizeof(ImDrawIdx) == sizeof(u16) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 
-    vec2f32 clip_offset = { data->DisplayPos.x, data->DisplayPos.y };
-    vec2f32 clip_scale  = { data->FramebufferScale.x, data->FramebufferScale.y };
-
     u32 vertex_offset = 0;
     u32 index_offset = 0;
     for (i32 i = 0; i < data->CmdListsCount; ++i) {
@@ -389,8 +397,9 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
 
             assert(!im_cmd.UserCallback);
 
-            auto clip_min = glm::max((vec2f32(im_cmd.ClipRect.x, im_cmd.ClipRect.y) - clip_offset) * clip_scale, {});
-            auto clip_max = glm::min((vec2f32(im_cmd.ClipRect.z, im_cmd.ClipRect.w) - clip_scale), vec2f32(extent));
+            auto clip_min = glm::max(space.from_global({im_cmd.ClipRect.x, im_cmd.ClipRect.y}), {});
+            auto clip_max = glm::min(space.from_global({im_cmd.ClipRect.z, im_cmd.ClipRect.w}), vec2f64(framebuffer_extent));
+
             if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y) {
                 continue;
             }
@@ -399,11 +408,13 @@ void wroc_imgui_frame(wroc_imgui* imgui, vec2u32 extent, wren_commands* commands
                 .offset = {i32(clip_min.x), i32(clip_min.y)},
                 .extent = {u32(clip_max.x - clip_min.x), u32(clip_max.y - clip_min.y)},
             }));
+
+            auto draw_scale = 2.f / vec2f32(viewport.extent);
             wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wroc_imgui_shader_in),
                 wrei_ptr_to(wroc_imgui_shader_in {
                     .vertices = frame->vertices.device(),
-                    .scale = 2.f / vec2f32(extent),
-                    .offset = vec2f32(-1.f),
+                    .scale = draw_scale,
+                    .offset = vec2f32(-1.f) - (vec2f32(viewport.origin) * draw_scale),
                     .texture = std::bit_cast<wroc_imgui_texture>(im_cmd.GetTexID()).handle,
                 }));
             wren->vk.CmdDrawIndexed(cmd, im_cmd.ElemCount, 1, index_offset + im_cmd.IdxOffset, vertex_offset + im_cmd.VtxOffset, 0);

@@ -49,6 +49,34 @@ void wroc_backend_init(wroc_backend_type);
 
 // -----------------------------------------------------------------------------
 
+struct wroc_coord_space
+{
+    vec2f64 origin;
+    vec2f64 scale;
+
+    constexpr vec2f64 from_global(vec2f64 global_pos) const
+    {
+        return (global_pos - origin) / scale;
+    }
+
+    constexpr vec2f64 to_global(vec2f64 local_pos) const
+    {
+        return (local_pos * scale) + origin;
+    }
+
+    constexpr rect2f64 from_global(rect2f64 global_rect) const
+    {
+        return { from_global(global_rect.origin), global_rect.extent / scale, wrei_xywh };
+    }
+
+    constexpr rect2f64 to_global(rect2f64 global_rect) const
+    {
+        return { to_global(global_rect.origin), global_rect.extent * scale, wrei_xywh };
+    }
+};
+
+// -----------------------------------------------------------------------------
+
 struct wroc_output_mode
 {
     vec2i32 size;
@@ -106,10 +134,9 @@ struct wroc_output : wrei_object
     u32 frames_in_flight = 0;
 };
 
-void wroc_output_try_dispatch_frame(wroc_output*);
+wroc_coord_space wroc_output_get_coord_space(wroc_output*);
 
-vec2i32 wroc_output_get_pixel(wroc_output*, vec2f64 global_pos, vec2f64* remainder = nullptr);
-rect2i32 wroc_output_get_pixel_rect(wroc_output*, rect2f64 global_rect, rect2f64* remainder = nullptr);
+void wroc_output_try_dispatch_frame(wroc_output*);
 
 struct wroc_output_layout : wrei_object
 {
@@ -271,22 +298,6 @@ struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_st
     bool mapped;
 
     ~wroc_surface();
-};
-
-struct wroc_coord_space
-{
-    vec2f64 origin;
-    vec2f64 scale;
-
-    constexpr vec2f64 from_global(vec2f64 global_pos) const
-    {
-        return (global_pos - origin) / scale;
-    }
-
-    constexpr vec2f64 to_global(vec2f64 local_pos) const
-    {
-        return (local_pos * scale) + origin;
-    }
 };
 
 // Attempts to dequeue state packets
@@ -1049,7 +1060,7 @@ struct wroc_imgui : wrei_object
 
     ImGuiContext* context;
 
-    weak<wroc_output> output;
+    rect2f64 layout_rect;
 
     ref<wren_pipeline> pipeline;
 
@@ -1085,7 +1096,8 @@ void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
 }
 
 void wroc_imgui_init();
-void wroc_imgui_frame(wroc_imgui*, vec2u32 extent, wren_commands*);
+void wroc_imgui_frame(wroc_imgui*, rect2f64 layout_rect);
+void wroc_imgui_render(wroc_imgui*, wren_commands*, rect2f64 viewport, vec2u32 framebuffer_extent);
 bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------
@@ -1094,7 +1106,7 @@ struct wroc_launcher;
 WREI_OBJECT_EXPLICIT_DECLARE(wroc_launcher);
 
 void wroc_launcher_init();
-void wroc_launcher_frame(wroc_launcher*, vec2u32 extent);
+void wroc_launcher_frame(wroc_launcher*, vec2f64 open_pos);
 bool wroc_launcher_handle_event(wroc_launcher*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------

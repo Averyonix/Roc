@@ -298,7 +298,7 @@ void wroc_pointer::leave()
 
 void wroc_pointer::absolute(wroc_output* output, vec2f64 offset)
 {
-    target->position = output->layout_rect.origin + offset;
+    target->position = wroc_output_get_coord_space(output).to_global(offset);
 
     wroc_post_event(wroc_pointer_event {
         .type = wroc_event_type::pointer_motion,

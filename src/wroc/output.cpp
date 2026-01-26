@@ -90,16 +90,20 @@ void wroc_output_update(wroc_output_layout* layout)
     log_info("Output layout:");
 
     bool first = true;
-    float x = 0;
+    f64 x = 0.0;
     for (auto& output : layout->outputs) {
+
+        f64 scale = 1.0;
+
         if (!first) {
-            x -= output->size.x;
+            x -= output->size.x / scale;
         }
         first = false;
         output->layout_rect.origin = {x, 0};
-        output->layout_rect.extent = output->size;
+        output->layout_rect.extent = vec2f64(output->size) / scale;
 
         log_info("  Output: {}", output->desc.name);
+        log_info("   Scale: {}", scale);
         log_info("    Rect: {}", wrei_to_string(output->layout_rect));
     }
 
@@ -115,11 +119,6 @@ void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* outp
     if (!weak_container_contains(layout->outputs, output)) {
         log_debug("NEW OUTPUT");
         layout->outputs.emplace_back(output);
-    }
-
-    if (!server->imgui->output) {
-        // TODO: This should be set to the PRIMARY output, instead of the first output
-        server->imgui->output = output;
     }
 
     wroc_output_update(layout);
@@ -138,38 +137,12 @@ const struct wl_output_interface wroc_wl_output_impl = {
     .release = wroc_simple_resource_destroy_callback,
 };
 
-vec2f64 wroc_output_get_pixel_float(wroc_output* output, vec2f64 global_pos)
+wroc_coord_space wroc_output_get_coord_space(wroc_output* output)
 {
-    auto pos = global_pos - output->layout_rect.origin;
-    // Convert from layout position to pixel position
-    pos = pos * vec2f64(output->size) / output->layout_rect.extent;
-    return pos;
-}
-
-vec2i32 wroc_output_get_pixel(wroc_output* output, vec2f64 global_pos, vec2f64* remainder)
-{
-    auto pos = wroc_output_get_pixel_float(output, global_pos);
-    // For individual pixels, we floor to treat the position as any point within a given pixel
-    auto rounded = glm::floor(pos);
-    if (remainder) *remainder = pos - rounded;
-    return rounded;
-}
-
-rect2i32 wroc_output_get_pixel_rect(wroc_output* output, rect2f64 rect, rect2f64* remainder)
-{
-    auto min = wroc_output_get_pixel_float(output, rect.origin);
-    auto max = wroc_output_get_pixel_float(output, rect.origin + rect.extent);
-    // For rects, we round as the min and max are treated as pixel boundaries
-    auto extent = glm::round(max - min);
-    auto origin = glm::round(min);
-    if (remainder) {
-        *remainder = {
-            min - origin,
-            max - min - (extent),
-            wrei_xywh,
-        };
-    }
-    return { origin, extent, wrei_xywh };
+    return {
+        .origin = output->layout_rect.origin,
+        .scale = output->layout_rect.extent / vec2f64(output->size),
+    };
 }
 
 void wroc_output_enter_surface(wroc_wl_output* wl_output, wroc_surface* surface)

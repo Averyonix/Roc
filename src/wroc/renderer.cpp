@@ -44,59 +44,18 @@ void wroc_renderer_create(wroc_render_options render_options)
         wroc_blit_shader, "vertex", "fragment");
 }
 
-void wroc_render_frame(wroc_output* output)
+void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_frame_data* frame, wren_image* current, rect2f64 scene_rect)
 {
-    auto* renderer = server->renderer.get();
-    auto* wren = renderer->wren.get();
-
-    for (auto* surface : server->surfaces) {
-        wroc_surface_flush_apply(surface);
-    }
-
-    output->frames_in_flight++;
-
-    auto current = wren_swapchain_acquire_image(output->swapchain.get());
-    assert(current);
-    VkExtent2D vk_extent = { current->extent.x, current->extent.y };
-    vec2f32 current_extent = current->extent;
-
-    auto queue = wren_get_queue(wren, wren_queue_type::graphics);
-    auto commands = wren_commands_begin(queue);
+    auto* wren = commands->queue->ctx;
     auto cmd = commands->buffer;
 
-    struct frame_guard : wrei_object
-    {
-        wroc_renderer_frame_data frame_data;
-        weak<wroc_output> output;
-
-        ~frame_guard()
-        {
-            server->renderer->available_frames.emplace_back(std::move(frame_data));
-
-            wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
-                if (output) {
-                    output->frames_in_flight--;
-                    wroc_output_try_dispatch_frame(output.get());
-                }
-            });
-        }
+    wroc_coord_space space {
+        .origin = scene_rect.origin,
+        .scale = scene_rect.extent / vec2f64(current->extent),
     };
-    auto guard = wrei_create<frame_guard>();
-    guard->output = output;
-    wren_commands_protect_object(commands.get(), guard.get());
 
-    wroc_renderer_frame_data* frame = &guard->frame_data;
-    if (!renderer->available_frames.empty()) {
-        *frame = std::move(renderer->available_frames.back());
-        renderer->available_frames.pop_back();
-    } else {
-        log_debug("Allocating new renderer frame data");
-    }
-
-    wren_transition(wren, commands.get(), current,
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    VkExtent2D vk_extent = { current->extent.x, current->extent.y };
+    vec2f32 current_extent = current->extent;
 
     wren->vk.CmdBeginRendering(cmd, wrei_ptr_to(VkRenderingInfo {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -134,9 +93,9 @@ void wroc_render_frame(wroc_output* output)
 
         // log_debug("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
 
-        wren_commands_protect_object(commands.get(), image);
+        wren_commands_protect_object(commands, image);
 
-        auto pixel_dst = wroc_output_get_pixel_rect(output, dest);
+        auto pixel_dst = wrei_round<i32, f64>(space.from_global(dest));
 
         rect_id++;
         renderer->rects_cpu.emplace_back(wroc_shader_rect {
@@ -158,7 +117,7 @@ void wroc_render_frame(wroc_output* output)
             if (frame->rects.buffer && rect_id_start) {
                 // Previous draws using this buffer, keep alive until all draws complete
                 log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
-                wren_commands_protect_object(commands.get(), frame->rects.buffer.get());
+                wren_commands_protect_object(commands, frame->rects.buffer.get());
             }
             frame->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect)), new_size};
         }
@@ -179,7 +138,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Background
 
-    {
+    for (auto& output : server->output_layout->outputs) {
         auto src = wrei_rect_fit(server->renderer->background->extent, output->layout_rect.extent);
         draw(server->renderer->background.get(), output->layout_rect, src);
     }
@@ -269,9 +228,9 @@ void wroc_render_frame(wroc_output* output)
 
     // Draw ImGui
 
-    if (server->imgui->output == output) {
+    {
         flush_draws();
-        wroc_imgui_frame(server->imgui.get(), current_extent, commands.get());
+        wroc_imgui_render(server->imgui.get(), commands, scene_rect, current->extent);
         start_draws();
     }
 
@@ -326,61 +285,67 @@ void wroc_render_frame(wroc_output* output)
     flush_draws();
 
     wren->vk.CmdEndRendering(cmd);
+}
 
-    // Screenshot
+void wroc_render_frame(wroc_output* output)
+{
+    auto* renderer = server->renderer.get();
+    auto* wren = renderer->wren.get();
 
-#if 0
-    if (renderer->screenshot_queued) {
-        renderer->screenshot_queued = false;
-
-        // TODO: Factor this out to function and add options (rect, format, etc..)
-        // TODO: Also just render everything twice instead of copying?
-
-        wren_submit_commands(wren, cmd);
-
-        auto row_stride = current.extent.width * 4;
-        auto byte_size = row_stride * current.extent.height;
-
-        log_warn("Saving screen {}", current.extent.width, current.extent.height);
-        log_warn("  row_stride = {}", row_stride);
-        log_warn("  row_stride = {}", byte_size);
-
-        std::vector<char> data;
-        data.resize(byte_size);
-
-        // TODO: HACK HACK HACK
-        //       We should just expose a wren_image instead of directly using the vkwsi returns
-        ref<wren_image> image = wrei_create<wren_image>();
-        image->image = current.image;
-        image->ctx = wren;
-        image->extent = vec2u32(current.extent.width, current.extent.height);
-
-        auto t1 = std::chrono::steady_clock::now();
-
-        log_warn("  performing image readback");
-        wren_image_readback(image.get(), data.data());
-
-        auto t2 = std::chrono::steady_clock::now();
-        log_warn("  image readback completed in {}, saving...", wrei_duration_to_string(t2 - t1));
-
-        // Byte swap BGRA -> RGBA
-        for (u32 i = 0; i < byte_size; i += 4) {
-            auto b = data[i + 0];
-            auto g = data[i + 1];
-            auto r = data[i + 2];
-
-            data[i + 0] = r;
-            data[i + 1] = g;
-            data[i + 2] = b;
-        }
-
-        stbi_write_png("screenshot.png", image->extent.x, image->extent.y, STBI_rgb_alpha, data.data(), image->extent.x * 4);
-        auto t3 = std::chrono::steady_clock::now();
-        log_warn("  save complete in {}", wrei_duration_to_string(t3 - t2));
-
-        cmd = wren_begin_commands(wren);
+    for (auto* surface : server->surfaces) {
+        wroc_surface_flush_apply(surface);
     }
-#endif
+
+    output->frames_in_flight++;
+
+    auto current = wren_swapchain_acquire_image(output->swapchain.get());
+    assert(current);
+
+    auto queue = wren_get_queue(wren, wren_queue_type::graphics);
+    auto commands = wren_commands_begin(queue);
+
+    struct frame_guard : wrei_object
+    {
+        wroc_renderer_frame_data frame_data;
+        weak<wroc_output> output;
+
+        ~frame_guard()
+        {
+            server->renderer->available_frames.emplace_back(std::move(frame_data));
+
+            wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
+                if (output) {
+                    output->frames_in_flight--;
+                    wroc_output_try_dispatch_frame(output.get());
+                }
+            });
+        }
+    };
+    auto guard = wrei_create<frame_guard>();
+    guard->output = output;
+    wren_commands_protect_object(commands.get(), guard.get());
+
+    wroc_renderer_frame_data* frame = &guard->frame_data;
+    if (!renderer->available_frames.empty()) {
+        *frame = std::move(renderer->available_frames.back());
+        renderer->available_frames.pop_back();
+    } else {
+        log_debug("Allocating new renderer frame data");
+    }
+
+    // TODO: We should update imgui frames based on events, instead of this hack
+    if (output == server->output_layout->outputs[0].get()) {
+        wroc_imgui_frame(server->imgui.get(), output->layout_rect);
+    }
+
+    // Prepare
+
+    wren_transition(wren, commands.get(), current,
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+    render(renderer, commands.get(), frame, current, output->layout_rect);
 
     // Submit
 
@@ -396,7 +361,7 @@ void wroc_render_frame(wroc_output* output)
     wren_swapchain_present(output->swapchain.get(), {render_done});
 
     if (renderer->host_wait) {
-        wren_wait_idle(queue);
+        wren_semaphore_wait_value(render_done.semaphore, render_done.value);
     }
 
     // Send frame callbacks

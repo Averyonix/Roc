@@ -483,6 +483,36 @@ rect2f64 wrei_rect_fit(vec2f64 outer, vec2f64 inner)
 
 // -----------------------------------------------------------------------------
 
+template<typename Out, typename In>
+wrei_vec<2, Out> wrei_round(wrei_vec<2, In> pos, wrei_vec<2, In>* remainder = nullptr)
+{
+    // For points, we floor to treat the position as any point within a given integer region
+    auto rounded = glm::floor(pos);
+    if (remainder) *remainder = pos - rounded;
+    return rounded;
+}
+
+template<typename Out, typename In>
+wrei_rect<Out> wrei_round(wrei_rect<In> rect, wrei_rect<In>* remainder = nullptr)
+{
+    wrei_aabb<In> bounds = rect;
+    auto min = bounds.min;
+    auto max = bounds.max;
+    // For rects, we round as the min and max are treated as integer boundaries
+    auto extent = glm::round(max - min);
+    auto origin = glm::round(min);
+    if (remainder) {
+        *remainder = {
+            min - origin,
+            max - min - (extent),
+            wrei_xywh,
+        };
+    }
+    return { origin, extent, wrei_xywh };
+}
+
+// -----------------------------------------------------------------------------
+
 constexpr usz wrei_round_up_power2(usz v) noexcept
 {
     v--;

@@ -151,14 +151,16 @@ bool wroc_launcher_handle_event(wroc_launcher* launcher, const struct wroc_event
     return false;
 }
 
-void wroc_launcher_frame(wroc_launcher* launcher, vec2u32 extent)
+void wroc_launcher_frame(wroc_launcher* launcher, vec2f64 global_pos)
 {
     if (!launcher->show) return;
 
     // Window
 
+    auto center = global_pos - server->imgui->layout_rect.origin;
+
     ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_Appearing);
-    ImGui::SetNextWindowPos(ImVec2(extent.x / 2.f, extent.y / 2.f), ImGuiCond_Appearing, ImVec2(0.5, 0.5));
+    ImGui::SetNextWindowPos(ImVec2(center.x, center.y), ImGuiCond_Appearing, ImVec2(0.5, 0.5));
 
     defer { ImGui::End(); };
     bool dont_close = true;
