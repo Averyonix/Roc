@@ -1045,6 +1045,7 @@ struct wroc_renderer : wrei_object
 void wroc_renderer_create(wroc_render_options);
 void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
+void wroc_screenshot(rect2f64 rect);
 
 // -----------------------------------------------------------------------------
 
@@ -1074,6 +1075,8 @@ struct wroc_imgui : wrei_object
     bool wants_keyboard;
 
     wp_cursor_shape_device_v1_shape cursor_shape;
+
+    std::vector<std::move_only_function<void()>> on_render;
 };
 
 struct alignas(u64) wroc_imgui_texture

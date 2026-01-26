@@ -320,6 +320,13 @@ void wroc_imgui_frame(wroc_imgui* imgui, rect2f64 layout_rect)
     imgui->wants_mouse = io.WantCaptureMouse;
     imgui->cursor_shape = from_imgui_cursor(ImGui::GetMouseCursor());
     imgui->wants_keyboard = io.WantCaptureKeyboard;
+
+    // Run callbacks
+
+    for (auto& callback : imgui->on_render) {
+        callback();
+    }
+    imgui->on_render.clear();
 }
 
 void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 viewport, vec2u32 framebuffer_extent)
@@ -367,13 +374,13 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
     if (frame->vertices.count < usz(data->TotalVtxCount)) {
         auto new_size = wrei_compute_geometric_growth(frame->vertices.count, data->TotalVtxCount);
         log_debug("ImGui - reallocating vertex buffer, size: {}", new_size);
-        frame->vertices = {wren_buffer_create(wren, new_size * sizeof(ImDrawVert)), usz(new_size)};
+        frame->vertices = {wren_buffer_create(wren, new_size * sizeof(ImDrawVert), {}), usz(new_size)};
     }
 
     if (frame->indices.count < usz(data->TotalIdxCount)) {
         auto new_size = wrei_compute_geometric_growth(frame->indices.count, data->TotalIdxCount);
         log_debug("ImGui - reallocating index buffer, size: {}", new_size);
-        frame->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx)), usz(new_size)};
+        frame->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx), {}), usz(new_size)};
     }
 
     // TODO: Protect images

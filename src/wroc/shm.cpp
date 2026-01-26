@@ -126,6 +126,7 @@ bool wroc_shm_buffer::is_ready()
 
         auto queue = wren_get_queue(image->ctx, wren_queue_type::graphics);
         auto commands = wren_commands_begin(queue);
+
         wren_image_update(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
 
         struct shm_transfer_guard : wrei_object

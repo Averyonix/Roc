@@ -119,7 +119,7 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
                 log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
                 wren_commands_protect_object(commands, frame->rects.buffer.get());
             }
-            frame->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect)), new_size};
+            frame->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect), {}), new_size};
         }
 
         if (!renderer->rects_cpu.empty()) {
@@ -285,6 +285,79 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
     flush_draws();
 
     wren->vk.CmdEndRendering(cmd);
+}
+
+static
+void on_screenshot_ready(std::chrono::steady_clock::time_point start, wren_image* image, wren_buffer* buffer)
+{
+    auto save_start = std::chrono::steady_clock::now();
+    log_info("Screenshot captured in {}, saving...", wrei_duration_to_string(save_start - start));
+
+    auto save_path = "screenshot.png";
+
+    stbi_write_png(save_path, image->extent.x, image->extent.y, STBI_rgb_alpha, buffer->host_address, image->extent.x * 4);
+    auto save_end = std::chrono::steady_clock::now();
+    log_info("Screenshot saved in {}", wrei_duration_to_string(save_end - save_start));
+
+    wrei_event_loop_enqueue(server->event_loop.get(), [image, buffer] {
+        log_debug("Deleting screenshot resources");
+        server->renderer->screenshot_queued = false;
+        wrei_remove_ref(image);
+        wrei_remove_ref(buffer);
+    });
+}
+
+void wroc_screenshot(rect2f64 rect)
+{
+    auto* renderer = server->renderer.get();
+    auto* wren = renderer->wren.get();
+
+    log_info("Taking screenshot of region {}", wrei_to_string(rect));
+
+    auto start = std::chrono::steady_clock::now();
+
+    vec2u32 extent = rect.extent;
+    auto image = wren_image_create(wren, extent,
+        wren_format_from_drm(DRM_FORMAT_ABGR8888),
+        wren_image_usage::render | wren_image_usage::transfer);
+
+    auto byte_size = usz(4) * extent.x * extent.y;
+    auto buffer = wren_buffer_create(wren, byte_size, wren_buffer_flags::host);
+
+    // Completion handler
+
+    struct screenshot_guard : wrei_object
+    {
+        wroc_renderer_frame_data frame = {};
+        std::chrono::steady_clock::time_point start;
+        ref<wren_image> image;
+        ref<wren_buffer> buffer;
+
+        ~screenshot_guard()
+        {
+            std::thread{on_screenshot_ready, start, wrei_add_ref(image.get()), wrei_add_ref(buffer.get())}.detach();
+        }
+    };
+    auto guard = wrei_create<screenshot_guard>();
+    guard->start = start;
+    guard->image = image;
+    guard->buffer = buffer;
+
+    // Render
+
+    auto render_queue = wren_get_queue(wren, wren_queue_type::graphics);
+    auto render_commands = wren_commands_begin(render_queue);
+    render(renderer, render_commands.get(), &guard->frame, image.get(), rect);
+    wren_commands_protect_object(render_commands.get(), guard.get());
+    auto render_done = wren_commands_submit(render_commands.get(), {});
+
+    // Tranfser
+
+    auto transfer_queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
+    auto transfer_commands = wren_commands_begin(transfer_queue);
+    wren_copy_image_to_buffer(transfer_commands.get(), buffer.get(), image.get());
+    wren_commands_protect_object(transfer_commands.get(), guard.get());
+    wren_commands_submit(transfer_commands.get(), {render_done});
 }
 
 void wroc_render_frame(wroc_output* output)

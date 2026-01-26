@@ -130,54 +130,30 @@ void wren_image_init(wren_image* image)
     wren_semaphore_wait_value(done.semaphore, done.value);
 }
 
-#if 0
-void wren_image_readback(wren_image* image, void* data)
-{
-    auto* ctx = image->ctx.get();
-    auto extent = image->extent;
 
-    auto cmd = wren_commands_begin(ctx);
-
-    constexpr auto pixel_size = 4;
-    auto row_length = extent.x;
-    auto image_height = row_length * extent.y;
-    auto image_size = image_height * pixel_size;
-
-    // TODO: This should be stored persistently for transfers
-    ref buffer = wren_buffer_create(ctx, image_size);
-
-    ctx->vk.CmdCopyImageToBuffer(cmd->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
-        .bufferOffset = 0,
-        .bufferRowLength = row_length,
-        .bufferImageHeight = image_size,
-        .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-        .imageOffset = {},
-        .imageExtent = { extent.x, extent.y, 1 },
-    }));
-
-    wren_commands_submit(cmd.get(), {}, {});
-
-    std::memcpy(data, buffer->host_address, image_size);
-}
-#endif
-
-void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
+void wren_copy_image_to_buffer(wren_commands* cmd, wren_buffer* buffer, wren_image* image)
 {
     auto* ctx = image->ctx;
     auto extent = image->extent;
 
-    const auto& info = vkuGetFormatInfo(image->format->vk);
-    usz block_w = (image->extent.x + info.block_extent.width  - 1) / info.block_extent.width;
-    usz block_h = (image->extent.y + info.block_extent.height - 1) / info.block_extent.height;
-    usz image_size = block_w * block_h * info.texel_block_size;
+    wren_commands_protect_object(cmd, image);
+    wren_commands_protect_object(cmd, buffer);
 
-    // TODO: This should be stored persistently for transfers
-    ref buffer = wren_buffer_create(ctx, image_size);
+    ctx->vk.CmdCopyImageToBuffer(cmd->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
+        .bufferOffset = 0,
+        .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+        .imageOffset = {},
+        .imageExtent = { extent.x, extent.y, 1 },
+    }));
+}
+
+void wren_copy_buffer_to_image(wren_commands* cmd, wren_image* image, wren_buffer* buffer)
+{
+    auto* ctx = image->ctx;
+    auto extent = image->extent;
 
     wren_commands_protect_object(cmd, image);
-    wren_commands_protect_object(cmd, buffer.get());
-
-    std::memcpy(buffer->host_address, data, image_size);
+    wren_commands_protect_object(cmd, buffer);
 
     ctx->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, wrei_ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
@@ -185,6 +161,23 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
         .imageOffset = {},
         .imageExtent = { extent.x, extent.y, 1 },
     }));
+}
+
+void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
+{
+    auto* ctx = image->ctx;
+
+    const auto& info = vkuGetFormatInfo(image->format->vk);
+    usz block_w = (image->extent.x + info.block_extent.width  - 1) / info.block_extent.width;
+    usz block_h = (image->extent.y + info.block_extent.height - 1) / info.block_extent.height;
+    usz image_size = block_w * block_h * info.texel_block_size;
+
+    // TODO: This should be stored persistently for transfers
+    ref buffer = wren_buffer_create(ctx, image_size, wren_buffer_flags::host);
+
+    std::memcpy(buffer->host_address, data, image_size);
+
+    wren_copy_buffer_to_image(cmd, image, buffer.get());
 }
 
 void wren_image_update_immed(wren_image* image, const void* data)

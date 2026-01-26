@@ -310,7 +310,13 @@ struct wren_buffer : wrei_object
     ~wren_buffer();
 };
 
-ref<wren_buffer> wren_buffer_create(wren_context*, usz size);
+enum wren_buffer_flags : u32
+{
+    host = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wren_buffer_flags)
+
+ref<wren_buffer> wren_buffer_create(wren_context*, usz size, wren_buffer_flags);
 
 // -----------------------------------------------------------------------------
 
@@ -388,6 +394,10 @@ struct wren_image : wrei_object
 };
 
 ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format, wren_image_usage);
+
+void wren_copy_image_to_buffer(wren_commands*, wren_buffer*, wren_image*);
+void wren_copy_buffer_to_image(wren_commands*, wren_image*, wren_buffer*);
+
 void wren_image_update(wren_commands*, wren_image*, const void* data);
 void wren_image_update_immed(wren_image*, const void* data);
 

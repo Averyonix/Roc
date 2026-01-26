@@ -270,7 +270,19 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     // Screenshot
 
     if (ImGui::Button("Screenshot")) {
-        server->renderer->screenshot_queued = true;
+        auto& outputs = server->output_layout->outputs;
+        if (server->renderer->screenshot_queued) {
+            log_error("Screenshot already queued");
+        } else if (!outputs.empty()) {
+            server->renderer->screenshot_queued = true;
+            aabb2f64 rect = outputs.front()->layout_rect;
+            for (auto& output : outputs) {
+                rect = wrei_aabb_outer<f64>(rect, output->layout_rect);
+            }
+            server->imgui->on_render.emplace_back([rect] {
+                wroc_screenshot(rect);
+            });
+        }
     }
 
     category_separator();
