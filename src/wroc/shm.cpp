@@ -146,7 +146,7 @@ bool wroc_shm_buffer::is_ready()
         transfer_guard->mapping = mapping;
         wren_commands_protect_object(commands.get(), transfer_guard.get());
 
-        wren_commands_submit(commands.get(), {}, {});
+        wren_commands_submit(commands.get(), {});
 
         pending_transfer = false;
     }

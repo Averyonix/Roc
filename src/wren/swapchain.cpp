@@ -8,7 +8,6 @@ wren_image_swapchain::~wren_image_swapchain()
 static
 void request_acquire(wren_swapchain* swapchain)
 {
-    swapchain->acquire_semaphore = wren_semaphore_create(swapchain->ctx, wren_semaphore_type::binary);
     swapchain->current_index = wren_swapchain::invalid_index;
 
     swapchain->can_acquire = true;
@@ -29,11 +28,14 @@ void acquire_thread(weak<wren_swapchain> swapchain)
 
         u32 image_index = wren_swapchain::invalid_index;
         auto res = wren_check(ctx->vk.AcquireNextImageKHR(ctx->device,
-            swapchain->swapchain, UINT64_MAX, swapchain->acquire_semaphore->semaphore, nullptr, &image_index), VK_SUBOPTIMAL_KHR);
+            swapchain->swapchain, UINT64_MAX, nullptr, swapchain->acquire_fence, &image_index), VK_SUBOPTIMAL_KHR);
         if (res == VK_SUBOPTIMAL_KHR) {
             log_warn("TODO: Swapchain image was acquired but marked as suboptimal");
         }
         // TODO: Handle VK_ERROR_OUT_OF_DATE_KHR
+
+        wren_check(ctx->vk.WaitForFences(ctx->device, 1, &swapchain->acquire_fence, VK_TRUE, UINT64_MAX));
+        wren_check(ctx->vk.ResetFences(ctx->device, 1, &swapchain->acquire_fence));
 
         if (swapchain->destroy_requested) {
             log_debug("Swapchain destroy requested after acquire, closing...");
@@ -65,6 +67,8 @@ wren_swapchain::~wren_swapchain()
     can_acquire.notify_one();
 
     acquire_thread.join();
+
+    ctx->vk.DestroyFence(ctx->device, acquire_fence, nullptr);
 
     log_debug("Acquire thread joined");
 
@@ -194,6 +198,10 @@ ref<wren_swapchain> wren_swapchain_create(wren_context* ctx, VkSurfaceKHR surfac
     swapchain->format = format;
     swapchain->surface = surface;
 
+    wren_check(ctx->vk.CreateFence(ctx->device, wrei_ptr_to(VkFenceCreateInfo {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+    }), nullptr, &swapchain->acquire_fence));
+
     std::vector<VkSurfaceFormatKHR> surface_formats;
     wren_vk_enumerate(surface_formats, ctx->vk.GetPhysicalDeviceSurfaceFormatsKHR, ctx->physical_device, surface);
     bool found = false;
@@ -223,7 +231,7 @@ void wren_swapchain_resize(wren_swapchain* swapchain, vec2u32 extent)
     }
 }
 
-std::pair<wren_image*, wren_syncpoint> wren_swapchain_acquire_image(wren_swapchain* swapchain)
+wren_image* wren_swapchain_acquire_image(wren_swapchain* swapchain)
 {
     assert(swapchain->swapchain);
 
@@ -237,26 +245,15 @@ std::pair<wren_image*, wren_syncpoint> wren_swapchain_acquire_image(wren_swapcha
 
     assert(swapchain->current_index != wren_swapchain::invalid_index);
 
-    return {
-        swapchain->images[swapchain->current_index].get(),
-        {swapchain->acquire_semaphore.get()}
-    };
+    return swapchain->images[swapchain->current_index].get();
 }
 
-void wren_swapchain_present(wren_swapchain* swapchain, std::span<const wren_syncpoint> waits)
+static
+void present(wren_swapchain* swapchain, std::span<const VkSemaphore> semas)
 {
-    assert(std::ranges::all_of(waits, [](auto& s) { return s.semaphore->type == wren_semaphore_type::binary; }));
-
-    std::vector<VkSemaphore> semas(waits.size());
-    for (u32 i = 0; i < waits.size(); ++i) {
-        semas[i] = waits[i].semaphore->semaphore;
-        swapchain->resources[swapchain->current_index].objects.emplace_back(waits[i].semaphore);
-    }
-
     auto* ctx = swapchain->ctx;
 
-    // TODO: Asynchronous present?
-    auto queue = wren_get_queue(ctx, wren_queue_type::graphics);
+    auto queue = wren_get_queue(swapchain->ctx, wren_queue_type::graphics);
     wren_check(ctx->vk.QueuePresentKHR(queue->queue, wrei_ptr_to(VkPresentInfoKHR {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = u32(semas.size()),
@@ -271,4 +268,29 @@ void wren_swapchain_present(wren_swapchain* swapchain, std::span<const wren_sync
     }
 
     request_acquire(swapchain);
+}
+
+void wren_swapchain_present(wren_swapchain* swapchain, std::span<const wren_syncpoint> waits)
+{
+    std::vector<VkSemaphore> semas(waits.size());
+    for (u32 i = 0; i < waits.size(); ++i) {
+        auto& wait = waits[i];
+        auto binary = wren_semaphore_transfer_to_binary(wait.semaphore, wait.value);
+        semas[i] = binary->semaphore;
+        swapchain->resources[swapchain->current_index].objects.emplace_back(binary);
+    }
+
+    present(swapchain, semas);
+}
+
+void wren_swapchain_present(wren_swapchain* swapchain, std::span<wren_binary_semaphore* const> waits)
+{
+    std::vector<VkSemaphore> semas(waits.size());
+    for (u32 i = 0; i < waits.size(); ++i) {
+        auto* binary = waits[i];
+        semas[i] = binary->semaphore;
+        swapchain->resources[swapchain->current_index].objects.emplace_back(binary);
+    }
+
+    present(swapchain, semas);
 }

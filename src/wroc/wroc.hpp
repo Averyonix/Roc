@@ -987,11 +987,7 @@ wroc_surface* wroc_cursor_get_current(wroc_seat_pointer*, wroc_cursor*);
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_render_options : u32
-{
-    no_dmabuf      = 1 << 0,
-    separate_draws = 1 << 1,
-};
+enum class wroc_render_options : u32 { };
 WREI_DECORATE_FLAG_ENUM(wroc_render_options)
 
 struct wroc_renderer_frame_data

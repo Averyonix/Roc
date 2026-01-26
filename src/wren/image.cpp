@@ -126,7 +126,8 @@ void wren_image_init(wren_image* image)
         0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
         0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    wren_commands_submit(cmd.get(), {}, {});
+    auto done = wren_commands_submit(cmd.get(), {});
+    wren_semaphore_wait_value(done.semaphore, done.value);
 }
 
 #if 0
@@ -191,8 +192,8 @@ void wren_image_update_immed(wren_image* image, const void* data)
     auto queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
     auto commands = wren_commands_begin(queue);
     wren_image_update(commands.get(), image, data);
-    wren_commands_submit(commands.get(), {}, {});
-    wren_wait_idle(queue);
+    auto done = wren_commands_submit(commands.get(), {});
+    wren_semaphore_wait_value(done.semaphore, done.value);
 }
 
 // -----------------------------------------------------------------------------
@@ -538,7 +539,7 @@ ref<wren_image> wren_image_create(
     assert(!wrei_flags_empty(usage));
 
 #if WROC_PREFER_GBM_IMAGES
-    return (format->drm != DRM_FORMAT_INVALID && ctx->features >= wren_features::dmabuf)
+    return (format->drm != DRM_FORMAT_INVALID)
         ? create_gbm_image(ctx, extent, format, usage)
         : create_vma_image(ctx, extent, format, usage);
 #else

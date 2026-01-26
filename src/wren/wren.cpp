@@ -128,60 +128,18 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME,
         VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
         VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
+
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+        VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+        VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
+        VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
     };
 
-    std::vector<VkExtensionProperties> available_extensions;
     {
-        u32 count = 0;
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
-        available_extensions.resize(count);
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, available_extensions.data()));
-    }
-
-    auto check_extension = [&](const char* name) -> bool {
-        for (auto& extension : available_extensions) {
-            if (strcmp(extension.extensionName, name) == 0) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    auto add_all = [&](std::span<const char* const> names) -> bool {
-        bool all_present = true;
-        for (auto name : names) {
-            if (!check_extension(name)) {
-                all_present = false;
-                break;
-            }
-        }
-        if (all_present) {
-            device_extensions.append_range(names);
-        }
-        return all_present;
-    };
-
-    if (ctx->features >= wren_features::dmabuf) {
-
-        // External memory extension (for DMA-BUF import/export and synchronization)
-
-        if (!add_all({
-            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-            VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
-            VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-            VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
-            VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
-        })) {
-            log_warn("DMABUF feature requested but extension not available (probably running in RenderDoc)");
-            ctx->features -= wren_features::dmabuf;
-        }
-    }
-
-    if (ctx->features >= wren_features::dmabuf) {
-
-        // DRM file descriptor for initializating GBM allocator
+        // DRM file descriptor
 
         VkPhysicalDeviceDrmPropertiesEXT drm_props {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
@@ -217,9 +175,24 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         }
         log_info("Device path: {}", name);
         ctx->drm_fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-    } else {
-        ctx->drm_fd = -1;
     }
+
+    std::vector<VkExtensionProperties> available_extensions;
+    {
+        u32 count = 0;
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
+        available_extensions.resize(count);
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, available_extensions.data()));
+    }
+
+    auto check_extension = [&](const char* name) -> bool {
+        for (auto& extension : available_extensions) {
+            if (strcmp(extension.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
 
     for (auto& ext : device_extensions) {
         if (!check_extension(ext)) {
@@ -360,9 +333,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     // GBM allocator
 
-    if (ctx->features >= wren_features::dmabuf) {
-        wren_init_gbm_allocator(ctx.get());
-    }
+    wren_init_gbm_allocator(ctx.get());
 
     // State initialization
 

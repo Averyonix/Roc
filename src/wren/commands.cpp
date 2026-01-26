@@ -56,7 +56,7 @@ ref<wren_queue> wren_queue_init(wren_context* ctx, wren_queue_type type, u32 fam
         .queueFamilyIndex = queue->family,
     }), nullptr, &queue->cmd_pool));
 
-    queue->queue_sema = wren_semaphore_create(ctx, wren_semaphore_type::timeline);
+    queue->queue_sema = wren_semaphore_create(ctx);
 
     queue->wait_thread = std::jthread([queue = queue.get()] {
         wait_thread(queue);
@@ -137,7 +137,7 @@ void wren_wait_idle(wren_queue* queue)
     reclaim_old_submissions(queue);
 }
 
-void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoint> waits, std::span<const wren_syncpoint> signals)
+wren_syncpoint wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoint> waits)
 {
     auto* queue = commands->queue;
     auto* ctx = queue->ctx;
@@ -146,14 +146,17 @@ void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoin
 
     commands->submitted_value = ++queue->wait_thread_submitted;
 
-    auto wait_infos = wren_syncpoints_to_submit_infos(waits);
-    auto signal_infos = wren_syncpoints_to_submit_infos(signals, wrei_ptr_to(wren_syncpoint {
+    wren_syncpoint target_syncpoint {
         .semaphore = queue->queue_sema.get(),
         .value = commands->submitted_value,
-    }));
+        .stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+    };
 
-    for (auto& s : waits) wren_commands_protect_object(commands, s.semaphore);
-    for (auto& s : signals) wren_commands_protect_object(commands, s.semaphore);
+    std::vector<VkSemaphoreSubmitInfo> wait_infos(waits.size());
+    for (auto[i, wait] : waits | std::views::enumerate) {
+        wait_infos[i] = wren_syncpoint_to_submit_info(wait);
+        wren_commands_protect_object(commands, wait.semaphore);
+    }
 
     wren_check(ctx->vk.QueueSubmit2(queue->queue, 1, wrei_ptr_to(VkSubmitInfo2 {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
@@ -164,8 +167,8 @@ void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoin
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
             .commandBuffer = commands->buffer,
         }),
-        .signalSemaphoreInfoCount = u32(signal_infos.size()),
-        .pSignalSemaphoreInfos = signal_infos.data(),
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = wrei_ptr_to(wren_syncpoint_to_submit_info(target_syncpoint)),
     }), nullptr));
 
     queue->submissions.emplace_back(commands);
@@ -173,4 +176,6 @@ void wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoin
     // Notify wait thread of new value to wait on
 
     queue->wait_thread_submitted.notify_one();
+
+    return target_syncpoint;
 }

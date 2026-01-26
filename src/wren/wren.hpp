@@ -6,11 +6,6 @@
 
 #include "functions.hpp"
 
-// Import DRM sync objects as Vulkan timeline semaphores.
-// WARNING: This is not valid behaviour by the Vulkan spec and only works
-// when the driver uses syncobjs as the underlying type for its opaque fds.
-#define WREN_IMPORT_SYNCOBJ_AS_TIMELINE 0
-
 // -----------------------------------------------------------------------------
 
 struct wren_image;
@@ -131,10 +126,7 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_features : u32
-{
-    dmabuf = 1 << 0,
-};
+enum class wren_features : u32 { };
 WREI_DECORATE_FLAG_ENUM(wren_features)
 
 struct wren_context : wrei_object
@@ -228,22 +220,12 @@ wren_queue* wren_get_queue(wren_context*, wren_queue_type);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_semaphore_type : u32
-{
-    binary,
-    timeline,
-    syncobj,
-};
-
 struct wren_semaphore : wrei_object
 {
     wren_context* ctx;
 
-    wren_semaphore_type type;
-    union {
-        VkSemaphore semaphore;
-        u32 syncobj;
-    };
+    VkSemaphore semaphore;
+    u32         syncobj;
 
     ~wren_semaphore();
 };
@@ -255,14 +237,27 @@ struct wren_syncpoint
     VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 };
 
-ref<wren_semaphore> wren_semaphore_create(wren_context*, wren_semaphore_type, u64 initial_value = 0);
+ref<wren_semaphore> wren_semaphore_create(wren_context*, u64 initial_value = 0);
 ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context*, int syncobj_fd);
-ref<wren_semaphore> wren_semaphore_import_syncfile(wren_context*, int sync_fd);
-int                 wren_semaphore_export_syncfile(wren_semaphore*);
+
+void wren_semaphore_import_syncfile(wren_semaphore*, int sync_fd, u64 target_point);
+int  wren_semaphore_export_syncfile(wren_semaphore*, u64 source_point);
 
 u64  wren_semaphore_get_value(   wren_semaphore*);
 void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
 void wren_semaphore_signal_value(wren_semaphore*, u64 value);
+
+struct wren_binary_semaphore : wrei_object
+{
+    wren_context* ctx;
+
+    VkSemaphore semaphore;
+
+    ~wren_binary_semaphore();
+};
+
+ref<wren_binary_semaphore> wren_binary_semaphore_create(wren_context*);
+ref<wren_binary_semaphore> wren_semaphore_transfer_to_binary(wren_semaphore*, u64 source_point);
 
 // -----------------------------------------------------------------------------
 
@@ -280,8 +275,8 @@ struct wren_commands : wrei_object
 
 ref<wren_commands> wren_commands_begin(wren_queue*);
 
-void wren_commands_protect_object(wren_commands*, wrei_object*);
-void wren_commands_submit(       wren_commands*, std::span<const wren_syncpoint> waits, std::span<const wren_syncpoint> signals);
+void wren_commands_protect_object(  wren_commands*, wrei_object*);
+wren_syncpoint wren_commands_submit(wren_commands*, std::span<const wren_syncpoint> waits);
 
 // TODO: This is a blocking operation and a temporary solution
 //       Replace with an asynchronous callback
@@ -531,8 +526,8 @@ struct wren_swapchain : wrei_object
 
     bool acquire_ready = false;
 
-    ref<wren_semaphore> acquire_semaphore;
-    std::jthread        acquire_thread;
+    VkFence acquire_fence;
+    std::jthread acquire_thread;
     std::move_only_function<void()> acquire_callback;
 
     static constexpr u32 invalid_index = ~0u;
@@ -550,6 +545,6 @@ struct wren_swapchain : wrei_object
 
 ref<wren_swapchain> wren_swapchain_create(wren_context*, VkSurfaceKHR, wren_format);
 
-void                                   wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
-std::pair<wren_image*, wren_syncpoint> wren_swapchain_acquire_image(wren_swapchain*);
-void                                   wren_swapchain_present(      wren_swapchain*, std::span<const wren_syncpoint> waits);
+void        wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
+wren_image* wren_swapchain_acquire_image(wren_swapchain*);
+void        wren_swapchain_present(      wren_swapchain*, std::span<wren_syncpoint const> waits);

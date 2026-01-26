@@ -78,11 +78,7 @@ void wroc_run(int argc, char* argv[])
 
     for (int i = 1; i < argc; ++i) {
         auto arg = std::string_view(argv[i]);
-        if (arg == "--no-dmabuf") {
-            render_options |= wroc_render_options::no_dmabuf;
-        } else if (arg == "--separate-draws") {
-            render_options |= wroc_render_options::separate_draws;
-        } else if (arg == "--imgui") {
+        if (arg == "--imgui") {
             show_imgui_on_startup = true;
         } else if (arg == "--xwayland") {
             if (i + 1 >= argc || argv[i + 1][0] != ':') {
@@ -178,23 +174,28 @@ void wroc_run(int argc, char* argv[])
     // Register globals
 
     WROC_GLOBAL(wl_shm);
-    if (!(render_options >= wroc_render_options::no_dmabuf)) {
-        WROC_GLOBAL(zwp_linux_dmabuf_v1);
-        WROC_GLOBAL(wp_linux_drm_syncobj_manager_v1);
-    }
+
+    WROC_GLOBAL(zwp_linux_dmabuf_v1);
+    WROC_GLOBAL(wp_linux_drm_syncobj_manager_v1);
+
     WROC_GLOBAL(wl_compositor);
     WROC_GLOBAL(wl_subcompositor);
     WROC_GLOBAL(wl_data_device_manager);
     WROC_GLOBAL(xdg_wm_base);
     WROC_GLOBAL(wl_seat, server->seat.get());
+
     WROC_GLOBAL(zwp_pointer_gestures_v1);
+
     WROC_GLOBAL(wp_viewporter);
+
     WROC_GLOBAL(zwp_relative_pointer_manager_v1);
     WROC_GLOBAL(zwp_pointer_constraints_v1);
+
     if (!show_csd) {
         WROC_GLOBAL(zxdg_decoration_manager_v1);
         WROC_GLOBAL(org_kde_kwin_server_decoration_manager);
     }
+
     WROC_GLOBAL(wp_cursor_shape_manager_v1);
 
     // Run

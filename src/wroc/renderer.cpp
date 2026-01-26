@@ -18,9 +18,6 @@ void wroc_renderer_create(wroc_render_options render_options)
     renderer->options = render_options;
 
     wren_features features = {};
-    if (!(render_options >= wroc_render_options::no_dmabuf)) {
-        features |= wren_features::dmabuf;
-    }
 
     renderer->wren = wren_create(features, server->event_loop.get());
     wroc_renderer_init_buffer_feedback(renderer);
@@ -58,7 +55,7 @@ void wroc_render_frame(wroc_output* output)
 
     output->frames_in_flight++;
 
-    auto[current, acquire_sync] = wren_swapchain_acquire_image(output->swapchain.get());
+    auto current = wren_swapchain_acquire_image(output->swapchain.get());
     assert(current);
     VkExtent2D vk_extent = { current->extent.x, current->extent.y };
     vec2f32 current_extent = current->extent;
@@ -174,13 +171,7 @@ void wroc_render_frame(wroc_output* output)
         si.rects = frame->rects.device();
         si.output_size = current_extent;
         wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
-        if (renderer->options >= wroc_render_options::separate_draws) {
-            for (u32 i = rect_id_start; i < rect_id; ++i) {
-                wren->vk.CmdDraw(cmd, 6, 1, i * 6, 0);
-            }
-        } else {
-            wren->vk.CmdDraw(cmd, 6 * (rect_id - rect_id_start), 1, rect_id_start * 6, 0);
-        }
+        wren->vk.CmdDraw(cmd, 6 * (rect_id - rect_id_start), 1, rect_id_start * 6, 0);
         rect_id_start = rect_id;
     };
 
@@ -398,13 +389,11 @@ void wroc_render_frame(wroc_output* output)
         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
         VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    auto present_sema = wren_semaphore_create(wren, wren_semaphore_type::binary);
-
-    wren_commands_submit(commands.get(), {acquire_sync}, {{present_sema.get()}});
+    auto render_done = wren_commands_submit(commands.get(), {});
 
     // Present
 
-    wren_swapchain_present(output->swapchain.get(), {{present_sema.get()}});
+    wren_swapchain_present(output->swapchain.get(), {render_done});
 
     if (renderer->host_wait) {
         wren_wait_idle(queue);
