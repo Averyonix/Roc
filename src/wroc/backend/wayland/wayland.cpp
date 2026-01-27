@@ -51,6 +51,8 @@ void wroc_listen_registry_global(void* data, wl_registry*, u32 name, const char*
     }
     MATCH_INTERFACE(zwp_relative_pointer_manager_v1){}
     MATCH_INTERFACE(zwp_pointer_constraints_v1) {}
+    MATCH_INTERFACE(zwp_linux_dmabuf_v1) {}
+    MATCH_INTERFACE(wp_linux_drm_syncobj_manager_v1) {}
     MATCH_END
 
 #undef MATCH_BEGIN
@@ -118,6 +120,12 @@ wroc_wayland_backend::~wroc_wayland_backend()
     event_source = nullptr;
 
     outputs.clear();
+
+    zwp_linux_dmabuf_v1_destroy(zwp_linux_dmabuf_v1);
+    for (auto[_, syncobj] : syncobj_cache) {
+        wp_linux_drm_syncobj_timeline_v1_destroy(syncobj);
+    }
+    wp_linux_drm_syncobj_manager_v1_destroy(wp_linux_drm_syncobj_manager_v1);
 
     zwp_relative_pointer_manager_v1_destroy(zwp_relative_pointer_manager_v1);
     zwp_pointer_constraints_v1_destroy(zwp_pointer_constraints_v1);

@@ -76,6 +76,13 @@ ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context* ctx, int syncobj
     return semaphore;
 }
 
+int wren_semaphore_export_syncobj(wren_semaphore* semaphore)
+{
+    int fd = -1;
+    wrei_unix_check_n1(drmSyncobjHandleToFD(semaphore->ctx->drm_fd, semaphore->syncobj, &fd));
+    return fd;
+}
+
 void wren_semaphore_import_syncfile(wren_semaphore* semaphore, int sync_fd, u64 target_point)
 {
     auto* ctx = semaphore->ctx;

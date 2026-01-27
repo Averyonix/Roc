@@ -182,6 +182,17 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
     }
 }
 
+wren_image* wroc_drm_output::acquire()
+{
+    return wren_swapchain_acquire_image(swapchain.get());
+}
+
+void wroc_drm_output::present(wren_image* image, wren_syncpoint wait)
+{
+    wren_swapchain_present(swapchain.get(), {wait});
+}
+
+
 wroc_drm_output::~wroc_drm_output()
 {
     scanout_thread.get_stop_source().request_stop();

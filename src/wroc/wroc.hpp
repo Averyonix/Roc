@@ -120,18 +120,17 @@ void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
  */
 struct wroc_output : wrei_object
 {
-    VkSurfaceFormatKHR format;
-    ref<wren_swapchain> swapchain;
-
     vec2i32 size;
     rect2f64 layout_rect;
 
     wroc_output_desc desc;
 
     bool frame_requested = false;
-    bool image_ready = false;
 
     u32 frames_in_flight = 0;
+
+    virtual wren_image* acquire() = 0;
+    virtual void present(wren_image* image, wren_syncpoint) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);

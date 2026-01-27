@@ -409,6 +409,12 @@ static void load_format_props(wren_context* ctx, wren_format_props& props)
 {
     auto format = props.format;
 
+    auto vk_usage = wren_image_usage_to_vk(props.usage);
+    auto required_features = wren_get_required_format_features(props.format, props.usage);
+    auto has_all_features = [&](VkFormatFeatureFlags features) {
+        return (features & required_features) == required_features;
+    };
+
     {
         VkFormatProperties2 vk_props = {
             .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
@@ -417,8 +423,9 @@ static void load_format_props(wren_context* ctx, wren_format_props& props)
 
         VkImageFormatProperties image_props;
         bool has_mutable_srgb = false;
-        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, wren_shm_texture_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)) {
-            props.props = std::unique_ptr<wren_format_modifier_props>(new wren_format_modifier_props {
+        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, vk_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)
+                && has_all_features(vk_props.formatProperties.optimalTilingFeatures)) {
+            props.opt_props = std::unique_ptr<wren_format_modifier_props>(new wren_format_modifier_props {
                 .modifier = DRM_FORMAT_MOD_INVALID,
                 .features = vk_props.formatProperties.optimalTilingFeatures,
                 .max_extent = {image_props.maxExtent.width, image_props.maxExtent.height},
@@ -431,7 +438,8 @@ static void load_format_props(wren_context* ctx, wren_format_props& props)
         VkImageFormatProperties image_props;
         bool has_mutable_srgb = false;
         VkExternalMemoryProperties ext_mem_props;
-        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, props.usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)) {
+        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, vk_usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)
+                && has_all_features(mod.drmFormatModifierTilingFeatures)) {
             props.mod_props.emplace_back(wren_format_modifier_props {
                 .modifier = mod.drmFormatModifier,
                 .features = mod.drmFormatModifierTilingFeatures,
@@ -445,9 +453,9 @@ static void load_format_props(wren_context* ctx, wren_format_props& props)
     }
 }
 
-const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, VkImageUsageFlags usage)
+const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, wren_image_usage usage)
 {
-    wrei_assert(usage);
+    wrei_assert(!wrei_flags_empty(usage));
     auto key = wren_format_props_key{format, usage};
     auto& props = ctx->format_props[key];
     if (!props.format) {

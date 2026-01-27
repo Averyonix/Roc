@@ -16,7 +16,6 @@
     DO(DestroyInstance) \
     DO(GetPhysicalDeviceMemoryProperties) \
     DO(GetPhysicalDeviceFormatProperties2) \
-    DO(CreateWaylandSurfaceKHR) \
     DO(GetPhysicalDeviceImageFormatProperties2) \
     DO(GetPhysicalDeviceDisplayPropertiesKHR) \
     DO(GetDisplayModePropertiesKHR) \

@@ -6,8 +6,37 @@
 
 struct wroc_wayland_backend;
 
+enum class wroc_wayland_buffer_state : u32
+{
+    released,
+    acquired,
+};
+
+struct wroc_wayland_buffer : wrei_object
+{
+    struct wl_buffer* wl_buffer;
+    ref<wren_image> image;
+
+    wroc_wayland_buffer_state state;
+
+    ~wroc_wayland_buffer();
+};
+
+struct wroc_wayland_buffer_slot
+{
+    ref<wren_semaphore> timeline;
+    struct wp_linux_drm_syncobj_timeline_v1* timeline_proxy;
+    u64 release_point;
+
+    ref<wroc_wayland_buffer> buffer;
+};
+
 struct wroc_wayland_output : wroc_output
 {
+    std::vector<ref<wroc_wayland_buffer>> buffers;
+    std::vector<wroc_wayland_buffer_slot> present_slots;
+    wp_linux_drm_syncobj_surface_v1* syncobj_surface;
+
     struct wl_surface* wl_surface = {};
     struct xdg_surface* xdg_surface = {};
     xdg_toplevel* toplevel = {};
@@ -18,6 +47,9 @@ struct wroc_wayland_output : wroc_output
     wl_callback* frame_callback = {};
 
     ~wroc_wayland_output();
+
+    virtual wren_image* acquire() final override;
+    virtual void present(wren_image*, wren_syncpoint) final override;
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard
@@ -38,6 +70,12 @@ struct wroc_wayland_pointer : wroc_pointer
     ~wroc_wayland_pointer();
 };
 
+struct wroc_wayland_semaphore_proxy
+{
+    weak<wren_semaphore> semaphore;
+    struct wp_linux_drm_syncobj_timeline_v1* proxy;
+};
+
 struct wroc_wayland_backend : wroc_backend
 {
     struct wl_display* wl_display = {};
@@ -47,6 +85,10 @@ struct wroc_wayland_backend : wroc_backend
     struct zxdg_decoration_manager_v1* zxdg_decoration_manager_v1 = {};
     struct zwp_relative_pointer_manager_v1* zwp_relative_pointer_manager_v1 = {};
     struct zwp_pointer_constraints_v1* zwp_pointer_constraints_v1 = {};
+
+    struct zwp_linux_dmabuf_v1* zwp_linux_dmabuf_v1 = {};
+    struct wp_linux_drm_syncobj_manager_v1* wp_linux_drm_syncobj_manager_v1 = {};
+    std::vector<wroc_wayland_semaphore_proxy> syncobj_cache;
 
     struct wl_seat* wl_seat = {};
 

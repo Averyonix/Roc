@@ -3,7 +3,6 @@
 #include "wroc/util.hpp"
 
 #include "wren/wren.hpp"
-#include "wren/internal.hpp"
 
 #include "wroc/event.hpp"
 
@@ -100,33 +99,6 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
     for (auto[i, state] : wroc_to_span<xdg_toplevel_state>(states) | std::views::enumerate) {
         log_debug("  states[{}] = {}", i, wrei_enum_to_string(state));
     }
-
-    if (!output->swapchain) {
-        log_debug("Creating vulkan surface");
-
-        auto* backend = dynamic_cast<wroc_wayland_backend*>(server->backend.get());
-        auto* wren = server->renderer->wren.get();
-
-        VkSurfaceKHR surface;
-        wren_check(wren->vk.CreateWaylandSurfaceKHR(wren->instance, wrei_ptr_to(VkWaylandSurfaceCreateInfoKHR {
-            .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-            .display = backend->wl_display,
-            .surface = output->wl_surface,
-        }), nullptr, &surface));
-
-        output->swapchain = wren_swapchain_create(wren, surface, server->renderer->output_format);
-
-        output->swapchain->acquire_callback = [output = weak(output)] {
-            if (output) {
-                wroc_post_event(wroc_output_event {
-                    .type = wroc_event_type::output_image_ready,
-                    .output = output.get(),
-                });
-            }
-        };
-    }
-
-    wren_swapchain_resize(output->swapchain.get(), output->size);
 
     wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_added,
@@ -274,16 +246,155 @@ void wroc_wayland_backend::create_output()
 
     wroc_wayland_backend_update_pointer_constraint(output.get());
 
+    {
+        auto region = wl_compositor_create_region(wl_compositor);
+        wl_region_add(region, 0, 0, INT32_MAX, INT32_MAX);
+        wl_surface_set_opaque_region(output->wl_surface, region);
+        wl_region_destroy(region);
+    }
+
+    output->syncobj_surface = wp_linux_drm_syncobj_manager_v1_get_surface(wp_linux_drm_syncobj_manager_v1, output->wl_surface);
+
     wl_surface_commit(output->wl_surface);
+}
+
+wroc_wayland_buffer::~wroc_wayland_buffer()
+{
+    wl_buffer_destroy(wl_buffer);
+}
+
+static
+void reclaim_buffers(wroc_wayland_output* output)
+{
+    for (auto& slot : output->present_slots) {
+        if (slot.buffer && wren_semaphore_get_value(slot.timeline.get()) >= slot.release_point) {
+            slot.buffer->state = wroc_wayland_buffer_state::released;
+            slot.buffer = nullptr;
+        }
+    }
+}
+
+wren_image* wroc_wayland_output::acquire()
+{
+    reclaim_buffers(this);
+
+    ref<wroc_wayland_buffer> existing_buffer = {};
+    std::erase_if(buffers, [&](const ref<wroc_wayland_buffer>& buffer) -> bool {
+        if (buffer->state != wroc_wayland_buffer_state::released) return false;
+
+        if (buffer->image->extent == vec2u32(size)) {
+            if (!existing_buffer) {
+                existing_buffer = buffer;
+                buffer->state = wroc_wayland_buffer_state::acquired;
+            }
+        } else {
+            log_debug("Retiring old buffer with wrong size {} (expected {})", wrei_to_string(buffer->image->extent), wrei_to_string(size));
+            return true;
+        }
+
+        return false;
+    });
+    if (existing_buffer) return existing_buffer->image.get();
+
+    auto* backend = static_cast<wroc_wayland_backend*>(server->backend.get());
+    auto* wren = server->renderer->wren.get();
+
+    auto buffer = wrei_create<wroc_wayland_buffer>();
+    buffer->state = wroc_wayland_buffer_state::acquired;
+    buffers.emplace_back(buffer);
+
+    auto format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
+    auto usage = wren_image_usage::render;
+    auto* props = wren_get_format_props(wren, format, usage);
+    buffer->image = wren_image_create_dmabuf(wren, size, format, usage, props->mods);
+
+    auto dma_params = wren_image_export_dmabuf(buffer->image.get());
+    u32 mod_hi = dma_params.modifier >> 32;
+    u32 mod_lo = dma_params.modifier & ~0u;
+
+    auto buffer_params = zwp_linux_dmabuf_v1_create_params(backend->zwp_linux_dmabuf_v1);
+    for (u32 plane_idx = 0; plane_idx < dma_params.planes.count; ++plane_idx) {
+        auto& plane = dma_params.planes[plane_idx];
+        zwp_linux_buffer_params_v1_add(buffer_params, plane.fd.get(), plane_idx, plane.offset, plane.stride, mod_hi, mod_lo);
+    }
+    buffer->wl_buffer = zwp_linux_buffer_params_v1_create_immed(buffer_params, size.x, size.y, format->drm, 0);
+    zwp_linux_buffer_params_v1_destroy(buffer_params);
+
+    return buffer->image.get();
+}
+
+static
+wp_linux_drm_syncobj_timeline_v1* import_semaphore(wroc_wayland_backend* backend, wren_semaphore* semaphore)
+{
+    auto fd = wren_semaphore_export_syncobj(semaphore);
+    defer { close(fd); };
+    return wp_linux_drm_syncobj_manager_v1_import_timeline(backend->wp_linux_drm_syncobj_manager_v1, fd);
+}
+
+static
+wp_linux_drm_syncobj_timeline_v1* get_proxy_for_semaphore(wroc_wayland_backend* backend, wren_semaphore* semaphore)
+{
+    wp_linux_drm_syncobj_timeline_v1* found = nullptr;
+    std::erase_if(backend->syncobj_cache, [&](const auto& entry) {
+        if (!entry.semaphore) {
+            wp_linux_drm_syncobj_timeline_v1_destroy(entry.proxy);
+            return true;
+        }
+        if (entry.semaphore.get() == semaphore) found = entry.proxy;
+        return false;
+    });
+
+    return found ?: backend->syncobj_cache.emplace_back(semaphore, import_semaphore(backend, semaphore)).proxy;
+}
+
+void wroc_wayland_output::present(wren_image* image, wren_syncpoint wait)
+{
+    auto* backend = static_cast<wroc_wayland_backend*>(server->backend.get());
+    auto* wren = server->renderer->wren.get();
+
+    for (auto& buffer : buffers) {
+        if (buffer->image.get() != image) continue;
+
+        wroc_wayland_buffer_slot* slot = nullptr;
+        for (auto& s : present_slots) {
+            if (!s.buffer) {
+                slot = &s;
+                break;
+            }
+        }
+
+        if (!slot) {
+            slot = &present_slots.emplace_back();
+
+            slot->timeline = wren_semaphore_create(wren, 0);
+            slot->timeline_proxy = import_semaphore(backend, slot->timeline.get());
+        }
+
+        slot->buffer = buffer;
+        slot->release_point++;
+
+        wl_surface_attach(wl_surface, buffer->wl_buffer, 0, 0);
+        wl_surface_damage_buffer(wl_surface, 0, 0, INT32_MAX, INT32_MAX);
+
+        wp_linux_drm_syncobj_surface_v1_set_release_point(syncobj_surface, slot->timeline_proxy, slot->release_point >> 32, slot->release_point & ~0u);
+
+        auto acquire_syncobj = get_proxy_for_semaphore(backend, wait.semaphore);
+        wp_linux_drm_syncobj_surface_v1_set_acquire_point(syncobj_surface, acquire_syncobj, wait.value >> 32, wait.value & ~0u);
+
+        wl_surface_commit(wl_surface);
+
+        return;
+    }
+
+    wrei_debugkill();
 }
 
 wroc_wayland_output::~wroc_wayland_output()
 {
-    auto* wren = server->renderer->wren.get();
-
-    auto surface = swapchain->surface;
-    swapchain = nullptr;
-    wren->vk.DestroySurfaceKHR(wren->instance, surface, nullptr);
+    wp_linux_drm_syncobj_surface_v1_destroy(syncobj_surface);
+    for (auto& slot : present_slots) {
+        wp_linux_drm_syncobj_timeline_v1_destroy(slot.timeline_proxy);
+    }
 
     if (locked_pointer) zwp_locked_pointer_v1_destroy(locked_pointer);
 

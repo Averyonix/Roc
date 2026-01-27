@@ -3,7 +3,6 @@
 #include "wrei/object.hpp"
 
 #include "wren/wren.hpp"
-#include "wren/internal.hpp"
 
 #include "wroc_blit_shader.hpp"
 #include "shaders/blit.h"
@@ -17,27 +16,15 @@ void register_format(wroc_renderer* renderer, wren_format format)
 {
     auto wren = renderer->wren.get();
 
-    static constexpr auto has_all_features = [](VkFormatFeatureFlags features, VkFormatFeatureFlags required) {
-        return (features & required) == required;
-    };
-
     if (!format->is_ycbcr) {
-        auto format_props = wren_get_format_props(wren, format, wren_shm_texture_usage);
-        if (auto* props = format_props->props.get()) {
-            if (has_all_features(props->features, wren_shm_texture_features)) {
-                renderer->shm_formats.add(format, DRM_FORMAT_MOD_LINEAR);
-            }
+        if (wren_get_format_props(wren, format, wren_image_usage::texture | wren_image_usage::transfer)->opt_props.get()) {
+            renderer->shm_formats.add(format, DRM_FORMAT_MOD_LINEAR);
         }
     }
 
-    {
-        auto format_props = wren_get_format_props(wren, format, wren_dma_texture_usage);
-        for (auto& props : format_props->mod_props) {
-            if (!(props.ext_mem_props.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) continue;
-
-            if (has_all_features(props.features, wren_dma_texture_features | (format->is_ycbcr ? wren_ycbcr_texture_features : 0))) {
-                renderer->dmabuf_formats.add(format, props.modifier);
-            }
+    for (auto& props : wren_get_format_props(wren, format, wren_image_usage::texture | wren_image_usage::transfer_src)->mod_props) {
+        if (props.ext_mem_props.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT) {
+            renderer->dmabuf_formats.add(format, props.modifier);
         }
     }
 }
@@ -397,6 +384,14 @@ void wroc_screenshot(rect2f64 rect)
 
 void wroc_render_frame(wroc_output* output)
 {
+    if (!output->frame_requested && server->renderer->vsync) return;
+    if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return;
+
+    auto current = output->acquire();
+    if (!current) return;
+
+    output->frame_requested = false;
+
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
 
@@ -405,9 +400,6 @@ void wroc_render_frame(wroc_output* output)
     }
 
     output->frames_in_flight++;
-
-    auto current = wren_swapchain_acquire_image(output->swapchain.get());
-    assert(current);
 
     auto queue = wren_get_queue(wren, wren_queue_type::graphics);
     auto commands = wren_commands_begin(queue);
@@ -448,25 +440,33 @@ void wroc_render_frame(wroc_output* output)
 
     // Prepare
 
-    wren_transition(wren, commands.get(), current,
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    // TODO: DELETEME once VK WSI has been removed completely.
+    // TODO: QFOTs for DMABUF swapchains
+    auto uses_vk_wsi = server->backend_type == wroc_backend_type::direct;
+
+    if (uses_vk_wsi) {
+        wren_transition(wren, commands.get(), current,
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    }
 
     render(renderer, commands.get(), frame, current, output->layout_rect);
 
     // Submit
 
-    wren_transition(wren, commands.get(), current,
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
-        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-        VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    if (uses_vk_wsi) {
+        wren_transition(wren, commands.get(), current,
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
 
     auto render_done = wren_commands_submit(commands.get(), {});
 
     // Present
 
-    wren_swapchain_present(output->swapchain.get(), {render_done});
+    output->present(current, render_done);
 
     if (renderer->host_wait) {
         wren_semaphore_wait_value(render_done.semaphore, render_done.value);

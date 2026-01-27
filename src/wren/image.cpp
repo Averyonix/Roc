@@ -2,6 +2,44 @@
 
 #include "wrei/util.hpp"
 
+VkImageUsageFlags wren_image_usage_to_vk(wren_image_usage usage)
+{
+    VkImageUsageFlags vk_usage = {};
+    if (usage >= wren_image_usage::render)       vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    if (usage >= wren_image_usage::texture)      vk_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    if (usage >= wren_image_usage::transfer_src) vk_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    if (usage >= wren_image_usage::transfer_dst) vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    return vk_usage;
+}
+
+VkFormatFeatureFlags wren_get_required_format_features(wren_format format, wren_image_usage usage)
+{
+    VkFormatFeatureFlags features = {};
+    if (usage >= wren_image_usage::render) features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                                    |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+    if (usage >= wren_image_usage::texture) {
+        features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                 |  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        if (format->is_ycbcr) features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT
+                                       |  VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT;
+    }
+    if (usage >= wren_image_usage::transfer_dst) features |= VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+    if (usage >= wren_image_usage::transfer_src) features |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
+    return features;
+}
+
+VkImageAspectFlagBits wren_plane_to_aspect(u32 i)
+{
+    return std::array {
+        VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT,
+        VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT,
+        VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT,
+        VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT
+    }[i];
+}
+
+// -----------------------------------------------------------------------------
+
 void wren_transition(wren_context* ctx, wren_commands* commands, wren_image* image,
     VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
     VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
@@ -24,25 +62,6 @@ void wren_transition(wren_context* ctx, wren_commands* commands, wren_image* ima
             .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
         }),
     }));
-}
-
-VkImageUsageFlags wren_image_usage_to_vk(wren_image_usage usage)
-{
-    VkImageUsageFlags flags = {};
-    if (usage >= wren_image_usage::render)   flags |= wren_render_usage;
-    if (usage >= wren_image_usage::texture)  flags |= wren_dma_texture_usage;
-    if (usage >= wren_image_usage::transfer) flags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    return flags;
-}
-
-VkImageAspectFlagBits wren_plane_to_aspect(u32 i)
-{
-    return std::array {
-        VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT,
-        VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT,
-        VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT,
-        VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT
-    }[i];
 }
 
 // -----------------------------------------------------------------------------
@@ -89,6 +108,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
 
     image->extent = extent;
     image->format = format;
+    image->usage =  usage;
 
     VmaAllocationInfo alloc_info;
     wren_check(vmaCreateImage(ctx->vma, wrei_ptr_to(VkImageCreateInfo {
@@ -133,7 +153,9 @@ void wren_image_init(wren_image* image)
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
 
-    wren_allocate_image_descriptor(image);
+    if (image->usage >= wren_image_usage::texture) {
+        wren_allocate_image_descriptor(image);
+    }
 
     auto queue = wren_get_queue(ctx, wren_queue_type::transfer);
     auto cmd = wren_commands_begin(queue);
@@ -374,7 +396,7 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
 
     // Query plane layouts
 
-    auto* mod_props = wren_get_format_props(ctx, image->format, wren_image_usage_to_vk(image->usage))->for_mod(params.modifier);
+    auto* mod_props = wren_get_format_props(ctx, image->format, image->usage)->for_mod(params.modifier);
     params.planes.count = mod_props->plane_count;
     for (u32 i = 0; i < mod_props->plane_count; ++i) {
         VkSubresourceLayout layout;
@@ -417,7 +439,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
 {
     wrei_assert(!wrei_flags_empty(usage));
 
-    auto props = wren_get_format_props(ctx, params.format, wren_image_usage_to_vk(usage))->for_mod(params.modifier);
+    auto props = wren_get_format_props(ctx, params.format, usage)->for_mod(params.modifier);
     if (!props) {
         log_error("Format {} cannot be used with modifier: {}", params.format->name, wren_drm_modifier_get_name(params.modifier));
         return nullptr;

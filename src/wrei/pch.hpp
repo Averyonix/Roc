@@ -143,6 +143,8 @@ extern "C" {
 #include <xdg-decoration-unstable-v1-client-protocol.h>
 #include <relative-pointer-unstable-v1-client-protocol.h>
 #include <pointer-constraints-unstable-v1-client-protocol.h>
+#include <linux-dmabuf-v1-client-protocol.h>
+#include <linux-drm-syncobj-v1-client-protocol.h>
 
 // -----------------------------------------------------------------------------
 

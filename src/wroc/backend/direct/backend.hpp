@@ -15,11 +15,16 @@ struct wroc_device : wrei_object
 
 struct wroc_drm_output : wroc_output
 {
+    ref<wren_swapchain> swapchain;
+
     VkDisplayKHR vk_display;
 
     std::jthread scanout_thread;
 
     ~wroc_drm_output();
+
+    virtual wren_image* acquire() final override;
+    virtual void present(wren_image*, wren_syncpoint) final override;
 };
 
 struct wroc_libinput_keyboard : wroc_keyboard

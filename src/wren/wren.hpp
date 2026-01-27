@@ -14,6 +14,8 @@ struct wren_semaphore;
 struct wren_commands;
 struct wren_queue;
 
+enum class wren_image_usage : u32;
+
 // -----------------------------------------------------------------------------
 
 enum class wren_descriptor_id : u32 { invalid = 0 };
@@ -94,8 +96,8 @@ struct wren_format_modifier_props
 struct wren_format_props
 {
     wren_format format;
-    VkImageUsageFlags usage;
-    std::unique_ptr<wren_format_modifier_props> props;
+    wren_image_usage usage;
+    std::unique_ptr<wren_format_modifier_props> opt_props;
     std::vector<wren_format_modifier_props> mod_props;
     std::vector<wren_drm_modifier> mods;
 
@@ -111,11 +113,11 @@ struct wren_format_props
 struct wren_format_props_key
 {
     wren_format format;
-    VkImageUsageFlags flags;
+    wren_image_usage usage;
 
     constexpr bool operator==(const wren_format_props_key&) const noexcept = default;
 };
-WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.flags);
+WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.usage);
 
 wren_format wren_format_from_drm(wren_drm_format);
 wren_format wren_format_from_shm(wl_shm_format);
@@ -142,7 +144,7 @@ public:
 
 std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
 
-const wren_format_props* wren_get_format_props(wren_context*, wren_format, VkImageUsageFlags);
+const wren_format_props* wren_get_format_props(wren_context*, wren_format, wren_image_usage);
 
 std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
@@ -255,6 +257,7 @@ struct wren_syncpoint
 
 ref<wren_semaphore> wren_semaphore_create(wren_context*, u64 initial_value = 0);
 ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context*, int syncobj_fd);
+int wren_semaphore_export_syncobj(wren_semaphore*);
 
 void wren_semaphore_import_syncfile(wren_semaphore*, int sync_fd, u64 target_point);
 int  wren_semaphore_export_syncfile(wren_semaphore*, u64 source_point);
@@ -382,9 +385,11 @@ struct wren_array
 
 enum class wren_image_usage : u32
 {
-    transfer = 1 << 0,  // Transfer dst
-    texture  = 1 << 1,  // Sampled
-    render   = 1 << 2,  // Color attachment
+    transfer_src = 1 << 0,
+    transfer_dst = 1 << 1,
+    transfer     = transfer_dst | transfer_src,
+    texture      = 1 << 2,
+    render       = 1 << 3,
 };
 WREI_DECORATE_FLAG_ENUM(wren_image_usage)
 
