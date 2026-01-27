@@ -14,13 +14,6 @@ void wroc_dmabuf_create_params(wl_client* client, wl_resource* resource, u32 par
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_zwp_linux_buffer_params_v1_impl, params);
 }
 
-wroc_dma_buffer_params::~wroc_dma_buffer_params()
-{
-    for (auto& plane : params.planes) {
-        close(plane.fd);
-    }
-}
-
 static
 void wroc_dmabuf_send_tranches(wl_resource* feedback_resource);
 
@@ -52,8 +45,10 @@ const struct zwp_linux_dmabuf_v1_interface wroc_zwp_linux_dmabuf_v1_impl = {
 };
 
 static
-void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo)
+void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int _fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo)
 {
+    auto fd = wrei_fd_adopt(_fd);
+
     // TODO: We should enforce a limit on the number of open files a client can have to keep under 1024 for the whole process
 
     auto* params = wroc_get_userdata<wroc_dma_buffer_params>(resource);
@@ -80,11 +75,25 @@ void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int fd, u3
 
     params->planes_set |= (1 << plane_idx);
 
-    params->params.planes[plane_idx] = wren_dma_plane{
-        .fd = fd,
+    auto& plane = params->params.planes[plane_idx];
+    plane = wren_dma_plane {
         .offset = offset,
         .stride = stride,
     };
+
+    // Deduplicate file descriptors as we receieve them
+
+    for (auto& p : params->params.planes) {
+        if (wrei_fd_are_same(p.fd, fd)) {
+            plane.fd = p.fd;
+            break;
+        } else {
+            params->params.disjoint = true;
+        }
+    }
+    if (!plane.fd) {
+        plane.fd = std::move(fd);
+    }
 }
 
 static
@@ -125,8 +134,10 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->extent = {width, height};
     log_debug("Importing DMA-BUF, size = {}, format = {}, mod = {}",
         wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params.modifier));
-    buffer->dmabuf_image = wren_image_import_dmabuf(server->renderer->wren.get(), params, wren_image_usage::texture);
-    buffer->image = buffer->dmabuf_image;
+    buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params, wren_image_usage::texture);
+
+    dma_params->params = {};
+    dma_params->planes_set = {};
 
     return buffer;
 }
@@ -179,13 +190,19 @@ bool wroc_dma_buffer::is_ready()
         }
     } else {
         ready = true;
-        for (auto& plane : dmabuf_image->dma_params.planes) {
+
+        if (!params) {
+            log_debug("First use of implicit sync with imported image, re-exporting DMA-BUF fds");
+            params = wren_image_export_dmabuf(image.get());
+        }
+
+        for (auto& plane : std::span(params->planes).subspan(0, params->disjoint ? std::dynamic_extent : 1)) {
             if (wrei_unix_check_n1(poll(wrei_ptr_to(pollfd {
-                .fd = plane.fd,
+                .fd = plane.fd.get(),
                 .events = POLLIN,
             }), 1, 0)) < 1) {
                 if (server->renderer->noisy_dmabufs) {
-                    log_warn("Waiting for implicit sync - fd {} not ready yet", plane.fd);
+                    log_warn("Waiting for implicit sync - fd {} not ready yet", plane.fd.get());
                 }
                 ready = false;
                 break;
@@ -292,8 +309,6 @@ void wroc_dma_buffer::on_unlock()
 
 void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
 {
-    auto wren = renderer->wren;
-
     struct tranche_entry
     {
         u32 format;
@@ -306,9 +321,7 @@ void wroc_renderer_init_buffer_feedback(wroc_renderer* renderer)
     // Enumerate formats
 
     std::vector<tranche_entry> entries;
-    // entries.emplace_back(DRM_FORMAT_XRGB8888, 0, DRM_FORMAT_MOD_LINEAR);
-    // entries.emplace_back(DRM_FORMAT_ARGB8888, 0, DRM_FORMAT_MOD_LINEAR);
-    for (auto[format, modifiers] : wren->dmabuf_texture_formats) {
+    for (auto[format, modifiers] : renderer->dmabuf_formats) {
         for (auto modifier : modifiers) {
             entries.emplace_back(tranche_entry {
                 .format = format->drm,
@@ -387,8 +400,7 @@ void wroc_zwp_linux_dmabuf_v1_bind_global(wl_client* client, void* data, u32 ver
         wroc_send(zwp_linux_dmabuf_v1_send_modifier, new_resource, format, modifier_hi, modifier_lo);
     };
 
-
-    for (auto[format, modifiers] : server->renderer->wren->dmabuf_texture_formats) {
+    for (auto[format, modifiers] : server->renderer->dmabuf_formats) {
         wroc_send(zwp_linux_dmabuf_v1_send_format, new_resource, format->drm);
 
         for (auto modifier : modifiers) {

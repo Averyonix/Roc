@@ -44,7 +44,7 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
     auto* new_resource = wroc_resource_create(client, &wl_shm_interface, version, id);
     wroc_resource_set_implementation(new_resource, &wroc_wl_shm_impl, nullptr);
 
-    for (auto&[format, _] : server->renderer->wren->shm_texture_formats.entries) {
+    for (auto&[format, _] : server->renderer->shm_formats) {
         wroc_send(wl_shm_send_format, new_resource, format->shm);
     }
 };

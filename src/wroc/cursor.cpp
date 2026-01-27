@@ -174,7 +174,7 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
 
     auto* wren = server->renderer->wren.get();
     cursor_buffer->image = wren_image_create(wren, {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
-        wren_image_usage::texture | wren_image_usage::transfer | wren_image_usage::cursor);
+        wren_image_usage::texture | wren_image_usage::transfer);
     wren_image_update_immed(cursor_buffer->image.get(), image->pixels);
 
     surface->buffer_dst = {{-image->xhot, -image->yhot}, {image->width, image->height}, wrei_xywh};

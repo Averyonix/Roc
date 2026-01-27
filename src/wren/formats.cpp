@@ -264,6 +264,11 @@ const wren_format_t wren_formats[] {
 
 #undef WROC_FORMAT
 
+std::span<const wren_format_t> wren_get_formats()
+{
+    return wren_formats;
+}
+
 // -----------------------------------------------------------------------------
 
 template<typename T>
@@ -292,7 +297,9 @@ bool wren_query_image_format_support(
     VkFormat format, VkFormat srgb_format,
     VkImageUsageFlags usage,
     const VkDrmFormatModifierProperties2EXT* drm_props,
-    bool* has_mutable_srgb, VkImageFormatProperties* out)
+    bool* has_mutable_srgb,
+    VkImageFormatProperties* out,
+    VkExternalMemoryProperties* out_external_memory_properties)
 {
     bool has_srgb_format = srgb_format != VK_FORMAT_UNDEFINED;
 
@@ -355,12 +362,10 @@ bool wren_query_image_format_support(
             return false;
         }
 
-        if (drm_props && !(external_image_props.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) {
-            // Not importable
-            return false;
-        }
-
         *out = format_props.imageFormatProperties;
+        if (out_external_memory_properties) {
+            *out_external_memory_properties = external_image_props.externalMemoryProperties;
+        }
 
         return true;
     };
@@ -381,83 +386,7 @@ bool wren_query_image_format_support(
 }
 
 static
-bool wren_try_register_shm_format(wren_context* ctx, wren_format format, VkFormatProperties props, wren_format_props* out)
-{
-    if (format->is_ycbcr || (props.optimalTilingFeatures & wren_shm_texture_features) != wren_shm_texture_features) {
-        return false;
-    }
-
-    VkImageFormatProperties image_props;
-    bool has_mutable_srgb = false;
-    bool supported = wren_query_image_format_support(ctx, format->vk, format->vk_srgb, wren_shm_texture_usage, nullptr, &has_mutable_srgb, &image_props);
-
-    if (!supported) return false;
-
-    out->shm.max_extent = {image_props.maxExtent.width, image_props.maxExtent.height};
-    out->shm.features = props.optimalTilingFeatures;
-    out->shm.has_mutable_srgb = has_mutable_srgb;
-
-    ctx->shm_texture_formats.add(format, DRM_FORMAT_MOD_LINEAR);
-
-    return true;
-}
-
-static
-bool wren_try_register_dmabuf_format(wren_context* ctx, wren_format format, u32 mod_count, wren_format_props* out)
-{
-    if (mod_count == 0) return false;
-
-    std::vector<VkDrmFormatModifierProperties2EXT> mod_props(mod_count);
-    ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format->vk, wrei_ptr_to(VkFormatProperties2 {
-        .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
-        .pNext = wrei_ptr_to(VkDrmFormatModifierPropertiesList2EXT {
-            .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
-            .drmFormatModifierCount = mod_count,
-            .pDrmFormatModifierProperties = mod_props.data(),
-        })
-    }));
-
-    for (const auto m : mod_props) {
-
-        auto check = [&](VkFormatFeatureFlags2 features, VkImageUsageFlags usage) -> std::optional<wren_format_modifier_props> {
-            if (format->is_ycbcr) {
-                features |= wren_ycbcr_texture_features;
-            }
-            if ((m.drmFormatModifierTilingFeatures & features) != features) {
-                return std::nullopt;
-            }
-
-            VkImageFormatProperties image_props;
-            bool has_mutable_srgb = false;
-            if (!wren_query_image_format_support(ctx, format->vk, format->vk_srgb, usage, &m, &has_mutable_srgb, &image_props)) {
-                return std::nullopt;
-            }
-
-            return wren_format_modifier_props {
-                .props = m,
-                .max_extent = {image_props.maxExtent.width, image_props.maxExtent.height},
-                .has_mutable_srgb = has_mutable_srgb,
-            };
-        };
-
-        if (!out->format->is_ycbcr) {
-            if (auto render_props = check(wren_render_features, wren_render_usage)) {
-                out->dmabuf.render_mods.emplace_back(*render_props);
-                ctx->dmabuf_render_formats.add(format, m.drmFormatModifier);
-            }
-        }
-
-        if (auto texture_props = check(wren_dma_texture_features, wren_dma_texture_usage)) {
-            out->dmabuf.texture_mods.emplace_back(*texture_props);
-            ctx->dmabuf_texture_formats.add(format, m.drmFormatModifier);
-        }
-    }
-
-    return !out->dmabuf.render_mods.empty() || !out->dmabuf.texture_mods.empty();
-}
-
-static
-void wren_register_format(wren_context* ctx, wren_format format)
+std::vector<VkDrmFormatModifierProperties2EXT> get_drm_modifiers(wren_context* ctx, wren_format format)
 {
     VkDrmFormatModifierPropertiesList2EXT mod_list = {
         .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
@@ -468,45 +397,65 @@ void wren_register_format(wren_context* ctx, wren_format format)
     };
     ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format->vk, &props);
 
-    wren_format_props out_props = {
-        .format = format,
-    };
+    std::vector<VkDrmFormatModifierProperties2EXT> mod_props(mod_list.drmFormatModifierCount);
+    mod_list.pDrmFormatModifierProperties = mod_props.data();
 
-    bool register_props = false;
-    register_props |= wren_try_register_shm_format(ctx, format, props.formatProperties, &out_props);
-    register_props |= wren_try_register_dmabuf_format(ctx, format, mod_list.drmFormatModifierCount, &out_props);
+    ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format->vk, &props);
 
-    if (wrei_is_log_level_enabled(wrei_log_level::debug)) {
-        std::string supported;
-        auto add = [&](std::string_view support) {
-            if (!supported.empty()) supported += '|';
-            supported += support;
+    return mod_props;
+}
+
+static void load_format_props(wren_context* ctx, wren_format_props& props)
+{
+    auto format = props.format;
+
+    {
+        VkFormatProperties2 vk_props = {
+            .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
         };
-        if (out_props.shm.features) add("shared");
-        if (!out_props.dmabuf.render_mods.empty()) add(std::format("render({})", out_props.dmabuf.render_mods.size()));
-        if (!out_props.dmabuf.texture_mods.empty()) add(std::format("texture({})", out_props.dmabuf.texture_mods.size()));
+        ctx->vk.GetPhysicalDeviceFormatProperties2(ctx->physical_device, format->vk, &vk_props);
 
-        if (register_props) {
-            log_debug("Format {:4}{} -> {}", format->name, format->is_ycbcr ? " (YCbCr)" : "", supported);
+        VkImageFormatProperties image_props;
+        bool has_mutable_srgb = false;
+        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, wren_shm_texture_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)) {
+            props.props = std::unique_ptr<wren_format_modifier_props>(new wren_format_modifier_props {
+                .modifier = DRM_FORMAT_MOD_INVALID,
+                .features = vk_props.formatProperties.optimalTilingFeatures,
+                .max_extent = {image_props.maxExtent.width, image_props.maxExtent.height},
+                .has_mutable_srgb = has_mutable_srgb,
+            });
         }
     }
 
-    if (register_props) {
-        ctx->format_props.insert({ format, std::move(out_props) });
+    for (auto& mod : get_drm_modifiers(ctx, format)) {
+        VkImageFormatProperties image_props;
+        bool has_mutable_srgb = false;
+        VkExternalMemoryProperties ext_mem_props;
+        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, props.usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)) {
+            props.mod_props.emplace_back(wren_format_modifier_props {
+                .modifier = mod.drmFormatModifier,
+                .features = mod.drmFormatModifierTilingFeatures,
+                .plane_count = mod.drmFormatModifierPlaneCount,
+                .ext_mem_props = ext_mem_props,
+                .max_extent = {image_props.maxExtent.width, image_props.maxExtent.height},
+                .has_mutable_srgb = has_mutable_srgb,
+            });
+            props.mods.emplace_back(mod.drmFormatModifier);
+        }
     }
 }
 
-void wren_register_formats(wren_context* ctx)
+const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, VkImageUsageFlags usage)
 {
-    for (const auto& format : wren_formats) {
-        wren_register_format(ctx, &format);
+    wrei_assert(usage);
+    auto key = wren_format_props_key{format, usage};
+    auto& props = ctx->format_props[key];
+    if (!props.format) {
+        props.format = format;
+        props.usage = usage;
+        load_format_props(ctx, props);
     }
-}
-
-const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format)
-{
-    auto iter = ctx->format_props.find(format);
-    return iter != ctx->format_props.end() ? &iter->second : nullptr;
+    return &props;
 }
 
 std::string wren_drm_modifier_get_name(wren_drm_modifier mod)

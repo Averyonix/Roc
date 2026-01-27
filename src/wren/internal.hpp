@@ -45,10 +45,6 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 // -----------------------------------------------------------------------------
 
-void wren_register_formats(wren_context*);
-
-// -----------------------------------------------------------------------------
-
 u32 wren_find_vk_memory_type_index(wren_context*, u32 type_filter, VkMemoryPropertyFlags properties);
 
 // -----------------------------------------------------------------------------
@@ -68,11 +64,6 @@ ref<wren_queue> wren_queue_init(wren_context*, wren_queue_type, u32 family);
 // -----------------------------------------------------------------------------
 
 VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpoint);
-
-// -----------------------------------------------------------------------------
-
-void wren_init_gbm_allocator(wren_context*);
-void wren_destroy_gbm_allocator(wren_context*);
 
 // -----------------------------------------------------------------------------
 

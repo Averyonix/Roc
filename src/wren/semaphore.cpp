@@ -10,18 +10,11 @@ VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpo
     };
 }
 
-ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
+static
+ref<wren_semaphore> create_semaphore_base(wren_context* ctx, u64 initial_value)
 {
     auto semaphore = wrei_create<wren_semaphore>();
     semaphore->ctx = ctx;
-
-    // Here we are creating a timeline sempahore, and exporting a persistent syncboj
-    // handle to it that we can use for importing/exporting syncobj files for interop.
-    // This trick only works when the driver uses syncobjs as the opaque fd type.
-    // This seems to work fine on AMD, but definitely won't work for all vendors.
-
-    // As a portable solution, we'll have to use DRM syncobjs as the underlying type, creating
-    // binary semaphores as required for vulkan waits
 
     wren_check(ctx->vk.CreateSemaphore(ctx->device, wrei_ptr_to(VkSemaphoreCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -36,6 +29,21 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
         })
     }), nullptr, &semaphore->semaphore));
 
+    return semaphore;
+}
+
+ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
+{
+    // Here we are creating a timeline sempahore, and exporting a persistent syncboj
+    // handle to it that we can use for importing/exporting syncobj files for interop.
+    // This trick only works when the driver uses syncobjs as the opaque fd type.
+    // This seems to work fine on AMD, but definitely won't work for all vendors.
+
+    // As a portable solution, we'll have to use DRM syncobjs as the underlying type, creating
+    // binary semaphores as required for vulkan waits
+
+    auto semaphore = create_semaphore_base(ctx, initial_value);
+
     int syncobj_fd = -1;
     wren_check(ctx->vk.GetSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkSemaphoreGetFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
@@ -45,18 +53,25 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
 
     wrei_unix_check_n1(drmSyncobjFDToHandle(ctx->drm_fd, syncobj_fd, &semaphore->syncobj));
 
+    close(syncobj_fd);
+
     return semaphore;
 }
 
 ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context* ctx, int syncobj_fd)
 {
-    auto semaphore = wren_semaphore_create(ctx);
-    wren_check(ctx->vk.ImportSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkImportSemaphoreFdInfoKHR {
+    auto semaphore = create_semaphore_base(ctx, 0);
+
+    wrei_unix_check_n1(drmSyncobjFDToHandle(ctx->drm_fd, syncobj_fd, &semaphore->syncobj));
+
+    if (wren_check(ctx->vk.ImportSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkImportSemaphoreFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
         .semaphore = semaphore->semaphore,
         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
         .fd = syncobj_fd,
-    })));
+    }))) != VK_SUCCESS) {
+        close(syncobj_fd);
+    };
 
     return semaphore;
 }

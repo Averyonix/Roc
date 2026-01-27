@@ -3,6 +3,7 @@
 #include "wrei/object.hpp"
 #include "wrei/types.hpp"
 #include "wrei/event.hpp"
+#include "wrei/fd.hpp"
 
 #include "functions.hpp"
 
@@ -54,6 +55,8 @@ struct wren_format_t
 
 extern const wren_format_t wren_formats[];
 
+std::span<const wren_format_t> wren_get_formats();
+
 struct wren_format
 {
     i32 _index;
@@ -78,7 +81,12 @@ struct std::hash<wren_format>
 
 struct wren_format_modifier_props
 {
-    VkDrmFormatModifierProperties2EXT props;
+    wren_drm_modifier modifier;
+    VkFormatFeatureFlags2 features;
+    u32 plane_count;
+
+    VkExternalMemoryProperties ext_mem_props;
+
     vec2u32 max_extent;
     bool has_mutable_srgb;
 };
@@ -86,16 +94,28 @@ struct wren_format_modifier_props
 struct wren_format_props
 {
     wren_format format;
-    struct {
-        vec2u32 max_extent;
-        VkFormatFeatureFlags features;
-        bool has_mutable_srgb;
-    } shm;
-    struct {
-        std::vector<wren_format_modifier_props> render_mods;
-        std::vector<wren_format_modifier_props> texture_mods;
-    } dmabuf;
+    VkImageUsageFlags usage;
+    std::unique_ptr<wren_format_modifier_props> props;
+    std::vector<wren_format_modifier_props> mod_props;
+    std::vector<wren_drm_modifier> mods;
+
+    const wren_format_modifier_props* for_mod(wren_drm_modifier mod) const
+    {
+        for (auto& p : mod_props) {
+            if (p.modifier == mod) return &p;
+        }
+        return nullptr;
+    }
 };
+
+struct wren_format_props_key
+{
+    wren_format format;
+    VkImageUsageFlags flags;
+
+    constexpr bool operator==(const wren_format_props_key&) const noexcept = default;
+};
+WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.flags);
 
 wren_format wren_format_from_drm(wren_drm_format);
 wren_format wren_format_from_shm(wl_shm_format);
@@ -104,8 +124,10 @@ using wren_format_modifier_set = ankerl::unordered_dense::set<wren_drm_modifier>
 
 struct wren_format_set
 {
+private:
     ankerl::unordered_dense::map<wren_format, wren_format_modifier_set> entries;
 
+public:
     void add(wren_format format, wren_drm_modifier modifier)
     {
         entries[format].insert(modifier);
@@ -120,7 +142,7 @@ struct wren_format_set
 
 std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
 
-const wren_format_props* wren_get_format_props(wren_context*, wren_format);
+const wren_format_props* wren_get_format_props(wren_context*, wren_format, VkImageUsageFlags);
 
 std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
@@ -175,13 +197,7 @@ struct wren_context : wrei_object
     wren_descriptor_id_allocator image_descriptor_allocator;
     wren_descriptor_id_allocator sampler_descriptor_allocator;
 
-    wren_format_set dmabuf_texture_formats;
-    wren_format_set dmabuf_render_formats;
-    wren_format_set shm_texture_formats;
-
-    ankerl::unordered_dense::map<wren_format, wren_format_props> format_props;
-
-    gbm_device* gbm;
+    ankerl::unordered_dense::segmented_map<wren_format_props_key, wren_format_props> format_props;
 
     ~wren_context();
 };
@@ -369,8 +385,6 @@ enum class wren_image_usage : u32
     transfer = 1 << 0,  // Transfer dst
     texture  = 1 << 1,  // Sampled
     render   = 1 << 2,  // Color attachment
-    scanout  = 1 << 3,  // Suitable for direct scanout, must match swapchain format
-    cursor   = 1 << 4,  // Suitable for hardware cursor overlay
 };
 WREI_DECORATE_FLAG_ENUM(wren_image_usage)
 
@@ -452,22 +466,15 @@ constexpr static u32 wren_dma_max_planes = 4;
 
 struct wren_dma_plane
 {
-    int fd;
+    wrei_fd fd;
     u32 offset;
     u32 stride;
 };
 
 struct wren_dma_params
 {
-    struct {
-        wren_dma_plane data[wren_dma_max_planes];
-        u32 count;
-
-        auto begin(this auto&& self) { return self.data; }
-        auto   end(this auto&& self) { return self.data + self.count; }
-
-        auto& operator[](this auto&& self, usz i) { return self.data[i]; }
-    } planes;
+    wrei_fixed_array<wren_dma_plane, wren_dma_max_planes> planes;
+    bool disjoint;
 
     vec2u32 extent;
     wren_format format;
@@ -478,9 +485,7 @@ struct wren_dma_params
 
 struct wren_image_dmabuf : wren_image
 {
-    wren_dma_params dma_params;
-
-    std::array<VkDeviceMemory, wren_dma_max_planes> memory_planes;
+    wrei_fixed_array<VkDeviceMemory, wren_dma_max_planes> memory;
 
     struct {
         usz allocation_size;
@@ -489,7 +494,12 @@ struct wren_image_dmabuf : wren_image
     ~wren_image_dmabuf();
 };
 
-ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context*, const wren_dma_params& params, wren_image_usage);
+VkImageAspectFlagBits wren_plane_to_aspect(u32 i);
+
+ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context*, vec2u32 extent, wren_format, wren_image_usage, std::span<const wren_drm_modifier>);
+ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context*, const wren_dma_params&, wren_image_usage);
+
+wren_dma_params wren_image_export_dmabuf(wren_image*);
 
 // -----------------------------------------------------------------------------
 

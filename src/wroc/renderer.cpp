@@ -12,6 +12,36 @@
 
 wroc_renderer::~wroc_renderer() = default;
 
+static
+void register_format(wroc_renderer* renderer, wren_format format)
+{
+    auto wren = renderer->wren.get();
+
+    static constexpr auto has_all_features = [](VkFormatFeatureFlags features, VkFormatFeatureFlags required) {
+        return (features & required) == required;
+    };
+
+    if (!format->is_ycbcr) {
+        auto format_props = wren_get_format_props(wren, format, wren_shm_texture_usage);
+        if (auto* props = format_props->props.get()) {
+            if (has_all_features(props->features, wren_shm_texture_features)) {
+                renderer->shm_formats.add(format, DRM_FORMAT_MOD_LINEAR);
+            }
+        }
+    }
+
+    {
+        auto format_props = wren_get_format_props(wren, format, wren_dma_texture_usage);
+        for (auto& props : format_props->mod_props) {
+            if (!(props.ext_mem_props.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT)) continue;
+
+            if (has_all_features(props.features, wren_dma_texture_features | (format->is_ycbcr ? wren_ycbcr_texture_features : 0))) {
+                renderer->dmabuf_formats.add(format, props.modifier);
+            }
+        }
+    }
+}
+
 void wroc_renderer_create(wroc_render_options render_options)
 {
     auto* renderer = (server->renderer = wrei_create<wroc_renderer>()).get();
@@ -20,6 +50,11 @@ void wroc_renderer_create(wroc_render_options render_options)
     wren_features features = {};
 
     renderer->wren = wren_create(features, server->event_loop.get());
+
+    for (auto& format : wren_get_formats()) {
+        register_format(renderer, &format);
+    }
+
     wroc_renderer_init_buffer_feedback(renderer);
 
     auto* wren = renderer->wren.get();

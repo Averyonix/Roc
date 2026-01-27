@@ -101,6 +101,9 @@
     DO(ImportSemaphoreFdKHR) \
     DO(GetSemaphoreFdKHR) \
     DO(SignalSemaphore) \
+    DO(GetImageDrmFormatModifierPropertiesEXT) \
+    DO(GetImageSubresourceLayout) \
+    DO(GetMemoryFdKHR) \
 
 #define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

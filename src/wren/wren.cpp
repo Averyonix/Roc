@@ -17,8 +17,6 @@ wren_context::~wren_context()
     graphics_queue = nullptr;
     transfer_queue = nullptr;
 
-    wren_destroy_gbm_allocator(this);
-
     assert(stats.active_images == 0);
     assert(stats.active_buffers == 0);
     assert(stats.active_samplers == 0);
@@ -331,19 +329,9 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
         .vulkanApiVersion = VK_API_VERSION_1_3,
     }), &ctx->vma));
 
-    // GBM allocator
-
-    wren_init_gbm_allocator(ctx.get());
-
     // State initialization
 
     wren_init_descriptors(ctx.get());
-
-    wren_register_formats(ctx.get());
-
-    log_info("shm texture formats: {}", ctx->shm_texture_formats.size());
-    log_info("render formats: {}", ctx->dmabuf_render_formats.size());
-    log_info("dmabuf texture formats: {}", ctx->dmabuf_texture_formats.size());
 
     return ctx;
 }

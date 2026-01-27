@@ -664,13 +664,11 @@ struct wroc_dma_buffer_params : wrei_object
 
     wren_dma_params params;
     u32 planes_set;
-
-    ~wroc_dma_buffer_params();
 };
 
 struct wroc_dma_buffer : wroc_buffer
 {
-    ref<wren_image_dmabuf> dmabuf_image;
+    std::optional<wren_dma_params> params;
 
     bool needs_wait = false;
 
@@ -1027,6 +1025,9 @@ struct wroc_renderer : wrei_object
 
     ref<wren_image> background;
     ref<wren_sampler> sampler;
+
+    wren_format_set shm_formats;
+    wren_format_set dmabuf_formats;
 
     bool show_debug_cursor = false;
 

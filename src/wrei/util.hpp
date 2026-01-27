@@ -553,6 +553,9 @@ void wrei_unreachable()
 #endif
 }
 
+#define wrei_assert(Expr) \
+    do { if (!(Expr)) wrei_debugkill(); } while (0)
+
 // -----------------------------------------------------------------------------
 
 constexpr
@@ -693,4 +696,17 @@ struct wrei_stacktrace_cache
     ankerl::unordered_dense::segmented_map<std::stacktrace, wrei_stacktrace> traces;
 
     std::pair<const wrei_stacktrace*, bool> insert(const std::stacktrace& st);
+};
+
+// -----------------------------------------------------------------------------
+
+template<typename T, u32 Max>
+struct wrei_fixed_array {
+    T data[Max];
+    u32 count;
+
+    auto begin(this auto&& self) { return self.data; }
+    auto   end(this auto&& self) { return self.data + self.count; }
+
+    auto& operator[](this auto&& self, usz i) { return self.data[i]; }
 };
