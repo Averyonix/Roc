@@ -18,6 +18,11 @@ wroc_device* open_device(wroc_direct_backend* backend, const char* path)
     return device.get();
 }
 
+wroc_device* wroc_open_restricted(wroc_direct_backend* backend, const char* name)
+{
+    return open_device(backend, name);
+}
+
 void close_device(wroc_direct_backend* backend, wroc_device* device)
 {
     libseat_close_device(backend->seat, device->dev_id);
@@ -125,7 +130,7 @@ void log_libinput(libinput* libinput, libinput_log_priority priority, const char
 
 // -----------------------------------------------------------------------------
 
-void wroc_backend_init_libinput(wroc_direct_backend* backend)
+void wroc_backend_init_session(wroc_direct_backend* backend)
 {
     // udev
 
@@ -192,7 +197,7 @@ void wroc_backend_init_libinput(wroc_direct_backend* backend)
     log_debug("Libinput fd event source added");
 }
 
-void wroc_backend_deinit_libinput(wroc_direct_backend* backend)
+void wroc_backend_close_session(wroc_direct_backend* backend)
 {
     backend->input_devices.clear();
 

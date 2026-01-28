@@ -108,7 +108,6 @@ void wroc_run(int argc, char* argv[])
     server->event_loop = event_loop;
     log_info("Server = {}", (void*)server);
 
-    server->backend_type = backend_type;
     if (backend_type == wroc_backend_type::direct) {
         server->main_mod = wroc_modifiers::super;
         server->main_mod_evdev = KEY_LEFTMETA;
@@ -120,6 +119,13 @@ void wroc_run(int argc, char* argv[])
     // Seat
 
     wroc_seat_init();
+
+    // Backend
+
+    log_info("Initializing backend");
+    server->backend = wroc_backend_create(backend_type);
+    server->backend->init();
+    log_info("Backend initialized");
 
     server->epoch = std::chrono::steady_clock::now();
 
@@ -165,11 +171,9 @@ void wroc_run(int argc, char* argv[])
     wroc_imgui_init();
     wroc_debug_gui_init(show_imgui_on_startup);
 
-    // Backend
+    // Backend start
 
-    log_info("Initializing backend");
-    wroc_backend_init(backend_type);
-    log_info("Backend initialized");
+    server->backend->start();
 
     // Register globals
 

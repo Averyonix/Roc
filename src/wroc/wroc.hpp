@@ -33,19 +33,26 @@ void wroc_terminate();
 
 // -----------------------------------------------------------------------------
 
-struct wroc_backend : wrei_object
-{
-    virtual void create_output() = 0;
-    virtual void destroy_output(wroc_output*) = 0;
-};
-
 enum struct wroc_backend_type
 {
     wayland,
     direct,
 };
 
-void wroc_backend_init(wroc_backend_type);
+struct wroc_backend : wrei_object
+{
+    wroc_backend_type type;
+
+    virtual void init() = 0;
+    virtual void start() = 0;
+
+    virtual int get_preferred_drm_device() { return -1; };
+
+    virtual void create_output() = 0;
+    virtual void destroy_output(wroc_output*) = 0;
+};
+
+ref<wroc_backend> wroc_backend_create(wroc_backend_type);
 
 // -----------------------------------------------------------------------------
 
@@ -1171,7 +1178,6 @@ WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
 struct wroc_server : wrei_object
 {
-    wroc_backend_type backend_type;
     ref<wroc_backend>  backend;
     ref<wroc_renderer> renderer;
     ref<wroc_seat>     seat;

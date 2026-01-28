@@ -2,11 +2,8 @@
 
 #define WROC_DIRECT_BACKEND_TIME_LIMIT 0
 
-void wroc_direct_backend_init()
+void wroc_direct_backend::init()
 {
-    auto backend = wrei_create<wroc_direct_backend>();
-    server->backend = backend;
-
 #if WROC_DIRECT_BACKEND_TIME_LIMIT
     log_warn("Direct backend is highly experimental and will self terminate after {} seconds to prevent system lockout", WROC_DIRECT_BACKEND_TIME_LIMIT);
     std::thread{[] {
@@ -15,13 +12,18 @@ void wroc_direct_backend_init()
     }}.detach();
 #endif
 
-    wroc_backend_init_drm(backend.get());
-    wroc_backend_init_libinput(backend.get());
+    wroc_backend_init_session(this);
+    wroc_backend_init_drm(this);
+}
+
+void wroc_direct_backend::start()
+{
+    wroc_backend_start_drm(this);
 }
 
 wroc_direct_backend::~wroc_direct_backend()
 {
-    wroc_backend_deinit_libinput(this);
+    wroc_backend_close_session(this);
 
     outputs.clear();
 }

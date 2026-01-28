@@ -100,13 +100,14 @@ struct wroc_wayland_backend : wroc_backend
 
     ref<wrei_event_source> event_source;
 
+    virtual void init() final override;
+    virtual void start() final override;
+
     virtual void create_output() final override;
     virtual void destroy_output(wroc_output*) final override;
 
     ~wroc_wayland_backend();
 };
-
-void wroc_wayland_backend_init();
 
 wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_backend*, wl_surface*);
 

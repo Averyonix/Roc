@@ -85,31 +85,35 @@ int wroc_listen_backend_display_read(wroc_wayland_backend* backend, int fd, u32 
     return 1;
 }
 
-void wroc_wayland_backend_init()
+void wroc_wayland_backend::init()
 {
-    auto backend = wrei_create<wroc_wayland_backend>();
-    server->backend = backend;
-
     if (getenv("WROC_WAYLAND_DEBUG_BACKEND")) {
         wroc_setenv("WAYLAND_DEBUG", "1");
     } else {
         wroc_setenv("WAYLAND_DEBUG", nullptr);
     }
-    backend->wl_display = wl_display_connect(nullptr);
+    wl_display = wl_display_connect(nullptr);
     wroc_setenv("WAYLAND_DEBUG", nullptr);
-    backend->wl_registry = wl_display_get_registry(backend->wl_display);
+    wl_registry = wl_display_get_registry(wl_display);
 
-    wl_registry_add_listener(backend->wl_registry, &wroc_wl_registry_listener, backend.get());
-    wl_display_roundtrip(backend->wl_display);
+    wl_registry_add_listener(wl_registry, &wroc_wl_registry_listener, this);
+    wl_display_roundtrip(wl_display);
 
-    backend->event_source = wrei_event_loop_add_fd(server->event_loop.get(), wl_display_get_fd(backend->wl_display), EPOLLIN,
-        [backend = backend.get()](int fd, u32 events) {
-            wroc_listen_backend_display_read(backend, fd, events);
+    event_source = wrei_event_loop_add_fd(server->event_loop.get(), wl_display_get_fd(wl_display), EPOLLIN,
+        [backend = weak(this)](int fd, u32 events) {
+            if (backend) {
+                wroc_listen_backend_display_read(backend.get(), fd, events);
+            }
         });
 
-    backend->create_output();
+    wl_display_flush(wl_display);
+}
 
-    wl_display_flush(backend->wl_display);
+void wroc_wayland_backend::start()
+{
+    create_output();
+
+    wl_display_flush(wl_display);
 }
 
 wroc_wayland_backend::~wroc_wayland_backend()

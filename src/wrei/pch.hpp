@@ -51,6 +51,7 @@
 
 #include <drm/drm_fourcc.h>
 #include <xf86drm.h>
+#include <xf86drmMode.h>
 
 #include <linux/dma-buf.h>
 

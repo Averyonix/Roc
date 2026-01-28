@@ -13,13 +13,11 @@ struct wroc_device : wrei_object
     int fd;
 };
 
+struct wroc_drm_output_state;
+
 struct wroc_drm_output : wroc_output
 {
-    ref<wren_swapchain> swapchain;
-
-    VkDisplayKHR vk_display;
-
-    std::jthread scanout_thread;
+    wroc_drm_output_state* state;
 
     ~wroc_drm_output();
 
@@ -53,6 +51,8 @@ struct wroc_input_device : wrei_object
 
 struct wroc_direct_backend : wroc_backend
 {
+    int drm_fd = -1;
+
     struct libseat* seat;
     const char* seat_name;
     struct udev* udev;
@@ -60,12 +60,21 @@ struct wroc_direct_backend : wroc_backend
 
     std::vector<ref<wroc_device>> devices;
 
-    std::vector<ref<wroc_drm_output>> outputs;
-
     std::vector<ref<wroc_input_device>> input_devices;
 
+    std::vector<ref<wroc_drm_output>> outputs;
+
+    ref<wrei_event_source> drm_event_source = {};
     ref<wrei_event_source> libseat_event_source = {};
     ref<wrei_event_source> libinput_event_source = {};
+
+    virtual void init() final override;
+    virtual void start() final override;
+
+    virtual int get_preferred_drm_device() final override
+    {
+        return drm_fd;
+    };
 
     virtual void create_output() final override;
     virtual void destroy_output(wroc_output*) final override;
@@ -73,11 +82,18 @@ struct wroc_direct_backend : wroc_backend
     ~wroc_direct_backend();
 };
 
-void wroc_direct_backend_init();
+inline
+wroc_direct_backend* wroc_get_direct_backend()
+{
+    return static_cast<wroc_direct_backend*>(server->backend.get());
+}
 
-void wroc_backend_init_libinput(wroc_direct_backend*);
-void wroc_backend_deinit_libinput(wroc_direct_backend*);
+wroc_device* wroc_open_restricted(wroc_direct_backend*, const char* name);
+
+void wroc_backend_init_session(wroc_direct_backend*);
+void wroc_backend_close_session(wroc_direct_backend*);
 
 void wroc_backend_handle_libinput_event(wroc_direct_backend*, libinput_event*);
 
 void wroc_backend_init_drm(wroc_direct_backend*);
+void wroc_backend_start_drm(wroc_direct_backend*);

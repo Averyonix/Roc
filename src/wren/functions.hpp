@@ -9,21 +9,11 @@
     DO(EnumerateDeviceExtensionProperties) \
     DO(CreateDevice) \
     DO(GetDeviceProcAddr) \
-    DO(GetPhysicalDeviceSurfaceFormatsKHR) \
-    DO(GetPhysicalDeviceSurfaceCapabilities2KHR) \
-    DO(DestroySurfaceKHR) \
     DO(DestroyDevice) \
     DO(DestroyInstance) \
     DO(GetPhysicalDeviceMemoryProperties) \
     DO(GetPhysicalDeviceFormatProperties2) \
     DO(GetPhysicalDeviceImageFormatProperties2) \
-    DO(GetPhysicalDeviceDisplayPropertiesKHR) \
-    DO(GetDisplayModePropertiesKHR) \
-    DO(GetPhysicalDeviceDisplayPlanePropertiesKHR) \
-    DO(GetDisplayPlaneSupportedDisplaysKHR) \
-    DO(GetDisplayPlaneCapabilitiesKHR) \
-    DO(CreateDisplayPlaneSurfaceKHR) \
-    DO(GetPhysicalDeviceSurfacePresentModesKHR) \
 
 #define WREN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \
@@ -38,12 +28,7 @@
     DO(ResetFences) \
     DO(QueueWaitIdle) \
     DO(DestroyImageView) \
-    DO(CreateSwapchainKHR) \
-    DO(DestroySwapchainKHR) \
-    DO(GetSwapchainImagesKHR) \
     DO(CreateImageView) \
-    DO(AcquireNextImageKHR) \
-    DO(ReleaseSwapchainImagesEXT) \
     DO(CmdPipelineBarrier2) \
     DO(BeginCommandBuffer) \
     DO(CmdBeginRendering) \
@@ -56,7 +41,6 @@
     DO(CmdEndRendering) \
     DO(EndCommandBuffer) \
     DO(QueueSubmit2) \
-    DO(QueuePresentKHR) \
     DO(GetSemaphoreCounterValue) \
     DO(WaitSemaphores) \
     DO(DestroyCommandPool) \
@@ -96,7 +80,6 @@
     DO(GetMemoryFdPropertiesKHR) \
     DO(GetImageMemoryRequirements2) \
     DO(BindImageMemory2) \
-    DO(RegisterDisplayEventEXT) \
     DO(ImportSemaphoreFdKHR) \
     DO(GetSemaphoreFdKHR) \
     DO(SignalSemaphore) \

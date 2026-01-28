@@ -43,7 +43,117 @@ void drop_capabilities()
     cap_free(caps);
 }
 
-ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_loop)
+static
+std::array required_device_extensions = {
+    VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+    VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+    VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
+    VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
+
+    VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+    VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+    VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
+    VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+    VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+    VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
+    VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
+};
+
+static
+bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat* drm_stat)
+{
+    {
+        VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+        ctx->vk.GetPhysicalDeviceProperties2(phdev, &props);
+        log_debug("Testing physical device: {}", props.properties.deviceName);
+    }
+
+    // Device extension support
+
+    std::vector<VkExtensionProperties> available_extensions;
+    {
+        u32 count = 0;
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, nullptr));
+        available_extensions.resize(count);
+        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, available_extensions.data()));
+    }
+
+    auto check_extension = [&](const char* name) -> bool {
+        for (auto& extension : available_extensions) {
+            if (strcmp(extension.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    for (auto& ext : required_device_extensions) {
+        if (!check_extension(ext)) {
+            log_warn("  device mission extension: {}", ext);
+            return false;
+        }
+    }
+
+    // DRM file descriptor
+
+    VkPhysicalDeviceDrmPropertiesEXT drm_props {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
+    };
+    ctx->vk.GetPhysicalDeviceProperties2(phdev, wrei_ptr_to(VkPhysicalDeviceProperties2 {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &drm_props,
+    }));
+
+    dev_t primary_dev_id = makedev(drm_props.primaryMajor, drm_props.primaryMinor);
+    dev_t render_dev_id = makedev(drm_props.renderMajor, drm_props.renderMinor);
+
+    if (drm_stat) {
+        if (drm_props.hasPrimary && primary_dev_id == drm_stat->st_rdev) {
+            log_debug("  matched primary device id");
+        } else if (drm_props.hasRender && render_dev_id == drm_stat->st_rdev) {
+            log_debug("  matched secondary device id");
+        } else {
+            log_warn("  device does not matched requested drm fd");
+            return false;
+        }
+    } else {
+        if (!drm_props.hasPrimary && !drm_props.hasRender) {
+            log_warn("  device has no primary or render node");
+            return false;
+        }
+    }
+
+    // Prefer to open the render node for normal render operations,
+    //   even the requested drm was opened from a primary node
+
+    ctx->dev_id = drm_props.hasRender ? render_dev_id : primary_dev_id;
+    log_debug("  device id: {} ({})", ctx->dev_id, drm_props.hasRender ? "render" : "primary");
+
+    // Open
+
+    drmDevice* device = nullptr;
+    wrei_unix_check_ne(drmGetDeviceFromDevId(ctx->dev_id, 0, &device));
+    defer { drmFreeDevice(&device); };
+    const char* name = nullptr;
+
+    if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
+        name = device->nodes[DRM_NODE_RENDER];
+    } else {
+        assert(device->available_nodes & (1 << DRM_NODE_PRIMARY));
+        name = device->nodes[DRM_NODE_PRIMARY];
+        log_warn("  device {} has no render node, falling back to primary node", name);
+    }
+
+    log_debug("  device path: {}", name);
+    ctx->drm_fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    log_debug("  drm fd: {}", ctx->drm_fd);
+
+    log_info("  device selected");
+
+    return true;
+}
+
+ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_loop, int drm_fd)
 {
     auto ctx = wrei_create<wren_context>();
     ctx->features = _features;
@@ -72,11 +182,6 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     std::vector<const char*> instance_extensions {
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-        VK_KHR_SURFACE_EXTENSION_NAME,
-        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-        VK_EXT_SURFACE_MAINTENANCE_1_EXTENSION_NAME,
-        VK_KHR_DISPLAY_EXTENSION_NAME,
-        VK_EXT_DISPLAY_SURFACE_COUNTER_EXTENSION_NAME,
     };
 
     wren_check(ctx->vk.CreateInstance(wrei_ptr_to(VkInstanceCreateInfo {
@@ -95,107 +200,27 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
 
     std::vector<VkPhysicalDevice> physical_devices;
     wren_vk_enumerate(physical_devices, ctx->vk.EnumeratePhysicalDevices, ctx->instance);
-    for (u32 i = 0; i < physical_devices.size(); ++i) {
-        VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-        ctx->vk.GetPhysicalDeviceProperties2(physical_devices[i], &props);
-
-        log_info("Device: {}", props.properties.deviceName);
-    }
-
-    if (physical_devices.empty()) {
-        log_error("No vulkan capable devices found");
-        return nullptr;
-    }
 
     {
-        ctx->physical_device = physical_devices[0];
-
-        VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-        ctx->vk.GetPhysicalDeviceProperties2(ctx->physical_device, &props);
-        log_info("  Selected: {}", props.properties.deviceName);
-    }
-
-    // Device extension support
-
-    std::vector device_extensions {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-        VK_EXT_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME,
-        VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
-        VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME,
-        VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
-        VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
-
-        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
-        VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-        VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-        VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
-        VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
-    };
-
-    {
-        // DRM file descriptor
-
-        VkPhysicalDeviceDrmPropertiesEXT drm_props {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
-        };
-        ctx->vk.GetPhysicalDeviceProperties2(ctx->physical_device, wrei_ptr_to(VkPhysicalDeviceProperties2 {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-            .pNext = &drm_props,
-        }));
-
-        if (drm_props.hasRender) {
-            ctx->dev_id = makedev(drm_props.renderMajor, drm_props.renderMinor);
-        } else if (drm_props.hasPrimary) {
-            ctx->dev_id = makedev(drm_props.primaryMajor, drm_props.primaryMinor);
-        } else {
-            log_error("Vulkan physical has no render or primary nodes");
-            return nullptr;
+        struct stat drm_stat;
+        if (drm_fd >= 0) {
+            if (wrei_unix_check_n1(fstat(drm_fd, &drm_stat)) < 0) {
+                log_error("Wren initialization failed - failed to fstat requested drm fd");
+                return nullptr;
+            }
+            log_debug("Matching against requested DRM {} (id: {})", drm_fd, drm_stat.st_rdev);
         }
-
-        log_info("Device ID: {}", ctx->dev_id);
-
-        // Get DRM fd
-
-        drmDevice* device = nullptr;
-        wrei_unix_check_ne(drmGetDeviceFromDevId(ctx->dev_id, 0, &device));
-        defer { drmFreeDevice(&device); };
-        const char* name = nullptr;
-        if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
-            name = device->nodes[DRM_NODE_RENDER];
-        } else {
-            assert(device->available_nodes & (1 << DRM_NODE_PRIMARY));
-            name = device->nodes[DRM_NODE_PRIMARY];
-            log_debug("DRM device {} has no render node, falling back to primary node", name);
-        }
-        log_info("Device path: {}", name);
-        ctx->drm_fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-    }
-
-    std::vector<VkExtensionProperties> available_extensions;
-    {
-        u32 count = 0;
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, nullptr));
-        available_extensions.resize(count);
-        wren_check(ctx->vk.EnumerateDeviceExtensionProperties(ctx->physical_device, nullptr, &count, available_extensions.data()));
-    }
-
-    auto check_extension = [&](const char* name) -> bool {
-        for (auto& extension : available_extensions) {
-            if (strcmp(extension.extensionName, name) == 0) {
-                return true;
+        for (auto& phdev : physical_devices) {
+            if (try_physical_device(ctx.get(), phdev, drm_fd >= 0 ? &drm_stat : nullptr)) {
+                ctx->physical_device = phdev;
+                break;
             }
         }
-        return false;
-    };
+    }
 
-    for (auto& ext : device_extensions) {
-        if (!check_extension(ext)) {
-            log_error("Extension not present: {}", ext);
-            wrei_debugkill();
-        }
+    if (!ctx->physical_device) {
+        log_error("No suitable vulkan device found");
+        return nullptr;
     }
 
     // Device creation
@@ -292,8 +317,8 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
                     .pQueuePriorities = wrei_ptr_to(1.f),
                 },
             }.data(),
-            .enabledExtensionCount = u32(device_extensions.size()),
-            .ppEnabledExtensionNames = device_extensions.data(),
+            .enabledExtensionCount = u32(required_device_extensions.size()),
+            .ppEnabledExtensionNames = required_device_extensions.data(),
         }), nullptr, &ctx->device), VK_ERROR_NOT_PERMITTED);
     };
 

@@ -36,7 +36,7 @@ void wroc_renderer_create(wroc_render_options render_options)
 
     wren_features features = {};
 
-    renderer->wren = wren_create(features, server->event_loop.get());
+    renderer->wren = wren_create(features, server->event_loop.get(), server->backend->get_preferred_drm_device());
 
     for (auto& format : wren_get_formats()) {
         register_format(renderer, &format);
@@ -440,27 +440,11 @@ void wroc_render_frame(wroc_output* output)
 
     // Prepare
 
-    // TODO: DELETEME once VK WSI has been removed completely.
     // TODO: QFOTs for DMABUF swapchains
-    auto uses_vk_wsi = server->backend_type == wroc_backend_type::direct;
-
-    if (uses_vk_wsi) {
-        wren_transition(wren, commands.get(), current,
-            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-            0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    }
 
     render(renderer, commands.get(), frame, current, output->layout_rect);
 
     // Submit
-
-    if (uses_vk_wsi) {
-        wren_transition(wren, commands.get(), current,
-            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
-            VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-    }
 
     auto render_done = wren_commands_submit(commands.get(), {});
 

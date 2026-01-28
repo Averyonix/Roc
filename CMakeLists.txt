@@ -175,7 +175,6 @@ target_sources(wren PUBLIC
     src/wren/pipeline.cpp
     src/wren/commands.cpp
     src/wren/semaphore.cpp
-    src/wren/swapchain.cpp
     )
 target_link_libraries(wren PUBLIC wrei shaders)
 
@@ -224,6 +223,7 @@ target_sources(wroc PUBLIC
     src/wroc/backend/direct/output.cpp
     src/wroc/backend/direct/input.cpp
     src/wroc/backend/direct/events.cpp
+    src/wroc/backend/direct/drm.cpp
     )
 target_link_libraries(wroc PUBLIC wren wrei)
 

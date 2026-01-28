@@ -204,7 +204,7 @@ struct wren_context : wrei_object
     ~wren_context();
 };
 
-ref<wren_context> wren_create(wren_features, wrei_event_loop*);
+ref<wren_context> wren_create(wren_features, wrei_event_loop*, int drm_fd);
 
 // -----------------------------------------------------------------------------
 
@@ -521,55 +521,3 @@ struct wren_image_handle
         , sampler(std::to_underlying(sampler->id))
     {}
 };
-
-
-// -----------------------------------------------------------------------------
-
-struct wren_image_swapchain : wren_image
-{
-    ~wren_image_swapchain();
-};
-
-struct wren_swapchain : wrei_object
-{
-    wren_context* ctx;
-
-    VkSurfaceKHR surface;
-    VkSwapchainKHR swapchain;
-
-    wren_format format;
-    VkColorSpaceKHR color_space;
-
-    vec2u32 extent;
-
-    struct {
-        vec2u32 extent;
-    } pending;
-
-    std::atomic<bool> can_acquire;
-    std::atomic<bool> destroy_requested;
-
-    bool acquire_ready = false;
-
-    VkFence acquire_fence;
-    std::jthread acquire_thread;
-    std::move_only_function<void()> acquire_callback;
-
-    static constexpr u32 invalid_index = ~0u;
-    u32 current_index = invalid_index;
-    std::vector<ref<wren_image_swapchain>> images;
-
-    struct resources
-    {
-        std::vector<ref<wrei_object>> objects;
-    };
-    std::vector<resources> resources;
-
-    ~wren_swapchain();
-};
-
-ref<wren_swapchain> wren_swapchain_create(wren_context*, VkSurfaceKHR, wren_format);
-
-void        wren_swapchain_resize(       wren_swapchain*, vec2u32 extent);
-wren_image* wren_swapchain_acquire_image(wren_swapchain*);
-void        wren_swapchain_present(      wren_swapchain*, std::span<wren_syncpoint const> waits);

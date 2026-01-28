@@ -141,7 +141,7 @@ void wroc_setenv(const char* name, const char* value, wroc_setenv_options option
         unsetenv(name);
     }
 
-    if (options >= wroc_setenv_options::system_wide && server->backend_type == wroc_backend_type::direct) {
+    if (options >= wroc_setenv_options::system_wide && server->backend->type == wroc_backend_type::direct) {
         wroc_spawn("systemctl", {"systemctl", "--user", "import-environment", name}, {});
     }
 }
