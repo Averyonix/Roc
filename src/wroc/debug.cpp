@@ -200,7 +200,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->noisy_dmabufs);
 
-    ImGui::Checkbox("Host Wait", &server->renderer->host_wait);
+    ImGui::Checkbox("Tearing", &server->renderer->tearing);
 
     ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Noisy Stutters", &server->renderer->noisy_stutters);
@@ -213,7 +213,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         }
         auto label = std::format("Max Frames in Flight ({})###max-frames-in-flight", current_fif);
         int max_fif = server->renderer->max_frames_in_flight;
-        if (ImGui::SliderInt(label.c_str(), &max_fif, 1, 3)) {
+        if (ImGui::SliderInt(label.c_str(), &max_fif, 1, 6)) {
             server->renderer->max_frames_in_flight = max_fif;
             try_dispatch_frames = true;
         }

@@ -27,7 +27,7 @@ struct wroc_drm_output : wroc_output
 
     ~wroc_drm_output();
 
-    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release) final override;
+    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) final override;
 };
 
 struct wroc_libinput_keyboard : wroc_keyboard

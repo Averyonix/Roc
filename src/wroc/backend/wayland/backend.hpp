@@ -9,11 +9,8 @@ struct wroc_wayland_backend;
 template<typename K, typename V, void(*Destroy)(V*)>
 struct wroc_wl_proxy_cache
 {
-    struct entry
-    {
-        weak<K> key;
-        V* value;
-    };
+    using Vptr = std::unique_ptr<V, decltype([](V* v) { Destroy(v); })>;
+    struct entry { weak<K> key; Vptr value; };
 
     std::vector<entry> entries;
 
@@ -21,11 +18,8 @@ struct wroc_wl_proxy_cache
     {
         V* found = nullptr;
         std::erase_if(entries, [&](const auto& entry) {
-            if (!entry.key) {
-                Destroy(entry.value);
-                return true;
-            }
-            if (entry.key.get() == needle) found = entry.value;
+            if (!entry.key) return true;
+            if (entry.key.get() == needle) found = entry.value.get();
             return false;
         });
         return found;
@@ -33,7 +27,7 @@ struct wroc_wl_proxy_cache
 
     V* insert(K* key, V* value)
     {
-        return entries.emplace_back(key, value).value;
+        return entries.emplace_back(key, Vptr(value)).value.get();
     }
 };
 
@@ -52,7 +46,7 @@ struct wroc_wayland_output : wroc_output
 
     ~wroc_wayland_output();
 
-    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release) final override;
+    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) final override;
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard

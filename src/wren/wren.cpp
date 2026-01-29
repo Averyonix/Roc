@@ -350,7 +350,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
             .vkGetDeviceProcAddr = ctx->vk.GetDeviceProcAddr,
         }),
         .instance = ctx->instance,
-        .vulkanApiVersion = VK_API_VERSION_1_3,
+        .vulkanApiVersion = VK_API_VERSION_1_4,
     }), &ctx->vma));
 
     // State initialization

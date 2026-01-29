@@ -122,6 +122,12 @@ struct wroc_wl_output : wrei_object
 void wroc_output_desc_update(wroc_wl_output*);
 void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
 
+enum class wroc_output_commit_flags : u32
+{
+    tearing = 1 << 0,
+};
+WREI_DECORATE_FLAG_ENUM(wroc_output_commit_flags);
+
 /*
  * A backend output that can be displayed to
  */
@@ -144,7 +150,7 @@ struct wroc_output : wrei_object
     };
     std::vector<release_slot> release_slots;
 
-    virtual void commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release) = 0;
+    virtual void commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);
@@ -1044,8 +1050,8 @@ struct wroc_renderer : wrei_object
 
     bool show_debug_cursor = false;
 
+    bool tearing = false;
     bool vsync = true;
-    bool host_wait = false;
     bool noisy_dmabufs = false;
     bool noisy_stutters = false;
 

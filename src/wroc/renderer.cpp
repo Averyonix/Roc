@@ -212,19 +212,9 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
                 }
             }
 
-            rect2f64 layout_rect;
-            auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface);
-            if (toplevel) {
-                layout_rect = wroc_toplevel_get_layout_rect(toplevel);
-
-                if (opacity == 1.0) {
-                    // Draw backstop under toplevels
-                    draw(nullptr, layout_rect, {}, vec4f32{0, 0, 0, 1});
-                }
-            }
-
             draw_surface(surface, pos, scale, opacity);
 
+            auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface);
             if (toplevel && !toplevel->fullscreen.output) {
 
                 // Draw focus border above toplevels
@@ -234,7 +224,7 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
                     : vec4f32{0.3, 0.3, 0.3, 1.0};
                 color *= opacity;
 
-                aabb2f64 r = layout_rect;
+                aabb2f64 r = wroc_toplevel_get_layout_rect(toplevel);
                 draw(nullptr, /* left   */ { r.min - width,     {r.min.x, r.max.y + width}, wrei_minmax}, {}, color);
                 draw(nullptr, /* right  */ {{r.max.x, r.min.y - width},  r.max + width,     wrei_minmax}, {}, color);
                 draw(nullptr, /* top    */ {{r.min.x, r.min.y - width}, {r.max.x, r.min.y}, wrei_minmax}, {}, color);
@@ -419,7 +409,9 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
     slot->image = image;
     slot->release_point++;
 
-    output->commit(image, acquire, {slot->semaphore.get(), slot->release_point});
+    wroc_output_commit_flags flags = {};
+    if (server->renderer->tearing) flags |= wroc_output_commit_flags::tearing;
+    output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
 }
 
 void wroc_render_frame(wroc_output* output)
@@ -490,10 +482,6 @@ void wroc_render_frame(wroc_output* output)
     // Present
 
     present(output, current.get(), render_done);
-
-    if (renderer->host_wait) {
-        wren_semaphore_wait_value(render_done.semaphore, render_done.value);
-    }
 
     // Send frame callbacks
 

@@ -122,7 +122,7 @@ WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.usage);
 wren_format wren_format_from_drm(wren_drm_format);
 wren_format wren_format_from_shm(wl_shm_format);
 
-using wren_format_modifier_set = ankerl::unordered_dense::set<wren_drm_modifier>;
+using wren_format_modifier_set = std::flat_set<wren_drm_modifier>;
 
 struct wren_format_set
 {
@@ -133,6 +133,12 @@ public:
     void add(wren_format format, wren_drm_modifier modifier)
     {
         entries[format].insert(modifier);
+    }
+
+    std::span<const wren_drm_modifier> list(wren_format format) const noexcept
+    {
+        auto iter = entries.find(format);
+        return iter == entries.end() ? std::span<const wren_drm_modifier>{} : iter->second;
     }
 
     usz   size() const { return entries.size(); }

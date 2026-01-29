@@ -293,7 +293,7 @@ wp_linux_drm_syncobj_timeline_v1* get_semaphore_proxy(wroc_wayland_backend* back
     return backend->syncobj_cache.insert(semaphore, syncobj);
 }
 
-void wroc_wayland_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release)
+void wroc_wayland_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags)
 {
     auto* backend = static_cast<wroc_wayland_backend*>(server->backend.get());
 

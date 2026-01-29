@@ -140,7 +140,6 @@ struct wroc_drm_output_state
     u32 primary_plane_id;
     u32 crtc_id;
     u32 connector_id;
-    u64 refresh_mHz;
 
     drm_property_map plane_prop;
     drm_property_map crtc_prop;
@@ -209,24 +208,24 @@ void add_output(wroc_direct_backend* backend, drm_resources* resources, drmModeC
     log_warn("  conn: {}", connector->connector_id);
     log_warn("  plane: {}", plane->plane_id);
     log_warn("  refresh: {} mHz", refresh);
+    log_warn("  extent: ({}, {})", crtc->width, crtc->height);
 
     auto output = wrei_create<wroc_drm_output>();
     output->state = new wroc_drm_output_state {
         .primary_plane_id = plane->plane_id,
         .crtc_id = crtc->crtc_id,
         .connector_id = connector->connector_id,
-        .refresh_mHz = refresh,
 
         .plane_prop = { backend, plane->plane_id, DRM_MODE_OBJECT_PLANE },
         .crtc_prop = { backend, crtc->crtc_id, DRM_MODE_OBJECT_CRTC },
     };
 
-    output->size = { 3840, 2160 };
+    output->size = { crtc->width, crtc->height };
 
     output->desc.modes = {
         {
             .size = output->size,
-            .refresh = 0,
+            .refresh = refresh / 1000.0,
         }
     };
 
@@ -388,7 +387,7 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
     return backend->buffer_cache.emplace_back(image, fb2_handle).fb2_handle;
 }
 
-void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release)
+void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags in_flags)
 {
     auto backend = wroc_get_direct_backend();
 
@@ -415,17 +414,28 @@ void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syn
     plane_set("CRTC_W", size.x);
     plane_set("CRTC_H", size.y);
 
+    auto flags = DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT;
+
     int out_fence = -1;
     defer { close(out_fence); };
     if (state->last_release_semaphore) {
-        drmModeAtomicAddProperty(req, state->crtc_id, state->crtc_prop.get_prop_id("OUT_FENCE_PTR"), u64(&out_fence));
+        // TODO: For some reason some drivers don't seem to support OUT_FENCE_PTR when using async page flips.
+        //       The quick and dirty solution is to use blocking commits, but we should instead fallback to
+        //       handling the release in the page flip callback in this case.
+        //       Additionally, it seems that we are required to send at least one non-async flip first, hence
+        //       handling this only when `last_release_semaphore` is set.
+        if (in_flags >= wroc_output_commit_flags::tearing) {
+            flags = (flags | DRM_MODE_PAGE_FLIP_ASYNC) & ~DRM_MODE_ATOMIC_NONBLOCK;
+        } else {
+            drmModeAtomicAddProperty(req, state->crtc_id, state->crtc_prop.get_prop_id("OUT_FENCE_PTR"), u64(&out_fence));
+        }
     }
 
-    auto flags = DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT;
+    errno = 0;
     auto res = wrei_unix_check_ne(drmModeAtomicCommit(backend->drm_fd, req, flags, this), EBUSY);
     if (res != 0) {
-        // TODO: On EBUSY, we should hold on to this buffer instead of throwing it away
-        if (res != -EBUSY) log_error("Atomic commit failed: ({}) {}", -res, strerror(-res));
+        // TODO: On EBUSY, we should hold on to this buffer and attempt resubmission instead of throwing it away
+        if (res != -EBUSY) log_error("Atomic commit failed: ({}) {} ({}) {}", -res, strerror(-res), errno, strerror(errno));
 
         wren_semaphore_import_syncfile(release.semaphore, in_fence, release.value);
         return;

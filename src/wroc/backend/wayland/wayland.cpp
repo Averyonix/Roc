@@ -126,12 +126,8 @@ wroc_wayland_backend::~wroc_wayland_backend()
     outputs.clear();
 
     zwp_linux_dmabuf_v1_destroy(zwp_linux_dmabuf_v1);
-    for (auto[_, syncobj] : syncobj_cache.entries) {
-        wp_linux_drm_syncobj_timeline_v1_destroy(syncobj);
-    }
-    for (auto[_, buffer] : buffer_cache.entries) {
-        wl_buffer_destroy(buffer);
-    }
+    syncobj_cache.entries.clear();
+    buffer_cache.entries.clear();
     wp_linux_drm_syncobj_manager_v1_destroy(wp_linux_drm_syncobj_manager_v1);
 
     zwp_relative_pointer_manager_v1_destroy(zwp_relative_pointer_manager_v1);
