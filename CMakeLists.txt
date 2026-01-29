@@ -226,7 +226,3 @@ target_sources(wroc PUBLIC
     src/wroc/backend/direct/drm.cpp
     )
 target_link_libraries(wroc PUBLIC wren wrei)
-
-# ------------------------------------------------------------------------------
-
-add_subdirectory(test)

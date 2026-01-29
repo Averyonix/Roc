@@ -7,7 +7,7 @@ An experiment in writing a simple opinionated independent Wayland compositor.
  - Independence from Wayland frameworks / libraries
     - With an exception for libwayland implementing the Wayland wire protocol
  - Modern Vulkan based Wayland compositor
-    - Consolidating on a single backend API simplifies GPU allocation, sharing and synchronization code paths
+    - Consolidating on a single backend API and modern kernel version simplifies GPU allocation, buffer sharing and synchronization code paths
  - Move common desktop functionality into the compositor process via a plugin/applet system
     - Removes overhead of cross-process buffer sharing and synchronization
     - E.g.
@@ -24,7 +24,7 @@ An experiment in writing a simple opinionated independent Wayland compositor.
 
 ## Non-Goals
 
- - Support a wide range of (older) hardware
+ - Support a wide range of (especially older) hardware
     - Currently focused on a modern RADV driver stack for simplicity
  - Support every Wayland protocol
     - Some Wayland protocol functionality can be replaced with plugin based functionality
