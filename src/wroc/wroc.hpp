@@ -127,7 +127,7 @@ void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
  */
 struct wroc_output : wrei_object
 {
-    vec2i32 size;
+    vec2u32 size;
     rect2f64 layout_rect;
 
     wroc_output_desc desc;
@@ -136,8 +136,15 @@ struct wroc_output : wrei_object
 
     u32 frames_in_flight = 0;
 
-    virtual wren_image* acquire() = 0;
-    virtual void present(wren_image* image, wren_syncpoint) = 0;
+    struct release_slot
+    {
+        ref<wren_image> image;
+        ref<wren_semaphore> semaphore;
+        u64 release_point;
+    };
+    std::vector<release_slot> release_slots;
+
+    virtual void commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);

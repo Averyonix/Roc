@@ -6,35 +6,39 @@
 
 struct wroc_wayland_backend;
 
-enum class wroc_wayland_buffer_state : u32
+template<typename K, typename V, void(*Destroy)(V*)>
+struct wroc_wl_proxy_cache
 {
-    released,
-    acquired,
-};
+    struct entry
+    {
+        weak<K> key;
+        V* value;
+    };
 
-struct wroc_wayland_buffer : wrei_object
-{
-    struct wl_buffer* wl_buffer;
-    ref<wren_image> image;
+    std::vector<entry> entries;
 
-    wroc_wayland_buffer_state state;
+    V* find(K* needle)
+    {
+        V* found = nullptr;
+        std::erase_if(entries, [&](const auto& entry) {
+            if (!entry.key) {
+                Destroy(entry.value);
+                return true;
+            }
+            if (entry.key.get() == needle) found = entry.value;
+            return false;
+        });
+        return found;
+    }
 
-    ~wroc_wayland_buffer();
-};
-
-struct wroc_wayland_buffer_slot
-{
-    ref<wren_semaphore> timeline;
-    struct wp_linux_drm_syncobj_timeline_v1* timeline_proxy;
-    u64 release_point;
-
-    ref<wroc_wayland_buffer> buffer;
+    V* insert(K* key, V* value)
+    {
+        return entries.emplace_back(key, value).value;
+    }
 };
 
 struct wroc_wayland_output : wroc_output
 {
-    std::vector<ref<wroc_wayland_buffer>> buffers;
-    std::vector<wroc_wayland_buffer_slot> present_slots;
     wp_linux_drm_syncobj_surface_v1* syncobj_surface;
 
     struct wl_surface* wl_surface = {};
@@ -48,8 +52,7 @@ struct wroc_wayland_output : wroc_output
 
     ~wroc_wayland_output();
 
-    virtual wren_image* acquire() final override;
-    virtual void present(wren_image*, wren_syncpoint) final override;
+    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release) final override;
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard
@@ -70,12 +73,6 @@ struct wroc_wayland_pointer : wroc_pointer
     ~wroc_wayland_pointer();
 };
 
-struct wroc_wayland_semaphore_proxy
-{
-    weak<wren_semaphore> semaphore;
-    struct wp_linux_drm_syncobj_timeline_v1* proxy;
-};
-
 struct wroc_wayland_backend : wroc_backend
 {
     struct wl_display* wl_display = {};
@@ -88,7 +85,8 @@ struct wroc_wayland_backend : wroc_backend
 
     struct zwp_linux_dmabuf_v1* zwp_linux_dmabuf_v1 = {};
     struct wp_linux_drm_syncobj_manager_v1* wp_linux_drm_syncobj_manager_v1 = {};
-    std::vector<wroc_wayland_semaphore_proxy> syncobj_cache;
+    wroc_wl_proxy_cache<wren_semaphore, struct wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
+    wroc_wl_proxy_cache<wren_image, struct wl_buffer, wl_buffer_destroy> buffer_cache;
 
     struct wl_seat* wl_seat = {};
 

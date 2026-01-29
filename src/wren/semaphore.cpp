@@ -34,7 +34,7 @@ ref<wren_semaphore> create_semaphore_base(wren_context* ctx, u64 initial_value)
 
 ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
 {
-    // Here we are creating a timeline sempahore, and exporting a persistent syncboj
+    // Here we are creating a timeline sempahore, and exporting a persistent syncobj
     // handle to it that we can use for importing/exporting syncobj files for interop.
     // This trick only works when the driver uses syncobjs as the opaque fd type.
     // This seems to work fine on AMD, but definitely won't work for all vendors.
@@ -87,7 +87,12 @@ void wren_semaphore_import_syncfile(wren_semaphore* semaphore, int sync_fd, u64 
 {
     auto* ctx = semaphore->ctx;
 
-    // We can't import from a syncfile directly to a syncboj point, so we import to a non-timeline syncobj first
+    if (sync_fd == -1) {
+        wrei_unix_check_n1(drmSyncobjTimelineSignal(ctx->drm_fd, &semaphore->syncobj, &target_point, 1));
+        return;
+    }
+
+    // We can't import from a syncfile directly to a syncobj point, so we import to a non-timeline syncobj first
     // and then transfer to our target point from that.
 
     u32 syncobj = {};
@@ -101,7 +106,7 @@ int wren_semaphore_export_syncfile(wren_semaphore* semaphore, u64 source_point)
 {
     auto* ctx = semaphore->ctx;
 
-    // We can't export directly from a timeline syncboj to a syncfile, so we transfer to a non-timeline syncboj first
+    // We can't export directly from a timeline syncobj to a syncfile, so we transfer to a non-timeline syncobj first
     // and then export the syncfile from that.
 
     u32 syncobj = {};

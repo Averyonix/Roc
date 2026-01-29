@@ -15,14 +15,19 @@ struct wroc_device : wrei_object
 
 struct wroc_drm_output_state;
 
+struct wroc_drm_buffer
+{
+    weak<wren_image> image;
+    u32 fb2_handle;
+};
+
 struct wroc_drm_output : wroc_output
 {
     wroc_drm_output_state* state;
 
     ~wroc_drm_output();
 
-    virtual wren_image* acquire() final override;
-    virtual void present(wren_image*, wren_syncpoint) final override;
+    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release) final override;
 };
 
 struct wroc_libinput_keyboard : wroc_keyboard
@@ -63,6 +68,8 @@ struct wroc_direct_backend : wroc_backend
     std::vector<ref<wroc_input_device>> input_devices;
 
     std::vector<ref<wroc_drm_output>> outputs;
+
+    std::vector<wroc_drm_buffer> buffer_cache;
 
     ref<wrei_event_source> drm_event_source = {};
     ref<wrei_event_source> libseat_event_source = {};

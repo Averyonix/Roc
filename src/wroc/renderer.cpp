@@ -373,7 +373,7 @@ void wroc_screenshot(rect2f64 rect)
     wren_commands_protect_object(render_commands.get(), guard.get());
     auto render_done = wren_commands_submit(render_commands.get(), {});
 
-    // Tranfser
+    // Transfer
 
     auto transfer_queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
     auto transfer_commands = wren_commands_begin(transfer_queue);
@@ -382,13 +382,52 @@ void wroc_screenshot(rect2f64 rect)
     wren_commands_submit(transfer_commands.get(), {render_done});
 }
 
+static
+ref<wren_image> acquire(wroc_output* output)
+{
+    for (auto& slot : output->release_slots) {
+        if (slot.image && wren_semaphore_get_value(slot.semaphore.get()) >= slot.release_point) {
+            auto image = std::exchange(slot.image, nullptr);
+            if (image->extent == output->size) return image;
+            else log_warn("Discarding out-of-date swapchain image {}", wrei_to_string(image->extent));
+        }
+    }
+
+    log_warn("Creating new swapchain image {}", wrei_to_string(output->size));
+
+    auto* wren = server->renderer->wren.get();
+
+    auto format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
+    auto usage = wren_image_usage::render;
+    auto* format_props = wren_get_format_props(wren, format, usage);
+    auto image = wren_image_create_dmabuf(wren, output->size, format, usage, format_props->mods);
+
+    return image;
+}
+
+static
+void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
+{
+    auto slot = std::ranges::find_if(output->release_slots, [](const auto& s) { return !s.image; });
+
+    if (slot == output->release_slots.end()) {
+        slot = output->release_slots.insert(output->release_slots.end(), wroc_output::release_slot {
+            .semaphore = wren_semaphore_create(server->renderer->wren.get()),
+        });
+    }
+
+    slot->image = image;
+    slot->release_point++;
+
+    output->commit(image, acquire, {slot->semaphore.get(), slot->release_point});
+}
+
 void wroc_render_frame(wroc_output* output)
 {
     if (!output->frame_requested && server->renderer->vsync) return;
     if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return;
 
-    auto current = output->acquire();
-    if (!current) return;
+    auto current = acquire(output);
 
     output->frame_requested = false;
 
@@ -442,7 +481,7 @@ void wroc_render_frame(wroc_output* output)
 
     // TODO: QFOTs for DMABUF swapchains
 
-    render(renderer, commands.get(), frame, current, output->layout_rect);
+    render(renderer, commands.get(), frame, current.get(), output->layout_rect);
 
     // Submit
 
@@ -450,7 +489,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Present
 
-    output->present(current, render_done);
+    present(output, current.get(), render_done);
 
     if (renderer->host_wait) {
         wren_semaphore_wait_value(render_done.semaphore, render_done.value);

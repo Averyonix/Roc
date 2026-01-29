@@ -135,21 +135,6 @@ struct drm_property_map
 
 // -----------------------------------------------------------------------------
 
-struct wroc_drm_buffer
-{
-    ref<wren_image> image;
-    u32 fb2_id;
-    bool free = true;
-};
-
-struct page_flip_event
-{
-    wroc_direct_backend* backend;
-    wroc_drm_output* output;
-    wren_image* image;
-    int in_fence;
-};
-
 struct wroc_drm_output_state
 {
     u32 primary_plane_id;
@@ -160,20 +145,14 @@ struct wroc_drm_output_state
     drm_property_map plane_prop;
     drm_property_map crtc_prop;
 
-    std::vector<wroc_drm_buffer> drm_buffers;
-    wren_image* frontbuffer = nullptr;
-
-    std::deque<page_flip_event> page_flips;
+    ref<wren_semaphore> last_release_semaphore = {};
+    u64 last_release_point;
 };
 
 // -----------------------------------------------------------------------------
 
 wroc_drm_output::~wroc_drm_output()
 {
-    for (auto& buffer : state->drm_buffers) {
-        drmCloseBufferHandle(wroc_get_direct_backend()->drm_fd, buffer.fb2_id);
-    }
-
     delete state;
 }
 
@@ -348,54 +327,33 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 static
 void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data)
 {
-    // u64 ms = tv_sec * 1000 + tv_usec / 1000;
-    // log_trace("DRM [{}:{}] page flip, crtc = {}", sequence, ms, crtc_id);
-
-    auto* event = static_cast<page_flip_event*>(data);
-
-    if (event->output->state->frontbuffer) {
-        for (auto[i, buffer] : event->output->state->drm_buffers | std::views::enumerate) {
-            if (buffer.image.get() == event->output->state->frontbuffer) {
-                buffer.free = true;
-                break;
-            }
-        }
-    }
-    event->output->state->frontbuffer = event->image;
-
-    close(event->in_fence);
+    auto* output = static_cast<wroc_output*>(data);
 
     wroc_post_event(wroc_output_event {
         .type = wroc_event_type::output_frame_requested,
-        .output = event->output,
+        .output = output,
     });
-
-    // Page flips should always occur in FIFO order, so the page flip for this
-    // event should always be at the front of the queue.
-    wrei_assert(&event->output->state->page_flips.front() == event);
-    event->output->state->page_flips.pop_front();
 }
 
-wren_image* wroc_drm_output::acquire()
+static
+u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
 {
-    for (auto& buffer : state->drm_buffers) {
-        if (buffer.free) {
-            buffer.free = false;
-            return buffer.image.get();
+    std::optional<u32> found = std::nullopt;
+    std::erase_if(backend->buffer_cache, [&](const auto& entry) {
+        if (!entry.image) {
+            drmCloseBufferHandle(backend->drm_fd, entry.fb2_handle);
+            return true;
         }
-    }
+        if (entry.image.get() == image) found = entry.fb2_handle;
+        return false;
+    });
+    if (found) return *found;
 
-    log_error("ALLOCATING NEW FRAME BUFFER IMAGE");
+    log_warn("Importing new FB2 buffer");
 
-    auto* wren = server->renderer->wren.get();
-    auto drm_fd = wroc_get_direct_backend()->drm_fd;
-
-    auto format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
-    auto usage = wren_image_usage::render;
-    auto* format_props = wren_get_format_props(wren, format, usage);
-    auto image = wren_image_create_dmabuf(wren, size, format, usage, format_props->mods);
-
-    auto dma_params = wren_image_export_dmabuf(image.get());
+    auto dma_params = wren_image_export_dmabuf(image);
+    auto size = image->extent;
+    auto format = image->format;
 
     // Acquire GEM handles and prepare for import
 
@@ -404,7 +362,7 @@ wren_image* wroc_drm_output::acquire()
     u32 offsets[4] = {};
     u64 modifiers[4] = {};
     for (u32 i = 0; i < dma_params.planes.count; ++i) {
-        wrei_unix_check_n1(drmPrimeFDToHandle(drm_fd, dma_params.planes[i].fd.get(), &handles[i]));
+        wrei_unix_check_n1(drmPrimeFDToHandle(backend->drm_fd, dma_params.planes[i].fd.get(), &handles[i]));
         log_warn("  plane[{}] prime fd {} -> GEM handle {}", i, dma_params.planes[i].fd.get(), handles[i]);
         pitches[i] = dma_params.planes[i].stride;
         offsets[i] = dma_params.planes[i].offset;
@@ -413,50 +371,40 @@ wren_image* wroc_drm_output::acquire()
 
     // Import
 
-    u32 buf_id = 0;
-    wrei_unix_check_n1(drmModeAddFB2WithModifiers(drm_fd,
+    u32 fb2_handle = 0;
+    wrei_unix_check_n1(drmModeAddFB2WithModifiers(backend->drm_fd,
         size.x, size.y,
         format->drm, handles, pitches, offsets, modifiers,
-        &buf_id, DRM_MODE_FB_MODIFIERS));
+        &fb2_handle, DRM_MODE_FB_MODIFIERS));
 
     // Close GEM handles
 
     std::flat_set<u32> unique_handles;
     unique_handles.insert_range(handles);
-    for (auto handle : unique_handles) drmCloseBufferHandle(drm_fd, handle);
+    for (auto handle : unique_handles) drmCloseBufferHandle(backend->drm_fd, handle);
 
-    log_warn("  FB2 id: {}", buf_id);
+    log_warn("  FB2 id: {}", fb2_handle);
 
-    auto& buffer = state->drm_buffers.emplace_back();
-    buffer.image = image;
-    buffer.fb2_id = buf_id;
-    buffer.free = false;
-
-    return buffer.image.get();
+    return backend->buffer_cache.emplace_back(image, fb2_handle).fb2_handle;
 }
 
-void wroc_drm_output::present(wren_image* image, wren_syncpoint wait)
+void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release)
 {
     auto backend = wroc_get_direct_backend();
 
-    wroc_drm_buffer* buffer = nullptr;
-    for (auto& b : state->drm_buffers) {
-        if (b.image.get() == image) {
-            buffer = &b;
-            break;
-        }
-    }
-    wrei_assert(buffer);
+    auto fb2_handle = get_image_fb2(backend, image);
 
     auto req = drmModeAtomicAlloc();
+    defer { drmModeAtomicFree(req); };
 
     auto plane_set = [&](std::string_view name, u64 value) {
         drmModeAtomicAddProperty(req, state->primary_plane_id, state->plane_prop.get_prop_id(name), value);
     };
 
-    auto in_fence = wren_semaphore_export_syncfile(wait.semaphore, wait.value);
+    auto in_fence = wren_semaphore_export_syncfile(acquire.semaphore, acquire.value);
+    defer { close(in_fence); };
 
-    plane_set("FB_ID", buffer->fb2_id);
+    plane_set("FB_ID", fb2_handle);
     plane_set("IN_FENCE_FD", in_fence);
     plane_set("SRC_X", 0);
     plane_set("SRC_Y", 0);
@@ -467,13 +415,26 @@ void wroc_drm_output::present(wren_image* image, wren_syncpoint wait)
     plane_set("CRTC_W", size.x);
     plane_set("CRTC_H", size.y);
 
-    auto* page_flip = &state->page_flips.emplace_back(page_flip_event {
-        .backend = backend,
-        .output = this,
-        .image = image,
-        .in_fence = in_fence,
-    });
-    wrei_unix_check_n1(drmModeAtomicCommit(backend->drm_fd, req, DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, page_flip));
+    int out_fence = -1;
+    defer { close(out_fence); };
+    if (state->last_release_semaphore) {
+        drmModeAtomicAddProperty(req, state->crtc_id, state->crtc_prop.get_prop_id("OUT_FENCE_PTR"), u64(&out_fence));
+    }
 
-    drmModeAtomicFree(req);
+    auto flags = DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT;
+    auto res = wrei_unix_check_ne(drmModeAtomicCommit(backend->drm_fd, req, flags, this), EBUSY);
+    if (res != 0) {
+        // TODO: On EBUSY, we should hold on to this buffer instead of throwing it away
+        if (res != -EBUSY) log_error("Atomic commit failed: ({}) {}", -res, strerror(-res));
+
+        wren_semaphore_import_syncfile(release.semaphore, in_fence, release.value);
+        return;
+    }
+
+    if (state->last_release_semaphore) {
+        wren_semaphore_import_syncfile(state->last_release_semaphore.get(), out_fence, state->last_release_point);
+    }
+
+    state->last_release_semaphore = release.semaphore;
+    state->last_release_point = release.value;
 }
