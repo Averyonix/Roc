@@ -10,14 +10,14 @@ struct drm_resources
 
     drm_resources(int drm_fd)
     {
-        auto mode_res = wrei_unix_check_null(drmModeGetResources(drm_fd));
+        auto mode_res = unix_check(drmModeGetResources(drm_fd)).value;
         if (!mode_res) {
             log_warn("Failed to get mode resources");
             return;
         }
         defer { drmModeFreeResources(mode_res); };
 
-        auto plane_res = wrei_unix_check_null(drmModeGetPlaneResources(drm_fd));
+        auto plane_res = unix_check(drmModeGetPlaneResources(drm_fd)).value;
         if (!plane_res) {
             log_warn("Failed to get plane resources");
             return;
@@ -298,22 +298,22 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 
     drm_magic_t magic;
     log_debug("Getting magic");
-    wrei_unix_check_n1(drmGetMagic(drm_fd, &magic));
+    unix_check(drmGetMagic(drm_fd, &magic));
     log_debug("Authenticating magic");
-    wrei_unix_check_n1(drmAuthMagic(drm_fd, magic));
+    unix_check(drmAuthMagic(drm_fd, magic));
 
     log_debug("Setting universal planes capability");
-    wrei_unix_check_n1(drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1));
+    unix_check(drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1));
     log_debug("Setting atomic capability");
-    wrei_unix_check_n1(drmSetClientCap(drm_fd, DRM_CLIENT_CAP_ATOMIC, 1));
+    unix_check(drmSetClientCap(drm_fd, DRM_CLIENT_CAP_ATOMIC, 1));
 
     u64 cap = 0;
 
     log_debug("Checking for framebuffer modifier support");
-    wrei_assert(wrei_unix_check_n1(drmGetCap(drm_fd, DRM_CAP_ADDFB2_MODIFIERS, &cap)) == 0 && cap);
+    wrei_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_ADDFB2_MODIFIERS, &cap)).ok() && cap);
 
     log_debug("Checking for monotonic timestamp support");
-    wrei_assert(wrei_unix_check_n1(drmGetCap(drm_fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap)) == 0 && cap);
+    wrei_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap)).ok() && cap);
 
     drm_resources res(drm_fd);
     for (auto* connector : res.connectors) {
@@ -361,7 +361,7 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
     u32 offsets[4] = {};
     u64 modifiers[4] = {};
     for (u32 i = 0; i < dma_params.planes.count; ++i) {
-        wrei_unix_check_n1(drmPrimeFDToHandle(backend->drm_fd, dma_params.planes[i].fd.get(), &handles[i]));
+        unix_check(drmPrimeFDToHandle(backend->drm_fd, dma_params.planes[i].fd.get(), &handles[i]));
         log_warn("  plane[{}] prime fd {} -> GEM handle {}", i, dma_params.planes[i].fd.get(), handles[i]);
         pitches[i] = dma_params.planes[i].stride;
         offsets[i] = dma_params.planes[i].offset;
@@ -371,7 +371,7 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
     // Import
 
     u32 fb2_handle = 0;
-    wrei_unix_check_n1(drmModeAddFB2WithModifiers(backend->drm_fd,
+    unix_check(drmModeAddFB2WithModifiers(backend->drm_fd,
         size.x, size.y,
         format->drm, handles, pitches, offsets, modifiers,
         &fb2_handle, DRM_MODE_FB_MODIFIERS));
@@ -431,11 +431,10 @@ void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syn
         }
     }
 
-    errno = 0;
-    auto res = wrei_unix_check_ne(drmModeAtomicCommit(backend->drm_fd, req, flags, this), EBUSY);
-    if (res != 0) {
+    auto res = unix_check(drmModeAtomicCommit(backend->drm_fd, req, flags, this), EBUSY);
+    if (res.err()) {
         // TODO: On EBUSY, we should hold on to this buffer and attempt resubmission instead of throwing it away
-        if (res != -EBUSY) log_error("Atomic commit failed: ({}) {} ({}) {}", -res, strerror(-res), errno, strerror(errno));
+        if (res.error != EBUSY) log_error("Atomic commit failed: ({}) {}", res.error, strerror(res.error));
 
         wren_semaphore_import_syncfile(release.semaphore, in_fence, release.value);
         return;

@@ -147,7 +147,7 @@ void wroc_run(int argc, char* argv[])
     auto display_event_source = wrei_event_loop_add_fd(event_loop.get(), wl_event_loop_get_fd(wl_event_loop), EPOLLIN,
         [&](int fd, u32 events) {
             server->client_flushes_pending++;
-            wrei_unix_check_n1(wl_event_loop_dispatch(wl_event_loop, 0));
+            unix_check(wl_event_loop_dispatch(wl_event_loop, 0));
             wl_display_flush_clients(server->display);
             server->client_flushes_pending--;
         });

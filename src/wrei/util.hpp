@@ -303,47 +303,47 @@ void wrei_log_unix_error(std::string_view message, int err = 0)
     else                 { log_error("{}: ({}) {}", message, err, strerror(err)); }
 }
 
-enum class wrei_unix_error_behavior : u32
+template<typename T>
+struct wrei_unix_result
 {
-    ret_null,
-    ret_neg1,
-    ret_neg_errno,
-    check_errno,
+    T   value;
+    int error;
+
+    bool ok()  const noexcept { return !error; }
+    bool err() const noexcept { return  error; }
 };
 
-template<wrei_unix_error_behavior B>
-struct wrei_unix_check_helper
+template<typename T>
+    requires std::is_integral_v<T> || std::is_pointer_v<T>
+wrei_unix_result<T> wrei_unix_check(T value, auto... quiet)
 {
-    template<typename T>
-    static constexpr
-    T check(T res, auto... allowed)
-    {
-        bool error_occured = false;
-        int error_code = 0;
-
-        if constexpr (B == wrei_unix_error_behavior::ret_null)      if (!res)      { error_occured = true; error_code = errno; }
-        if constexpr (B == wrei_unix_error_behavior::ret_neg1)      if (res == -1) { error_occured = true; error_code = errno; }
-        if constexpr (B == wrei_unix_error_behavior::ret_neg_errno) if (res < 0)   { error_occured = true; error_code = -res;  }
-        if constexpr (B == wrei_unix_error_behavior::check_errno)   if (errno)     { error_occured = true; error_code = errno; }
-
-        if (!error_occured || (... || (error_code == allowed))) return res;
-
-        wrei_log_unix_error(std::format("unix_check<{}>", wrei_enum_to_string(B)), error_code);
-
-        return res;
+    static constexpr int fallback_error_code = INT_MAX;
+    int error_code = 0;
+    if constexpr (std::is_signed_v<T>) {
+        if (value < 0) {
+            if (value == -1 && errno) {
+                // TODO: This has a failure case where `errno` is set spuriously when
+                //       EPERM was the intended error code
+                error_code = errno;
+            } else {
+                error_code = -int(value);
+            }
+        }
+    } else if (!value) {
+        error_code = errno ?: fallback_error_code;
     }
-};
 
-auto wrei_unix_check_null(auto t, auto... allowed) {            return wrei_unix_check_helper<wrei_unix_error_behavior::ret_null     >::check(t, allowed...); }
-auto wrei_unix_check_n1(  auto t, auto... allowed) {            return wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg1     >::check(t, allowed...); }
-auto wrei_unix_check_ne(  auto t, auto... allowed) {            return wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(t, allowed...); }
-auto wrei_unix_check_ce(  auto t, auto... allowed) { errno = 0; return wrei_unix_check_helper<wrei_unix_error_behavior::ret_neg_errno>::check(t, allowed...); }
-
-#define WREI_UNIX_CHECK_CE(Expr, ...) \
-    [&] { \
-        errno = 0; \
-        return wrei_unix_check_ce((Expr) __VA_OPT__(,) __VA_ARGS__); \
+    if (!error_code || (... || (error_code == quiet))) [[likely]] {
+        return { value, error_code };
     }
+
+    wrei_log_unix_error("wrei_unix_check", error_code);
+
+    return { value, error_code };
+}
+
+#define unix_check(Expr, ...) \
+    wrei_unix_check((errno = 0, (Expr)) __VA_OPT__(,) __VA_ARGS__)
 
 // -----------------------------------------------------------------------------
 
@@ -351,13 +351,13 @@ inline
 u64 wrei_eventfd_read(int fd)
 {
     u64 count = 0;
-    return (wrei_unix_check_n1(read(fd, &count, sizeof(count)), EAGAIN, EINTR) == sizeof(count)) ? count : 0;
+    return (unix_check(read(fd, &count, sizeof(count)), EAGAIN, EINTR).value == sizeof(count)) ? count : 0;
 }
 
 inline
 void wrei_eventfd_signal(int fd, u64 inc)
 {
-    wrei_unix_check_n1(write(fd, &inc, sizeof(inc)));
+    unix_check(write(fd, &inc, sizeof(inc)));
 }
 
 // -----------------------------------------------------------------------------

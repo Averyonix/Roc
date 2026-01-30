@@ -49,9 +49,9 @@ void wrei_event_loop_run(wrei_event_loop* loop)
             loop->stats.poll_waits++;
             timeout = -1;
         }
-        i32 count = wrei_unix_check_n1(epoll_wait(loop->epoll_fd, events.data(), events.size(), timeout), EAGAIN, EINTR);
-        if (count < 0) {
-            if (errno == EAGAIN || errno == EINTR) {
+        auto[count, error] = unix_check(epoll_wait(loop->epoll_fd, events.data(), events.size(), timeout), EAGAIN, EINTR);
+        if (error) {
+            if (error == EAGAIN || error == EINTR) {
                 if (!loop->tasks_available) continue;
             } else {
                 // At this point, we can't assume that we'll receieve any future FD events.
@@ -104,7 +104,7 @@ void wrei_event_loop_add(wrei_event_loop* loop, u32 events, wrei_event_source* s
     assert(!source->event_loop);
     source->event_loop = loop;
 
-    wrei_unix_check_n1(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, source->fd, wrei_ptr_to(epoll_event {
+    unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, source->fd, wrei_ptr_to(epoll_event {
         .events = events,
         .data {
             .ptr = source,
@@ -115,6 +115,6 @@ void wrei_event_loop_add(wrei_event_loop* loop, u32 events, wrei_event_source* s
 wrei_event_source::~wrei_event_source()
 {
     if (event_loop && fd != -1) {
-        wrei_unix_check_n1(epoll_ctl(event_loop->epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+        unix_check(epoll_ctl(event_loop->epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
     }
 }

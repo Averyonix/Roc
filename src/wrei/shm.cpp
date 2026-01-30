@@ -15,9 +15,9 @@ int wrei_excl_shm_open(std::string& name)
 {
     for (int i = 0; i < 100; ++i) {
         name = wrei_random_shm_file_name();
-        int fd = wrei_unix_check_n1(shm_open(name.c_str(), O_RDWR | O_CREAT | O_EXCL, 0600), EEXIST);
+        auto[fd, error] = unix_check(shm_open(name.c_str(), O_RDWR | O_CREAT | O_EXCL, 0600), EEXIST);
         if (fd >= 0) return fd;
-        if (errno != EEXIST) break;
+        if (error != EEXIST) break;
     }
 
     return -1;
@@ -31,7 +31,7 @@ bool wrei_allocate_shm_file_pair(usz size, int* p_rw_fd, int* p_ro_fd)
         return false;
     }
 
-    int ro_fd = wrei_unix_check_n1(shm_open(name.c_str(), O_RDONLY, 0));
+    int ro_fd = unix_check(shm_open(name.c_str(), O_RDONLY, 0)).value;
     if (ro_fd < 0) {
         shm_unlink(name.c_str());
         close(rw_fd);

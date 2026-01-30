@@ -197,10 +197,10 @@ bool wroc_dma_buffer::is_ready()
         }
 
         for (auto& plane : std::span(params->planes).subspan(0, params->disjoint ? std::dynamic_extent : 1)) {
-            if (wrei_unix_check_n1(poll(wrei_ptr_to(pollfd {
+            if (unix_check(poll(wrei_ptr_to(pollfd {
                 .fd = plane.fd.get(),
                 .events = POLLIN,
-            }), 1, 0)) < 1) {
+            }), 1, 0)).value < 1) {
                 if (server->renderer->noisy_dmabufs) {
                     log_warn("Waiting for implicit sync - fd {} not ready yet", plane.fd.get());
                 }

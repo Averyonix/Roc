@@ -132,7 +132,7 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat*
     // Open
 
     drmDevice* device = nullptr;
-    wrei_unix_check_ne(drmGetDeviceFromDevId(ctx->dev_id, 0, &device));
+    unix_check(drmGetDeviceFromDevId(ctx->dev_id, 0, &device));
     defer { drmFreeDevice(&device); };
     const char* name = nullptr;
 
@@ -204,7 +204,7 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     {
         struct stat drm_stat;
         if (drm_fd >= 0) {
-            if (wrei_unix_check_n1(fstat(drm_fd, &drm_stat)) < 0) {
+            if (unix_check(fstat(drm_fd, &drm_stat)).err()) {
                 log_error("Wren initialization failed - failed to fstat requested drm fd");
                 return nullptr;
             }

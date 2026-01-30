@@ -101,7 +101,7 @@ static constexpr libinput_interface wroc_libinput_interface {
 static
 int handle_libinput_readable(wroc_direct_backend* backend, int fd, u32 mask)
 {
-    wrei_unix_check_ne(libinput_dispatch(backend->libinput));
+    unix_check(libinput_dispatch(backend->libinput));
 
     libinput_event* event;
     while ((event = libinput_get_event(backend->libinput))) {
@@ -174,8 +174,7 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
 	libinput_log_set_handler(backend->libinput, log_libinput);
 	libinput_log_set_priority(backend->libinput, LIBINPUT_LOG_PRIORITY_DEBUG);
 
-    auto res = wrei_unix_check_n1(libinput_udev_assign_seat(backend->libinput, backend->seat_name));
-    if (res < 0) {
+    if (unix_check(libinput_udev_assign_seat(backend->libinput, backend->seat_name)).err()) {
         log_error("Libinput failed to acquire seat");
         wrei_debugkill();
     }
