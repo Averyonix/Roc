@@ -1,17 +1,75 @@
 #include "event.hpp"
 
+void wrei_event_loop_timer_expiry_impl(wrei_event_loop* loop, std::chrono::steady_clock::time_point exp)
+{
+    if (loop->current_wakeup && exp > *loop->current_wakeup) {
+        // log_error("Earlier timer wakeup already set");
+        // log_error("  current expiration: {}", wrei_duration_to_string(*loop->current_wakeup - std::chrono::steady_clock::now()));
+        // log_error("  new expiration: {}", wrei_duration_to_string(exp - std::chrono::steady_clock::now()));
+        return;
+    }
+
+    loop->current_wakeup = exp;
+
+    // log_trace("Next timeout in {}", wrei_duration_to_string(exp - std::chrono::steady_clock::now()));
+
+    unix_check(timerfd_settime(loop->timer_source->fd, TFD_TIMER_ABSTIME, wrei_ptr_to(itimerspec {
+        .it_value = wrei_steady_clock_to_timespec<CLOCK_MONOTONIC>(exp),
+    }), nullptr));
+}
+
+static
+void handle_timer(wrei_event_loop* loop, int fd)
+{
+    u64 expirations;
+    if (unix_check(read(fd, &expirations, sizeof(expirations))).value != sizeof(expirations)) return;
+
+    auto now = std::chrono::steady_clock::now();
+    loop->current_wakeup = std::nullopt;
+
+    std::optional<std::chrono::steady_clock::time_point> min_exp;
+
+    std::vector<std::move_only_function<void()>> dequeued;
+    std::erase_if(loop->timed_events, [&](auto& event) {
+        if (now >= event.expiration) {
+            dequeued.emplace_back(std::move(event.callback));
+            return true;
+        } else {
+            min_exp = min_exp ? std::min(*min_exp, event.expiration) : event.expiration;
+        }
+        return false;
+    });
+
+    loop->stats.events_handled += dequeued.size();
+    for (auto& callback : dequeued) {
+        callback();
+    }
+
+    if (min_exp) {
+        wrei_event_loop_timer_expiry_impl(loop, *min_exp);
+    }
+}
+
 ref<wrei_event_loop> wrei_event_loop_create()
 {
     auto loop = wrei_create<wrei_event_loop>();
     loop->main_thread = std::this_thread::get_id();
 
-    loop->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+    loop->epoll_fd = unix_check(epoll_create1(EPOLL_CLOEXEC)).value;
 
-    auto task_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    auto task_fd = unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value;
     loop->task_source = wrei_event_loop_add_fd(loop.get(), task_fd, EPOLLIN, [loop = loop.get()](int fd, u32 events) {
         loop->tasks_available += wrei_eventfd_read(fd);
 
         // Don't double dip task event stats
+        loop->stats.events_handled--;
+    });
+
+    auto timer_fd = unix_check(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)).value;
+    loop->timer_source = wrei_event_loop_add_fd(loop.get(), timer_fd, EPOLLIN, [loop = loop.get()](int fd, u32 events) {
+        handle_timer(loop, fd);
+
+        // Don't double dip timer event stats
         loop->stats.events_handled--;
     });
 
@@ -26,6 +84,9 @@ wrei_event_loop::~wrei_event_loop()
 
     close(task_source->fd);
     task_source->mark_defunct();
+
+    close(timer_source->fd);
+    timer_source->mark_defunct();
 }
 
 void wrei_event_loop_stop(wrei_event_loop* loop)

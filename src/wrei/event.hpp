@@ -22,6 +22,15 @@ struct wrei_event_loop : wrei_object
     u64 tasks_available;
     ref<wrei_event_source> task_source;
 
+    ref<wrei_event_source> timer_source;
+    struct timed_event
+    {
+        std::chrono::steady_clock::time_point expiration;
+        std::move_only_function<void()> callback;
+    };
+    std::deque<timed_event> timed_events;
+    std::optional<std::chrono::steady_clock::time_point> current_wakeup;
+
     int epoll_fd;
 
     struct {
@@ -51,6 +60,18 @@ ref<wrei_event_loop> wrei_event_loop_create();
 void wrei_event_loop_run( wrei_event_loop*);
 void wrei_event_loop_stop(wrei_event_loop*);
 void wrei_event_loop_add( wrei_event_loop*, u32 events, wrei_event_source*);
+
+void wrei_event_loop_timer_expiry_impl(wrei_event_loop*, std::chrono::steady_clock::time_point exp);
+
+template<typename Lambda>
+void wrei_event_loop_enqueue_timed(wrei_event_loop* loop, std::chrono::steady_clock::time_point exp, Lambda&& task)
+{
+    assert(std::this_thread::get_id() == loop->main_thread);
+
+    loop->timed_events.emplace_back(exp, std::move(task));
+
+    wrei_event_loop_timer_expiry_impl(loop, exp);
+}
 
 template<typename Lambda>
 void wrei_event_loop_enqueue(wrei_event_loop* loop, Lambda&& task)

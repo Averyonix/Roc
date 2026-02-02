@@ -48,6 +48,7 @@
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
 #include <sys/syscall.h>
+#include <sys/timerfd.h>
 
 #include <drm/drm_fourcc.h>
 #include <xf86drm.h>

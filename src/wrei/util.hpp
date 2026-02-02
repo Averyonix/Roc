@@ -244,6 +244,32 @@ std::chrono::system_clock::time_point wrei_time_current()
     return std::chrono::system_clock::now();
 }
 
+// Assume steady_clock is implemented as CLOCK_MONOTONIC.
+static constexpr int wrei_steady_clock_id = CLOCK_MONOTONIC;
+
+template<int ClockID>
+std::chrono::steady_clock::time_point wrei_steady_clock_from_timespec(const timespec& ts)
+{
+    static_assert(wrei_steady_clock_id == ClockID);
+
+    auto ns = ts.tv_sec * 1'000'000'000 + ts.tv_nsec;
+    auto dur = std::chrono::nanoseconds(ns);
+    return std::chrono::steady_clock::time_point(dur);
+}
+
+template<int ClockID>
+timespec wrei_steady_clock_to_timespec(std::chrono::steady_clock::time_point tp)
+{
+    static_assert(wrei_steady_clock_id == ClockID);
+
+    auto ns = tp.time_since_epoch().count();
+
+    timespec ts;
+    ts.tv_sec  = ns / 1'000'000'000;
+    ts.tv_nsec = ns % 1'000'000'000;
+    return ts;
+}
+
 enum class wrei_time_format : u32
 {
     iso8601,
@@ -554,7 +580,12 @@ void wrei_unreachable()
 }
 
 #define wrei_assert(Expr) \
-    do { if (!(Expr)) wrei_debugkill(); } while (0)
+    do { \
+        if (!(Expr)) { \
+            wrei_log(wrei_log_level::error, "wrei_assert failed: " #Expr); \
+            wrei_debugkill(); \
+        } \
+    } while (0)
 
 // -----------------------------------------------------------------------------
 
