@@ -66,7 +66,7 @@ void wroc_run(int argc, char* argv[])
 
     wroc_render_options render_options = {};
     wroc_backend_type backend_type = getenv("WAYLAND_DISPLAY")
-        ? wroc_backend_type::wayland
+        ? wroc_backend_type::layered
         : wroc_backend_type::direct;
 
     bool show_imgui_on_startup = false;

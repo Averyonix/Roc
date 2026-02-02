@@ -17,37 +17,6 @@ wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_b
 // -----------------------------------------------------------------------------
 
 static
-void wroc_listen_wl_callback_done(void*, wl_callback*, u32 time);
-
-static
-void wroc_register_frame_callback(wroc_wayland_output* output)
-{
-    output->frame_callback = wl_surface_frame(output->wl_surface);
-    constexpr static wl_callback_listener listener {
-        .done = wroc_listen_wl_callback_done,
-    };
-    wl_callback_add_listener(output->frame_callback, &listener, output);
-    wl_surface_commit(output->wl_surface);
-}
-
-static
-void wroc_listen_wl_callback_done(void* data, wl_callback*, u32 time)
-{
-    auto* output = static_cast<wroc_wayland_output*>(data);
-
-    wroc_post_event(wroc_output_event {
-        .type = wroc_event_type::output_frame_requested,
-        .output = output,
-    });
-
-    wl_callback_destroy(output->frame_callback);
-
-    wroc_register_frame_callback(output);
-}
-
-// -----------------------------------------------------------------------------
-
-static
 void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 serial)
 {
     auto* output = static_cast<wroc_wayland_output*>(data);
@@ -57,11 +26,11 @@ void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 ser
 
     xdg_surface_ack_configure(surface, serial);
 
-    if (!output->frame_callback) {
-        log_debug("  initial configure, registering frame callbacks");
-        wroc_register_frame_callback(output);
+    if (!output->frame_callback && !output->frame_available) {
+        log_info("Initial configure complete, marking output frame available");
+        output->frame_available = true;
         wroc_post_event(wroc_output_event {
-            .type = wroc_event_type::output_frame_requested,
+            .type = wroc_event_type::output_frame,
             .output = output,
         });
     }
@@ -293,8 +262,45 @@ wp_linux_drm_syncobj_timeline_v1* get_semaphore_proxy(wroc_wayland_backend* back
     return backend->syncobj_cache.insert(semaphore, syncobj);
 }
 
-void wroc_wayland_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags)
+static
+void on_present_frame(void* data, wl_callback*, u32 time)
 {
+    auto* backend = static_cast<wroc_wayland_backend*>(server->backend.get());
+    auto* output = static_cast<wroc_wayland_output*>(data);
+
+    // `time` is low resolution and these events are sent with low latency,
+    // so it's more accurate to just use the current clock time.
+    auto timestamp = backend->current_dispatch_time;
+
+    for (auto& feedback : output->pending_feedback) {
+        wroc_post_event(wroc_output_event {
+            .type = wroc_event_type::output_commit,
+            .timestamp = timestamp,
+            .output = output,
+            .commit = {
+                .id = feedback.commit_id,
+                .start = feedback.commit_time,
+            },
+        });
+    }
+    output->pending_feedback.clear();
+
+    wl_callback_destroy(output->frame_callback);
+    output->frame_callback = nullptr;
+
+    if (!output->frame_available) {
+        output->frame_available = true;
+        wroc_post_event(wroc_output_event{
+            .type = wroc_event_type::output_frame,
+            .output = output,
+        });
+    }
+}
+
+wroc_output_commit_id wroc_wayland_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags flags)
+{
+    wrei_assert(frame_available);
+
     auto* backend = static_cast<wroc_wayland_backend*>(server->backend.get());
 
     auto* wl_buffer = get_image_proxy(backend, image);
@@ -307,12 +313,43 @@ void wroc_wayland_output::commit(wren_image* image, wren_syncpoint acquire, wren
     wp_linux_drm_syncobj_surface_v1_set_acquire_point(syncobj_surface, acquire_syncpoint, acquire.value >> 32, acquire.value & ~0u);
     wp_linux_drm_syncobj_surface_v1_set_release_point(syncobj_surface, release_syncpoint, release.value >> 32, release.value & ~0u);
 
+    auto commit_id = ++last_commit_id;
+
+    if (!frame_callback) {
+        frame_callback = wl_surface_frame(wl_surface);
+        constexpr static wl_callback_listener listener {
+            .done = on_present_frame,
+        };
+        wl_callback_add_listener(frame_callback, &listener, this);
+    }
+
+    if (flags >= wroc_output_commit_flags::vsync) {
+        frame_available = false;
+    } else {
+        wrei_event_loop_enqueue(server->event_loop.get(), [output = weak(this)] {
+            if (!output) return;
+            wroc_post_event(wroc_output_event{
+                .type = wroc_event_type::output_frame,
+                .output = output.get(),
+            });
+        });
+    }
+
+    pending_feedback.emplace_back(wroc_wayland_commit_feedback {
+        .commit_id = commit_id,
+        .commit_time = std::chrono::steady_clock::now(),
+    });
+
     wl_surface_commit(wl_surface);
+
+    return commit_id;
 }
 
 wroc_wayland_output::~wroc_wayland_output()
 {
     wp_linux_drm_syncobj_surface_v1_destroy(syncobj_surface);
+
+    if (frame_callback) wl_callback_destroy(frame_callback);
 
     if (locked_pointer) zwp_locked_pointer_v1_destroy(locked_pointer);
 
@@ -320,8 +357,6 @@ wroc_wayland_output::~wroc_wayland_output()
     if (toplevel)    xdg_toplevel_destroy(toplevel);
     if (xdg_surface) xdg_surface_destroy(xdg_surface);
     if (wl_surface)  wl_surface_destroy(wl_surface);
-
-    if (frame_callback) wl_callback_destroy(frame_callback);
 }
 
 void wroc_wayland_backend::destroy_output(wroc_output* output)

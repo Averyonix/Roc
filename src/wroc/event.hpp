@@ -4,8 +4,20 @@ enum class wroc_event_type : u32
 {
     output_added,
     output_removed,
-    output_frame_requested,
-    output_image_ready,
+
+    // Sent when an output is ready to accept a new frame.
+    // This does not necessarily correlate with any vblank periods.
+    output_frame,
+
+    // Sent when a commit is flipped or composited.
+    // This value should be close to the last point at which the point could have been submitted and made ready.
+    // For synchronized page flips, this should correspond to an output_frame event, but may be sent at any time
+    // when asynchronous (tearing) page flips are enabled.
+    //
+    // This value is also used for client presentation timing, treated as scanout time. This is valid for the direct
+    // backend, but treats the composition step of the parent compositor as scanout (even if the actual contents is,
+    // as is often the case, delayed by an extra frame internally). This inaccuracy in layered mode is acceptable.
+    output_commit,
 
     keyboard_key,
     keyboard_modifiers,
@@ -17,7 +29,9 @@ enum class wroc_event_type : u32
 
 struct wroc_event {};
 
-#define WROC_EVENT_BASE wroc_event_type type;
+#define WROC_EVENT_BASE \
+    wroc_event_type type; \
+    std::chrono::steady_clock::time_point timestamp; \
 
 struct wroc_event_base : wroc_event
 {
@@ -35,6 +49,13 @@ struct wroc_output_event : wroc_event
     WROC_EVENT_BASE
 
     wroc_output* output;
+
+    union {
+        struct {
+            wroc_output_commit_id id;
+            std::chrono::steady_clock::time_point start;
+        } commit;
+    };
 };
 
 using evdev_key_t = u32;

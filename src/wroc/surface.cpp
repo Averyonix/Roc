@@ -280,6 +280,8 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
     // We need to make sure the surface stack remains persistently in pending
     // TODO: We really want to recycle surface state packets
     surface->pending->surface_stack.append_range(packet.state.surface_stack);
+
+    wroc_surface_flush_apply(surface);
 }
 
 static

@@ -179,7 +179,7 @@ bool wroc_dma_buffer::is_ready()
     if (acquire_timeline) {
         auto point = wren_semaphore_get_value(acquire_timeline.get());
         ready = point >= acquire_point;
-        if (server->renderer->noisy_dmabufs) {
+        if (server->renderer->debug.noisy_dmabufs) {
             if (ready) {
 #if WROC_VERY_NOISY_DMABUF_WAIT
                 log_debug("Waiting for explicit sync point {} - ready", acquire_point);
@@ -201,7 +201,7 @@ bool wroc_dma_buffer::is_ready()
                 .fd = plane.fd.get(),
                 .events = POLLIN,
             }), 1, 0)).value < 1) {
-                if (server->renderer->noisy_dmabufs) {
+                if (server->renderer->debug.noisy_dmabufs) {
                     log_warn("Waiting for implicit sync - fd {} not ready yet", plane.fd.get());
                 }
                 ready = false;
@@ -209,7 +209,7 @@ bool wroc_dma_buffer::is_ready()
             }
         }
 #if WROC_VERY_NOISY_DMABUF_WAIT
-        if (ready && server->renderer->noisy_dmabufs) {
+        if (ready && server->renderer->debug.noisy_dmabufs) {
             log_debug("Waiting for implicit sync - ready");
         }
 #endif

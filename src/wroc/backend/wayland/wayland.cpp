@@ -74,6 +74,8 @@ const wl_registry_listener wroc_wl_registry_listener {
 static
 int wroc_listen_backend_display_read(wroc_wayland_backend* backend, int fd, u32 mask)
 {
+    backend->current_dispatch_time = std::chrono::steady_clock::now();
+
     timespec timeout = {};
     if (wl_display_dispatch_timeout(backend->wl_display, &timeout) == -1) {
         log_error("wl_display_dispatch_timeout failed: {}", strerror(errno));

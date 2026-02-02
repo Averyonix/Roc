@@ -135,6 +135,8 @@ struct drm_property_map
 
 // -----------------------------------------------------------------------------
 
+#define WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT 0
+
 struct wroc_drm_output_state
 {
     u32 primary_plane_id;
@@ -146,6 +148,13 @@ struct wroc_drm_output_state
 
     ref<wren_semaphore> last_release_semaphore = {};
     u64 last_release_point;
+
+#if WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT
+    ref<wren_semaphore> pending_release_semaphore = {};
+    u64 pending_release_point;
+#endif
+
+    std::chrono::steady_clock::time_point last_commit_time = {};
 };
 
 // -----------------------------------------------------------------------------
@@ -245,8 +254,10 @@ void wroc_backend_start_drm(wroc_direct_backend* backend)
             .type = wroc_event_type::output_added,
             .output = output.get(),
         });
+
+        output->frame_available = true;
         wroc_post_event(wroc_output_event {
-            .type = wroc_event_type::output_frame_requested,
+            .type = wroc_event_type::output_frame,
             .output = output.get(),
         });
     }
@@ -326,10 +337,34 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 static
 void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data)
 {
-    auto* output = static_cast<wroc_output*>(data);
+    auto* output = static_cast<wroc_drm_output*>(data);
+
+    auto time = wrei_steady_clock_from_timespec<CLOCK_MONOTONIC>(timespec {
+        .tv_sec = tv_sec,
+        .tv_nsec = tv_usec * 1000,
+    });
+
+#if WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT
+    if (output->state->pending_release_semaphore) {
+        wren_semaphore_signal_value(output->state->pending_release_semaphore.get(), output->state->pending_release_point);
+        output->state->pending_release_semaphore = nullptr;
+    }
+#endif
 
     wroc_post_event(wroc_output_event {
-        .type = wroc_event_type::output_frame_requested,
+        .type = wroc_event_type::output_commit,
+        .timestamp = time,
+        .output = output,
+        .commit {
+            .id = output->last_commit_id,
+            .start = output->state->last_commit_time,
+        },
+    });
+
+    output->frame_available = true;
+    wroc_post_event(wroc_output_event {
+        .type = wroc_event_type::output_frame,
+        .timestamp = time,
         .output = output,
     });
 }
@@ -387,8 +422,11 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
     return backend->buffer_cache.emplace_back(image, fb2_handle).fb2_handle;
 }
 
-void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags in_flags)
+wroc_output_commit_id wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags in_flags)
 {
+    wrei_assert(frame_available);
+    frame_available = false;
+
     auto backend = wroc_get_direct_backend();
 
     auto fb2_handle = get_image_fb2(backend, image);
@@ -419,31 +457,35 @@ void wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syn
     int out_fence = -1;
     defer { close(out_fence); };
     if (state->last_release_semaphore) {
-        // TODO: For some reason some drivers don't seem to support OUT_FENCE_PTR when using async page flips.
-        //       The quick and dirty solution is to use blocking commits, but we should instead fallback to
-        //       handling the release in the page flip callback in this case.
-        //       Additionally, it seems that we are required to send at least one non-async flip first, hence
-        //       handling this only when `last_release_semaphore` is set.
-        if (in_flags >= wroc_output_commit_flags::tearing) {
-            flags = (flags | DRM_MODE_PAGE_FLIP_ASYNC) & ~DRM_MODE_ATOMIC_NONBLOCK;
-        } else {
-            drmModeAtomicAddProperty(req, state->crtc_id, state->crtc_prop.get_prop_id("OUT_FENCE_PTR"), u64(&out_fence));
-        }
+#if WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT
+        // For some reason some drivers don't seem to support OUT_FENCE_PTR when using async page flips.
+        // Additionally, it seems that we are required to send at least one non-async flip first, hence
+        // handling this only when `last_release_semaphore` is set.
+        if (!(in_flags >= wroc_output_commit_flags::vsync)) {
+            flags |= DRM_MODE_PAGE_FLIP_ASYNC;
+            state->pending_release_semaphore = state->last_release_semaphore;
+            state->pending_release_point = state->last_release_point;
+        } else
+#endif
+        drmModeAtomicAddProperty(req, state->crtc_id, state->crtc_prop.get_prop_id("OUT_FENCE_PTR"), u64(&out_fence));
     }
 
-    auto res = unix_check(drmModeAtomicCommit(backend->drm_fd, req, flags, this), EBUSY);
-    if (res.err()) {
-        // TODO: On EBUSY, we should hold on to this buffer and attempt resubmission instead of throwing it away
-        if (res.error != EBUSY) log_error("Atomic commit failed: ({}) {}", res.error, strerror(res.error));
+    drmModeAtomicAddProperty(req, state->crtc_id, state->crtc_prop.get_prop_id("VRR_ENABLED"), true);
 
+    if (unix_check(drmModeAtomicCommit(backend->drm_fd, req, flags, this)).err()) {
+        // TODO: Configuration rollback
         wren_semaphore_import_syncfile(release.semaphore, in_fence, release.value);
-        return;
+        frame_available = true;
+        return {};
     }
 
     if (state->last_release_semaphore) {
         wren_semaphore_import_syncfile(state->last_release_semaphore.get(), out_fence, state->last_release_point);
     }
 
+    state->last_commit_time = std::chrono::steady_clock::now();
     state->last_release_semaphore = release.semaphore;
     state->last_release_point = release.value;
+
+    return ++last_commit_id;
 }

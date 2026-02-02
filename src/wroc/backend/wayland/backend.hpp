@@ -31,6 +31,12 @@ struct wroc_wl_proxy_cache
     }
 };
 
+struct wroc_wayland_commit_feedback
+{
+    wroc_output_commit_id commit_id;
+    std::chrono::steady_clock::time_point commit_time;
+};
+
 struct wroc_wayland_output : wroc_output
 {
     wp_linux_drm_syncobj_surface_v1* syncobj_surface;
@@ -43,10 +49,11 @@ struct wroc_wayland_output : wroc_output
     bool locked = false;
 
     wl_callback* frame_callback = {};
+    std::vector<wroc_wayland_commit_feedback> pending_feedback = {};
 
     ~wroc_wayland_output();
 
-    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) final override;
+    virtual wroc_output_commit_id commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) final override;
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard
@@ -91,6 +98,8 @@ struct wroc_wayland_backend : wroc_backend
     ref<wroc_wayland_pointer>  pointer = {};
 
     ref<wrei_event_source> event_source;
+
+    std::chrono::steady_clock::time_point current_dispatch_time;
 
     virtual void init() final override;
     virtual void start() final override;

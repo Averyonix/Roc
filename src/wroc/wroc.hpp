@@ -35,7 +35,7 @@ void wroc_terminate();
 
 enum struct wroc_backend_type
 {
-    wayland,
+    layered,
     direct,
 };
 
@@ -124,9 +124,11 @@ void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
 
 enum class wroc_output_commit_flags : u32
 {
-    tearing = 1 << 0,
+    vsync = 1 << 0,
 };
 WREI_DECORATE_FLAG_ENUM(wroc_output_commit_flags);
+
+using wroc_output_commit_id = u64;
 
 /*
  * A backend output that can be displayed to
@@ -138,7 +140,7 @@ struct wroc_output : wrei_object
 
     wroc_output_desc desc;
 
-    bool frame_requested = false;
+    bool frame_available = false;
 
     u32 frames_in_flight = 0;
 
@@ -150,12 +152,14 @@ struct wroc_output : wrei_object
     };
     std::vector<release_slot> release_slots;
 
-    virtual void commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) = 0;
+    wroc_output_commit_id last_commit_id = 0;
+
+    virtual wroc_output_commit_id commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);
 
-void wroc_output_try_dispatch_frame(wroc_output*);
+bool wroc_output_try_dispatch_frame(wroc_output*);
 
 struct wroc_output_layout : wrei_object
 {
@@ -165,8 +169,6 @@ struct wroc_output_layout : wrei_object
 };
 
 void wroc_output_layout_init();
-void wroc_output_layout_add_output(wroc_output_layout*, wroc_output*);
-void wroc_output_layout_remove_output(wroc_output_layout*, wroc_output*);
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout*, vec2f64 global_pos, wroc_output** output = nullptr);
 wroc_output* wroc_output_layout_output_for_surface(wroc_output_layout*, wroc_surface*);
 
@@ -1048,12 +1050,12 @@ struct wroc_renderer : wrei_object
     wren_format_set shm_formats;
     wren_format_set dmabuf_formats;
 
-    bool show_debug_cursor = false;
-
-    bool tearing = false;
     bool vsync = true;
-    bool noisy_dmabufs = false;
-    bool noisy_stutters = false;
+
+    struct {
+        bool show_debug_cursor = false;
+        bool noisy_dmabufs = false;
+    } debug;
 
     u32 max_frames_in_flight = 2;
 
@@ -1221,6 +1223,10 @@ struct wroc_server : wrei_object
 
     // TODO: We should track these per client-pointer
     ref<wroc_cursor> cursor;
+
+    struct {
+        bool noisy_frames = false;
+    } debug;
 
     struct {
         weak<wroc_toplevel> grabbed_toplevel;

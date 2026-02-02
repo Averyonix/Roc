@@ -87,7 +87,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     ImGui::Checkbox("Show Log", &debug->show_log_window);
 
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Show Cursor", &server->renderer->show_debug_cursor);
+    ImGui::Checkbox("Show Cursor", &server->renderer->debug.show_debug_cursor);
 
     ImGui::SameLine(third_column_offset);
     if (ImGui::Button("Quit " PROJECT_NAME)) {
@@ -195,15 +195,14 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     category_separator();
 
     bool try_dispatch_frames = false;
-    try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
+    {
+        ImGui::BeginDisabled(server->backend->type == wroc_backend_type::direct);
+        defer { ImGui::EndDisabled(); };
+        try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
+    }
 
-    ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->noisy_dmabufs);
-
-    ImGui::Checkbox("Tearing", &server->renderer->tearing);
-
-    ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Noisy Stutters", &server->renderer->noisy_stutters);
+    ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->debug.noisy_dmabufs);
+    ImGui::Checkbox("Noisy Frames", &server->debug.noisy_frames);
 
     {
         ImGui::SetNextItemWidth(second_column_offset + 11);

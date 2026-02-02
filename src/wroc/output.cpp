@@ -114,6 +114,7 @@ void wroc_output_update(wroc_output_layout* layout)
     }
 }
 
+static
 void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* output)
 {
     if (!weak_container_contains(layout->outputs, output)) {
@@ -124,6 +125,7 @@ void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* outp
     wroc_output_update(layout);
 }
 
+static
 void wroc_output_layout_remove_output(wroc_output_layout* layout, wroc_output* output)
 {
     std::erase(layout->outputs, output);
@@ -223,6 +225,30 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
     }
 }
 
+bool wroc_output_try_dispatch_frame(wroc_output* output)
+{
+    if (!output->frame_available) return false;
+    if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return false;
+    if (!output->size.x || !output->size.y) {
+        log_warn("Can't render new frame as output is empty {}", wrei_to_string(output->size));
+        return false;
+    }
+
+    wroc_render_frame(output);
+    return true;
+}
+
+static
+void on_output_commit(const wroc_output_event& event)
+{
+    if (server->debug.noisy_frames) {
+        log_warn("output.commit[{:.2f}] id = {} | latency = {}",
+            event.timestamp.time_since_epoch().count() / 1000000.0,
+            event.commit.id,
+            wrei_duration_to_string(event.timestamp - event.commit.start));
+    }
+}
+
 static
 void wroc_output_added(wroc_output* output)
 {
@@ -237,11 +263,6 @@ void wroc_output_removed(wroc_output* output)
     wroc_output_layout_remove_output(server->output_layout.get(), output);
 }
 
-void wroc_output_try_dispatch_frame(wroc_output* output)
-{
-    wroc_render_frame(output);
-}
-
 void wroc_handle_output_event(const wroc_output_event& event)
 {
     switch (event.type) {
@@ -249,11 +270,10 @@ void wroc_handle_output_event(const wroc_output_event& event)
             wroc_output_added(    event.output);
         break;case wroc_event_type::output_removed:
             wroc_output_removed(  event.output);
-        break;case wroc_event_type::output_frame_requested:
-            event.output->frame_requested = true;
+        break;case wroc_event_type::output_frame:
             wroc_output_try_dispatch_frame(event.output);
-        break;case wroc_event_type::output_image_ready:
-            wroc_output_try_dispatch_frame(event.output);
+        break;case wroc_event_type::output_commit:
+            on_output_commit(event);
         break;default:
             ;
     }

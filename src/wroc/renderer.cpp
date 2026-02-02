@@ -274,7 +274,7 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         }
     }
 
-    if (renderer->show_debug_cursor) {
+    if (renderer->debug.show_debug_cursor) {
 
         // Debug cursor crosshair
 
@@ -410,18 +410,17 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
     slot->release_point++;
 
     wroc_output_commit_flags flags = {};
-    if (server->renderer->tearing) flags |= wroc_output_commit_flags::tearing;
+    if (server->renderer->vsync) flags |= wroc_output_commit_flags::vsync;
     output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
 }
 
 void wroc_render_frame(wroc_output* output)
 {
-    if (!output->frame_requested && server->renderer->vsync) return;
-    if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return;
+    wrei_assert(output->frame_available);
+    wrei_assert(output->frames_in_flight < server->renderer->max_frames_in_flight);
+    wrei_assert(output->size.x && output->size.y);
 
     auto current = acquire(output);
-
-    output->frame_requested = false;
 
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
@@ -488,7 +487,7 @@ void wroc_render_frame(wroc_output* output)
     auto elapsed = wroc_get_elapsed_milliseconds();
 
     for (wroc_surface* surface : server->surfaces) {
-        if (surface->role == wroc_surface_role::none) continue;
+        if (surface->role == wroc_surface_role::none || !surface->role_addon) continue;
 
         auto surface_output = wroc_output_layout_output_for_surface(server->output_layout.get(), surface);
 
@@ -497,7 +496,6 @@ void wroc_render_frame(wroc_output* output)
 
         auto dispatch = [&](wroc_resource_list& callbacks) {
             while (auto* callback = callbacks.front()) {
-                // log_trace("Sending frame callback: {}", (void*)callback);
                 wroc_send(wl_callback_send_done, callback, elapsed);
                 wl_resource_destroy(callback);
             }
@@ -510,9 +508,6 @@ void wroc_render_frame(wroc_output* output)
         dispatch(surface->current.frame_callbacks);
         for (auto& packet : surface->cached) {
             if (packet.id) {
-                if (renderer->noisy_stutters && packet.state.frame_callbacks.front()) {
-                    log_warn("Stutter detected - dispatching early frame callbacks for commit {}", packet.id);
-                }
                 dispatch(packet.state.frame_callbacks);
             }
         }
