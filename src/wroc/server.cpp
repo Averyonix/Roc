@@ -120,13 +120,6 @@ void wroc_run(int argc, char* argv[])
 
     wroc_seat_init();
 
-    // Backend
-
-    log_info("Initializing backend");
-    server->backend = wroc_backend_create(backend_type);
-    server->backend->init();
-    log_info("Backend initialized");
-
     server->epoch = std::chrono::steady_clock::now();
 
     // Init libwayland
@@ -155,6 +148,13 @@ void wroc_run(int argc, char* argv[])
     // Output layout
 
     wroc_output_layout_init();
+
+    // Backend
+
+    log_info("Initializing backend");
+    server->backend = wroc_backend_create(backend_type);
+    server->backend->init();
+    log_info("Backend initialized");
 
     // Renderer
 

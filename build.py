@@ -149,6 +149,7 @@ def list_wayland_protocols():
     add(system_protocol_dir / "stable/xdg-shell/xdg-shell.xml")
     add(system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml")
     add(system_protocol_dir / "stable/viewporter/viewporter.xml")
+    add(system_protocol_dir / "stable/presentation-time/presentation-time.xml")
     add(system_protocol_dir / "stable/tablet/tablet-v2.xml")
 
     add(system_protocol_dir / "staging/cursor-shape/cursor-shape-v1.xml")
@@ -165,10 +166,12 @@ def list_wayland_protocols():
 
 def generate_wayland_protocols():
 
-    wayland_scanner = "wayland-scanner"                   # Wayland scanner executable
-    wayland_dir = vendor_dir / "wayland"                  #
-    wayland_src = ensure_dir(wayland_dir / "src")         # Directory for generate sources
-    wayland_include = ensure_dir(wayland_dir / "include") # Directory for generate headers
+    wayland_scanner = "wayland-scanner" # Wayland scanner executable
+    wayland_dir     = vendor_dir / "wayland"
+    wayland_src     = ensure_dir(wayland_dir / "src")
+    wayland_include = ensure_dir(wayland_dir / "include/wayland")
+    wayland_client_include = ensure_dir(wayland_include / "client")
+    wayland_server_include = ensure_dir(wayland_include / "server")
 
     cmake_target_name = "wayland-header"
     cmake_file = wayland_dir / "CMakeLists.txt"
@@ -177,21 +180,21 @@ def generate_wayland_protocols():
 
     for xml_path, name in list_wayland_protocols():
 
+        header_name = f"{name}.h"
+
         # Generate client header
-        header_name = f"{name}-client-protocol.h"
-        header_path = wayland_include / header_name
+        header_path = wayland_client_include / header_name
         if not header_path.exists():
             cmd = [wayland_scanner, "client-header", xml_path, header_name]
             print(f"Generating wayland client header: {header_name}")
-            subprocess.run(cmd, cwd = wayland_include)
+            subprocess.run(cmd, cwd = header_path.parent)
 
         # Generate server header
-        header_name = f"{name}-protocol.h"
-        header_path = wayland_include / header_name
+        header_path = wayland_server_include / header_name
         if not header_path.exists():
             cmd = [wayland_scanner, "server-header", xml_path, header_name]
             print(f"Generating wayland server header: {header_name}")
-            subprocess.run(cmd, cwd = wayland_include)
+            subprocess.run(cmd, cwd = header_path.parent)
 
         # Generate source
         source_name = f"{name}-protocol.c"

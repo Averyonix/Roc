@@ -126,26 +126,28 @@ extern "C" {
 
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
-#include <xdg-shell-protocol.h>
-#include <linux-dmabuf-v1-protocol.h>
-#include <pointer-gestures-unstable-v1-protocol.h>
-#include <viewporter-protocol.h>
-#include <relative-pointer-unstable-v1-protocol.h>
-#include <pointer-constraints-unstable-v1-protocol.h>
-#include <xdg-decoration-unstable-v1-protocol.h>
-#include <server-decoration-protocol.h>
-#include <cursor-shape-v1-protocol.h>
-#include <linux-drm-syncobj-v1-protocol.h>
+
+#include <wayland/server/xdg-shell.h>
+#include <wayland/server/linux-dmabuf-v1.h>
+#include <wayland/server/pointer-gestures-unstable-v1.h>
+#include <wayland/server/viewporter.h>
+#include <wayland/server/relative-pointer-unstable-v1.h>
+#include <wayland/server/pointer-constraints-unstable-v1.h>
+#include <wayland/server/xdg-decoration-unstable-v1.h>
+#include <wayland/server/server-decoration.h>
+#include <wayland/server/cursor-shape-v1.h>
+#include <wayland/server/linux-drm-syncobj-v1.h>
 
 // -----------------------------------------------------------------------------
 
 #include <wayland-client-core.h>
-#include <xdg-shell-client-protocol.h>
-#include <xdg-decoration-unstable-v1-client-protocol.h>
-#include <relative-pointer-unstable-v1-client-protocol.h>
-#include <pointer-constraints-unstable-v1-client-protocol.h>
-#include <linux-dmabuf-v1-client-protocol.h>
-#include <linux-drm-syncobj-v1-client-protocol.h>
+
+#include <wayland/client/xdg-shell.h>
+#include <wayland/client/xdg-decoration-unstable-v1.h>
+#include <wayland/client/relative-pointer-unstable-v1.h>
+#include <wayland/client/pointer-constraints-unstable-v1.h>
+#include <wayland/client/linux-dmabuf-v1.h>
+#include <wayland/client/linux-drm-syncobj-v1.h>
 
 // -----------------------------------------------------------------------------
 

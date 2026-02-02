@@ -309,14 +309,16 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
 
     wren_check(ctx->vk.CreateImage(ctx->device, wrei_ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = wrei_ptr_to(VkImageDrmFormatModifierListCreateInfoEXT {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
-            .pNext = wrei_ptr_to(VkExternalMemoryImageCreateInfo {
+        .pNext = wren_vk_make_chain_in({
+            wrei_ptr_to(VkExternalMemoryImageCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
             }),
-            .drmFormatModifierCount = u32(modifiers.size()),
-            .pDrmFormatModifiers = modifiers.data(),
+            wrei_ptr_to(VkImageDrmFormatModifierListCreateInfoEXT {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
+                .drmFormatModifierCount = u32(modifiers.size()),
+                .pDrmFormatModifiers = modifiers.data(),
+            }),
         }),
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format->vk,
@@ -334,6 +336,7 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
         }.data(),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image->image));
+    wrei_assert(image->image);
 
     // Allocate memory
 
@@ -356,6 +359,7 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
         .allocationSize = mem_reqs.size,
         .memoryTypeIndex = index,
     }), nullptr, &image->memory[0]));
+    wrei_assert(image->memory[0]);
     image->memory.count = 1;
 
     wren_check(ctx->vk.BindImageMemory(ctx->device, image->image, image->memory[0], 0));

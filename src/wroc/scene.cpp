@@ -4,7 +4,7 @@ wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** p_toplevel)
 {
     if (p_toplevel) *p_toplevel = nullptr;
 
-    if (server->imgui->wants_mouse) {
+    if (server->imgui && server->imgui->wants_mouse) {
         return nullptr;
     }
 
