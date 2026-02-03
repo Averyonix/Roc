@@ -84,7 +84,7 @@ void xdg_surface_apply(wroc_xdg_surface* self, wrox_xdg_surface_state& from, wro
 {
     auto& to = self->current;
 
-    if (from.committed >= wroc_xdg_surface_committed_state::geometry) {
+    if (from.committed.contains(wroc_xdg_surface_committed_state::geometry)) {
         if (!from.geometry.extent.x || !from.geometry.extent.y) {
             log_error("Zero size invalid geometry committed, treating as if geometry never set!");
             to.committed -= wroc_xdg_surface_committed_state::geometry;
@@ -94,7 +94,7 @@ void xdg_surface_apply(wroc_xdg_surface* self, wrox_xdg_surface_state& from, wro
         }
     }
 
-    if (from.committed >= wroc_xdg_surface_committed_state::ack) {
+    if (from.committed.contains(wroc_xdg_surface_committed_state::ack)) {
         to.acked_serial = from.acked_serial;
     }
 
@@ -136,7 +136,7 @@ const struct xdg_surface_interface wroc_xdg_surface_impl = {
 rect2i32 wroc_xdg_surface_get_geometry(wroc_xdg_surface* xdg_surface)
 {
     // TODO: Clamp geometry always?
-    return (xdg_surface->current.committed >= wroc_xdg_surface_committed_state::geometry)
+    return (xdg_surface->current.committed.contains(wroc_xdg_surface_committed_state::geometry))
         ? xdg_surface->current.geometry
         : rect2i32(compute_fallback_geometry(xdg_surface->surface.get()));
 }
@@ -187,7 +187,7 @@ void toplevel_move(wl_client* client, wl_resource* resource, wl_resource* seat, 
         return;
     }
 
-    wroc_begin_move_interaction(toplevel, pointer, wroc_directions::horizontal | wroc_directions::vertical);
+    wroc_begin_move_interaction(toplevel, pointer, wroc_direction::horizontal | wroc_direction::vertical);
 }
 
 void wroc_toplevel_set_anchor_relative(wroc_toplevel* toplevel, vec2f64 anchor_rel)
@@ -210,17 +210,17 @@ void toplevel_resize(wl_client* client, wl_resource* resource, wl_resource* seat
         return;
     }
 
-    wroc_edges edges;
+    flags<wroc_edge> edges;
     switch (wl_edges) {
         break;case XDG_TOPLEVEL_RESIZE_EDGE_NONE: return;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP:          edges = wroc_edges::top;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:       edges = wroc_edges::bottom;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:         edges = wroc_edges::left;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:        edges = wroc_edges::right;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:     edges = wroc_edges::top | wroc_edges::left;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:    edges = wroc_edges::top | wroc_edges::right;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:  edges = wroc_edges::bottom | wroc_edges::left;
-        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: edges = wroc_edges::bottom | wroc_edges::right;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP:          edges = wroc_edge::top;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM:       edges = wroc_edge::bottom;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_LEFT:         edges = wroc_edge::left;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_RIGHT:        edges = wroc_edge::right;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT:     edges = wroc_edge::top | wroc_edge::left;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT:    edges = wroc_edge::top | wroc_edge::right;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT:  edges = wroc_edge::bottom | wroc_edge::left;
+        break;case XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT: edges = wroc_edge::bottom | wroc_edge::right;
     }
 
     wroc_toplevel_set_anchor_relative(toplevel, wroc_edges_to_relative(wroc_edges_inverse(edges)));
@@ -330,9 +330,9 @@ void toplevel_apply(wroc_toplevel* self, wroc_xdg_toplevel_state& from, wroc_com
 {
     auto& to = self->current;
 
-    if (from.committed >= wroc_xdg_toplevel_committed_state::title)  to.title  = from.title;
-    if (from.committed >= wroc_xdg_toplevel_committed_state::app_id) to.app_id = from.app_id;
-    if (from.committed >= wroc_xdg_toplevel_committed_state::parent) {
+    if (from.committed.contains(wroc_xdg_toplevel_committed_state::title))  to.title  = from.title;
+    if (from.committed.contains(wroc_xdg_toplevel_committed_state::app_id)) to.app_id = from.app_id;
+    if (from.committed.contains(wroc_xdg_toplevel_committed_state::parent)) {
         to.parent = from.parent;
         toplevel_anchor_to_parent(self);
     }
@@ -438,7 +438,7 @@ void wroc_toplevel_set_state(wroc_toplevel* toplevel, xdg_toplevel_state state, 
 void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
 {
     auto& configure = toplevel->configure;
-    if (wrei_flags_empty(configure.pending)) return;
+    if (configure.pending.empty()) return;
 
     // TODO: We probably shouldn't always wait for a commit after an ack_configure?
     //       If the surface acks and then never submits, we would softlock on further configures
@@ -447,7 +447,7 @@ void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
         return;
     }
 
-    if (configure.pending >= wroc_xdg_toplevel_configure_state::bounds) {
+    if (configure.pending.contains(wroc_xdg_toplevel_configure_state::bounds)) {
         wroc_send(xdg_toplevel_send_configure_bounds, toplevel->resource, configure.bounds.x, configure.bounds.y);
     }
 

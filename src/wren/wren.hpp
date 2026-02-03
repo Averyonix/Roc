@@ -4,6 +4,7 @@
 #include "wrei/types.hpp"
 #include "wrei/event.hpp"
 #include "wrei/fd.hpp"
+#include "wrei/flags.hpp"
 
 #include "functions.hpp"
 
@@ -96,7 +97,7 @@ struct wren_format_modifier_props
 struct wren_format_props
 {
     wren_format format;
-    wren_image_usage usage;
+    flags<wren_image_usage> usage;
     std::unique_ptr<wren_format_modifier_props> opt_props;
     std::vector<wren_format_modifier_props> mod_props;
     std::vector<wren_drm_modifier> mods;
@@ -113,7 +114,7 @@ struct wren_format_props
 struct wren_format_props_key
 {
     wren_format format;
-    wren_image_usage usage;
+    flags<wren_image_usage> usage;
 
     constexpr bool operator==(const wren_format_props_key&) const noexcept = default;
 };
@@ -150,14 +151,13 @@ public:
 
 std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
 
-const wren_format_props* wren_get_format_props(wren_context*, wren_format, wren_image_usage);
+const wren_format_props* wren_get_format_props(wren_context*, wren_format, flags<wren_image_usage>);
 
 std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_features : u32 { };
-WREI_DECORATE_FLAG_ENUM(wren_features)
+enum class wren_feature : u32 { };
 
 using wren_semaphore_wait_fn = void(u64);
 
@@ -180,7 +180,7 @@ struct wren_semaphore_waiter : wrei_event_source
 
 struct wren_context : wrei_object
 {
-    wren_features features;
+    flags<wren_feature> features;
 
     struct {
         WREN_DECLARE_FUNCTION(GetInstanceProcAddr)
@@ -231,7 +231,7 @@ struct wren_context : wrei_object
     ~wren_context();
 };
 
-ref<wren_context> wren_create(wren_features, wrei_event_loop*, int drm_fd);
+ref<wren_context> wren_create(flags<wren_feature>, wrei_event_loop*, int drm_fd);
 
 // -----------------------------------------------------------------------------
 
@@ -355,13 +355,12 @@ struct wren_buffer : wrei_object
     ~wren_buffer();
 };
 
-enum wren_buffer_flags : u32
+enum class wren_buffer_flag : u32
 {
     host = 1 << 0,
 };
-WREI_DECORATE_FLAG_ENUM(wren_buffer_flags)
 
-ref<wren_buffer> wren_buffer_create(wren_context*, usz size, wren_buffer_flags);
+ref<wren_buffer> wren_buffer_create(wren_context*, usz size, flags<wren_buffer_flag>);
 
 // -----------------------------------------------------------------------------
 
@@ -417,9 +416,8 @@ enum class wren_image_usage : u32
     texture      = 1 << 2,
     render       = 1 << 3,
 };
-WREI_DECORATE_FLAG_ENUM(wren_image_usage)
 
-VkImageUsageFlags wren_image_usage_to_vk(wren_image_usage);
+VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage>);
 
 struct wren_image : wrei_object
 {
@@ -433,12 +431,12 @@ struct wren_image : wrei_object
 
     wren_descriptor_id id;
 
-    wren_image_usage usage;
+    flags<wren_image_usage> usage;
 
     virtual ~wren_image() = 0;
 };
 
-ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format, wren_image_usage);
+ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format, flags<wren_image_usage>);
 
 void wren_copy_image_to_buffer(wren_commands*, wren_buffer*, wren_image*);
 void wren_copy_buffer_to_image(wren_commands*, wren_image*, wren_buffer*);
@@ -527,8 +525,8 @@ struct wren_image_dmabuf : wren_image
 
 VkImageAspectFlagBits wren_plane_to_aspect(u32 i);
 
-ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context*, vec2u32 extent, wren_format, wren_image_usage, std::span<const wren_drm_modifier>);
-ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context*, const wren_dma_params&, wren_image_usage);
+ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context*, vec2u32 extent, wren_format, flags<wren_image_usage>, std::span<const wren_drm_modifier>);
+ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context*, const wren_dma_params&, flags<wren_image_usage>);
 
 wren_dma_params wren_image_export_dmabuf(wren_image*);
 

@@ -144,7 +144,7 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
 
     // libseat
 
-	wroc_setenv("XDG_SESSION_TYPE", "wayland", wroc_setenv_options::system_wide);
+	wroc_setenv("XDG_SESSION_TYPE", "wayland", wroc_setenv_option::system_wide);
 
     backend->seat = libseat_open_seat(&wroc_seat_listener, nullptr);
     if (!backend->seat) {

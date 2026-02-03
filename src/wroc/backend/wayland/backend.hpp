@@ -53,7 +53,7 @@ struct wroc_wayland_output : wroc_output
 
     ~wroc_wayland_output();
 
-    virtual wroc_output_commit_id commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) final override;
+    virtual wroc_output_commit_id commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wroc_output_commit_flag>) final override;
 };
 
 struct wroc_wayland_keyboard : wroc_keyboard

@@ -2,29 +2,29 @@
 
 #include "wrei/util.hpp"
 
-VkImageUsageFlags wren_image_usage_to_vk(wren_image_usage usage)
+VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage> usage)
 {
     VkImageUsageFlags vk_usage = {};
-    if (usage >= wren_image_usage::render)       vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if (usage >= wren_image_usage::texture)      vk_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
-    if (usage >= wren_image_usage::transfer_src) vk_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    if (usage >= wren_image_usage::transfer_dst) vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (usage.contains(wren_image_usage::render))       vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    if (usage.contains(wren_image_usage::texture))      vk_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    if (usage.contains(wren_image_usage::transfer_src)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    if (usage.contains(wren_image_usage::transfer_dst)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     return vk_usage;
 }
 
-VkFormatFeatureFlags wren_get_required_format_features(wren_format format, wren_image_usage usage)
+VkFormatFeatureFlags wren_get_required_format_features(wren_format format, flags<wren_image_usage> usage)
 {
     VkFormatFeatureFlags features = {};
-    if (usage >= wren_image_usage::render) features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+    if (usage.contains(wren_image_usage::render)) features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
                                                     |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
-    if (usage >= wren_image_usage::texture) {
+    if (usage.contains(wren_image_usage::texture)) {
         features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
                  |  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
         if (format->is_ycbcr) features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT
                                        |  VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT;
     }
-    if (usage >= wren_image_usage::transfer_dst) features |= VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
-    if (usage >= wren_image_usage::transfer_src) features |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
+    if (usage.contains(wren_image_usage::transfer_dst)) features |= VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+    if (usage.contains(wren_image_usage::transfer_src)) features |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
     return features;
 }
 
@@ -95,7 +95,7 @@ wren_image_vma::~wren_image_vma()
 
 #define WREN_FORCE_DMABUF_IMAGES 0
 
-ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format format, wren_image_usage usage)
+ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format format, flags<wren_image_usage> usage)
 {
 #if WREN_FORCE_DMABUF_IMAGES
     auto* props = wren_get_format_props(ctx, format, wren_image_usage_to_vk(usage));
@@ -153,7 +153,7 @@ void wren_image_init(wren_image* image)
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
 
-    if (image->usage >= wren_image_usage::texture) {
+    if (image->usage.contains(wren_image_usage::texture)) {
         wren_allocate_image_descriptor(image);
     }
 
@@ -211,7 +211,7 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
     usz image_size = block_w * block_h * info.texel_block_size;
 
     // TODO: This should be stored persistently for transfers
-    ref buffer = wren_buffer_create(ctx, image_size, wren_buffer_flags::host);
+    ref buffer = wren_buffer_create(ctx, image_size, wren_buffer_flag::host);
 
     std::memcpy(buffer->host_address, data, image_size);
 
@@ -296,7 +296,7 @@ wren_image_dmabuf::~wren_image_dmabuf()
     }
 }
 
-ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 extent, wren_format format, wren_image_usage usage, std::span<const wren_drm_modifier> modifiers)
+ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 extent, wren_format format, flags<wren_image_usage> usage, std::span<const wren_drm_modifier> modifiers)
 {
     auto image = wrei_create<wren_image_dmabuf>();
     image->ctx = ctx;
@@ -439,9 +439,9 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
     return params;
 }
 
-ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params, wren_image_usage usage)
+ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params, flags<wren_image_usage> usage)
 {
-    wrei_assert(!wrei_flags_empty(usage));
+    wrei_assert(!usage.empty());
 
     auto props = wren_get_format_props(ctx, params.format, usage)->for_mod(params.modifier);
     if (!props) {

@@ -122,11 +122,10 @@ struct wroc_wl_output : wrei_object
 void wroc_output_desc_update(wroc_wl_output*);
 void wroc_output_enter_surface(wroc_wl_output*, wroc_surface*);
 
-enum class wroc_output_commit_flags : u32
+enum class wroc_output_commit_flag : u32
 {
     vsync = 1 << 0,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_output_commit_flags);
 
 using wroc_output_commit_id = u64;
 
@@ -160,7 +159,7 @@ struct wroc_output : wrei_object
 
     bool frame_requested = true;
 
-    virtual wroc_output_commit_id commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) = 0;
+    virtual wroc_output_commit_id commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, flags<wroc_output_commit_flag>) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);
@@ -225,7 +224,7 @@ struct wroc_surface_state_queue_base
 template<typename T>
 void wroc_surface_state_queue_commit(T* base, wroc_commit_id id)
 {
-    if (wrei_flags_empty(base->pending->committed)) {
+    if (base->pending->committed.empty()) {
         return;
     }
     base->cached.back().id = id;
@@ -280,7 +279,6 @@ enum class wroc_surface_committed_state : u32
     surface_stack = 1 << 5,
     parent_commit = 1 << 6,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_surface_committed_state)
 
 struct wroc_surface_stack_element
 {
@@ -290,7 +288,7 @@ struct wroc_surface_stack_element
 
 struct wroc_surface_state
 {
-    wroc_surface_committed_state committed;
+    flags<wroc_surface_committed_state> committed;
 
     ref<wroc_buffer> buffer;
     ref<wroc_buffer_lock> buffer_lock;
@@ -384,11 +382,10 @@ enum class wroc_viewport_committed_state : u32
     source      = 1 << 0,
     destination = 1 << 1,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_viewport_committed_state)
 
 struct wroc_viewport_state
 {
-    wroc_viewport_committed_state committed;
+    flags<wroc_viewport_committed_state> committed;
     rect2f64 source;
     vec2i32 destination;
 };
@@ -436,11 +433,10 @@ enum class wroc_xdg_surface_committed_state : u32
     geometry = 1 << 0,
     ack      = 1 << 1,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_xdg_surface_committed_state)
 
 struct wrox_xdg_surface_state
 {
-    wroc_xdg_surface_committed_state committed = {};
+    flags<wroc_xdg_surface_committed_state> committed = {};
 
     rect2i32 geometry;
     u32 acked_serial;
@@ -476,7 +472,6 @@ enum class wroc_xdg_toplevel_configure_state : u32
     size   = 1 << 1,
     states = 1 << 2,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_configure_state)
 
 enum class wroc_xdg_toplevel_committed_state : u32
 {
@@ -484,11 +479,10 @@ enum class wroc_xdg_toplevel_committed_state : u32
     title  = 1 << 1,
     app_id = 1 << 2,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_xdg_toplevel_committed_state)
 
 struct wroc_xdg_toplevel_state
 {
-    wroc_xdg_toplevel_committed_state committed = {};
+    flags<wroc_xdg_toplevel_committed_state> committed = {};
 
     weak<wroc_toplevel> parent;
     std::string title;
@@ -508,7 +502,7 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon, wroc_surface_state_queue_base<
         vec2i32 bounds;
         vec2i32 size;
         std::vector<xdg_toplevel_state> states;
-        wroc_xdg_toplevel_configure_state pending = {};
+        flags<wroc_xdg_toplevel_configure_state> pending = {};
     } configure;
 
     struct {
@@ -759,7 +753,7 @@ void wroc_seat_init_pointer(wroc_seat*);
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_modifiers : u32
+enum class wroc_modifier : u32
 {
     mod    = 1 << 0,
     super  = 1 << 1,
@@ -769,7 +763,6 @@ enum class wroc_modifiers : u32
     num    = 1 << 5,
     caps   = 1 << 6,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_modifiers)
 
 enum class wroc_key_action : u32
 {
@@ -824,7 +817,7 @@ struct wroc_seat_keyboard : wrei_object
     struct xkb_state*   state;
     struct xkb_keymap*  keymap;
 
-    wrei_enum_map<wroc_modifiers, xkb_mod_mask_t> mod_masks;
+    wrei_enum_map<wroc_modifier, xkb_mod_mask_t> mod_masks;
 
     int keymap_fd = -1;
     i32 keymap_size;
@@ -834,15 +827,15 @@ struct wroc_seat_keyboard : wrei_object
 
     void attach(wroc_keyboard*);
 
-    bool is_locked(wroc_modifiers) const;
-    void set_locked(wroc_modifiers, bool locked);
+    bool is_locked(wroc_modifier) const;
+    void set_locked(wroc_modifier, bool locked);
 
     ~wroc_seat_keyboard();
 };
 
 void wroc_seat_keyboard_send_configuration(wroc_seat_keyboard*, wl_client*, wl_resource*);
 
-wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_seat_keyboard*);
+flags<wroc_modifier> wroc_keyboard_get_active_modifiers(wroc_seat_keyboard*);
 
 void wroc_keyboard_clear_focus(wroc_seat_keyboard*);
 void wroc_keyboard_enter(wroc_seat_keyboard*, wroc_surface*);
@@ -901,11 +894,10 @@ enum class wroc_pointer_constraint_committed_state : u32
     region        = 1 << 1,
     region_unset  = 1 << 2,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_pointer_constraint_committed_state)
 
 struct wroc_pointer_constraint_state
 {
-    wroc_pointer_constraint_committed_state committed;
+    flags<wroc_pointer_constraint_committed_state> committed;
     vec2f64 position_hint;
     region2i32 region;
 };
@@ -937,13 +929,12 @@ struct wroc_pointer_constraint : wroc_surface_addon, wroc_surface_state_queue_ba
 
 // -----------------------------------------------------------------------------
 
-WREI_DECORATE_FLAG_ENUM(wl_data_device_manager_dnd_action)
 WREI_DEFINE_ENUM_NAME_PROPS(wl_data_device_manager_dnd_action, "WL_DATA_DEVICE_MANAGER_DND_ACTION_", "");
 
 struct wroc_data_source : wrei_object
 {
     std::vector<std::string> mime_types;
-    wl_data_device_manager_dnd_action dnd_actions;
+    flags<wl_data_device_manager_dnd_action> dnd_actions;
     bool cancelled = false;
 
     wroc_resource resource;
@@ -1028,8 +1019,7 @@ wroc_surface* wroc_cursor_get_current(wroc_seat_pointer*, wroc_cursor*);
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_render_options : u32 { };
-WREI_DECORATE_FLAG_ENUM(wroc_render_options)
+enum class wroc_render_option : u32 { };
 
 struct wroc_renderer_frame_data
 {
@@ -1046,7 +1036,7 @@ struct wroc_renderer : wrei_object
 
     ref<wren_context> wren;
 
-    wroc_render_options options;
+    flags<wroc_render_option> options;
 
     wren_format output_format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
 
@@ -1077,7 +1067,7 @@ struct wroc_renderer : wrei_object
     ~wroc_renderer();
 };
 
-void wroc_renderer_create(wroc_render_options);
+void wroc_renderer_create(wroc_render_option);
 void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
 void wroc_screenshot(rect2f64 rect);
@@ -1166,43 +1156,41 @@ enum class wroc_interaction_mode : u32
     zone,
 };
 
-enum class wroc_edges : u32
+enum class wroc_edge : u32
 {
     left   = 1 << 0,
     right  = 1 << 1,
     top    = 1 << 2,
     bottom = 1 << 3,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_edges);
 
 inline
-wroc_edges wroc_edges_inverse(wroc_edges edges)
+flags<wroc_edge> wroc_edges_inverse(flags<wroc_edge> edges)
 {
-    wroc_edges out = {};
-    if      (edges >= wroc_edges::left)   out |= wroc_edges::right;
-    else if (edges >= wroc_edges::right)  out |= wroc_edges::left;
-    if      (edges >= wroc_edges::top)    out |= wroc_edges::bottom;
-    else if (edges >= wroc_edges::bottom) out |= wroc_edges::top;
+    flags<wroc_edge> out = {};
+    if      (edges.contains(wroc_edge::left))   out |= wroc_edge::right;
+    else if (edges.contains(wroc_edge::right))  out |= wroc_edge::left;
+    if      (edges.contains(wroc_edge::top))    out |= wroc_edge::bottom;
+    else if (edges.contains(wroc_edge::bottom)) out |= wroc_edge::top;
     return out;
 }
 
 inline
-vec2f64 wroc_edges_to_relative(wroc_edges edges)
+vec2f64 wroc_edges_to_relative(flags<wroc_edge> edges)
 {
     vec2f64 rel{0.5, 0.5};
-    if      (edges >= wroc_edges::left)   rel.x = 0;
-    else if (edges >= wroc_edges::right)  rel.x = 1;
-    if      (edges >= wroc_edges::top)    rel.y = 0;
-    else if (edges >= wroc_edges::bottom) rel.y = 1;
+    if      (edges.contains(wroc_edge::left))   rel.x = 0;
+    else if (edges.contains(wroc_edge::right))  rel.x = 1;
+    if      (edges.contains(wroc_edge::top))    rel.y = 0;
+    else if (edges.contains(wroc_edge::bottom)) rel.y = 1;
     return rel;
 }
 
-enum class wroc_directions : u32
+enum class wroc_direction : u32
 {
     horizontal = 1 << 0,
     vertical   = 1 << 1,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_directions);
 
 struct wroc_server : wrei_object
 {
@@ -1214,7 +1202,7 @@ struct wroc_server : wrei_object
     ref<wroc_debug_gui> debug_gui;
     ref<wroc_launcher> launcher;
 
-    wroc_modifiers main_mod;
+    wroc_modifier main_mod;
     u32 main_mod_evdev;
 
     std::chrono::steady_clock::time_point epoch;
@@ -1295,10 +1283,10 @@ wl_global* wroc_global(const wl_interface*, i32 version, wl_global_bind_func_t, 
     wroc_global(&Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
 
 u32 wroc_get_elapsed_milliseconds();
-wroc_modifiers wroc_get_active_modifiers();
+flags<wroc_modifier> wroc_get_active_modifiers();
 
-void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_directions);
-void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, wroc_edges);
+void wroc_begin_move_interaction(wroc_toplevel*, wroc_seat_pointer*, flags<wroc_direction>);
+void wroc_begin_resize_interaction(wroc_toplevel*, wroc_seat_pointer*, flags<wroc_edge>);
 
 wroc_surface* wroc_get_surface_under_cursor(wroc_toplevel** toplevel = nullptr);
 
@@ -1309,11 +1297,10 @@ using wroc_spawn_action = std::variant<wroc_spawn_env_action, wroc_spawn_x11_act
 pid_t wroc_spawn(std::string_view file, std::span<const std::string_view> argv, std::span<const wroc_spawn_action>);
 void wroc_spawn(GAppInfo* app_info, std::span<const wroc_spawn_action>);
 
-enum class wroc_setenv_options : u32
+enum class wroc_setenv_option : u32
 {
     // Imports the environment variable into the systemd environment
     system_wide = 1 << 0,
 };
-WREI_DECORATE_FLAG_ENUM(wroc_setenv_options)
 
-void wroc_setenv(const char* name, const char* value, wroc_setenv_options options = {});
+void wroc_setenv(const char* name, const char* value, flags<wroc_setenv_option> options = {});

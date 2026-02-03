@@ -297,7 +297,11 @@ void on_present_frame(void* data, wl_callback*, u32 time)
     }
 }
 
-wroc_output_commit_id wroc_wayland_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags flags)
+wroc_output_commit_id wroc_wayland_output::commit(
+    wren_image* image,
+    wren_syncpoint acquire,
+    wren_syncpoint release,
+    flags<wroc_output_commit_flag> flags)
 {
     wrei_assert(frame_available);
 
@@ -323,7 +327,7 @@ wroc_output_commit_id wroc_wayland_output::commit(wren_image* image, wren_syncpo
         wl_callback_add_listener(frame_callback, &listener, this);
     }
 
-    if (flags >= wroc_output_commit_flags::vsync) {
+    if (flags.contains(wroc_output_commit_flag::vsync)) {
         frame_available = false;
     } else {
         wrei_event_loop_enqueue(server->event_loop.get(), [output = weak(this)] {

@@ -106,14 +106,14 @@ void apply_pointer_constraint_state(wroc_pointer_constraint* constraint, wroc_po
 {
     auto& to = constraint->current;
 
-    if (from.committed >= wroc_pointer_constraint_committed_state::region) {
+    if (from.committed.contains(wroc_pointer_constraint_committed_state::region)) {
         to.region = std::move(from.region);
         to.committed |= wroc_pointer_constraint_committed_state::region;
-    } else if (from.committed >= wroc_pointer_constraint_committed_state::region_unset) {
+    } else if (from.committed.contains(wroc_pointer_constraint_committed_state::region_unset)) {
         to.committed -= wroc_pointer_constraint_committed_state::region;
     }
 
-    if (from.committed >= wroc_pointer_constraint_committed_state::position_hint) {
+    if (from.committed.contains(wroc_pointer_constraint_committed_state::position_hint)) {
         to.position_hint = from.position_hint;
         to.committed |= wroc_pointer_constraint_committed_state::position_hint;
     }

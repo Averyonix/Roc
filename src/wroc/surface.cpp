@@ -197,7 +197,7 @@ void apply_state(wroc_surface* surface, wroc_surface_state& from)
 
     // Update buffer
 
-    if (from.committed >= wroc_surface_committed_state::buffer) {
+    if (from.committed.contains(wroc_surface_committed_state::buffer)) {
         if (from.buffer && from.buffer->resource) {
             to.buffer      = std::move(from.buffer);
             to.buffer_lock = std::move(from.buffer_lock);
@@ -215,19 +215,19 @@ void apply_state(wroc_surface* surface, wroc_surface_state& from)
 
     // Update opaque region
 
-    if (from.committed >= wroc_surface_committed_state::opaque_region) {
+    if (from.committed.contains(wroc_surface_committed_state::opaque_region)) {
         to.opaque_region = std::move(from.opaque_region);
     }
 
     // Update input region
 
-    if (from.committed >= wroc_surface_committed_state::input_region) {
+    if (from.committed.contains(wroc_surface_committed_state::input_region)) {
         to.input_region = std::move(from.input_region);
     }
 
     // Update offset delta
 
-    if (from.committed >= wroc_surface_committed_state::offset) {
+    if (from.committed.contains(wroc_surface_committed_state::offset)) {
         to.delta += from.delta;
     }
 
@@ -238,7 +238,7 @@ void apply_state(wroc_surface* surface, wroc_surface_state& from)
         from.committed |= wroc_surface_committed_state::surface_stack;
     }
 
-    if (from.committed >= wroc_surface_committed_state::surface_stack) {
+    if (from.committed.contains(wroc_surface_committed_state::surface_stack)) {
         to.surface_stack.clear();
         to.surface_stack.append_range(from.surface_stack);
     }
@@ -269,7 +269,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 
     // Commit and begin acquisition process for buffers
 
-    if (packet.state.committed >= wroc_surface_committed_state::buffer) {
+    if (packet.state.committed.contains(wroc_surface_committed_state::buffer)) {
         if (packet.state.buffer) {
             packet.state.buffer_lock = packet.state.buffer->commit(surface);
         }
@@ -287,7 +287,7 @@ void wroc_wl_surface_commit(wl_client* client, wl_resource* resource)
 static
 bool is_blocked_by_parent_commit(wroc_surface* surface, wroc_surface_state& state, wroc_commit_id id)
 {
-    if (!(state.committed >= wroc_surface_committed_state::parent_commit)) return false;
+    if (!(state.committed.contains(wroc_surface_committed_state::parent_commit))) return false;
 
     auto* subsurface = wroc_surface_get_addon<wroc_subsurface>(surface);
     if (subsurface
@@ -345,7 +345,7 @@ void wroc_surface_flush_apply(wroc_surface* surface)
 
     // Update buffer_src/buffer_dst
 
-    if (surface->current.committed >= wroc_surface_committed_state::offset) {
+    if (surface->current.committed.contains(wroc_surface_committed_state::offset)) {
         surface->buffer_dst.origin += surface->current.delta;
 
         surface->current.committed -= wroc_surface_committed_state::offset;
@@ -362,12 +362,12 @@ void wroc_surface_flush_apply(wroc_surface* surface)
 
     if (auto* viewport = wroc_surface_get_addon<wroc_viewport>(surface)) {
         auto& current = viewport->current;
-        if (current.committed >= wroc_viewport_committed_state::source) {
+        if (current.committed.contains(wroc_viewport_committed_state::source)) {
             surface->buffer_src = current.source;
         }
-        if (current.committed >= wroc_viewport_committed_state::destination) {
+        if (current.committed.contains(wroc_viewport_committed_state::destination)) {
             surface->buffer_dst.extent = current.destination;
-        } else if (current.committed >= wroc_viewport_committed_state::source) {
+        } else if (current.committed.contains(wroc_viewport_committed_state::source)) {
             surface->buffer_dst.extent = current.source.extent;
         }
 

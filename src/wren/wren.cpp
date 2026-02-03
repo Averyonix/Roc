@@ -157,7 +157,7 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat*
     return true;
 }
 
-ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_loop, int drm_fd)
+ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* event_loop, int drm_fd)
 {
     auto ctx = wrei_create<wren_context>();
     ctx->features = _features;

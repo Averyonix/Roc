@@ -64,7 +64,7 @@ void apply_state(wroc_viewport* self, wroc_viewport_state& from, wroc_commit_id 
 {
     auto& to = self->current;
 
-    if (from.committed >= wroc_viewport_committed_state::source) {
+    if (from.committed.contains(wroc_viewport_committed_state::source)) {
         if (from.source == rect2f64{{-1, -1}, {-1, -1}, wrei_xywh}) {
             log_debug("wp_viewport source unset");
             to.committed -= wroc_viewport_committed_state::source;
@@ -75,7 +75,7 @@ void apply_state(wroc_viewport* self, wroc_viewport_state& from, wroc_commit_id 
         }
     }
 
-    if (from.committed >= wroc_viewport_committed_state::destination) {
+    if (from.committed.contains(wroc_viewport_committed_state::destination)) {
         if (from.destination == vec2i32{-1, -1}) {
             log_debug("wp_viewport destination unset");
             to.committed -= wroc_viewport_committed_state::destination;

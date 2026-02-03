@@ -47,7 +47,7 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 u32 wren_find_vk_memory_type_index(wren_context*, u32 type_filter, VkMemoryPropertyFlags properties);
 
-VkFormatFeatureFlags wren_get_required_format_features(wren_format, wren_image_usage);
+VkFormatFeatureFlags wren_get_required_format_features(wren_format, flags<wren_image_usage>);
 
 // -----------------------------------------------------------------------------
 

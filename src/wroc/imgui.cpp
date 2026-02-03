@@ -266,10 +266,10 @@ bool wroc_imgui_handle_mods(wroc_imgui* imgui, const wroc_keyboard_event& event)
     auto& io = ImGui::GetIO();
 
     auto mods = wroc_get_active_modifiers();
-    io.AddKeyEvent(ImGuiMod_Shift, mods >= wroc_modifiers::shift);
-    io.AddKeyEvent(ImGuiMod_Ctrl,  mods >= wroc_modifiers::ctrl);
-    io.AddKeyEvent(ImGuiMod_Alt,   mods >= wroc_modifiers::alt);
-    io.AddKeyEvent(ImGuiMod_Super, mods >= wroc_modifiers::super);
+    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(wroc_modifier::shift));
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(wroc_modifier::ctrl));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(wroc_modifier::alt));
+    io.AddKeyEvent(ImGuiMod_Super, mods.contains(wroc_modifier::super));
 
     return false;
 }

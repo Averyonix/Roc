@@ -51,10 +51,10 @@ void wroc_cursor_create()
 
     static constexpr int xcursor_size = 24;
 
-    wroc_setenv("XCURSOR_SIZE", std::to_string(xcursor_size).c_str(), wroc_setenv_options::system_wide);
+    wroc_setenv("XCURSOR_SIZE", std::to_string(xcursor_size).c_str(), wroc_setenv_option::system_wide);
 
     if (theme) {
-        wroc_setenv("XCURSOR_THEME", theme, wroc_setenv_options::system_wide);
+        wroc_setenv("XCURSOR_THEME", theme, wroc_setenv_option::system_wide);
     }
 
     cursor->theme = theme;

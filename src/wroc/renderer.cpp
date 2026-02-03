@@ -29,12 +29,12 @@ void register_format(wroc_renderer* renderer, wren_format format)
     }
 }
 
-void wroc_renderer_create(wroc_render_options render_options)
+void wroc_renderer_create(wroc_render_option render_options)
 {
     auto* renderer = (server->renderer = wrei_create<wroc_renderer>()).get();
     renderer->options = render_options;
 
-    wren_features features = {};
+    flags<wren_feature> features = {};
 
     renderer->wren = wren_create(features, server->event_loop.get(), server->backend->get_preferred_drm_device());
 
@@ -334,7 +334,7 @@ void wroc_screenshot(rect2f64 rect)
         wren_image_usage::render | wren_image_usage::transfer);
 
     auto byte_size = usz(4) * extent.x * extent.y;
-    auto buffer = wren_buffer_create(wren, byte_size, wren_buffer_flags::host);
+    auto buffer = wren_buffer_create(wren, byte_size, wren_buffer_flag::host);
 
     // Completion handler
 
@@ -409,8 +409,8 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
     slot->image = image;
     slot->release_point++;
 
-    wroc_output_commit_flags flags = {};
-    if (server->renderer->vsync) flags |= wroc_output_commit_flags::vsync;
+    flags<wroc_output_commit_flag> flags = {};
+    if (server->renderer->vsync) flags |= wroc_output_commit_flag::vsync;
     output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
 }
 

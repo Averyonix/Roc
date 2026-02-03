@@ -70,14 +70,14 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
     }
 
     wl_data_device_manager_dnd_action new_action = WL_DATA_DEVICE_MANAGER_DND_ACTION_NONE;
-    if (preferred_action && data_offer->source->dnd_actions >= wl_data_device_manager_dnd_action(preferred_action)) {
+    if (preferred_action && data_offer->source->dnd_actions.contains(wl_data_device_manager_dnd_action(preferred_action))) {
         new_action = wl_data_device_manager_dnd_action(preferred_action);
     } else {
         auto matched = data_offer->source->dnd_actions & wl_data_device_manager_dnd_action(preferred_action);
-        if      (matched >= WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK)  matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK;
-        else if (matched >= WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY) matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY;
-        else if (matched >= WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE) matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE;
-        new_action = matched;
+        if      (matched.contains(WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK))  matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_ASK;
+        else if (matched.contains(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY)) matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY;
+        else if (matched.contains(WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE)) matched = WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE;
+        new_action = matched.get();
     }
 
     if (new_action != data_offer->action) {
@@ -261,7 +261,7 @@ wl_resource* wroc_data_device_offer(wroc_data_device* device, wroc_data_source* 
     }
 
     if (wl_resource_get_version(offer_resource) >= WL_DATA_OFFER_ACTION_SINCE_VERSION) {
-        wroc_send(wl_data_offer_send_source_actions, offer_resource, source->dnd_actions);
+        wroc_send(wl_data_offer_send_source_actions, offer_resource, source->dnd_actions.get());
     }
 
     return offer_resource;
@@ -376,7 +376,7 @@ void wroc_data_manager_finish_drag()
     }
 
     if (drag.offer && drag.offer->device && drag.offer->source) {
-        if (drag.offer->action && drag.source->dnd_actions >= drag.offer->action) {
+        if (drag.offer->action && drag.source->dnd_actions.contains(drag.offer->action)) {
             log_debug("Drag completed with offer");
             log_debug("  action = {}", wrei_enum_to_string(drag.offer->action));
             log_debug("  mime_type = {}", drag.offer->mime_type);

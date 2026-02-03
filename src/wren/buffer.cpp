@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, wren_buffer_flags flags)
+ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, flags<wren_buffer_flag> flags)
 {
     auto buffer = wrei_create<wren_buffer>();
     buffer->ctx = ctx;
@@ -26,7 +26,7 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, wren_buffer_fla
                 ctx->transfer_queue->family,
             }.data(),
         }),
-        flags >= host
+        flags.contains(wren_buffer_flag::host)
             ? wrei_ptr_to(VmaAllocationCreateInfo {
                 .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
                 .usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST,

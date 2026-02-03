@@ -55,7 +55,7 @@ bool wroc_debug_gui_handle_event(wroc_debug_gui* debug, const wroc_event& _event
     if (wroc_event_get_type(_event) == wroc_event_type::keyboard_key) {
         auto& event = static_cast<const wroc_keyboard_event&>(_event);
 
-        if (event.key.upper() == XKB_KEY_A && event.key.pressed && wroc_get_active_modifiers() >= wroc_modifiers::mod) {
+        if (event.key.upper() == XKB_KEY_A && event.key.pressed && wroc_get_active_modifiers().contains(wroc_modifier::mod)) {
             debug->show_debug_menu = !debug->show_debug_menu;
             return true;
         }

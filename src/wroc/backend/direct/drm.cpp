@@ -422,7 +422,11 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
     return backend->buffer_cache.emplace_back(image, fb2_handle).fb2_handle;
 }
 
-wroc_output_commit_id wroc_drm_output::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags in_flags)
+wroc_output_commit_id wroc_drm_output::commit(
+    wren_image* image,
+    wren_syncpoint acquire,
+    wren_syncpoint release,
+    flags<wroc_output_commit_flag> in_flags)
 {
     wrei_assert(frame_available);
     frame_available = false;
@@ -461,7 +465,7 @@ wroc_output_commit_id wroc_drm_output::commit(wren_image* image, wren_syncpoint 
         // For some reason some drivers don't seem to support OUT_FENCE_PTR when using async page flips.
         // Additionally, it seems that we are required to send at least one non-async flip first, hence
         // handling this only when `last_release_semaphore` is set.
-        if (!(in_flags >= wroc_output_commit_flags::vsync)) {
+        if (!(in_flags.contains(wroc_output_commit_flags::vsync))) {
             flags |= DRM_MODE_PAGE_FLIP_ASYNC;
             state->pending_release_semaphore = state->last_release_semaphore;
             state->pending_release_point = state->last_release_point;

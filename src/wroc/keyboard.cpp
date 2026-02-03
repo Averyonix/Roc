@@ -83,12 +83,12 @@ void wroc_seat_init_keyboard(wroc_seat* seat)
 
     // Get XKB modifier masks
 
-    kb->mod_masks[wroc_modifiers::super] = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_LOGO);
-    kb->mod_masks[wroc_modifiers::shift] = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_SHIFT);
-    kb->mod_masks[wroc_modifiers::ctrl]  = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_CTRL);
-    kb->mod_masks[wroc_modifiers::alt]   = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_ALT);
-    kb->mod_masks[wroc_modifiers::num]   = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_NUM);
-    kb->mod_masks[wroc_modifiers::caps]  = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_CAPS);
+    kb->mod_masks[wroc_modifier::super] = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_LOGO);
+    kb->mod_masks[wroc_modifier::shift] = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_SHIFT);
+    kb->mod_masks[wroc_modifier::ctrl]  = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_CTRL);
+    kb->mod_masks[wroc_modifier::alt]   = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_ALT);
+    kb->mod_masks[wroc_modifier::num]   = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_NUM);
+    kb->mod_masks[wroc_modifier::caps]  = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_CAPS);
 
     // Create keymap file
 
@@ -123,7 +123,7 @@ void wroc_seat_init_keyboard(wroc_seat* seat)
 
     // Start with numlock enabled
 
-    kb->set_locked(wroc_modifiers::num, true);
+    kb->set_locked(wroc_modifier::num, true);
 }
 
 wroc_seat_keyboard::~wroc_seat_keyboard()
@@ -162,18 +162,16 @@ void wroc_seat_keyboard_update_leds(wroc_seat_keyboard* kb)
     }
 }
 
-bool wroc_seat_keyboard::is_locked(wroc_modifiers mod) const
+bool wroc_seat_keyboard::is_locked(wroc_modifier mod) const
 {
     auto locked = xkb_state_serialize_mods(state, XKB_STATE_MODS_LOCKED);
     return locked & (mod_masks[mod]);
 }
 
-WREI_DECORATE_FLAG_ENUM(xkb_state_component)
-
 static
-void wroc_seat_keyboard_handle_component_updates(wroc_seat_keyboard* kb, xkb_state_component changed_components)
+void wroc_seat_keyboard_handle_component_updates(wroc_seat_keyboard* kb, flags<xkb_state_component> changed_components)
 {
-    if (changed_components & (XKB_STATE_MODS_DEPRESSED | XKB_STATE_MODS_LATCHED | XKB_STATE_MODS_LOCKED | XKB_STATE_LAYOUT_EFFECTIVE)) {
+    if (changed_components & flags(XKB_STATE_MODS_DEPRESSED, XKB_STATE_MODS_LATCHED, XKB_STATE_MODS_LOCKED, XKB_STATE_LAYOUT_EFFECTIVE)) {
         log_debug("Updated modifiers");
         wroc_post_event(wroc_keyboard_event {
             .type = wroc_event_type::keyboard_modifiers,
@@ -193,7 +191,7 @@ void wroc_seat_keyboard_handle_component_updates(wroc_seat_keyboard* kb, xkb_sta
     }
 }
 
-void wroc_seat_keyboard::set_locked(wroc_modifiers mod, bool locked)
+void wroc_seat_keyboard::set_locked(wroc_modifier mod, bool locked)
 {
     auto mask = mod_masks[mod];
 
@@ -206,7 +204,7 @@ void wroc_seat_keyboard::set_locked(wroc_modifiers mod, bool locked)
 static
 void wroc_seat_keyboard_update_state(wroc_seat_keyboard* kb, wroc_key_action action, std::span<const u32> actioned_keys)
 {
-    xkb_state_component updated = {};
+    flags<xkb_state_component> updated = {};
 
     for (auto key : actioned_keys) {
         if (action == wroc_key_action::release ? kb->pressed.dec(key) : kb->pressed.inc(key)) {
@@ -236,25 +234,25 @@ void wroc_seat_keyboard_update_state(wroc_seat_keyboard* kb, wroc_key_action act
     wroc_seat_keyboard_handle_component_updates(kb, updated);
 }
 
-wroc_modifiers wroc_keyboard_get_active_modifiers(wroc_seat_keyboard* kb)
+flags<wroc_modifier> wroc_keyboard_get_active_modifiers(wroc_seat_keyboard* kb)
 {
-    wroc_modifiers down = {};
+    flags<wroc_modifier> down = {};
 
     auto xkb_mods = xkb_state_serialize_mods(kb->state, XKB_STATE_MODS_EFFECTIVE);
     for (auto mod : kb->mod_masks.enum_values) {
         if (xkb_mods & kb->mod_masks[mod]) down |= mod;
     }
 
-    if (down >= server->main_mod) {
-        down |= wroc_modifiers::mod;
+    if (down.contains(server->main_mod)) {
+        down |= wroc_modifier::mod;
     }
 
     return down;
 }
 
-wroc_modifiers wroc_get_active_modifiers()
+flags<wroc_modifier> wroc_get_active_modifiers()
 {
-    wroc_modifiers mods = {};
+    flags<wroc_modifier> mods = {};
     if (server->seat->keyboard) {
         mods |= wroc_keyboard_get_active_modifiers(server->seat->keyboard.get());
     }

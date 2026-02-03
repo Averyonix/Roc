@@ -133,7 +133,7 @@ void wroc_spawn(GAppInfo* app, std::span<const wroc_spawn_action> actions)
     }
 }
 
-void wroc_setenv(const char* name, const char* value, wroc_setenv_options options)
+void wroc_setenv(const char* name, const char* value, flags<wroc_setenv_option> options)
 {
     if (value) {
         setenv(name, value, true);
@@ -141,7 +141,7 @@ void wroc_setenv(const char* name, const char* value, wroc_setenv_options option
         unsetenv(name);
     }
 
-    if (options >= wroc_setenv_options::system_wide && server->backend->type == wroc_backend_type::direct) {
+    if (options.contains(wroc_setenv_option::system_wide) && server->backend->type == wroc_backend_type::direct) {
         wroc_spawn("systemctl", {"systemctl", "--user", "import-environment", name}, {});
     }
 }

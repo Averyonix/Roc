@@ -126,19 +126,6 @@ constexpr auto wrei_ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
-#define WREI_DECORATE_FLAG_ENUM(EnumType) \
-    static_assert(std::is_unsigned_v<std::underlying_type_t<EnumType>>); \
-    inline constexpr EnumType operator| (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) | std::to_underlying(r));                  } \
-    inline constexpr EnumType operator|=(EnumType& l, EnumType r) { return l = l | r;                                                                } \
-    inline constexpr bool     operator>=(EnumType  l, EnumType r) { return std::to_underlying(r) == (std::to_underlying(l) & std::to_underlying(r)); } \
-    inline constexpr bool     operator< (EnumType  l, EnumType r) { return !(l >= r);                                                                } \
-    inline constexpr EnumType operator& (EnumType  l, EnumType r) { return EnumType(std::to_underlying(l) & std::to_underlying(r));                  } \
-    inline constexpr EnumType operator~ (EnumType  v)             { return EnumType(~std::to_underlying(v));                                         } \
-    inline constexpr EnumType operator-=(EnumType& l, EnumType r) { return l = EnumType(std::to_underlying(l) & ~std::to_underlying(r));             } \
-    inline constexpr bool wrei_flags_empty(EnumType v)            { return !std::to_underlying(v);                                                   } \
-
-// -----------------------------------------------------------------------------
-
 #define WREI_DELETE_COPY(Type) \
                Type(const Type& ) = delete; \
     Type& operator=(const Type& ) = delete; \

@@ -453,9 +453,9 @@ static void load_format_props(wren_context* ctx, wren_format_props& props)
     }
 }
 
-const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, wren_image_usage usage)
+const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, flags<wren_image_usage> usage)
 {
-    wrei_assert(!wrei_flags_empty(usage));
+    wrei_assert(!usage.empty());
     auto key = wren_format_props_key{format, usage};
     auto& props = ctx->format_props[key];
     if (!props.format) {
