@@ -119,7 +119,7 @@ void wroc_shm_buffer::on_commit(wroc_surface* surface)
     pending_transfer = true;
 }
 
-bool wroc_shm_buffer::is_ready()
+bool wroc_shm_buffer::is_ready(wroc_surface* surface)
 {
     if (pending_transfer) {
         auto mapping = pool->mapping;

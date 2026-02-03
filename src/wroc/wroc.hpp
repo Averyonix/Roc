@@ -327,6 +327,8 @@ struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_st
 
     bool mapped;
 
+    bool apply_queued = false;
+
     ~wroc_surface();
 };
 
@@ -634,7 +636,7 @@ struct wroc_buffer : wrei_object
     bool released = true;
     void release();
 
-    virtual bool is_ready() = 0;
+    virtual bool is_ready(wroc_surface*) = 0;
 
 protected:
     virtual void on_commit(wroc_surface*) = 0;
@@ -680,7 +682,7 @@ struct wroc_shm_buffer : wroc_buffer
 
     bool pending_transfer;
 
-    virtual bool is_ready() final override;
+    virtual bool is_ready(wroc_surface*) final override;
 
     virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
@@ -708,7 +710,7 @@ struct wroc_dma_buffer : wroc_buffer
     ref<wren_semaphore> release_timeline;
     u64 release_point;
 
-    virtual bool is_ready() final override;
+    virtual bool is_ready(wroc_surface*) final override;
 
     virtual void on_commit(wroc_surface*) final override;
     virtual void on_unlock() final override;
@@ -1063,7 +1065,6 @@ struct wroc_renderer : wrei_object
 
     struct {
         bool show_debug_cursor = false;
-        bool noisy_dmabufs = false;
     } debug;
 
     bool fps_limit_enabled = false;

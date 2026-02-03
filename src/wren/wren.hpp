@@ -163,6 +163,8 @@ using wren_semaphore_wait_fn = void(u64);
 
 struct wren_semaphore_waiter : wrei_event_source
 {
+    // Templated virtual type with manual linked list
+
     struct wait_item
     {
         weak<wren_semaphore> semaphore;
@@ -170,7 +172,7 @@ struct wren_semaphore_waiter : wrei_event_source
         std::move_only_function<wren_semaphore_wait_fn> callback;
     };
 
-    std::deque<wait_item> waits;
+    std::list<wait_item> waits;
 
     virtual void handle(const epoll_event&) final override;
     void process_signalled(wren_semaphore* semaphore, u64 value);

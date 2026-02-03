@@ -425,10 +425,6 @@ void wroc_render_frame(wroc_output* output)
     auto* renderer = server->renderer.get();
     auto* wren = renderer->wren.get();
 
-    for (auto* surface : server->surfaces) {
-        wroc_surface_flush_apply(surface);
-    }
-
     output->frames_in_flight++;
 
     auto queue = wren_get_queue(wren, wren_queue_type::graphics);

@@ -169,50 +169,49 @@ const struct zwp_linux_dmabuf_feedback_v1_interface wroc_zwp_linux_dmabuf_feedba
     .destroy = wroc_simple_resource_destroy_callback,
 };
 
-#define WROC_VERY_NOISY_DMABUF_WAIT 0
-
-bool wroc_dma_buffer::is_ready()
+bool wroc_dma_buffer::is_ready(wroc_surface* surface)
 {
     if (!needs_wait) return true;
 
-    bool ready;
+    bool ready = true;
     if (acquire_timeline) {
-        auto point = wren_semaphore_get_value(acquire_timeline.get());
-        ready = point >= acquire_point;
-        if (server->renderer->debug.noisy_dmabufs) {
-            if (ready) {
-#if WROC_VERY_NOISY_DMABUF_WAIT
-                log_debug("Waiting for explicit sync point {} - ready", acquire_point);
-#endif
-            } else {
-                log_warn("Waiting for explicit sync point {} - not ready, latest is {}", acquire_point, point);
-            }
+        ready = wren_semaphore_get_value(acquire_timeline.get()) >= acquire_point;
+        if (!ready) {
+            surface->apply_queued = true;
+            wren_semaphore_wait_value(acquire_timeline.get(), acquire_point, [surface = weak(surface)](u64)  {
+                if (surface) {
+                    surface->apply_queued = false;
+                    wroc_surface_flush_apply(surface.get());
+                }
+            });
         }
     } else {
-        ready = true;
-
         if (!params) {
             log_debug("First use of implicit sync with imported image, re-exporting DMA-BUF fds");
             params = wren_image_export_dmabuf(image.get());
         }
 
         for (auto& plane : std::span(params->planes).subspan(0, params->disjoint ? std::dynamic_extent : 1)) {
-            if (unix_check(poll(wrei_ptr_to(pollfd {
-                .fd = plane.fd.get(),
-                .events = POLLIN,
-            }), 1, 0)).value < 1) {
-                if (server->renderer->debug.noisy_dmabufs) {
-                    log_warn("Waiting for implicit sync - fd {} not ready yet", plane.fd.get());
-                }
-                ready = false;
-                break;
+            if (unix_check(poll(wrei_ptr_to(pollfd { .fd = plane.fd.get(), .events = POLLIN }), 1, 0)).value > 0) {
+                continue;
             }
+
+            ready = false;
+
+            surface->apply_queued = true;
+            // TODO: Implement one-shot fd waits in event loop
+            std::thread{[surface = weak(surface), fd = plane.fd.get()] {
+                unix_check(poll(wrei_ptr_to(pollfd { .fd = fd, .events = POLLIN }), 1, -1));
+                wrei_event_loop_enqueue(server->event_loop.get(), [surface] {
+                    if (surface) {
+                        surface->apply_queued = false;
+                        wroc_surface_flush_apply(surface.get());
+                    }
+                });
+            }}.detach();
+
+            break;
         }
-#if WROC_VERY_NOISY_DMABUF_WAIT
-        if (ready && server->renderer->debug.noisy_dmabufs) {
-            log_debug("Waiting for implicit sync - ready");
-        }
-#endif
     }
 
     if (ready) needs_wait = false;

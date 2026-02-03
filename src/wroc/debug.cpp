@@ -208,13 +208,6 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     ImGui::EndDisabled();
 
     ImGui::SameLine(second_column_offset);
-    ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->debug.noisy_dmabufs);
-
-    ImGui::BeginDisabled();
-    ImGui::Checkbox("Tearing", wrei_ptr_to(false));
-    ImGui::EndDisabled();
-
-    ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Noisy Frames", &server->debug.noisy_frames);
 
     {

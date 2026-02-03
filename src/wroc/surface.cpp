@@ -315,6 +315,8 @@ bool is_blocked_by_parent_commit(wroc_surface* surface, wroc_surface_state& stat
 
 void wroc_surface_flush_apply(wroc_surface* surface)
 {
+    if (surface->apply_queued) return;
+
     auto prev_applied_commit_id = surface->applied;
 
     while (surface->cached.size() > 1) {
@@ -323,7 +325,7 @@ void wroc_surface_flush_apply(wroc_surface* surface)
         if (is_blocked_by_parent_commit(surface, packet.state, packet.id)) break;
 
         // Check for buffer ready
-        if (packet.state.buffer_lock && !packet.state.buffer_lock->buffer->is_ready()) break;
+        if (packet.state.buffer_lock && !packet.state.buffer_lock->buffer->is_ready(surface)) break;
 
         apply_state(surface, packet.state);
 
