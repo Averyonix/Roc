@@ -14,6 +14,10 @@ wren_context::~wren_context()
 {
     log_info("Wren context destroyed");
 
+    wrei_assert(waiter->waits.empty());
+    close(waiter->fd);
+    waiter->mark_defunct();
+
     graphics_queue = nullptr;
     transfer_queue = nullptr;
 
@@ -356,6 +360,12 @@ ref<wren_context> wren_create(wren_features _features, wrei_event_loop* event_lo
     // State initialization
 
     wren_init_descriptors(ctx.get());
+
+    // Semaphore waiter
+
+    ctx->waiter = wrei_create<wren_semaphore_waiter>();
+    ctx->waiter->fd = unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value;
+    wrei_event_loop_add(ctx->event_loop.get(), EPOLLIN, ctx->waiter.get());
 
     return ctx;
 }

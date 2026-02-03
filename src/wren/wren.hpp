@@ -159,6 +159,23 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier);
 enum class wren_features : u32 { };
 WREI_DECORATE_FLAG_ENUM(wren_features)
 
+using wren_semaphore_wait_fn = void(u64);
+
+struct wren_semaphore_waiter : wrei_event_source
+{
+    struct wait_item
+    {
+        weak<wren_semaphore> semaphore;
+        u64 value;
+        std::move_only_function<wren_semaphore_wait_fn> callback;
+    };
+
+    std::deque<wait_item> waits;
+
+    virtual void handle(const epoll_event&) final override;
+    void process_signalled(wren_semaphore* semaphore, u64 value);
+};
+
 struct wren_context : wrei_object
 {
     wren_features features;
@@ -190,6 +207,8 @@ struct wren_context : wrei_object
 
         u32 active_samplers;
     } stats;
+
+    ref<wren_semaphore_waiter> waiter;
 
     ref<wren_queue> graphics_queue;
     ref<wren_queue> transfer_queue;
@@ -232,10 +251,8 @@ struct wren_queue : wrei_object
     VkCommandBuffer cmd;
 
     ref<wren_semaphore> queue_sema;
-    std::deque<ref<wren_commands>> submissions;
 
-    std::atomic<u64> wait_thread_submitted;
-    std::jthread     wait_thread;
+    u64 submitted;
 
     ~wren_queue();
 };
@@ -269,8 +286,9 @@ void wren_semaphore_import_syncfile(wren_semaphore*, int sync_fd, u64 target_poi
 int  wren_semaphore_export_syncfile(wren_semaphore*, u64 source_point);
 
 u64  wren_semaphore_get_value(   wren_semaphore*);
-void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
 void wren_semaphore_signal_value(wren_semaphore*, u64 value);
+void wren_semaphore_wait_value(  wren_semaphore*, u64 value, std::move_only_function<wren_semaphore_wait_fn>);
+void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
 
 struct wren_binary_semaphore : wrei_object
 {

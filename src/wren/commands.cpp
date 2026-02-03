@@ -1,44 +1,5 @@
 #include "internal.hpp"
 
-static
-void reclaim_old_submissions(wren_queue* queue)
-{
-    auto value = wren_semaphore_get_value(queue->queue_sema.get());
-
-    while (!queue->submissions.empty()) {
-        if (queue->submissions.front()->submitted_value <= value) {
-            // log_debug("reclaiming submission, value = {}", ctx->submissions.front()->submitted_value);
-            queue->submissions.pop_front();
-        } else {
-            break;
-        }
-    }
-}
-
-static
-void wait_thread(wren_queue* queue)
-{
-    auto* ctx = queue->ctx;
-    auto* semaphore = queue->queue_sema.get();
-
-    u64 observed = 0;
-    for (;;) {
-        queue->wait_thread_submitted.wait(observed);
-        auto wait_value = queue->wait_thread_submitted.load();
-
-        if (wait_value == UINT64_MAX) {
-            return;
-        }
-
-        wren_semaphore_wait_value(semaphore, wait_value);
-        observed = wren_semaphore_get_value(semaphore);
-
-        wrei_event_loop_enqueue(ctx->event_loop.get(), [queue] {
-            reclaim_old_submissions(queue);
-        });
-    }
-}
-
 ref<wren_queue> wren_queue_init(wren_context* ctx, wren_queue_type type, u32 family)
 {
     auto queue = wrei_create<wren_queue>();
@@ -58,28 +19,14 @@ ref<wren_queue> wren_queue_init(wren_context* ctx, wren_queue_type type, u32 fam
 
     queue->queue_sema = wren_semaphore_create(ctx);
 
-    queue->wait_thread = std::jthread([queue = queue.get()] {
-        wait_thread(queue);
-    });
-
     return queue;
 }
 
 wren_queue::~wren_queue()
 {
-    assert(submissions.empty());
-
-    wait_thread_submitted = UINT64_MAX;
-    wait_thread_submitted.notify_one();
-    wait_thread.join();
-
     queue_sema = nullptr;
 
     ctx->vk.DestroyCommandPool(ctx->device, cmd_pool, nullptr);
-}
-
-void wren_commands_init(wren_context* ctx)
-{
 }
 
 wren_commands::~wren_commands()
@@ -133,8 +80,7 @@ void wren_wait_idle(wren_context* ctx)
 void wren_wait_idle(wren_queue* queue)
 {
     queue->ctx->vk.QueueWaitIdle(queue->queue);
-    wren_semaphore_wait_value(queue->queue_sema.get(), queue->wait_thread_submitted);
-    reclaim_old_submissions(queue);
+    wren_semaphore_wait_value(queue->queue_sema.get(), queue->submitted);
 }
 
 wren_syncpoint wren_commands_submit(wren_commands* commands, std::span<const wren_syncpoint> waits)
@@ -144,7 +90,7 @@ wren_syncpoint wren_commands_submit(wren_commands* commands, std::span<const wre
 
     wren_check(ctx->vk.EndCommandBuffer(commands->buffer));
 
-    commands->submitted_value = ++queue->wait_thread_submitted;
+    commands->submitted_value = ++queue->submitted;
 
     wren_syncpoint target_syncpoint {
         .semaphore = queue->queue_sema.get(),
@@ -171,11 +117,7 @@ wren_syncpoint wren_commands_submit(wren_commands* commands, std::span<const wre
         .pSignalSemaphoreInfos = wrei_ptr_to(wren_syncpoint_to_submit_info(target_syncpoint)),
     }), nullptr));
 
-    queue->submissions.emplace_back(commands);
-
-    // Notify wait thread of new value to wait on
-
-    queue->wait_thread_submitted.notify_one();
+    wren_semaphore_wait_value(queue->queue_sema.get(), queue->submitted, [commands = ref(commands)](u64) {});
 
     return target_syncpoint;
 }
