@@ -11,7 +11,7 @@ u32 wroc_get_elapsed_milliseconds()
 
 wl_global* wroc_global(const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
 {
-    assert(version <= interface->version);
+    wrei_assert(version <= interface->version);
     return wl_global_create(server->display, interface, version, data, bind);
 }
 

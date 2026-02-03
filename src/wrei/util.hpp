@@ -6,6 +6,42 @@
 
 // -----------------------------------------------------------------------------
 
+[[clang::noinline]] inline
+void wrei_debugbreak()
+{
+    std::cerr << std::stacktrace::current() << std::endl;
+    raise(SIGTRAP);
+}
+
+[[noreturn]] [[clang::noinline]] inline
+void wrei_debugkill()
+{
+    std::cerr << std::stacktrace::current() << std::endl;
+    std::terminate();
+}
+
+[[noreturn]] inline
+void wrei_unreachable()
+{
+#ifdef NDEBUG
+    std::unreachable();
+#else
+    wrei_debugkill();
+#endif
+}
+
+[[noreturn]] [[clang::noinline]] inline
+void wrei_assert_fail(std::string_view message)
+{
+    wrei_log(wrei_log_level::error, message);
+    wrei_debugkill();
+}
+
+#define wrei_assert(Expr) \
+    (static_cast<bool>(Expr) ? void() : wrei_assert_fail("wrei_assert failed: " #Expr))
+
+// -----------------------------------------------------------------------------
+
 template<typename Enum>
 struct wrei_enum_name_props
 {
@@ -142,7 +178,7 @@ struct wrei_counting_set
     bool dec(auto&& t)
     {
         auto iter = counts.find(t);
-        assert(iter != counts.end());
+        wrei_assert(iter != counts.end());
         if (!--iter->second) {
             counts.erase(iter);
             return true;
@@ -555,40 +591,6 @@ constexpr usz wrei_round_up_power2(usz v) noexcept
 
 // -----------------------------------------------------------------------------
 
-inline
-void wrei_debugbreak()
-{
-    std::cerr << std::stacktrace::current() << std::endl;
-    raise(SIGTRAP);
-}
-
-[[noreturn]] inline
-void wrei_debugkill()
-{
-    std::cerr << std::stacktrace::current() << std::endl;
-    std::terminate();
-}
-
-[[noreturn]] inline
-void wrei_unreachable()
-{
-#ifdef NDEBUG
-    std::unreachable();
-#else
-    wrei_debugkill();
-#endif
-}
-
-#define wrei_assert(Expr) \
-    do { \
-        if (!(Expr)) { \
-            wrei_log(wrei_log_level::error, "wrei_assert failed: " #Expr); \
-            wrei_debugkill(); \
-        } \
-    } while (0)
-
-// -----------------------------------------------------------------------------
-
 constexpr
 u8 wrei_hex_to_value(char digit)
 {
@@ -611,7 +613,7 @@ vec4u8 wrei_color_from_hex(std::string_view str)
         return wrei_hex_to_value(str[i]) * 16 + wrei_hex_to_value(str[i + 1]);
     };
 
-    assert(str.size() >= 6);
+    wrei_assert(str.size() >= 6);
 
     color.x = hex_to_value(0);
     color.y = hex_to_value(2);

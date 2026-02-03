@@ -402,7 +402,7 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
         for (i32 j = 0; j < list->CmdBuffer.size(); ++j) {
             const auto& im_cmd = list->CmdBuffer[j];
 
-            assert(!im_cmd.UserCallback);
+            wrei_assert(!im_cmd.UserCallback);
 
             auto clip_min = glm::max(space.from_global({im_cmd.ClipRect.x, im_cmd.ClipRect.y}), {});
             auto clip_max = glm::min(space.from_global({im_cmd.ClipRect.z, im_cmd.ClipRect.w}), vec2f64(framebuffer_extent));

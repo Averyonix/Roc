@@ -156,7 +156,7 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
     log_info("Seat name: {}", backend->seat_name);
 
     int seat_fd = libseat_get_fd(backend->seat);
-    assert(seat_fd >= 0);
+    wrei_assert(seat_fd >= 0);
 
     backend->libseat_event_source = wrei_event_loop_add_fd(server->event_loop.get(), seat_fd, EPOLLIN,
         [backend](int fd, u32 events) {

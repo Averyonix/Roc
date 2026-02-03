@@ -21,9 +21,9 @@ wren_context::~wren_context()
     graphics_queue = nullptr;
     transfer_queue = nullptr;
 
-    assert(stats.active_images == 0);
-    assert(stats.active_buffers == 0);
-    assert(stats.active_samplers == 0);
+    wrei_assert(stats.active_images == 0);
+    wrei_assert(stats.active_buffers == 0);
+    wrei_assert(stats.active_samplers == 0);
 
     vmaDestroyAllocator(vma);
 
@@ -143,7 +143,7 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat*
     if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
         name = device->nodes[DRM_NODE_RENDER];
     } else {
-        assert(device->available_nodes & (1 << DRM_NODE_PRIMARY));
+        wrei_assert(device->available_nodes & (1 << DRM_NODE_PRIMARY));
         name = device->nodes[DRM_NODE_PRIMARY];
         log_warn("  device {} has no render node, falling back to primary node", name);
     }

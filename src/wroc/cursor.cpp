@@ -160,7 +160,7 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
 
     XcursorImage* image = XcursorLibraryLoadImage(shape_names[shape], cursor->theme, cursor->size);
     if (!image) {
-        assert(shape != WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+        wrei_assert(shape != WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
 
         log_error("  failed to load Xcursor image, using fallback");
         auto default_surface = wroc_cursor_get_shape(cursor, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);

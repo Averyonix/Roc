@@ -66,7 +66,7 @@ void wrei_event_loop_timer_expiry_impl(wrei_event_loop*, std::chrono::steady_clo
 template<typename Lambda>
 void wrei_event_loop_enqueue_timed(wrei_event_loop* loop, std::chrono::steady_clock::time_point exp, Lambda&& task)
 {
-    assert(std::this_thread::get_id() == loop->main_thread);
+    wrei_assert(std::this_thread::get_id() == loop->main_thread);
 
     loop->timed_events.emplace_back(exp, std::move(task));
 
@@ -87,7 +87,7 @@ void wrei_event_loop_enqueue(wrei_event_loop* loop, Lambda&& task)
 template<typename Lambda>
 void wrei_event_loop_enqueue_and_wait(wrei_event_loop* loop, Lambda&& task)
 {
-    assert(std::this_thread::get_id() != loop->main_thread);
+    wrei_assert(std::this_thread::get_id() != loop->main_thread);
 
     std::atomic_flag done = false;
     // We can avoid moving `task` entirely since its lifetime is guaranteed

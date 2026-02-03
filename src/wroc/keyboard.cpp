@@ -55,7 +55,7 @@ wroc_keyboard::~wroc_keyboard()
 
 void wroc_seat_keyboard::attach(wroc_keyboard* kb)
 {
-    assert(!kb->target && "wroc_keyboard already attached to seat keyboard");
+    wrei_assert(!kb->target && "wroc_keyboard already attached to seat keyboard");
 
     sources.emplace_back(kb);
     kb->target = this;

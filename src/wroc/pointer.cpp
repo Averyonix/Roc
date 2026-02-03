@@ -379,7 +379,7 @@ wroc_pointer::~wroc_pointer()
 
 void wroc_seat_pointer::attach(wroc_pointer* kb)
 {
-    assert(!kb->target && "wroc_pointer already attached to seat pointer");
+    wrei_assert(!kb->target && "wroc_pointer already attached to seat pointer");
 
     sources.emplace_back(kb);
     kb->target = this;

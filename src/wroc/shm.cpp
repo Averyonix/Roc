@@ -109,7 +109,7 @@ const struct wl_shm_pool_interface wroc_wl_shm_pool_impl = {
 
 wroc_shm_pool::~wroc_shm_pool()
 {
-    assert(wrei_allocation_from(mapping.get())->ref_count == 1);
+    wrei_assert(wrei_allocation_from(mapping.get())->ref_count == 1);
     mapping = nullptr;
     close(fd);
 }

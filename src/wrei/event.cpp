@@ -78,7 +78,7 @@ ref<wrei_event_loop> wrei_event_loop_create()
 
 wrei_event_loop::~wrei_event_loop()
 {
-    assert(stopped);
+    wrei_assert(stopped);
 
     close(epoll_fd);
 
@@ -96,7 +96,7 @@ void wrei_event_loop_stop(wrei_event_loop* loop)
 
 void wrei_event_loop_run(wrei_event_loop* loop)
 {
-    assert(std::this_thread::get_id() == loop->main_thread);
+    wrei_assert(std::this_thread::get_id() == loop->main_thread);
 
     static constexpr usz max_epoll_events = 64;
     std::array<epoll_event, max_epoll_events> events;
@@ -162,7 +162,7 @@ void wrei_event_loop_run(wrei_event_loop* loop)
 
 void wrei_event_loop_add(wrei_event_loop* loop, u32 events, wrei_event_source* source)
 {
-    assert(!source->event_loop);
+    wrei_assert(!source->event_loop);
     source->event_loop = loop;
 
     unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, source->fd, wrei_ptr_to(epoll_event {

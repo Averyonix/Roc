@@ -38,7 +38,7 @@ ref<wroc_buffer_lock> wroc_buffer::lock()
     if (lock_guard) return lock_guard.get();
 
     // Initial lock *MUST* be acquired when buffer is not released (in control of client)
-    assert(!released);
+    wrei_assert(!released);
 
     // Else create new lock guard
     // Store in a local ref as lock_guard is weak and won't keep it alive to the end of the function

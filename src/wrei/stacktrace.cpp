@@ -23,7 +23,7 @@ std::pair<const wrei_stacktrace*, bool> wrei_stacktrace_cache::insert(const std:
 
 void wrei_stacktrace::populate(struct wrei_stacktrace_cache& cache, const std::stacktrace& stacktrace)
 {
-    assert(entries.empty());
+    wrei_assert(entries.empty());
 
     entries.reserve(stacktrace.size());
     for (auto& e : stacktrace) {
