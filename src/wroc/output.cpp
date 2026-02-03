@@ -225,8 +225,74 @@ void wroc_wl_output_bind_global(wl_client* client, void* data, u32 version, u32 
     }
 }
 
+static
+bool find_queued(wroc_output* output, auto&& fn)
+{
+    return std::ranges::find_if(output->try_dispatch_queue, fn) != output->try_dispatch_queue.end();
+}
+
+static
+void queue_try_dispatch_now(wroc_output* output)
+{
+    auto time = std::chrono::steady_clock::now();
+
+    // Check if any have already been queued to trigger before now
+    if (find_queued(output, [&](const auto& t) { return t <= time; })) return;
+
+    output->try_dispatch_queue.emplace_back(time);
+
+    wrei_event_loop_enqueue(server->event_loop.get(), [time, output = weak(output)] {
+        if (!output) return;
+        std::erase(output->try_dispatch_queue, time);
+        wroc_output_try_dispatch_frame(output.get());
+    });
+}
+
+static
+void queue_try_dispatch_at(wroc_output* output, std::chrono::steady_clock::time_point time)
+{
+    auto now = std::chrono::steady_clock::now();
+
+    // If `time` has already elapsed, dispatch now
+    if (time <= now) return queue_try_dispatch_now(output);
+
+    // Check if we haven't already enqueued the target time
+    if (find_queued(output, [&](const auto& t) { return t == time; })) return;
+
+    output->try_dispatch_queue.emplace_back(time);
+
+    wrei_event_loop_enqueue_timed(server->event_loop.get(), time, [time, output = weak(output)] {
+        if (!output) return;
+        std::erase(output->try_dispatch_queue, time);
+        wroc_output_try_dispatch_frame(output.get());
+    });
+}
+
+static
+auto get_next_frame_time(wroc_output* output)
+{
+    return output->last_frame_time + std::chrono::steady_clock::duration(1s) / server->renderer->fps_limit;
+}
+
+void wroc_output_try_dispatch_frame_later(wroc_output* output)
+{
+    if (server->renderer->fps_limit_enabled) {
+        queue_try_dispatch_at(output, get_next_frame_time(output));
+    } else {
+        queue_try_dispatch_now(output);
+    }
+}
+
 bool wroc_output_try_dispatch_frame(wroc_output* output)
 {
+    auto now = std::chrono::steady_clock::now();
+    if (server->renderer->fps_limit_enabled && get_next_frame_time(output) > now) {
+        return false;
+    }
+
+    // TODO: Trigger frame_requested on relevant situations
+    // if (!output->frame_requested) return false;
+
     if (!output->frame_available) return false;
     if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return false;
     if (!output->size.x || !output->size.y) {
@@ -234,8 +300,21 @@ bool wroc_output_try_dispatch_frame(wroc_output* output)
         return false;
     }
 
+    output->frame_requested = false;
+
+    output->last_frame_time = now;
+    if (server->renderer->fps_limit_enabled) {
+        queue_try_dispatch_at(output, get_next_frame_time(output));
+    }
+
     wroc_render_frame(output);
     return true;
+}
+
+void wroc_output_request_frame(wroc_output* output)
+{
+    output->frame_requested = true;
+    wroc_output_try_dispatch_frame_later(output);
 }
 
 static

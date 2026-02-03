@@ -194,14 +194,27 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     category_separator();
 
-    bool try_dispatch_frames = false;
-    {
-        ImGui::BeginDisabled(server->backend->type == wroc_backend_type::direct);
-        defer { ImGui::EndDisabled(); };
-        try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
-    }
+    // Frame control
 
+    bool try_dispatch_frames = false;
+
+    try_dispatch_frames |= ImGui::Checkbox("FPS Limit:", &server->renderer->fps_limit_enabled);
+    ImGui::SameLine(second_column_offset);
+    ImGui::SetNextItemWidth(103);
+    try_dispatch_frames |= ImGui::DragInt("###max-framerate-slider", &server->renderer->fps_limit, 1, 30, 240, "%d", ImGuiSliderFlags_AlwaysClamp);
+
+    ImGui::BeginDisabled(server->backend->type == wroc_backend_type::direct);
+    try_dispatch_frames |= ImGui::Checkbox("V-Sync", &server->renderer->vsync);
+    ImGui::EndDisabled();
+
+    ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Noisy DMA-BUFs", &server->renderer->debug.noisy_dmabufs);
+
+    ImGui::BeginDisabled();
+    ImGui::Checkbox("Tearing", wrei_ptr_to(false));
+    ImGui::EndDisabled();
+
+    ImGui::SameLine(second_column_offset);
     ImGui::Checkbox("Noisy Frames", &server->debug.noisy_frames);
 
     {
@@ -210,7 +223,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         for (auto& output : server->output_layout->outputs) {
             current_fif = std::max(current_fif, output->frames_in_flight);
         }
-        auto label = std::format("Max Frames in Flight ({})###max-frames-in-flight", current_fif);
+        auto label = std::format("Max FiF ({})###max-frames-in-flight", current_fif);
         int max_fif = server->renderer->max_frames_in_flight;
         if (ImGui::SliderInt(label.c_str(), &max_fif, 1, 6)) {
             server->renderer->max_frames_in_flight = max_fif;
@@ -219,11 +232,9 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     }
 
     if (try_dispatch_frames) {
-        wrei_event_loop_enqueue(server->event_loop.get(), [] {
-            for (auto& output : server->output_layout->outputs) {
-                wroc_output_try_dispatch_frame(output.get());
-            }
-        });
+        for (auto& output : server->output_layout->outputs) {
+            wroc_output_try_dispatch_frame_later(output.get());
+        }
     }
 
     category_separator();

@@ -342,6 +342,8 @@ wroc_output_commit_id wroc_wayland_output::commit(wren_image* image, wren_syncpo
 
     wl_surface_commit(wl_surface);
 
+    wl_display_flush(backend->wl_display);
+
     return commit_id;
 }
 

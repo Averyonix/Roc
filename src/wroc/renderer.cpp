@@ -443,12 +443,10 @@ void wroc_render_frame(wroc_output* output)
         {
             server->renderer->available_frames.emplace_back(std::move(frame_data));
 
-            wrei_event_loop_enqueue(server->event_loop.get(), [output = output] {
-                if (output) {
-                    output->frames_in_flight--;
-                    wroc_output_try_dispatch_frame(output.get());
-                }
-            });
+            output->frames_in_flight--;
+            if (output) {
+                wroc_output_try_dispatch_frame_later(output.get());
+            }
         }
     };
     auto guard = wrei_create<frame_guard>();

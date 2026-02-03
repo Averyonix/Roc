@@ -154,12 +154,21 @@ struct wroc_output : wrei_object
 
     wroc_output_commit_id last_commit_id = 0;
 
+    std::chrono::steady_clock::time_point last_frame_time = {};
+
+    std::vector<std::chrono::steady_clock::time_point> try_dispatch_queue;
+
+    bool frame_requested = true;
+
     virtual wroc_output_commit_id commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, wroc_output_commit_flags) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);
 
-bool wroc_output_try_dispatch_frame(wroc_output*);
+bool wroc_output_try_dispatch_frame(      wroc_output*);
+void wroc_output_try_dispatch_frame_later(wroc_output*);
+
+void wroc_output_request_frame(wroc_output*);
 
 struct wroc_output_layout : wrei_object
 {
@@ -1056,6 +1065,9 @@ struct wroc_renderer : wrei_object
         bool show_debug_cursor = false;
         bool noisy_dmabufs = false;
     } debug;
+
+    bool fps_limit_enabled = false;
+    i32  fps_limit = 120;
 
     u32 max_frames_in_flight = 2;
 
