@@ -4,8 +4,10 @@ An experiment in writing a simple opinionated independent Wayland compositor.
 
 ## Goals
 
+The following are guiding principals and goals in the development of Roc. **Not** a list of currently supported features.
+
  - Independence from Wayland frameworks / libraries
-    - With an exception for libwayland implementing the Wayland wire protocol
+    - With an exception for libwayland implementing the Wayland wire protocol for now.
  - Modern Vulkan based Wayland compositor
     - Consolidating on a single backend API and modern kernel version simplifies GPU allocation, buffer sharing and synchronization code paths
  - Move common desktop functionality into the compositor process via a plugin/applet system
@@ -25,9 +27,16 @@ An experiment in writing a simple opinionated independent Wayland compositor.
 ## Non-Goals
 
  - Support a wide range of (especially older) hardware
-    - Currently focused on a modern RADV driver stack for simplicity
  - Support every Wayland protocol
-    - Some Wayland protocol functionality can be replaced with plugin based functionality
+    - A lot of Wayland protocol functionality can be replaced with compositor plugins that provide more integration and simpler communication.
+
+# Support
+
+Roc is currently tested on the following:
+
+   - Arch Linux + AMD Mesa (RADV)
+
+**NOTE:** Roc will *not* work on NVidia (or likely Intel) GPUs currently as it relies on Mesa's ability to import/export Vulkan timeline semaphores as DRM syncobjs via OPAQUE_FD handles.
 
 # Building
 
@@ -43,7 +52,30 @@ An experiment in writing a simple opinionated independent Wayland compositor.
 
 #### Quickstart
 
+Build in release mode and install to `.local/bin/wroc`
+
 ```
-$ python build.py -BI                           build + install
-# setcap cap_sys_nice+ep ~/.local/bin/wroc      give NICE capability for global queue priority
+$ python build.py -BIR
 ```
+
+**NOTE:** Currently this will also install a git version of `xwayland-satellite` to `.local/bin`
+
+#### Global Queue Priority
+
+Roc can take advantage of higher queue scheduling priority when given the NICE system capability.
+
+```
+# setcap cap_sys_nice+ep ~/.local/bin/wroc
+```
+
+#### Build Options
+
+- `-B` : Build project
+- `-I` : Install project
+- `-R` : Build in release mode
+- `-C` : Force reconfigure and clean build
+- `-U` : Check and update dependencies (updates `build.json`)
+- `--asan` : Enable address sanitizer
+- `--system-slangc` : Look for `slangc` on path
+
+Build artifacts are placed into `.build/[debug|release](-asan)` depending on build parameters.
