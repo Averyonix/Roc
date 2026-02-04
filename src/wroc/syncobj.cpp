@@ -20,7 +20,7 @@ void syncobj_import_timeline(wl_client* client, wl_resource* resource, u32 id, i
     auto* timeline_resource = wroc_resource_create(client, &wp_linux_drm_syncobj_timeline_v1_interface, wl_resource_get_version(resource), id);
     auto timeline = wrei_create_unsafe<wroc_syncobj_timeline>();
     timeline->resource = timeline_resource;
-    timeline->syncobj = wren_semaphore_import_syncobj(server->renderer->wren.get(), fd);
+    timeline->syncobj = wren_semaphore_import_syncobj(server->wren, fd);
     wroc_resource_set_implementation_refcounted(timeline_resource, &wroc_wp_linux_drm_syncobj_timeline_v1_impl, timeline);
 }
 

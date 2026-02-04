@@ -240,7 +240,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
 
     ImGui::Separator();
 
-    auto* wren = server->renderer->wren.get();
+    auto* wren = server->wren;
     ImGui_Text("Wren.Images:   {} ({})", wren->stats.active_images,  wrei_byte_size_to_string(wren->stats.active_image_memory));
     ImGui_Text("Wren.Buffers:  {} ({})", wren->stats.active_buffers, wrei_byte_size_to_string(wren->stats.active_buffer_memory));
 

@@ -157,7 +157,10 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_feature : u32 { };
+enum class wren_feature : u32
+{
+    validation = 1 << 0,
+};
 
 using wren_semaphore_wait_fn = void(u64);
 
@@ -192,6 +195,7 @@ struct wren_context : wrei_object
     void* vulkan1;
 
     VkInstance instance;
+    VkDebugUtilsMessengerEXT debug_messenger;
     VkPhysicalDevice physical_device;
     VkDevice device;
 
@@ -280,7 +284,7 @@ struct wren_syncpoint
     VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 };
 
-ref<wren_semaphore> wren_semaphore_create(wren_context*, u64 initial_value = 0);
+ref<wren_semaphore> wren_semaphore_create(wren_context*);
 ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context*, int syncobj_fd);
 int wren_semaphore_export_syncobj(wren_semaphore*);
 
@@ -291,18 +295,6 @@ u64  wren_semaphore_get_value(   wren_semaphore*);
 void wren_semaphore_signal_value(wren_semaphore*, u64 value);
 void wren_semaphore_wait_value(  wren_semaphore*, u64 value, std::move_only_function<wren_semaphore_wait_fn>);
 void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
-
-struct wren_binary_semaphore : wrei_object
-{
-    wren_context* ctx;
-
-    VkSemaphore semaphore;
-
-    ~wren_binary_semaphore();
-};
-
-ref<wren_binary_semaphore> wren_binary_semaphore_create(wren_context*);
-ref<wren_binary_semaphore> wren_semaphore_transfer_to_binary(wren_semaphore*, u64 source_point);
 
 // -----------------------------------------------------------------------------
 

@@ -134,7 +134,7 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
     buffer->extent = {width, height};
     log_debug("Importing DMA-BUF, size = {}, format = {}, mod = {}",
         wrei_to_string(buffer->extent), format->name, wren_drm_modifier_get_name(params.modifier));
-    buffer->image = wren_image_import_dmabuf(server->renderer->wren.get(), params, wren_image_usage::texture);
+    buffer->image = wren_image_import_dmabuf(server->wren, params, wren_image_usage::texture);
 
     dma_params->params = {};
     dma_params->planes_set = {};
@@ -364,9 +364,9 @@ static
 void wroc_dmabuf_send_tranches(wl_resource* resource)
 {
     wl_array dev_id = {
-        .size = sizeof(server->renderer->wren->dev_id),
-        .alloc = sizeof(server->renderer->wren->dev_id),
-        .data = &server->renderer->wren->dev_id,
+        .size = sizeof(server->wren->dev_id),
+        .alloc = sizeof(server->wren->dev_id),
+        .data = &server->wren->dev_id,
     };
 
     auto& feedback = server->renderer->buffer_feedback;

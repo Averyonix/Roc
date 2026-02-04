@@ -10,7 +10,7 @@ struct wrei_flags
 
     constexpr wrei_flags() = default;
     constexpr wrei_flags(E e): value(std::to_underlying(e)) {}
-    constexpr wrei_flags(E e, auto... rest) : value((e || ... || std::to_underlying(rest))) {}
+    explicit constexpr wrei_flags(E e, auto... rest) : value((e || ... || std::to_underlying(rest))) {}
 
 #define BINARY_OP(Name, Op, ...) \
     friend constexpr wrei_flags operator Name(wrei_flags a, wrei_flags b) { return {E(a.value Op __VA_ARGS__ b.value)}; } \
@@ -22,7 +22,7 @@ struct wrei_flags
 
 #undef BINARY_OP
 
-    constexpr E get() { return E(value); }
+    constexpr E get() const noexcept { return E(value); }
     constexpr bool contains(wrei_flags set) const noexcept { return (value & set.value) == set.value; }
     constexpr bool empty() const noexcept { return !value; }
     explicit operator bool() const noexcept { return !empty(); }

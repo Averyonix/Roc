@@ -27,7 +27,7 @@ wp_cursor_shape_device_v1_shape from_imgui_cursor(ImGuiMouseCursor cursor)
 
 void wroc_imgui_init()
 {
-    auto* wren = server->renderer->wren.get();
+    auto* wren = server->wren;
 
     server->imgui = wrei_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
@@ -343,7 +343,7 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
         .scale = viewport.extent / vec2f64(framebuffer_extent),
     };
 
-    auto* wren = server->renderer->wren.get();
+    auto* wren = server->wren;
 
     // Dynamically allocated per-frame data
 

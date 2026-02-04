@@ -14,7 +14,7 @@ wroc_renderer::~wroc_renderer() = default;
 static
 void register_format(wroc_renderer* renderer, wren_format format)
 {
-    auto wren = renderer->wren.get();
+    auto wren = server->wren;
 
     if (!format->is_ycbcr) {
         if (wren_get_format_props(wren, format, wren_image_usage::texture | wren_image_usage::transfer)->opt_props.get()) {
@@ -29,22 +29,18 @@ void register_format(wroc_renderer* renderer, wren_format format)
     }
 }
 
-void wroc_renderer_create(wroc_render_option render_options)
+ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options)
 {
-    auto* renderer = (server->renderer = wrei_create<wroc_renderer>()).get();
+    auto renderer = wrei_create<wroc_renderer>();
     renderer->options = render_options;
 
-    flags<wren_feature> features = {};
-
-    renderer->wren = wren_create(features, server->event_loop.get(), server->backend->get_preferred_drm_device());
-
     for (auto& format : wren_get_formats()) {
-        register_format(renderer, &format);
+        register_format(renderer.get(), &format);
     }
 
-    wroc_renderer_init_buffer_feedback(renderer);
+    wroc_renderer_init_buffer_feedback(renderer.get());
 
-    auto* wren = renderer->wren.get();
+    auto* wren = server->wren;
 
     std::filesystem::path path = getenv("WALLPAPER");
 
@@ -62,8 +58,10 @@ void wroc_renderer_create(wroc_render_option render_options)
     renderer->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
     renderer->pipeline = wren_pipeline_create(wren,
-        wren_blend_mode::premultiplied, server->renderer->output_format,
+        wren_blend_mode::premultiplied, renderer->output_format,
         wroc_blit_shader, "vertex", "fragment");
+
+    return renderer;
 }
 
 void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_frame_data* frame, wren_image* current, rect2f64 scene_rect)
@@ -322,7 +320,7 @@ void on_screenshot_ready(std::chrono::steady_clock::time_point start, wren_image
 void wroc_screenshot(rect2f64 rect)
 {
     auto* renderer = server->renderer.get();
-    auto* wren = renderer->wren.get();
+    auto* wren = server->wren;
 
     log_info("Taking screenshot of region {}", wrei_to_string(rect));
 
@@ -385,7 +383,7 @@ ref<wren_image> acquire(wroc_output* output)
 
     log_warn("Creating new swapchain image {}", wrei_to_string(output->size));
 
-    auto* wren = server->renderer->wren.get();
+    auto* wren = server->wren;
 
     auto format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
     auto usage = wren_image_usage::render;
@@ -402,7 +400,7 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
 
     if (slot == output->release_slots.end()) {
         slot = output->release_slots.insert(output->release_slots.end(), wroc_output::release_slot {
-            .semaphore = wren_semaphore_create(server->renderer->wren.get()),
+            .semaphore = wren_semaphore_create(server->wren),
         });
     }
 
@@ -423,7 +421,7 @@ void wroc_render_frame(wroc_output* output)
     auto current = acquire(output);
 
     auto* renderer = server->renderer.get();
-    auto* wren = renderer->wren.get();
+    auto* wren = server->wren;
 
     output->frames_in_flight++;
 

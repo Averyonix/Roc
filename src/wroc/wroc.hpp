@@ -1034,8 +1034,6 @@ struct wroc_renderer : wrei_object
         std::vector<u16> tranche_formats;
     } buffer_feedback;
 
-    ref<wren_context> wren;
-
     flags<wroc_render_option> options;
 
     wren_format output_format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
@@ -1067,7 +1065,7 @@ struct wroc_renderer : wrei_object
     ~wroc_renderer();
 };
 
-void wroc_renderer_create(wroc_render_option);
+ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option>);
 void wroc_renderer_init_buffer_feedback(wroc_renderer*);
 void wroc_render_frame(wroc_output*);
 void wroc_screenshot(rect2f64 rect);
@@ -1195,6 +1193,7 @@ enum class wroc_direction : u32
 struct wroc_server : wrei_object
 {
     ref<wroc_backend>  backend;
+    wren_context*      wren;
     ref<wroc_renderer> renderer;
     ref<wroc_seat>     seat;
 

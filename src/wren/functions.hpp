@@ -14,6 +14,9 @@
     DO(GetPhysicalDeviceMemoryProperties) \
     DO(GetPhysicalDeviceFormatProperties2) \
     DO(GetPhysicalDeviceImageFormatProperties2) \
+    DO(GetPhysicalDeviceToolProperties) \
+    DO(CreateDebugUtilsMessengerEXT) \
+    DO(DestroyDebugUtilsMessengerEXT) \
 
 #define WREN_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \

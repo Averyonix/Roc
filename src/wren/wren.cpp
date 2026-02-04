@@ -36,6 +36,7 @@ wren_context::~wren_context()
     vk.DestroyDescriptorPool(device, pool, nullptr);
 
     vk.DestroyDevice(device, nullptr);
+    vk.DestroyDebugUtilsMessengerEXT(instance, debug_messenger, nullptr);
     vk.DestroyInstance(instance, nullptr);
 }
 
@@ -157,6 +158,61 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat*
     return true;
 }
 
+VkBool32 VKAPI_CALL debug_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+    u32 type,
+    const VkDebugUtilsMessengerCallbackDataEXT* data,
+    void* userdata)
+{
+    if (!data->pMessage) return VK_FALSE;
+
+    wrei_log_level level;
+    switch (severity) {
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: level = wrei_log_level::trace;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:    level = wrei_log_level::info;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: level = wrei_log_level::warn;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:   level = wrei_log_level::error;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
+            wrei_unreachable();
+    }
+
+    if (!wrei_is_log_level_enabled(level)) return VK_FALSE;
+
+    if (data->messageIdNumber) {
+        auto message = std::format("Validation {}: [ {} ] | MessageID = {:#x}\n",
+            level == wrei_log_level::error ? "Error" : "Warning",
+            data->pMessageIdName,
+            data->messageIdNumber);
+        message += data->pMessage;
+        message += std::format("\nObjects: {}\n", data->objectCount);
+
+        auto objects = std::span(data->pObjects, data->objectCount);
+
+        // Compute max widths for printing
+        usz max_index_width = std::log10(data->objectCount - 1) + 1;
+        usz max_type_len = 0;
+        for (auto& object : objects) {
+            max_type_len = std::max(max_type_len, strlen(string_VkObjectType(object.objectType)));
+        }
+
+        // Print objects
+        for (auto[i, object] : objects | std::views::enumerate) {
+            auto prefix = sizeof("VK_OBJECT_TYPE_") - 1;
+            auto type_name = std::string_view(string_VkObjectType(object.objectType)).substr(prefix);
+            auto type_width = max_type_len - prefix;
+            // clangd fails on the nested string width parameter, so we uese vformat directly
+            message += std::vformat("    [{:{}}]: {:{}} {:#x}\n",
+                std::make_format_args(i, max_index_width, type_name, type_width, object.objectHandle));
+        }
+
+        wrei_log(level, message);
+    } else {
+        wrei_log(level, data->pMessage);
+    }
+
+    return VK_FALSE;
+}
+
 ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* event_loop, int drm_fd)
 {
     auto ctx = wrei_create<wren_context>();
@@ -176,6 +232,19 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
 
     // Instance
 
+    VkDebugUtilsMessengerCreateInfoEXT debug_messenger_info = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity
+            = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType
+            = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+            | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+            | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = debug_callback,
+        .pUserData = ctx.get(),
+    };
+
     auto vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(ctx->vulkan1, "vkGetInstanceProcAddr"));
     if (!vkGetInstanceProcAddr) {
         log_error("Failed to load vulkan library");
@@ -190,6 +259,10 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
 
     wren_check(ctx->vk.CreateInstance(wrei_ptr_to(VkInstanceCreateInfo {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pNext = wrei_ptr_to(VkValidationFeaturesEXT {
+            .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+            .pNext = &debug_messenger_info,
+        }),
         .pApplicationInfo = wrei_ptr_to(VkApplicationInfo {
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .apiVersion = VK_API_VERSION_1_4,
@@ -199,6 +272,8 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
     }), nullptr, &ctx->instance));
 
     wren_load_instance_functions(ctx.get());
+
+    wren_check(ctx->vk.CreateDebugUtilsMessengerEXT(ctx->instance, &debug_messenger_info, nullptr, &ctx->debug_messenger));
 
     // Select GPU
 
@@ -225,6 +300,20 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
     if (!ctx->physical_device) {
         log_error("No suitable vulkan device found");
         return nullptr;
+    }
+
+    // Detect tooling
+
+    {
+        std::vector<VkPhysicalDeviceToolProperties> tools;
+        wren_vk_enumerate(tools, ctx->vk.GetPhysicalDeviceToolProperties, ctx->physical_device);
+
+        for (auto& tool : tools) {
+            if (tool.layer == "VK_LAYER_KHRONOS_validation"sv) {
+                log_warn("Detected validation layers, enabling validation support");
+                ctx->features |= wren_feature::validation;
+            }
+        }
     }
 
     // Device creation

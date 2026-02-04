@@ -86,7 +86,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, shm_buffer);
 
-    shm_buffer->image = wren_image_create(server->renderer->wren.get(), shm_buffer->extent, shm_buffer->format,
+    shm_buffer->image = wren_image_create(server->wren, shm_buffer->extent, shm_buffer->format,
         wren_image_usage::texture | wren_image_usage::transfer);
 
     log_debug("Created shared buffer {}, format = {}", wrei_to_string(shm_buffer->extent), shm_buffer->format->name);

@@ -11,7 +11,7 @@ VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpo
 }
 
 static
-ref<wren_semaphore> create_semaphore_base(wren_context* ctx, u64 initial_value)
+ref<wren_semaphore> create_semaphore_base(wren_context* ctx)
 {
     auto semaphore = wrei_create<wren_semaphore>();
     semaphore->ctx = ctx;
@@ -25,14 +25,13 @@ ref<wren_semaphore> create_semaphore_base(wren_context* ctx, u64 initial_value)
                 .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
             }),
             .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
-            .initialValue = initial_value,
         })
     }), nullptr, &semaphore->semaphore));
 
     return semaphore;
 }
 
-ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
+ref<wren_semaphore> wren_semaphore_create(wren_context* ctx)
 {
     // Here we are creating a timeline sempahore, and exporting a persistent syncobj
     // handle to it that we can use for importing/exporting syncobj files for interop.
@@ -42,7 +41,7 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
     // As a portable solution, we'll have to use DRM syncobjs as the underlying type, creating
     // binary semaphores as required for vulkan waits
 
-    auto semaphore = create_semaphore_base(ctx, initial_value);
+    auto semaphore = create_semaphore_base(ctx);
 
     int syncobj_fd = -1;
     wren_check(ctx->vk.GetSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkSemaphoreGetFdInfoKHR {
@@ -60,7 +59,7 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx, u64 initial_value)
 
 ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context* ctx, int syncobj_fd)
 {
-    auto semaphore = create_semaphore_base(ctx, 0);
+    auto semaphore = create_semaphore_base(ctx);
 
     unix_check(drmSyncobjFDToHandle(ctx->drm_fd, syncobj_fd, &semaphore->syncobj));
 
@@ -129,8 +128,8 @@ u64 wren_semaphore_get_value(wren_semaphore* semaphore)
 {
     auto* ctx = semaphore->ctx;
 
-    u64 value;
-    unix_check(drmSyncobjQuery2(ctx->drm_fd, &semaphore->syncobj, &value, 1, 0));
+    u64 value = 0;
+    wren_check(ctx->vk.GetSemaphoreCounterValue(ctx->device, semaphore->semaphore, &value));
 
     return value;
 }
@@ -146,6 +145,7 @@ void wren_semaphore_waiter::process_signalled(wren_semaphore* semaphore, u64 val
 {
     std::erase_if(waits, [&](wait_item& item) -> bool {
         auto sema = item.semaphore.get();
+
         if (!sema) {
             log_warn("Semaphore destroyed before value was signalled");
             return true;
@@ -153,12 +153,13 @@ void wren_semaphore_waiter::process_signalled(wren_semaphore* semaphore, u64 val
 
         if (semaphore && sema != semaphore) return false;
 
-        u64 signalled = semaphore ? value :  wren_semaphore_get_value(item.semaphore.get());
+        u64 signalled = semaphore ? value : wren_semaphore_get_value(item.semaphore.get());
 
         if (signalled >= item.value) {
             item.callback(signalled);
             return true;
         }
+
         return false;
     });
 }
@@ -184,9 +185,12 @@ void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value)
 {
     auto* ctx = semaphore->ctx;
 
-    u32 first_signalled;
-    unix_check(drmSyncobjTimelineWait(ctx->drm_fd,
-        &semaphore->syncobj, &value, 1, INT64_MAX, 0, &first_signalled));
+    wren_check(ctx->vk.WaitSemaphores(ctx->device, wrei_ptr_to(VkSemaphoreWaitInfo {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .semaphoreCount = 1,
+        .pSemaphores = &semaphore->semaphore,
+        .pValues = &value,
+    }), UINT64_MAX));
 
     if (std::this_thread::get_id() == ctx->event_loop->main_thread) {
         ctx->waiter->process_signalled(semaphore, value);
@@ -197,48 +201,9 @@ void wren_semaphore_signal_value(wren_semaphore* semaphore, u64 value)
 {
     auto* ctx = semaphore->ctx;
 
-    unix_check(drmSyncobjTimelineSignal(ctx->drm_fd, &semaphore->syncobj, &value, 1));
-}
-
-// -----------------------------------------------------------------------------
-
-ref<wren_binary_semaphore> wren_binary_semaphore_create(wren_context* ctx)
-{
-    auto binary = wrei_create<wren_binary_semaphore>();
-    binary->ctx = ctx;
-
-    if (!ctx->free_binary_semaphores.empty()) {
-        binary->semaphore = ctx->free_binary_semaphores.back();
-        ctx->free_binary_semaphores.pop_back();
-    } else {
-        wren_check(ctx->vk.CreateSemaphore(ctx->device, wrei_ptr_to(VkSemaphoreCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &binary->semaphore));
-    }
-
-    return binary;
-}
-
-ref<wren_binary_semaphore> wren_semaphore_transfer_to_binary(wren_semaphore* semaphore, u64 source_point)
-{
-    auto sync_fd = wren_semaphore_export_syncfile(semaphore, source_point);
-
-    auto* ctx = semaphore->ctx;
-
-    auto binary = wren_binary_semaphore_create(ctx);
-
-    wren_check(ctx->vk.ImportSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkImportSemaphoreFdInfoKHR {
-        .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
-        .semaphore = binary->semaphore,
-        .flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
-        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-        .fd = sync_fd,
+    wren_check(ctx->vk.SignalSemaphore(ctx->device, wrei_ptr_to(VkSemaphoreSignalInfo {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO,
+        .semaphore = semaphore->semaphore,
+        .value = value,
     })));
-
-    return binary;
-}
-
-wren_binary_semaphore::~wren_binary_semaphore()
-{
-    ctx->free_binary_semaphores.emplace_back(semaphore);
 }
