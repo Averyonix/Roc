@@ -364,9 +364,9 @@ static
 void wroc_dmabuf_send_tranches(wl_resource* resource)
 {
     wl_array dev_id = {
-        .size = sizeof(server->wren->dev_id),
-        .alloc = sizeof(server->wren->dev_id),
-        .data = &server->wren->dev_id,
+        .size  = sizeof(server->wren->drm_id),
+        .alloc = sizeof(server->wren->drm_id),
+        .data  = &server->wren->drm_id,
     };
 
     auto& feedback = server->renderer->buffer_feedback;

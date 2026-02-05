@@ -41,14 +41,6 @@ wren_context::~wren_context()
 }
 
 static
-void drop_capabilities()
-{
-    cap_t caps = cap_init();
-    cap_set_proc(caps);
-    cap_free(caps);
-}
-
-static
 std::array required_device_extensions = {
     VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
     VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
@@ -131,13 +123,13 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat*
     // Prefer to open the render node for normal render operations,
     //   even the requested drm was opened from a primary node
 
-    ctx->dev_id = drm_props.hasRender ? render_dev_id : primary_dev_id;
-    log_debug("  device id: {} ({})", ctx->dev_id, drm_props.hasRender ? "render" : "primary");
+    ctx->drm_id = drm_props.hasRender ? render_dev_id : primary_dev_id;
+    log_debug("  device id: {} ({})", ctx->drm_id, drm_props.hasRender ? "render" : "primary");
 
     // Open
 
     drmDevice* device = nullptr;
-    unix_check(drmGetDeviceFromDevId(ctx->dev_id, 0, &device));
+    unix_check(drmGetDeviceFromDevId(ctx->drm_id, 0, &device));
     defer { drmFreeDevice(&device); };
     const char* name = nullptr;
 
@@ -222,8 +214,8 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
 
     // Loader
 
-    ctx->vulkan1 = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
-    if (!ctx->vulkan1) {
+    ctx->loader = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+    if (!ctx->loader) {
         log_error("Failed to load vulkan library");
         return nullptr;
     }
@@ -245,7 +237,7 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
         .pUserData = ctx.get(),
     };
 
-    auto vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(ctx->vulkan1, "vkGetInstanceProcAddr"));
+    auto vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(ctx->loader, "vkGetInstanceProcAddr"));
     if (!vkGetInstanceProcAddr) {
         log_error("Failed to load vulkan library");
         return nullptr;
@@ -378,10 +370,6 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
                     .maintenance5 = true,
                     .maintenance6 = true,
                 }),
-                wrei_ptr_to(VkPhysicalDeviceSwapchainMaintenance1FeaturesKHR {
-                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
-                    .swapchainMaintenance1 = true,
-                }),
                 wrei_ptr_to(VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
                     .unifiedImageLayouts = true,
@@ -415,17 +403,18 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
         }), nullptr, &ctx->device), VK_ERROR_NOT_PERMITTED);
     };
 
-    if (create_device(true) == VK_ERROR_NOT_PERMITTED) {
-        log_warn("Failed to acquire global queue priority, falling back to normal queue priorities");
+    if (wrei_capability_has(CAP_SYS_NICE)) {
+        log_debug("NICE system capability detected, requesting high global queue priority");
+        if (create_device(true) == VK_ERROR_NOT_PERMITTED) {
+            log_warn("Failed to acquire global queue priority, falling back to normal queue priorities");
+            create_device(false);
+        } else {
+            log_info("Sucessfully created device with high global queue priority");
+        }
+        wrei_capability_drop(CAP_SYS_NICE);
+    } else {
         create_device(false);
     }
-
-    // Drop CAP_SYS_NICE that was used to acquire global queue priority
-    //
-    // TODO: As is this prevents us from recreating the device on failure.
-    //       We should keep capabilities and instead run a separate daemon for
-    //       spawning subprocesses
-    drop_capabilities();
 
     wren_load_device_functions(ctx.get());
 

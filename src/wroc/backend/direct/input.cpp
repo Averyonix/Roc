@@ -123,8 +123,8 @@ void log_libinput(libinput* libinput, libinput_log_priority priority, const char
         break;default: level = wrei_log_level::debug;
     }
 
-	static char wlr_fmt[4096] = {};
-	vsnprintf(wlr_fmt, sizeof(wlr_fmt) - 1, fmt, args);
+    static char wlr_fmt[4096] = {};
+    vsnprintf(wlr_fmt, sizeof(wlr_fmt) - 1, fmt, args);
     wrei_log(level, std::format("[libinput] {}", wlr_fmt));
 }
 
@@ -144,7 +144,7 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
 
     // libseat
 
-	wroc_setenv("XDG_SESSION_TYPE", "wayland", wroc_setenv_option::system_wide);
+    wroc_setenv("XDG_SESSION_TYPE", "wayland", wroc_setenv_option::system_wide);
 
     backend->seat = libseat_open_seat(&wroc_seat_listener, nullptr);
     if (!backend->seat) {
@@ -171,8 +171,8 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
         wrei_debugkill();
     }
 
-	libinput_log_set_handler(backend->libinput, log_libinput);
-	libinput_log_set_priority(backend->libinput, LIBINPUT_LOG_PRIORITY_DEBUG);
+    libinput_log_set_handler(backend->libinput, log_libinput);
+    libinput_log_set_priority(backend->libinput, LIBINPUT_LOG_PRIORITY_DEBUG);
 
     if (unix_check(libinput_udev_assign_seat(backend->libinput, backend->seat_name)).err()) {
         log_error("Libinput failed to acquire seat");

@@ -16,7 +16,7 @@ VkFormatFeatureFlags wren_get_required_format_features(wren_format format, flags
 {
     VkFormatFeatureFlags features = {};
     if (usage.contains(wren_image_usage::render)) features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
-                                                    |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+                                                           |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
     if (usage.contains(wren_image_usage::texture)) {
         features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
                  |  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;

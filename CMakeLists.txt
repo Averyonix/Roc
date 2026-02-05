@@ -128,6 +128,7 @@ target_sources(wrei PUBLIC
     src/wrei/object.cpp
     src/wrei/event.cpp
     src/wrei/stacktrace.cpp
+    src/wrei/process.cpp
     )
 target_include_directories(wrei PUBLIC
     src

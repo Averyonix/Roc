@@ -8,29 +8,29 @@
 //
 
 static constexpr wren_drm_format wren_opaque_drm_formats[] {
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_XBGR8888,
-	DRM_FORMAT_RGBX8888,
-	DRM_FORMAT_BGRX8888,
-	DRM_FORMAT_R8,
-	DRM_FORMAT_GR88,
-	DRM_FORMAT_RGB888,
-	DRM_FORMAT_BGR888,
-	DRM_FORMAT_RGBX4444,
-	DRM_FORMAT_BGRX4444,
-	DRM_FORMAT_RGBX5551,
-	DRM_FORMAT_BGRX5551,
-	DRM_FORMAT_XRGB1555,
-	DRM_FORMAT_RGB565,
-	DRM_FORMAT_BGR565,
-	DRM_FORMAT_XRGB2101010,
-	DRM_FORMAT_XBGR2101010,
-	DRM_FORMAT_XBGR16161616F,
-	DRM_FORMAT_XBGR16161616,
-	DRM_FORMAT_YVYU,
-	DRM_FORMAT_VYUY,
-	DRM_FORMAT_NV12,
-	DRM_FORMAT_P010,
+    DRM_FORMAT_XRGB8888,
+    DRM_FORMAT_XBGR8888,
+    DRM_FORMAT_RGBX8888,
+    DRM_FORMAT_BGRX8888,
+    DRM_FORMAT_R8,
+    DRM_FORMAT_GR88,
+    DRM_FORMAT_RGB888,
+    DRM_FORMAT_BGR888,
+    DRM_FORMAT_RGBX4444,
+    DRM_FORMAT_BGRX4444,
+    DRM_FORMAT_RGBX5551,
+    DRM_FORMAT_BGRX5551,
+    DRM_FORMAT_XRGB1555,
+    DRM_FORMAT_RGB565,
+    DRM_FORMAT_BGR565,
+    DRM_FORMAT_XRGB2101010,
+    DRM_FORMAT_XBGR2101010,
+    DRM_FORMAT_XBGR16161616F,
+    DRM_FORMAT_XBGR16161616,
+    DRM_FORMAT_YVYU,
+    DRM_FORMAT_VYUY,
+    DRM_FORMAT_NV12,
+    DRM_FORMAT_P010,
 };
 
 struct wren_format_t_create_params
@@ -405,7 +405,8 @@ std::vector<VkDrmFormatModifierProperties2EXT> get_drm_modifiers(wren_context* c
     return mod_props;
 }
 
-static void load_format_props(wren_context* ctx, wren_format_props& props)
+static
+void load_format_props(wren_context* ctx, wren_format_props& props)
 {
     auto format = props.format;
 
@@ -474,18 +475,18 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier mod)
     return str;
 }
 
-std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets)
+wren_format_modifier_set wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets)
 {
     if (sets.empty()) return {};
 
-    std::vector<wren_drm_modifier> out;
+    wren_format_modifier_set out;
     auto first = sets.front();
     auto rest = sets.subspan(1);
     for (auto mod : *first) {
         for (auto set : rest) {
             if (!set->contains(mod)) continue;
         }
-        out.emplace_back(mod);
+        out.insert(mod);
     }
     return out;
 }

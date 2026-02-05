@@ -95,7 +95,6 @@ wren_syncpoint wren_commands_submit(wren_commands* commands, std::span<const wre
     wren_syncpoint target_syncpoint {
         .semaphore = queue->queue_sema.get(),
         .value = commands->submitted_value,
-        .stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
     };
 
     std::vector<VkSemaphoreSubmitInfo> wait_infos(waits.size());

@@ -149,7 +149,7 @@ public:
     auto   end() const { return entries.end(); }
 };
 
-std::vector<wren_drm_modifier> wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
+wren_format_modifier_set wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
 
 const wren_format_props* wren_get_format_props(wren_context*, wren_format, flags<wren_image_usage>);
 
@@ -166,7 +166,7 @@ using wren_semaphore_wait_fn = void(u64);
 
 struct wren_semaphore_waiter : wrei_event_source
 {
-    // Templated virtual type with manual linked list
+    // TODO: Templated virtual type with intrusive linked list
 
     struct wait_item
     {
@@ -192,15 +192,15 @@ struct wren_context : wrei_object
         WREN_DEVICE_FUNCTIONS(  WREN_DECLARE_FUNCTION)
     } vk;
 
-    void* vulkan1;
+    void* loader;
 
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_messenger;
     VkPhysicalDevice physical_device;
     VkDevice device;
 
-    dev_t dev_id;
-    int drm_fd;
+    dev_t drm_id;
+    int   drm_fd;
 
     VmaAllocator vma;
 

@@ -730,3 +730,8 @@ struct wrei_fixed_array {
 
     auto& operator[](this auto&& self, usz i) { return self.data[i]; }
 };
+
+// -----------------------------------------------------------------------------
+
+bool wrei_capability_has( cap_value_t cap);
+void wrei_capability_drop(cap_value_t cap);
