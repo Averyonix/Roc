@@ -2,293 +2,64 @@
 
 #include "wrei/util.hpp"
 
-//
-// Formats are taken from wlroots
-// To simply things we only support little endian architectures
-//
-
-static constexpr wren_drm_format wren_opaque_drm_formats[] {
-    DRM_FORMAT_XRGB8888,
-    DRM_FORMAT_XBGR8888,
-    DRM_FORMAT_RGBX8888,
-    DRM_FORMAT_BGRX8888,
-    DRM_FORMAT_R8,
-    DRM_FORMAT_GR88,
-    DRM_FORMAT_RGB888,
-    DRM_FORMAT_BGR888,
-    DRM_FORMAT_RGBX4444,
-    DRM_FORMAT_BGRX4444,
-    DRM_FORMAT_RGBX5551,
-    DRM_FORMAT_BGRX5551,
-    DRM_FORMAT_XRGB1555,
-    DRM_FORMAT_RGB565,
-    DRM_FORMAT_BGR565,
-    DRM_FORMAT_XRGB2101010,
-    DRM_FORMAT_XBGR2101010,
-    DRM_FORMAT_XBGR16161616F,
-    DRM_FORMAT_XBGR16161616,
-    DRM_FORMAT_YVYU,
-    DRM_FORMAT_VYUY,
-    DRM_FORMAT_NV12,
-    DRM_FORMAT_P010,
-};
-
-struct wren_format_t_create_params
+std::vector<wren_format_info> generate_formats()
 {
-    wren_drm_format drm;
-    VkFormat vk;
-    VkFormat vk_srgb;
-    bool is_ycbcr;
-};
+#include "formats.inl"
 
-constexpr wren_format_t::wren_format_t(const wren_format_t_create_params& params)
-    : name(drmGetFormatName(params.drm))
-    , drm(params.drm)
-    , vk(params.vk)
-    , vk_srgb(params.vk_srgb)
-    , is_ycbcr(params.is_ycbcr)
-    , has_alpha(!std::ranges::contains(wren_opaque_drm_formats, params.drm))
-{
-    switch (drm) {
-        break;case DRM_FORMAT_XRGB8888: shm = WL_SHM_FORMAT_XRGB8888;
-        break;case DRM_FORMAT_ARGB8888: shm = WL_SHM_FORMAT_ARGB8888;
-        break;default:                  shm = wl_shm_format(drm);
+    std::vector<wren_format_info> formats;
+
+    formats.emplace_back(wren_format_info { .name = "UNDEFINED" });
+
+    for (auto[drm, vk, vk_flags] : drm_to_vk) {
+        auto fourcc = drmGetFormatName(drm);
+        defer { free(fourcc); };
+
+        auto& info = formats.emplace_back(wren_format_info {
+            .name = fourcc,
+            .is_ycbcr = vkuFormatRequiresYcbcrConversion(vk),
+            .drm = drm,
+            .vk = vk,
+            .vk_flags = vk_flags,
+            .info = vkuGetFormatInfo(vk),
+        });
+
+        // Find matching _SRGB VkFormat if present
+        if (auto vk_name = std::string_view(string_VkFormat(vk)); vk_name.ends_with("_UNORM")) {
+            auto vk_formats = magic_enum::enum_values<VkFormat>();
+            auto srgb = std::ranges::find(vk_formats, wrei_replace_suffix(vk_name, "_UNORM", "_SRGB"), string_VkFormat);
+            if (srgb != vk_formats.end()) info.vk_srgb = *srgb;
+        }
     }
+
+    wrei_assert(formats.size() < std::numeric_limits<decltype(wren_format::index)>::max());
+
+    return formats;
 }
 
-#define WROC_FORMAT wren_format_t_create_params
+static
+std::vector<wren_format_info> wren_format_infos = generate_formats();
 
-const wren_format_t wren_formats[] {
-
-    // Vulkan non-packed 8-bits-per-channel formats have an inverted channel
-    // order compared to the DRM formats, because DRM format channel order
-    // is little-endian while Vulkan format channel order is in memory byte
-    // order.
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_R8,
-        .vk = VK_FORMAT_R8_UNORM,
-        .vk_srgb = VK_FORMAT_R8_SRGB,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_GR88,
-        .vk = VK_FORMAT_R8G8_UNORM,
-        .vk_srgb = VK_FORMAT_R8G8_SRGB,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_RGB888,
-        .vk = VK_FORMAT_B8G8R8_UNORM,
-        .vk_srgb = VK_FORMAT_B8G8R8_SRGB,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_BGR888,
-        .vk = VK_FORMAT_R8G8B8_UNORM,
-        .vk_srgb = VK_FORMAT_R8G8B8_SRGB,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XRGB8888,
-        .vk = VK_FORMAT_B8G8R8A8_UNORM,
-        .vk_srgb = VK_FORMAT_B8G8R8A8_SRGB,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XBGR8888,
-        .vk = VK_FORMAT_R8G8B8A8_UNORM,
-        .vk_srgb = VK_FORMAT_R8G8B8A8_SRGB,
-    },
-
-    // The Vulkan _SRGB formats correspond to unpremultiplied alpha, but
-    // the Wayland protocol specifies premultiplied alpha on electrical values
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ARGB8888,
-        .vk = VK_FORMAT_B8G8R8A8_UNORM,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ABGR8888,
-        .vk = VK_FORMAT_R8G8B8A8_UNORM,
-    },
-
-    // Vulkan packed formats have the same channel order as DRM formats on
-    // little endian systems.
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_RGBA4444,
-        .vk = VK_FORMAT_R4G4B4A4_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_RGBX4444,
-        .vk = VK_FORMAT_R4G4B4A4_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_BGRA4444,
-        .vk = VK_FORMAT_B4G4R4A4_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_BGRX4444,
-        .vk = VK_FORMAT_B4G4R4A4_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_RGB565,
-        .vk = VK_FORMAT_R5G6B5_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_BGR565,
-        .vk = VK_FORMAT_B5G6R5_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_RGBA5551,
-        .vk = VK_FORMAT_R5G5B5A1_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_RGBX5551,
-        .vk = VK_FORMAT_R5G5B5A1_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_BGRA5551,
-        .vk = VK_FORMAT_B5G5R5A1_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_BGRX5551,
-        .vk = VK_FORMAT_B5G5R5A1_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ARGB1555,
-        .vk = VK_FORMAT_A1R5G5B5_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XRGB1555,
-        .vk = VK_FORMAT_A1R5G5B5_UNORM_PACK16,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ARGB2101010,
-        .vk = VK_FORMAT_A2R10G10B10_UNORM_PACK32,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XRGB2101010,
-        .vk = VK_FORMAT_A2R10G10B10_UNORM_PACK32,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ABGR2101010,
-        .vk = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XBGR2101010,
-        .vk = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-    },
-
-    // Vulkan 16-bits-per-channel formats have an inverted channel order
-    // compared to DRM formats, just like the 8-bits-per-channel ones.
-    // On little endian systems the memory representation of each channel
-    // matches the DRM formats'.
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ABGR16161616,
-        .vk = VK_FORMAT_R16G16B16A16_UNORM,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XBGR16161616,
-        .vk = VK_FORMAT_R16G16B16A16_UNORM,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_ABGR16161616F,
-        .vk = VK_FORMAT_R16G16B16A16_SFLOAT,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_XBGR16161616F,
-        .vk = VK_FORMAT_R16G16B16A16_SFLOAT,
-    },
-
-    // YCbCr formats
-    // R -> V, G -> Y, B -> U
-    // 420 -> 2x2 subsampled, 422 -> 2x1 subsampled, 444 -> non-subsampled
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_UYVY,
-        .vk = VK_FORMAT_B8G8R8G8_422_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_YUYV,
-        .vk = VK_FORMAT_G8B8G8R8_422_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_NV12,
-        .vk = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_NV16,
-        .vk = VK_FORMAT_G8_B8R8_2PLANE_422_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_YUV420,
-        .vk = VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_YUV422,
-        .vk = VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_YUV444,
-        .vk = VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM,
-        .is_ycbcr = true,
-    },
-
-    // 3PACK16 formats split the memory in three 16-bit words, so they have an
-    // inverted channel order compared to DRM formats.
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_P010,
-        .vk = VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_P210,
-        .vk = VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_P012,
-        .vk = VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_P016,
-        .vk = VK_FORMAT_G16_B16R16_2PLANE_420_UNORM,
-        .is_ycbcr = true,
-    },
-    WROC_FORMAT {
-        .drm = DRM_FORMAT_Q410,
-        .vk = VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16,
-        .is_ycbcr = true,
-    },
-};
-
-#undef WROC_FORMAT
-
-std::span<const wren_format_t> wren_get_formats()
+std::span<const wren_format_info> wren_get_format_infos()
 {
-    return wren_formats;
+    return wren_format_infos;
 }
 
 // -----------------------------------------------------------------------------
 
-template<typename T>
-wren_format wren_find_format(T needle, auto... members)
-{
-    for (auto& format : wren_formats) {
-        if (((format.*members == needle) || ...)) return &format;
-    }
-
-    return nullptr;
-}
-
 wren_format wren_format_from_drm(wren_drm_format drm_format)
 {
-    return wren_find_format(drm_format, &wren_format_t::drm);
+    for (auto[i, f] : wren_format_infos | std::views::enumerate) {
+        if (f.drm == drm_format) return wren_format(i);
+    }
+    return {};
 }
 
-wren_format wren_format_from_shm(wl_shm_format shm_format)
+wren_format wren_format_from_vk(VkFormat vk_format, flags<wren_vk_format_flag> vk_flags)
 {
-    return wren_find_format(shm_format, &wren_format_t::shm);
+    for (auto[i, f] : wren_format_infos | std::views::enumerate) {
+        if (f.vk == vk_format && f.vk_flags == vk_flags) return wren_format(i);
+    }
+    return {};
 }
 
 static
@@ -406,12 +177,10 @@ std::vector<VkDrmFormatModifierProperties2EXT> get_drm_modifiers(wren_context* c
 }
 
 static
-void load_format_props(wren_context* ctx, wren_format_props& props)
+const wren_format_props* load_format_props(wren_context* ctx, wren_format_props& props, wren_format format, flags<wren_image_usage> usage)
 {
-    auto format = props.format;
-
-    auto vk_usage = wren_image_usage_to_vk(props.usage);
-    auto required_features = wren_get_required_format_features(props.format, props.usage);
+    auto vk_usage = wren_image_usage_to_vk(usage);
+    auto required_features = wren_get_required_format_features(format, usage);
     auto has_all_features = [&](VkFormatFeatureFlags features) {
         return (features & required_features) == required_features;
     };
@@ -452,19 +221,22 @@ void load_format_props(wren_context* ctx, wren_format_props& props)
             props.mods.emplace_back(mod.drmFormatModifier);
         }
     }
+
+    return &props;
 }
 
 const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, flags<wren_image_usage> usage)
 {
     wrei_assert(!usage.empty());
-    auto key = wren_format_props_key{format, usage};
-    auto& props = ctx->format_props[key];
-    if (!props.format) {
-        props.format = format;
-        props.usage = usage;
-        load_format_props(ctx, props);
-    }
-    return &props;
+
+    wren_format_props_key key { format->vk, wren_image_usage_to_vk(usage) };
+
+    auto iter = ctx->format_props.find(key);
+    if (iter != ctx->format_props.end()) return &iter->second;
+
+    return iter == ctx->format_props.end()
+        ? load_format_props(ctx, ctx->format_props[key], format, usage)
+        : &iter->second;
 }
 
 std::string wren_drm_modifier_get_name(wren_drm_modifier mod)

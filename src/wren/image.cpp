@@ -150,6 +150,11 @@ void wren_image_init(wren_image* image)
         .image = image->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .format = image->format->vk,
+        .components {
+            .a = image->format->vk_flags.contains(wren_vk_format_flag::ignore_alpha)
+                ? VK_COMPONENT_SWIZZLE_ONE
+                : VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     }), nullptr, &image->view));
 
@@ -205,7 +210,7 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
 {
     auto* ctx = image->ctx;
 
-    const auto& info = vkuGetFormatInfo(image->format->vk);
+    const auto& info = image->format->info;
     usz block_w = (image->extent.x + info.block_extent.width  - 1) / info.block_extent.width;
     usz block_h = (image->extent.y + info.block_extent.height - 1) / info.block_extent.height;
     usz image_size = block_w * block_h * info.texel_block_size;

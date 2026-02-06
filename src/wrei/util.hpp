@@ -320,6 +320,12 @@ usz wrei_compute_geometric_growth(usz current_size, usz new_min_size)
 // -----------------------------------------------------------------------------
 
 inline
+std::string wrei_replace_suffix(std::string_view in, std::string_view old_suffix, std::string_view new_suffix)
+{
+    return std::format("{}{}", in.substr(0, in.size() - old_suffix.size()), new_suffix);
+}
+
+inline
 std::string wrei_escape_utf8(std::string_view in)
 {
     std::string out;
@@ -630,13 +636,18 @@ u64 wrei_hash_mix(u64 x)
 }
 
 template<typename T>
-inline
+usz wrei_hash_single(const T& v)
+{
+    return std::hash<T>{}(v);
+}
+
+template<typename T>
 void wrei_hash_combine(usz& seed, const T& v)
 {
     // From boost
     // https://github.com/boostorg/container_hash/blob/060d4aea6b5b59d2c9146b7d8e994735b2c0a582/include/boost/container_hash/hash.hpp#L469-L473
 
-    seed = wrei_hash_mix(seed + 0x9e3779b9 + std::hash<T>{}(v));
+    seed = wrei_hash_mix(seed + 0x9e3779b9 + wrei_hash_single(v));
 }
 
 inline
@@ -663,8 +674,7 @@ usz wrei_hash_range(auto start, auto end)
 inline
 usz wrei_hash_variadic(const auto& first, const auto&... rest)
 {
-    usz seed = 0;
-    wrei_hash_combine(seed, first);
+    usz seed = wrei_hash_single(first);
     (wrei_hash_combine(seed, rest), ...);
     return seed;
 }

@@ -2,6 +2,26 @@
 
 const u32 wroc_wl_shm_version = 2;
 
+inline
+wl_shm_format from_drm(wren_drm_format drm)
+{
+    switch (drm) {
+        break;case DRM_FORMAT_XRGB8888: return WL_SHM_FORMAT_XRGB8888;
+        break;case DRM_FORMAT_ARGB8888: return WL_SHM_FORMAT_ARGB8888;
+        break;default:                  return wl_shm_format(drm);
+    }
+}
+
+inline
+wren_drm_format to_drm(wl_shm_format shm)
+{
+    switch (shm) {
+        break;case WL_SHM_FORMAT_XRGB8888: return DRM_FORMAT_XRGB8888;
+        break;case WL_SHM_FORMAT_ARGB8888: return DRM_FORMAT_ARGB8888;
+        break;default:                  return wren_drm_format(shm);
+    }
+}
+
 static
 void update_mapping(wroc_shm_pool* pool, usz size)
 {
@@ -45,7 +65,7 @@ void wroc_wl_shm_bind_global(wl_client* client, void* data, u32 version, u32 id)
     wroc_resource_set_implementation(new_resource, &wroc_wl_shm_impl, nullptr);
 
     for (auto&[format, _] : server->renderer->shm_formats) {
-        wroc_send(wl_shm_send_format, new_resource, format->shm);
+        wroc_send(wl_shm_send_format, new_resource, from_drm(format->drm));
     }
 };
 
@@ -56,7 +76,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 {
     auto* pool = wroc_get_userdata<wroc_shm_pool>(resource);
 
-    auto format = wren_format_from_shm(wl_shm_format(_format));
+    auto format = wren_format_from_drm(to_drm(wl_shm_format(_format)));
     if (!format) {
         wroc_post_error(resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", wrei_enum_to_string(wl_shm_format(_format)));
         return;

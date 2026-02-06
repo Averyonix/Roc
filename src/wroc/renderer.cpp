@@ -34,8 +34,8 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
     auto renderer = wrei_create<wroc_renderer>();
     renderer->options = render_options;
 
-    for (auto& format : wren_get_formats()) {
-        register_format(renderer.get(), &format);
+    for (auto format : wren_get_formats()) {
+        register_format(renderer.get(), format);
     }
 
     wroc_renderer_init_buffer_feedback(renderer.get());
@@ -121,7 +121,6 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         renderer->rects_cpu.emplace_back(wroc_shader_rect {
             .image = image ? image4f32{image, renderer->sampler.get()} : image4f32 {},
             .image_rect = source,
-            .image_has_alpha = image ? image->format->has_alpha : false,
             .rect = pixel_dst,
             .opacity = 1.f,
             .color = color,
@@ -371,7 +370,7 @@ void wroc_screenshot(rect2f64 rect)
 }
 
 static
-ref<wren_image> acquire(wroc_output* output)
+ref<wren_image> acquire(wroc_renderer* renderer, wroc_output* output)
 {
     for (auto& slot : output->release_slots) {
         if (slot.image && wren_semaphore_get_value(slot.semaphore.get()) >= slot.release_point) {
@@ -385,7 +384,7 @@ ref<wren_image> acquire(wroc_output* output)
 
     auto* wren = server->wren;
 
-    auto format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
+    auto format = renderer->output_format;
     auto usage = wren_image_usage::render;
     auto* format_props = wren_get_format_props(wren, format, usage);
     auto image = wren_image_create_dmabuf(wren, output->size, format, usage, format_props->mods);
@@ -418,10 +417,10 @@ void wroc_render_frame(wroc_output* output)
     wrei_assert(output->frames_in_flight < server->renderer->max_frames_in_flight);
     wrei_assert(output->size.x && output->size.y);
 
-    auto current = acquire(output);
-
     auto* renderer = server->renderer.get();
     auto* wren = server->wren;
+
+    auto current = acquire(renderer, output);
 
     output->frames_in_flight++;
 

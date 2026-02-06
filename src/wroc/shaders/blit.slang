@@ -38,7 +38,6 @@ vec4f32 fragment(in vertex_output vout)
         ? rect.image.sample(uv)
         : vec4f32(1, 1, 1, 1);
 
-    if (rect.image_has_alpha == 0) color.w = 1;
     if (rect.opacity < 1.0) color *= rect.opacity;
     color *= rect.color;
 

@@ -39,48 +39,58 @@ struct wren_descriptor_id_allocator
 using wren_drm_format   = u32;
 using wren_drm_modifier = u64;
 
-struct wren_format_t
+// Additional flags required to uniquely identify a format when paired with a VkFormat
+enum class wren_vk_format_flag : u32
 {
-    const char* name;
-    wren_drm_format drm;
-    VkFormat vk;
-    VkFormat vk_srgb;
-    wl_shm_format shm;
-    bool is_ycbcr;
-    bool has_alpha;
-
-    // NOTE: These are singleton objects per supported format
-    //       so we delete copy/move and protect construction
-
-    constexpr wren_format_t(const struct wren_format_t_create_params&);
-    WREI_DELETE_COPY_MOVE(wren_format_t)
+    // DRM FourCC codes have format variants to ignore alpha channels (E.g. XRGB|ARGB).
+    // Vulkan handles these in image view channel swizzles, instead of formats.
+    ignore_alpha = 1 << 0,
 };
 
-extern const wren_format_t wren_formats[];
+struct wren_format_info
+{
+    std::string name;
 
-std::span<const wren_format_t> wren_get_formats();
+    bool is_ycbcr;
+
+    wren_drm_format drm;
+
+    VkFormat vk;
+    VkFormat vk_srgb;
+    flags<wren_vk_format_flag> vk_flags;
+
+    VKU_FORMAT_INFO info;
+};
+
+std::span<const wren_format_info> wren_get_format_infos();
 
 struct wren_format
 {
-    i32 _index;
-
-    constexpr wren_format(                      ) : _index(-1              ) {}
-    constexpr wren_format(const wren_format_t* f) : _index(f - wren_formats) {}
-
-    constexpr const wren_format_t* operator->() const noexcept { return &wren_formats[_index]; };
-    constexpr                   operator bool() const noexcept { return _index >= 0;           }
+    // Formats are stored as indices into the static format_infos table.
+    u8 index;
 
     constexpr bool operator==(const wren_format&) const noexcept = default;
-};
 
-template<>
-struct std::hash<wren_format>
-{
-    usz operator()(const wren_format& f) const noexcept
+    constexpr explicit operator bool() const noexcept { return index; }
+
+    constexpr const wren_format_info* operator->() const noexcept
     {
-        return std::hash<i32>()(f._index);
+        return &wren_get_format_infos()[index];
     }
 };
+
+WREI_MAKE_STRUCT_HASHABLE(wren_format, v.index);
+
+inline
+auto wren_get_formats()
+{
+    return std::views::iota(0)
+         | std::views::take(wren_get_format_infos().size())
+         | std::views::transform([](usz i) { return wren_format(i); });
+}
+
+wren_format wren_format_from_drm(wren_drm_format);
+wren_format wren_format_from_vk(VkFormat, flags<wren_vk_format_flag> = {});
 
 struct wren_format_modifier_props
 {
@@ -96,8 +106,6 @@ struct wren_format_modifier_props
 
 struct wren_format_props
 {
-    wren_format format;
-    flags<wren_image_usage> usage;
     std::unique_ptr<wren_format_modifier_props> opt_props;
     std::vector<wren_format_modifier_props> mod_props;
     std::vector<wren_drm_modifier> mods;
@@ -113,15 +121,12 @@ struct wren_format_props
 
 struct wren_format_props_key
 {
-    wren_format format;
-    flags<wren_image_usage> usage;
+    VkFormat format;
+    VkImageUsageFlags usage;
 
     constexpr bool operator==(const wren_format_props_key&) const noexcept = default;
 };
 WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.usage);
-
-wren_format wren_format_from_drm(wren_drm_format);
-wren_format wren_format_from_shm(wl_shm_format);
 
 using wren_format_modifier_set = std::flat_set<wren_drm_modifier>;
 
@@ -221,6 +226,7 @@ struct wren_context : wrei_object
     ref<wrei_event_loop> event_loop;
 
     std::vector<VkSemaphore> free_binary_semaphores;
+
 
     VkDescriptorSetLayout set_layout;
     VkPipelineLayout pipeline_layout;
