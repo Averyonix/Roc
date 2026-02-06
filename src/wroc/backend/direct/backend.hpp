@@ -83,6 +83,13 @@ struct wroc_direct_backend : wroc_backend
         return drm_fd;
     };
 
+    wren_format_set format_set;
+
+    virtual const wren_format_set& get_output_format_set() final override
+    {
+        return format_set;
+    }
+
     virtual void create_output() final override;
     virtual void destroy_output(wroc_output*) final override;
 

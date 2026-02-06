@@ -62,15 +62,17 @@ struct drm_resources
 
 struct drm_property_map
 {
+    using prop_deleter = decltype([](drmModeObjectProperties* v) { drmModeFreeObjectProperties(v); });
+    using prop_ptr = std::unique_ptr<drmModeObjectProperties, prop_deleter>;
+    prop_ptr props;
+
     ankerl::unordered_dense::map<std::string_view, drmModePropertyRes*> properties;
 
     drm_property_map() = default;
 
     drm_property_map(wroc_direct_backend* backend, u32 object_id, u32 object_type)
+        : props(prop_ptr(drmModeObjectGetProperties(backend->drm_fd, object_id, object_type)))
     {
-        auto* props = drmModeObjectGetProperties(backend->drm_fd, object_id, object_type);
-        defer { drmModeFreeObjectProperties(props); };
-
         for (u32 i = 0; i < props->count_props; ++i) {
             auto* prop = drmModeGetProperty(backend->drm_fd, props->props[i]);
             properties[prop->name] = prop;
@@ -117,6 +119,17 @@ struct drm_property_map
         return properties.at(prop_name)->prop_id;
     }
 
+    u64 get_prop_value(std::string_view prop_name)
+    {
+        auto id = get_prop_id(prop_name);
+        for (u32 i = 0; i < props->count_props; ++i) {
+            if (props->props[i] == id) {
+                return props->prop_values[i];
+            }
+        }
+        wrei_assert_fail("Failed to find property");
+    }
+
     int get_enum_value(std::string_view prop_name, std::string_view enum_name)
     {
         auto* prop = properties.at(prop_name);
@@ -135,6 +148,44 @@ struct drm_property_map
 
 // -----------------------------------------------------------------------------
 
+static
+wren_format_set parse_plane_formats(wroc_direct_backend* backend, drm_resources* resources, drmModePlane* plane)
+{
+    drm_property_map props{backend, plane->plane_id, DRM_MODE_OBJECT_PLANE};
+    auto blob_id = props.get_prop_value("IN_FORMATS");
+    if (!blob_id) {
+        log_error("Plane has no IN_FORMATS property");
+        return {};
+    }
+
+    auto blob = drmModeGetPropertyBlob(backend->drm_fd, blob_id);
+    defer { drmModeFreePropertyBlob(blob); };
+
+    auto* header = static_cast<drm_format_modifier_blob*>(blob->data);
+
+    auto formats = wrei_byte_offset_pointer<wren_drm_format>(blob->data, header->formats_offset);
+    auto modifiers = wrei_byte_offset_pointer<drm_format_modifier>(blob->data, header->modifiers_offset);
+
+    wren_format_set set;
+    for (auto mod : std::span(modifiers, header->count_modifiers)) {
+        u32 index = mod.offset;
+        while (mod.formats) {
+            auto bit_idx = std::countr_zero(mod.formats);
+            index += bit_idx;
+
+            auto format = wren_format_from_drm(formats[index]);
+            if (format) set.add(format, mod.modifier);
+
+            mod.formats >>= bit_idx + 1;
+            index++;
+        }
+    }
+
+    return set;
+}
+
+// -----------------------------------------------------------------------------
+
 #define WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT 0
 
 struct wroc_drm_output_state
@@ -148,6 +199,8 @@ struct wroc_drm_output_state
 
     ref<wren_semaphore> last_release_semaphore = {};
     u64 last_release_point;
+
+    wren_format_set format_set;
 
 #if WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT
     ref<wren_semaphore> pending_release_semaphore = {};
@@ -227,6 +280,8 @@ void add_output(wroc_direct_backend* backend, drm_resources* resources, drmModeC
 
         .plane_prop = { backend, plane->plane_id, DRM_MODE_OBJECT_PLANE },
         .crtc_prop = { backend, crtc->crtc_id, DRM_MODE_OBJECT_CRTC },
+
+        .format_set = parse_plane_formats(backend, resources, plane),
     };
 
     output->size = { crtc->width, crtc->height };
@@ -327,9 +382,18 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
     wrei_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap)).ok() && cap);
 
     drm_resources res(drm_fd);
+
     for (auto* connector : res.connectors) {
         add_output(backend, &res, connector);
     }
+
+    // Intersect format sets for all outputs
+
+    std::vector<const wren_format_set*> format_sets;
+    for (auto& output : backend->outputs) {
+        format_sets.emplace_back(&output->state->format_set);
+    }
+    backend->format_set = wren_intersect_format_sets(format_sets);
 }
 
 // -----------------------------------------------------------------------------

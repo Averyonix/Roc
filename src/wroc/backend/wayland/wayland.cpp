@@ -51,7 +51,10 @@ void wroc_listen_registry_global(void* data, wl_registry*, u32 name, const char*
     }
     MATCH_INTERFACE(zwp_relative_pointer_manager_v1){}
     MATCH_INTERFACE(zwp_pointer_constraints_v1) {}
-    MATCH_INTERFACE(zwp_linux_dmabuf_v1) {}
+    MATCH_INTERFACE(zwp_linux_dmabuf_v1) {
+        auto feedback = zwp_linux_dmabuf_v1_get_default_feedback(backend->zwp_linux_dmabuf_v1);
+        zwp_linux_dmabuf_feedback_v1_add_listener(feedback, &wroc_zwp_linux_dmabuf_feedback_v1_listener, backend);
+    }
     MATCH_INTERFACE(wp_linux_drm_syncobj_manager_v1) {}
     MATCH_END
 
@@ -99,6 +102,11 @@ void wroc_wayland_backend::init()
     wl_registry = wl_display_get_registry(wl_display);
 
     wl_registry_add_listener(wl_registry, &wroc_wl_registry_listener, this);
+
+    // First roundtrip binds interfaces
+    wl_display_roundtrip(wl_display);
+
+    // Second roundtrip ensures that all events expected in response to binding are received
     wl_display_roundtrip(wl_display);
 
     event_source = wrei_event_loop_add_fd(server->event_loop.get(), wl_display_get_fd(wl_display), EPOLLIN,

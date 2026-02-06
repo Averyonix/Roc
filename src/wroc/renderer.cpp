@@ -42,6 +42,10 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
 
     auto* wren = server->wren;
 
+    renderer->output_format = wren_format_from_drm(DRM_FORMAT_ABGR8888);
+    renderer->output_format_modifiers = server->backend->get_output_format_set().get(renderer->output_format);
+    wrei_assert(!renderer->output_format_modifiers.empty());
+
     std::filesystem::path path = getenv("WALLPAPER");
 
     int w, h;
@@ -384,10 +388,8 @@ ref<wren_image> acquire(wroc_renderer* renderer, wroc_output* output)
 
     auto* wren = server->wren;
 
-    auto format = renderer->output_format;
-    auto usage = wren_image_usage::render;
-    auto* format_props = wren_get_format_props(wren, format, usage);
-    auto image = wren_image_create_dmabuf(wren, output->size, format, usage, format_props->mods);
+    auto image = wren_image_create_dmabuf(wren, output->size, renderer->output_format,
+        wren_image_usage::render, renderer->output_format_modifiers);
 
     return image;
 }
@@ -436,8 +438,8 @@ void wroc_render_frame(wroc_output* output)
         {
             server->renderer->available_frames.emplace_back(std::move(frame_data));
 
-            output->frames_in_flight--;
             if (output) {
+                output->frames_in_flight--;
                 wroc_output_try_dispatch_frame_later(output.get());
             }
         }

@@ -218,7 +218,7 @@ const wren_format_props* load_format_props(wren_context* ctx, wren_format_props&
                 .max_extent = {image_props.maxExtent.width, image_props.maxExtent.height},
                 .has_mutable_srgb = has_mutable_srgb,
             });
-            props.mods.emplace_back(mod.drmFormatModifier);
+            props.mods.insert(mod.drmFormatModifier);
         }
     }
 
@@ -245,6 +245,26 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier mod)
     std::string str = name ?: "UNKNOWN";
     free(name);
     return str;
+}
+
+wren_format_set wren_intersect_format_sets(std::span<const wren_format_set* const> sets)
+{
+    if (sets.empty()) return {};
+
+    wren_format_set out;
+
+    auto first = sets.front();
+    auto rest = sets.subspan(1);
+    for (auto[format, mods] : *first) {
+        std::vector<const wren_format_modifier_set*> modifier_sets{&mods};
+        for (auto& r : rest) modifier_sets.emplace_back(&r->get(format));
+        auto modifier_set = wren_intersect_format_modifiers(modifier_sets);
+        if (!modifier_set.empty()) {
+            out.entries[format] = std::move(modifier_set);
+        }
+    }
+
+    return out;
 }
 
 wren_format_modifier_set wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets)

@@ -310,6 +310,14 @@ std::string wrei_byte_size_to_string(u64 bytes);
 
 // -----------------------------------------------------------------------------
 
+template<typename T>
+T* wrei_byte_offset_pointer(void* source, isz offset)
+{
+    return reinterpret_cast<T*>(reinterpret_cast<byte*>(source) + offset);
+}
+
+// -----------------------------------------------------------------------------
+
 inline
 usz wrei_compute_geometric_growth(usz current_size, usz new_min_size)
 {

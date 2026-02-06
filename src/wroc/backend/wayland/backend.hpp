@@ -85,6 +85,9 @@ struct wroc_wayland_backend : wroc_backend
     struct zwp_pointer_constraints_v1* zwp_pointer_constraints_v1 = {};
 
     struct zwp_linux_dmabuf_v1* zwp_linux_dmabuf_v1 = {};
+    std::vector<std::pair<wren_format, wren_drm_modifier>> format_table = {};
+    wren_format_set format_set;
+
     struct wp_linux_drm_syncobj_manager_v1* wp_linux_drm_syncobj_manager_v1 = {};
     wroc_wl_proxy_cache<wren_semaphore, struct wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
     wroc_wl_proxy_cache<wren_image, struct wl_buffer, wl_buffer_destroy> buffer_cache;
@@ -103,6 +106,8 @@ struct wroc_wayland_backend : wroc_backend
 
     virtual void init() final override;
     virtual void start() final override;
+
+    virtual const wren_format_set& get_output_format_set() final override;
 
     virtual void create_output() final override;
     virtual void destroy_output(wroc_output*) final override;
@@ -124,3 +129,4 @@ extern const zxdg_toplevel_decoration_v1_listener wroc_zxdg_toplevel_decoration_
 extern const xdg_toplevel_listener wroc_xdg_toplevel_listener;
 extern const zwp_relative_pointer_v1_listener wroc_zwp_relative_pointer_v1_listener;
 extern const zwp_locked_pointer_v1_listener wroc_zwp_locked_pointer_v1_listener;
+extern const zwp_linux_dmabuf_feedback_v1_listener wroc_zwp_linux_dmabuf_feedback_v1_listener;

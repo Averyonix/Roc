@@ -6,6 +6,70 @@
 
 #include "wroc/event.hpp"
 
+static
+void dma_feedback_done(void* data, struct zwp_linux_dmabuf_feedback_v1* feedback)
+{
+    zwp_linux_dmabuf_feedback_v1_destroy(feedback);
+}
+
+static
+void dma_feedback_format_table(void* data, struct zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, int fd, u32 size)
+{
+    auto* backend = static_cast<wroc_wayland_backend*>(data);
+
+    struct entry {
+        u32 format;
+        u32 padding;
+        u64 modifier;
+    };
+
+    wrei_assert(size % sizeof(entry) == 0);
+
+    defer { close(fd); };
+    auto mapped = static_cast<entry*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
+    wrei_assert(mapped);
+    defer { munmap(mapped, size); };
+
+    auto count = size / sizeof(entry);
+    auto formats = std::span(mapped, count);
+
+    backend->format_table.clear();
+    backend->format_set.clear();
+    for (auto& entry : formats) {
+        if (auto format = wren_format_from_drm(entry.format)) {
+            backend->format_table.emplace_back(format, entry.modifier);
+        }
+    }
+}
+
+static
+void dma_feedback_tranche_formats(void* data, struct zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, struct wl_array* indices)
+{
+    auto* backend = static_cast<wroc_wayland_backend*>(data);
+
+    for (auto[i, idx] : wroc_to_span<u16>(indices) | std::views::enumerate) {
+        auto[format, modifier] = backend->format_table[idx];
+        backend->format_set.add(format, modifier);
+    }
+}
+
+const zwp_linux_dmabuf_feedback_v1_listener wroc_zwp_linux_dmabuf_feedback_v1_listener = {
+    .done = dma_feedback_done,
+    .format_table = dma_feedback_format_table,
+    WROC_STUB_QUIET(main_device),
+    WROC_STUB_QUIET(tranche_done),
+    WROC_STUB_QUIET(tranche_target_device),
+    .tranche_formats = dma_feedback_tranche_formats,
+    WROC_STUB_QUIET(tranche_flags),
+};
+
+const wren_format_set& wroc_wayland_backend::get_output_format_set()
+{
+    return format_set;
+}
+
+// -----------------------------------------------------------------------------
+
 wroc_wayland_output* wroc_wayland_backend_find_output_for_surface(wroc_wayland_backend* backend, wl_surface* surface)
 {
     for (auto& output : backend->outputs) {

@@ -47,6 +47,7 @@ struct wroc_backend : wrei_object
     virtual void start() = 0;
 
     virtual int get_preferred_drm_device() { return -1; };
+    virtual const wren_format_set& get_output_format_set() = 0;
 
     virtual void create_output() = 0;
     virtual void destroy_output(wroc_output*) = 0;
@@ -1036,7 +1037,8 @@ struct wroc_renderer : wrei_object
 
     flags<wroc_render_option> options;
 
-    wren_format output_format = wren_format_from_drm(DRM_FORMAT_ARGB8888);
+    wren_format output_format;
+    wren_format_modifier_set output_format_modifiers;
 
     ref<wren_pipeline> pipeline;
 

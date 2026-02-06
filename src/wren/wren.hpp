@@ -104,11 +104,14 @@ struct wren_format_modifier_props
     bool has_mutable_srgb;
 };
 
+using wren_format_modifier_set = std::flat_set<wren_drm_modifier>;
+inline const wren_format_modifier_set wren_empty_modifier_set;
+
 struct wren_format_props
 {
     std::unique_ptr<wren_format_modifier_props> opt_props;
     std::vector<wren_format_modifier_props> mod_props;
-    std::vector<wren_drm_modifier> mods;
+    wren_format_modifier_set mods;
 
     const wren_format_modifier_props* for_mod(wren_drm_modifier mod) const
     {
@@ -128,23 +131,22 @@ struct wren_format_props_key
 };
 WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.usage);
 
-using wren_format_modifier_set = std::flat_set<wren_drm_modifier>;
 
 struct wren_format_set
 {
-private:
     ankerl::unordered_dense::map<wren_format, wren_format_modifier_set> entries;
 
-public:
     void add(wren_format format, wren_drm_modifier modifier)
     {
         entries[format].insert(modifier);
     }
 
-    std::span<const wren_drm_modifier> list(wren_format format) const noexcept
+    void clear() { entries.clear(); }
+
+    const wren_format_modifier_set& get(wren_format format) const noexcept
     {
         auto iter = entries.find(format);
-        return iter == entries.end() ? std::span<const wren_drm_modifier>{} : iter->second;
+        return iter == entries.end() ? wren_empty_modifier_set : iter->second;
     }
 
     usz   size() const { return entries.size(); }
@@ -155,6 +157,7 @@ public:
 };
 
 wren_format_modifier_set wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
+wren_format_set wren_intersect_format_sets(std::span<const wren_format_set* const> sets);
 
 const wren_format_props* wren_get_format_props(wren_context*, wren_format, flags<wren_image_usage>);
 
@@ -347,7 +350,7 @@ struct wren_buffer : wrei_object
     template<typename T>
     T* host(usz byte_offset = 0) const
     {
-        return reinterpret_cast<T*>(reinterpret_cast<byte*>(host_address) + byte_offset);
+        return wrei_byte_offset_pointer<T>(host_address, byte_offset);
     }
 
     ~wren_buffer();
