@@ -286,12 +286,8 @@ void wroc_output_try_dispatch_frame_later(wroc_output* output)
 bool wroc_output_try_dispatch_frame(wroc_output* output)
 {
     auto now = std::chrono::steady_clock::now();
-    if (server->renderer->fps_limit_enabled && get_next_frame_time(output) > now) {
-        return false;
-    }
 
-    // TODO: Trigger frame_requested on relevant situations
-    // if (!output->frame_requested) return false;
+    // Check frame render conditions
 
     if (!output->frame_available) return false;
     if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return false;
@@ -299,6 +295,10 @@ bool wroc_output_try_dispatch_frame(wroc_output* output)
         log_warn("Can't render new frame as output is empty {}", wrei_to_string(output->size));
         return false;
     }
+    if (server->renderer->fps_limit_enabled && get_next_frame_time(output) > now) return false;
+    if (!wroc_output_try_prepare_acquire(output)) return false;
+
+    // Perform frame render
 
     output->frame_requested = false;
 

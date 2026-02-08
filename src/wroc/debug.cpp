@@ -189,7 +189,6 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         ImGui_Text("Elapsed:       {}", wrei_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
         ImGui_Text("Events:        {}/s ({}/s)", stats.events_per_second, stats.poll_waits_per_second);
         ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
-
     }
 
     category_separator();
@@ -216,10 +215,24 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         for (auto& output : server->output_layout->outputs) {
             current_fif = std::max(current_fif, output->frames_in_flight);
         }
-        auto label = std::format("Max FiF ({})###max-frames-in-flight", current_fif);
+        auto label = std::format("Max Frames in Flight ({})###max-frames-in-flight", current_fif);
         int max_fif = server->renderer->max_frames_in_flight;
         if (ImGui::SliderInt(label.c_str(), &max_fif, 1, 6)) {
             server->renderer->max_frames_in_flight = max_fif;
+            try_dispatch_frames = true;
+        }
+    }
+
+    {
+        ImGui::SetNextItemWidth(second_column_offset + 11);
+        usz current_images = 0;
+        for (auto& output : server->output_layout->outputs) {
+            current_images = std::max(current_images, output->swapchain.images_in_flight + output->swapchain.free_images.size());
+        }
+        auto label = std::format("Max Swapchain Images ({})###max-swapchain-images", current_images);
+        int max_images = server->renderer->max_swapchain_images;
+        if (ImGui::SliderInt(label.c_str(), &max_images, 2, 6)) {
+            server->renderer->max_swapchain_images = max_images;
             try_dispatch_frames = true;
         }
     }

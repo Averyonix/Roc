@@ -12,7 +12,7 @@
 #include "wren/wren.hpp"
 
 struct wroc_server;
-struct wren_renderer;
+struct wroc_renderer;
 struct wroc_output;
 struct wroc_surface;
 struct wroc_toplevel;
@@ -146,11 +146,15 @@ struct wroc_output : wrei_object
 
     struct release_slot
     {
-        ref<wren_image> image;
         ref<wren_semaphore> semaphore;
+        ref<wren_image> image;
         u64 release_point;
     };
-    std::vector<release_slot> release_slots;
+    struct {
+        std::vector<ref<wren_image>> free_images;
+        std::vector<release_slot> release_slots;
+        u32 images_in_flight;
+    } swapchain;
 
     wroc_output_commit_id last_commit_id = 0;
 
@@ -165,6 +169,7 @@ struct wroc_output : wrei_object
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);
 
+bool wroc_output_try_prepare_acquire(     wroc_output*);
 bool wroc_output_try_dispatch_frame(      wroc_output*);
 void wroc_output_try_dispatch_frame_later(wroc_output*);
 
@@ -1061,6 +1066,7 @@ struct wroc_renderer : wrei_object
     i32  fps_limit = 120;
 
     u32 max_frames_in_flight = 2;
+    u32 max_swapchain_images = 3;
 
     bool screenshot_queued = false;
 

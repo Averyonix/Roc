@@ -373,18 +373,39 @@ void wroc_screenshot(rect2f64 rect)
     wren_commands_submit(transfer_commands.get(), {render_done});
 }
 
+bool wroc_output_try_prepare_acquire(wroc_output* output)
+{
+    auto& swapchain = output->swapchain;
+
+    // Clear out any incorrectly sized images
+    std::erase_if(swapchain.free_images, [&](auto& i) { return i->extent != output->size; });
+
+    // Clear out any other free images if we have too many in flight
+    auto total_images = swapchain.free_images.size() + swapchain.images_in_flight;
+    if (total_images > server->renderer->max_swapchain_images && !swapchain.free_images.empty()) {
+        swapchain.free_images.erase(swapchain.free_images.end()
+            - std::min<usz>(swapchain.free_images.size(), total_images - server->renderer->max_swapchain_images));
+    }
+
+    // Return true if we have a free image, or a free slot to allocate a new one
+    return !swapchain.free_images.empty() ||swapchain.images_in_flight < server->renderer->max_swapchain_images;
+}
+
 static
 ref<wren_image> acquire(wroc_renderer* renderer, wroc_output* output)
 {
-    for (auto& slot : output->release_slots) {
-        if (slot.image && wren_semaphore_get_value(slot.semaphore.get()) >= slot.release_point) {
-            auto image = std::exchange(slot.image, nullptr);
-            if (image->extent == output->size) return image;
-            else log_warn("Discarding out-of-date swapchain image {}", wrei_to_string(image->extent));
-        }
+    auto& swapchain = output->swapchain;
+
+    swapchain.images_in_flight++;
+
+    if (!swapchain.free_images.empty()) {
+        auto image = std::move(swapchain.free_images.back());
+        swapchain.free_images.pop_back();
+        return image;
     }
 
     log_warn("Creating new swapchain image {}", wrei_to_string(output->size));
+    wrei_assert(swapchain.images_in_flight <= renderer->max_swapchain_images);
 
     auto* wren = server->wren;
 
@@ -395,12 +416,26 @@ ref<wren_image> acquire(wroc_renderer* renderer, wroc_output* output)
 }
 
 static
+void release(wroc_output* output, u32 slot_idx, u64 signalled)
+{
+    auto& slot = output->swapchain.release_slots[slot_idx];
+
+    wrei_assert(signalled == slot.release_point);
+
+    output->swapchain.free_images.emplace_back(std::move(slot.image));
+    output->swapchain.images_in_flight--;
+
+    wroc_output_try_dispatch_frame(output);
+}
+
+static
 void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
 {
-    auto slot = std::ranges::find_if(output->release_slots, [](const auto& s) { return !s.image; });
+    auto& swapchain = output->swapchain;
 
-    if (slot == output->release_slots.end()) {
-        slot = output->release_slots.insert(output->release_slots.end(), wroc_output::release_slot {
+    auto slot = std::ranges::find_if(swapchain.release_slots, [](auto& s) { return !s.image; });
+    if (slot == swapchain.release_slots.end()) {
+        slot = swapchain.release_slots.insert(swapchain.release_slots.end(), wroc_output::release_slot {
             .semaphore = wren_semaphore_create(server->wren),
         });
     }
@@ -411,6 +446,12 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
     flags<wroc_output_commit_flag> flags = {};
     if (server->renderer->vsync) flags |= wroc_output_commit_flag::vsync;
     output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
+
+    auto slot_idx = std::distance(swapchain.release_slots.begin(), slot);
+    wren_semaphore_wait_value(slot->semaphore.get(), slot->release_point,
+        [output = weak(output), slot_idx](u64 signalled) {
+            if (output) release(output.get(), slot_idx,signalled);
+        });
 }
 
 void wroc_render_frame(wroc_output* output)
