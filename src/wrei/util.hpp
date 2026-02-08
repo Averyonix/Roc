@@ -759,43 +759,54 @@ void wrei_capability_drop(cap_value_t cap);
 template<typename Base>
 struct wrei_intrusive_list_base
 {
-    wrei_intrusive_list_base* _next = this;
-    wrei_intrusive_list_base* _prev = this;
+    wrei_intrusive_list_base* next = this;
+    wrei_intrusive_list_base* prev = this;
+};
 
-    void insert_after(wrei_intrusive_list_base* base)
+template<typename Base>
+struct wrei_intrusive_list_iterator
+{
+    wrei_intrusive_list_base<Base>* cur;
+
+    void insert_after(wrei_intrusive_list_base<Base>* base)
     {
-        base->_prev = this;
-        base->_next = _next;
+        base->prev = cur;
+        base->next = cur->next;
 
-        _next->_prev = base;
-        _next = base;
+        cur->next->prev = base;
+        cur->next = base;
     }
 
-    Base* remove()
+    wrei_intrusive_list_iterator remove()
     {
-        _next->_prev = _prev;
-        _prev->_next = _next;
+        cur->next->prev = cur->prev;
+        cur->prev->next = cur->next;
 
-        _next = this;
-        _prev = this;
+        cur->next = cur;
+        cur->prev = cur;
 
-        return get();
+        return *this;
     }
 
-    Base* get() { return static_cast<Base*>(this); }
+    Base* operator->() { return get(); }
+    Base* get() { return static_cast<Base*>(cur); }
 
-    Base* next() { return _next->get(); }
-    Base* prev() { return _prev->get(); }
+    bool operator==(const wrei_intrusive_list_iterator&) const noexcept = default;
+
+    wrei_intrusive_list_iterator next() { return {cur->next}; }
+    wrei_intrusive_list_iterator prev() { return {cur->prev}; }
 };
 
 template<typename Base>
 struct wrei_intrusive_list
 {
+    using iterator = wrei_intrusive_list_iterator<Base>;
+
     wrei_intrusive_list_base<Base> root;
 
-    Base* first() { return root.next(); }
-    Base* last()  { return root.prev(); }
-    Base* end()   { return root.get();  }
+    iterator first() { return {root.next}; }
+    iterator last()  { return {root.prev}; }
+    iterator end()   { return {&root};      }
 
-    bool empty() const { return root._next == &root; }
+    bool empty() const { return root.next == &root; }
 };

@@ -121,7 +121,8 @@ int wren_semaphore_export_syncfile(wren_semaphore* semaphore, u64 source_point)
 wren_semaphore::~wren_semaphore()
 {
     while (!waits.empty()) {
-        delete waits.first()->remove();
+        wait_skips++;
+        delete waits.first().remove().get();
     }
 
     ctx->vk.DestroySemaphore(ctx->device, semaphore, nullptr);
@@ -152,12 +153,15 @@ void handle_waits(wren_semaphore* semaphore)
         count -= semaphore->wait_skips;
         semaphore->wait_skips = 0;
 
+        // Waits are always sorted by increasing point values.
+        // This means that we can simply pop the first N values
+        // and know that they *must* have been reached. Regardless
+        // of the order that events are actually signalled in.
         for (u32 i = 0; i < count; ++i) {
             auto w = semaphore->waits.first();
             wrei_assert(w != semaphore->waits.end());
-            w->remove();
-            w->handle(w->point);
-            delete w;
+            w.remove()->handle(w->point);
+            delete w.get();
         }
     } else {
         semaphore->wait_skips -= count;
@@ -177,12 +181,10 @@ void wren_semaphore_wait_value_impl(wren_semaphore* semaphore, wren_semaphore::w
             });
     }
 
-    wren_semaphore::wait_item* cur = semaphore->waits.last();
-    while (cur != semaphore->waits.end()) {
-        if (cur->point <= wait->point) break;
-        cur = cur->prev();
-    }
-    cur->insert_after(wait);
+    // Insert sorted into list
+    auto cur = semaphore->waits.last();
+    for (; cur != semaphore->waits.end() && cur->point > wait->point; cur = cur.prev());
+    cur.insert_after(wait);
 
     unix_check(drmIoctl(ctx->drm_fd, DRM_IOCTL_SYNCOBJ_EVENTFD, wrei_ptr_to(drm_syncobj_eventfd {
         .handle = semaphore->syncobj,
@@ -203,12 +205,11 @@ void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value)
     }), UINT64_MAX));
 
     if (std::this_thread::get_id() == ctx->event_loop->main_thread) {
-        wren_semaphore::wait_item* w;
+        decltype(semaphore->waits)::iterator w;
         while (w = semaphore->waits.first(), w != semaphore->waits.end() && w->point <= value) {
             semaphore->wait_skips++;
-            w->remove();
-            w->handle(value);
-            delete w;
+            w.remove()->handle(value);
+            delete w.get();
         }
     }
 }

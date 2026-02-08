@@ -151,12 +151,14 @@ void wrei_event_loop_run(wrei_event_loop* loop)
         // Flush fd events
 
         if (count > 0) {
-            std::array<ref<wrei_fd>, max_epoll_events> sources = {};
+            std::array<weak<wrei_fd>, max_epoll_events> sources;
             for (i32 i = 0; i < count; ++i) {
                 sources[i] = static_cast<wrei_fd*>(events[i].data.ptr);
             }
 
             for (i32 i = 0; i < count; ++i) {
+                if (!sources[i]) continue;
+
                 loop->stats.events_handled++;
 
                 auto l = sources[i]->listener.get();
