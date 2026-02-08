@@ -56,7 +56,7 @@ struct wroc_input_device : wrei_object
 
 struct wroc_direct_backend : wroc_backend
 {
-    int drm_fd = -1;
+    ref<wrei_fd> drm_fd;
 
     struct libseat* seat;
     const char* seat_name;
@@ -71,16 +71,15 @@ struct wroc_direct_backend : wroc_backend
 
     std::vector<wroc_drm_buffer> buffer_cache;
 
-    ref<wrei_event_source> drm_event_source = {};
-    ref<wrei_event_source> libseat_event_source = {};
-    ref<wrei_event_source> libinput_event_source = {};
+    ref<wrei_fd> libseat_fd = {};
+    ref<wrei_fd> libinput_fd = {};
 
     virtual void init() final override;
     virtual void start() final override;
 
     virtual int get_preferred_drm_device() final override
     {
-        return drm_fd;
+        return drm_fd->get();
     };
 
     wren_format_set format_set;

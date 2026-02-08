@@ -2,8 +2,10 @@
 
 #include "util.hpp"
 #include "object.hpp"
+#include "fd.hpp"
 
 struct wrei_event_source;
+struct wrei_fd;
 
 struct wrei_task
 {
@@ -20,9 +22,9 @@ struct wrei_event_loop : wrei_object
     moodycamel::ConcurrentQueue<wrei_task> queue;
 
     u64 tasks_available;
-    ref<wrei_event_source> task_source;
+    ref<wrei_fd> task_fd;
 
-    ref<wrei_event_source> timer_source;
+    ref<wrei_fd> timer_fd;
     struct timed_event
     {
         std::chrono::steady_clock::time_point expiration;
@@ -30,6 +32,9 @@ struct wrei_event_loop : wrei_object
     };
     std::deque<timed_event> timed_events;
     std::optional<std::chrono::steady_clock::time_point> current_wakeup;
+
+    u32 internal_listener_count;
+    u32 listener_count = 0;
 
     int epoll_fd;
 
@@ -41,25 +46,9 @@ struct wrei_event_loop : wrei_object
     ~wrei_event_loop();
 };
 
-struct wrei_event_source : wrei_object
-{
-    weak<wrei_event_loop> event_loop;
-    int fd;
-
-    virtual ~wrei_event_source();
-
-    virtual void handle(const epoll_event&) = 0;
-
-    void mark_defunct()
-    {
-        fd = -1;
-    }
-};
-
 ref<wrei_event_loop> wrei_event_loop_create();
 void wrei_event_loop_run( wrei_event_loop*);
 void wrei_event_loop_stop(wrei_event_loop*);
-void wrei_event_loop_add( wrei_event_loop*, u32 events, wrei_event_source*);
 
 void wrei_event_loop_timer_expiry_impl(wrei_event_loop*, std::chrono::steady_clock::time_point exp);
 
@@ -80,7 +69,7 @@ void wrei_event_loop_enqueue(wrei_event_loop* loop, Lambda&& task)
     if (std::this_thread::get_id() == loop->main_thread) {
         loop->tasks_available++;
     } else {
-        wrei_eventfd_signal(loop->task_source->fd, 1);
+        wrei_eventfd_signal(loop->task_fd->get(), 1);
     }
 }
 
@@ -92,34 +81,6 @@ void wrei_event_loop_enqueue_and_wait(wrei_event_loop* loop, Lambda&& task)
     std::atomic_flag done = false;
     // We can avoid moving `task` entirely since its lifetime is guaranteed
     loop->queue.enqueue({ .callback = [&task] { task(); }, .sync = &done });
-    wrei_eventfd_signal(loop->task_source->fd, 1);
+    wrei_eventfd_signal(loop->task_fd->get(), 1);
     done.wait(false);
-}
-
-// -----------------------------------------------------------------------------
-
-template<typename Lambda>
-    requires (std::same_as<std::invoke_result_t<Lambda, int, u32>, void>)
-struct wrei_event_source_fd : wrei_event_source
-{
-    Lambda callback;
-
-    wrei_event_source_fd(auto&& callback)
-        : wrei_event_source{}
-        , callback(std::move(callback))
-    {}
-
-    virtual void handle(const epoll_event& event) final override
-    {
-        callback(fd, event.events);
-    }
-};
-
-template<typename Lambda>
-ref<wrei_event_source> wrei_event_loop_add_fd(wrei_event_loop* loop, int fd, u32 events, Lambda&& callback)
-{
-    auto source = wrei_create<wrei_event_source_fd<Lambda>>(std::move(callback));
-    source->fd = fd;
-    wrei_event_loop_add(loop, events, source.get());
-    return source;
 }

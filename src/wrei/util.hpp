@@ -753,3 +753,49 @@ struct wrei_fixed_array {
 
 bool wrei_capability_has( cap_value_t cap);
 void wrei_capability_drop(cap_value_t cap);
+
+// -----------------------------------------------------------------------------
+
+template<typename Base>
+struct wrei_intrusive_list_base
+{
+    wrei_intrusive_list_base* _next = this;
+    wrei_intrusive_list_base* _prev = this;
+
+    void insert_after(wrei_intrusive_list_base* base)
+    {
+        base->_prev = this;
+        base->_next = _next;
+
+        _next->_prev = base;
+        _next = base;
+    }
+
+    Base* remove()
+    {
+        _next->_prev = _prev;
+        _prev->_next = _next;
+
+        _next = this;
+        _prev = this;
+
+        return get();
+    }
+
+    Base* get() { return static_cast<Base*>(this); }
+
+    Base* next() { return _next->get(); }
+    Base* prev() { return _prev->get(); }
+};
+
+template<typename Base>
+struct wrei_intrusive_list
+{
+    wrei_intrusive_list_base<Base> root;
+
+    Base* first() { return root.next(); }
+    Base* last()  { return root.prev(); }
+    Base* end()   { return root.get();  }
+
+    bool empty() const { return root._next == &root; }
+};

@@ -170,25 +170,6 @@ enum class wren_feature : u32
     validation = 1 << 0,
 };
 
-using wren_semaphore_wait_fn = void(u64);
-
-struct wren_semaphore_waiter : wrei_event_source
-{
-    // TODO: Templated virtual type with intrusive linked list
-
-    struct wait_item
-    {
-        weak<wren_semaphore> semaphore;
-        u64 value;
-        std::move_only_function<wren_semaphore_wait_fn> callback;
-    };
-
-    std::list<wait_item> waits;
-
-    virtual void handle(const epoll_event&) final override;
-    void process_signalled(wren_semaphore* semaphore, u64 value);
-};
-
 struct wren_context : wrei_object
 {
     flags<wren_feature> features;
@@ -221,8 +202,6 @@ struct wren_context : wrei_object
 
         u32 active_samplers;
     } stats;
-
-    ref<wren_semaphore_waiter> waiter;
 
     ref<wren_queue> graphics_queue;
     ref<wren_queue> transfer_queue;
@@ -276,12 +255,24 @@ wren_queue* wren_get_queue(wren_context*, wren_queue_type);
 
 // -----------------------------------------------------------------------------
 
+using wren_semaphore_wait_fn = void(u64);
+
 struct wren_semaphore : wrei_object
 {
     wren_context* ctx;
 
     VkSemaphore semaphore;
     u32         syncobj;
+
+    ref<wrei_fd> wait_fd;
+    u64 wait_skips = 0;
+    struct wait_item : wrei_intrusive_list_base<wait_item>
+    {
+        u64 point;
+        virtual void handle(u64) = 0;
+        virtual ~wait_item() = default;
+    };
+    wrei_intrusive_list<wait_item> waits;
 
     ~wren_semaphore();
 };
@@ -302,8 +293,23 @@ int  wren_semaphore_export_syncfile(wren_semaphore*, u64 source_point);
 
 u64  wren_semaphore_get_value(   wren_semaphore*);
 void wren_semaphore_signal_value(wren_semaphore*, u64 value);
-void wren_semaphore_wait_value(  wren_semaphore*, u64 value, std::move_only_function<wren_semaphore_wait_fn>);
 void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
+
+void wren_semaphore_wait_value_impl(wren_semaphore*, wren_semaphore::wait_item*);
+
+template<typename Fn>
+void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value, Fn&& fn)
+{
+    struct wait_item : wren_semaphore::wait_item
+    {
+        Fn fn;
+        wait_item(Fn&& fn): fn(std::move(fn)) {}
+        virtual void handle(u64 value) final override { fn(value); }
+    };
+    auto wait = new wait_item(std::move(fn));
+    wait->point = value;
+    wren_semaphore_wait_value_impl(semaphore, wait);
+}
 
 // -----------------------------------------------------------------------------
 
@@ -496,7 +502,7 @@ constexpr static u32 wren_dma_max_planes = 4;
 
 struct wren_dma_plane
 {
-    wrei_fd fd;
+    ref<wrei_fd> fd;
     u32 offset;
     u32 stride;
 };

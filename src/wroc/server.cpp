@@ -141,8 +141,9 @@ void wroc_run(int argc, char* argv[])
     server->socket = wl_display_add_socket_auto(server->display);
 
     auto wl_event_loop = wl_display_get_event_loop(server->display);
-    auto display_event_source = wrei_event_loop_add_fd(event_loop.get(), wl_event_loop_get_fd(wl_event_loop), EPOLLIN,
-        [&](int fd, u32 events) {
+    auto wl_event_loop_fd = wrei_fd_reference(wl_event_loop_get_fd(wl_event_loop));
+    wrei_fd_set_listener(wl_event_loop_fd.get(), event_loop.get(), wrei_fd_event_bit::readable,
+        [&](wrei_fd* fd, wrei_fd_event_bits events) {
             server->client_flushes_pending++;
             unix_check(wl_event_loop_dispatch(wl_event_loop, 0));
             wl_display_flush_clients(server->display);
@@ -251,9 +252,8 @@ void wroc_run(int argc, char* argv[])
     server->renderer = nullptr;
 
     log_info("Destroying: wl_display");
+    wl_event_loop_fd = nullptr;
     wl_display_destroy(server->display);
-    display_event_source->mark_defunct();
-    display_event_source = nullptr;
 
     log_info("Destroying: server");
     server_ref = nullptr;

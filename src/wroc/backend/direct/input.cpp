@@ -50,7 +50,7 @@ static constexpr libseat_seat_listener wroc_seat_listener {
 };
 
 static
-int handle_libseat_readable(wroc_direct_backend* backend, int fd, u32 mask)
+int handle_libseat_readable(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_bits events)
 {
     log_debug("SEAT DISPATCH");
     libseat_dispatch(backend->seat, 0);
@@ -99,7 +99,7 @@ static constexpr libinput_interface wroc_libinput_interface {
 };
 
 static
-int handle_libinput_readable(wroc_direct_backend* backend, int fd, u32 mask)
+int handle_libinput_readable(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_bits events)
 {
     unix_check(libinput_dispatch(backend->libinput));
 
@@ -158,8 +158,9 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
     int seat_fd = libseat_get_fd(backend->seat);
     wrei_assert(seat_fd >= 0);
 
-    backend->libseat_event_source = wrei_event_loop_add_fd(server->event_loop.get(), seat_fd, EPOLLIN,
-        [backend](int fd, u32 events) {
+    backend->libseat_fd = wrei_fd_reference(seat_fd);
+    wrei_fd_set_listener(backend->libseat_fd.get(), server->event_loop.get(), wrei_fd_event_bit::readable,
+        [backend](wrei_fd* fd, wrei_fd_event_bits events) {
             handle_libseat_readable(backend, fd, events);
         });
 
@@ -182,14 +183,15 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
     int libinput_fd = libinput_get_fd(backend->libinput);
     log_debug("Libinput fd = {}", libinput_fd);
 
-    handle_libinput_readable(backend,libinput_fd, EPOLLIN);
+    handle_libinput_readable(backend, backend->libinput_fd.get(), wrei_fd_event_bit::readable);
     if (backend->input_devices.empty()) {
         log_error("Libinput initialization failed, no keyboard or mouse detected");
         wrei_debugkill();
     }
 
-    backend->libinput_event_source = wrei_event_loop_add_fd(server->event_loop.get(), libinput_fd, EPOLLIN,
-        [backend](int fd, u32 events) {
+    backend->libinput_fd = wrei_fd_reference(libinput_fd);
+    wrei_fd_set_listener(backend->libinput_fd.get(), server->event_loop.get(), wrei_fd_event_bit::readable,
+        [backend](wrei_fd* fd, wrei_fd_event_bits events) {
             handle_libinput_readable(backend, fd, events);
         });
 
@@ -200,10 +202,10 @@ void wroc_backend_close_session(wroc_direct_backend* backend)
 {
     backend->input_devices.clear();
 
-    backend->libinput_event_source = nullptr;
+    backend->libinput_fd = nullptr;
     libinput_unref(backend->libinput);
 
-    backend->libseat_event_source = nullptr;
+    backend->libseat_fd = nullptr;
     libseat_close_seat(backend->seat);
 
     udev_unref(backend->udev);

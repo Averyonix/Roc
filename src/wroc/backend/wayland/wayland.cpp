@@ -75,14 +75,14 @@ const wl_registry_listener wroc_wl_registry_listener {
 };
 
 static
-int wroc_listen_backend_display_read(wroc_wayland_backend* backend, int fd, u32 mask)
+int wroc_listen_backend_display_read(wroc_wayland_backend* backend, wrei_fd* fd, wrei_fd_event_bits events)
 {
     backend->current_dispatch_time = std::chrono::steady_clock::now();
 
     timespec timeout = {};
     if (wl_display_dispatch_timeout(backend->wl_display, &timeout) == -1) {
         log_error("wl_display_dispatch_timeout failed: {}", strerror(errno));
-        backend->event_source = nullptr;
+        backend->wl_event_source_fd = nullptr;
         return false;
     }
     wl_display_flush(backend->wl_display);
@@ -109,8 +109,9 @@ void wroc_wayland_backend::init()
     // Second roundtrip ensures that all events expected in response to binding are received
     wl_display_roundtrip(wl_display);
 
-    event_source = wrei_event_loop_add_fd(server->event_loop.get(), wl_display_get_fd(wl_display), EPOLLIN,
-        [backend = weak(this)](int fd, u32 events) {
+    wl_event_source_fd = wrei_fd_reference(wl_display_get_fd(wl_display));
+    wrei_fd_set_listener(wl_event_source_fd.get(), server->event_loop.get(), wrei_fd_event_bit::readable,
+        [backend = weak(this)](wrei_fd* fd, wrei_fd_event_bits events) {
             if (backend) {
                 wroc_listen_backend_display_read(backend.get(), fd, events);
             }
@@ -131,7 +132,7 @@ wroc_wayland_backend::~wroc_wayland_backend()
     if (keyboard) keyboard = nullptr;
     if (pointer)  pointer = nullptr;
 
-    event_source = nullptr;
+    wl_event_source_fd = nullptr;
 
     outputs.clear();
 

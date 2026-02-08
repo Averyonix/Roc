@@ -1,5 +1,23 @@
 #include "event.hpp"
 
+static
+u32 to_epoll_events(wrei_fd_event_bits events)
+{
+    u32 out = 0;
+    if (events.contains(wrei_fd_event_bit::readable))  out |= EPOLLIN;
+    if (events.contains(wrei_fd_event_bit::writable)) out |= EPOLLOUT;
+    return out;
+}
+
+static
+wrei_fd_event_bits from_epoll_events(u32 events)
+{
+    wrei_fd_event_bits out = {};
+    if (events & EPOLLIN)  out |= wrei_fd_event_bit::readable;
+    if (events & EPOLLOUT) out |= wrei_fd_event_bit::writable;
+    return out;
+}
+
 void wrei_event_loop_timer_expiry_impl(wrei_event_loop* loop, std::chrono::steady_clock::time_point exp)
 {
     if (loop->current_wakeup && exp > *loop->current_wakeup) {
@@ -13,7 +31,7 @@ void wrei_event_loop_timer_expiry_impl(wrei_event_loop* loop, std::chrono::stead
 
     // log_trace("Next timeout in {}", wrei_duration_to_string(exp - std::chrono::steady_clock::now()));
 
-    unix_check(timerfd_settime(loop->timer_source->fd, TFD_TIMER_ABSTIME, wrei_ptr_to(itimerspec {
+    unix_check(timerfd_settime(loop->timer_fd->get(), TFD_TIMER_ABSTIME, wrei_ptr_to(itimerspec {
         .it_value = wrei_steady_clock_to_timespec<CLOCK_MONOTONIC>(exp),
     }), nullptr));
 }
@@ -57,21 +75,23 @@ ref<wrei_event_loop> wrei_event_loop_create()
 
     loop->epoll_fd = unix_check(epoll_create1(EPOLL_CLOEXEC)).value;
 
-    auto task_fd = unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value;
-    loop->task_source = wrei_event_loop_add_fd(loop.get(), task_fd, EPOLLIN, [loop = loop.get()](int fd, u32 events) {
-        loop->tasks_available += wrei_eventfd_read(fd);
+    loop->task_fd = wrei_fd_adopt(unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value);
+    wrei_fd_set_listener(loop->task_fd.get(), loop.get(), wrei_fd_event_bit::readable, [loop = loop.get()](wrei_fd* fd, wrei_fd_event_bits events) {
+        loop->tasks_available += wrei_eventfd_read(fd->get());
 
         // Don't double dip task event stats
         loop->stats.events_handled--;
     });
 
-    auto timer_fd = unix_check(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)).value;
-    loop->timer_source = wrei_event_loop_add_fd(loop.get(), timer_fd, EPOLLIN, [loop = loop.get()](int fd, u32 events) {
-        handle_timer(loop, fd);
+    loop->timer_fd = wrei_fd_adopt(unix_check(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)).value);
+    wrei_fd_set_listener(loop->timer_fd.get(), loop.get(), wrei_fd_event_bit::readable, [loop = loop.get()](wrei_fd* fd, wrei_fd_event_bits events) {
+        handle_timer(loop, fd->get());
 
         // Don't double dip timer event stats
         loop->stats.events_handled--;
     });
+
+    loop->internal_listener_count = loop->listener_count;
 
     return loop;
 }
@@ -80,18 +100,24 @@ wrei_event_loop::~wrei_event_loop()
 {
     wrei_assert(stopped);
 
+    task_fd = nullptr;
+    timer_fd = nullptr;
+
+    wrei_assert(listener_count == 0);
+
     close(epoll_fd);
-
-    close(task_source->fd);
-    task_source->mark_defunct();
-
-    close(timer_source->fd);
-    timer_source->mark_defunct();
 }
 
 void wrei_event_loop_stop(wrei_event_loop* loop)
 {
     loop->stopped = true;
+
+    if (loop->listener_count > loop->internal_listener_count) {
+        // Just log an error for now, in the future we will be more strict and
+        // assert if any user registered listeners are still attached at this point.
+        log_error("Stopping event loop with {} registered listeners remaining!",
+            loop->listener_count - loop->internal_listener_count);
+    }
 }
 
 void wrei_event_loop_run(wrei_event_loop* loop)
@@ -125,16 +151,22 @@ void wrei_event_loop_run(wrei_event_loop* loop)
         // Flush fd events
 
         if (count > 0) {
-            std::array<weak<wrei_event_source>, max_epoll_events> sources;
+            std::array<ref<wrei_fd>, max_epoll_events> sources = {};
             for (i32 i = 0; i < count; ++i) {
-                sources[i] = static_cast<wrei_event_source*>(events[i].data.ptr);
+                sources[i] = static_cast<wrei_fd*>(events[i].data.ptr);
             }
 
             for (i32 i = 0; i < count; ++i) {
-                // Check that source is still alive
-                if (sources[i]) {
-                    loop->stats.events_handled++;
-                    sources[i]->handle(events[i]);
+                loop->stats.events_handled++;
+
+                auto l = sources[i]->listener.get();
+                auto event_bits = from_epoll_events(events[i].events);
+                if (l->flags.contains(wrei_fd_listen_flag::oneshot)) {
+                    ref listener = l;
+                    wrei_fd_remove_listener(sources[i].get());
+                    listener->handle(sources[i].get(), event_bits);
+                } else {
+                    l->handle(sources[i].get(), event_bits);
                 }
             }
         }
@@ -160,22 +192,37 @@ void wrei_event_loop_run(wrei_event_loop* loop)
     }
 }
 
-void wrei_event_loop_add(wrei_event_loop* loop, u32 events, wrei_event_source* source)
-{
-    wrei_assert(!source->event_loop);
-    source->event_loop = loop;
+// -----------------------------------------------------------------------------
 
-    unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, source->fd, wrei_ptr_to(epoll_event {
-        .events = events,
+void wrei_fd_set_listener(
+    wrei_fd* fd,
+    wrei_event_loop* loop,
+    wrei_fd_listener* listener)
+{
+    auto events = listener->events;
+
+    wrei_assert(events);
+    wrei_assert(!listener->loop);
+    wrei_assert(!fd->listener);
+
+    loop->listener_count++;
+
+    listener->loop = loop;
+    fd->listener = listener;
+
+    unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, fd->get(), wrei_ptr_to(epoll_event {
+        .events = to_epoll_events(events),
         .data {
-            .ptr = source,
+            .ptr = fd,
         }
     })));
 }
 
-wrei_event_source::~wrei_event_source()
+void wrei_fd_remove_listener(wrei_fd* fd)
 {
-    if (event_loop && fd != -1) {
-        unix_check(epoll_ctl(event_loop->epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
-    }
+    fd->listener->loop->listener_count--;
+
+    unix_check(epoll_ctl(fd->listener->loop->epoll_fd, EPOLL_CTL_DEL, fd->get(), nullptr));
+    fd->listener->loop = nullptr;
+    fd->listener = nullptr;
 }

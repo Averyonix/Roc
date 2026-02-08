@@ -120,6 +120,10 @@ int wren_semaphore_export_syncfile(wren_semaphore* semaphore, u64 source_point)
 
 wren_semaphore::~wren_semaphore()
 {
+    while (!waits.empty()) {
+        delete waits.first()->remove();
+    }
+
     ctx->vk.DestroySemaphore(ctx->device, semaphore, nullptr);
     unix_check(drmSyncobjDestroy(ctx->drm_fd, syncobj));
 }
@@ -134,50 +138,56 @@ u64 wren_semaphore_get_value(wren_semaphore* semaphore)
     return value;
 }
 
-void wren_semaphore_waiter::handle(const epoll_event&)
+static
+void handle_waits(wren_semaphore* semaphore)
 {
-    if (wrei_eventfd_read(fd)) {
-        process_signalled(nullptr, 0);
+    auto count = wrei_eventfd_read(semaphore->wait_fd->get());
+
+    if (semaphore->ctx->features.contains(wren_feature::validation)) {
+        // Validation layers need to see the new semaphore value.
+        auto _ = wren_semaphore_get_value(semaphore);
+    }
+
+    if (count > semaphore->wait_skips) {
+        count -= semaphore->wait_skips;
+        semaphore->wait_skips = 0;
+
+        for (u32 i = 0; i < count; ++i) {
+            auto w = semaphore->waits.first();
+            wrei_assert(w != semaphore->waits.end());
+            w->remove();
+            w->handle(w->point);
+            delete w;
+        }
+    } else {
+        semaphore->wait_skips -= count;
     }
 }
 
-void wren_semaphore_waiter::process_signalled(wren_semaphore* semaphore, u64 value)
-{
-    std::erase_if(waits, [&](wait_item& item) -> bool {
-        auto sema = item.semaphore.get();
-
-        if (!sema) {
-            log_warn("Semaphore destroyed before value was signalled");
-            return true;
-        }
-
-        if (semaphore && sema != semaphore) return false;
-
-        u64 signalled = semaphore ? value : wren_semaphore_get_value(item.semaphore.get());
-
-        if (signalled >= item.value) {
-            item.callback(signalled);
-            return true;
-        }
-
-        return false;
-    });
-}
-
-void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value, std::move_only_function<wren_semaphore_wait_fn> fn)
+void wren_semaphore_wait_value_impl(wren_semaphore* semaphore, wren_semaphore::wait_item* wait)
 {
     auto* ctx = semaphore->ctx;
 
-    ctx->waiter->waits.emplace_back(wren_semaphore_waiter::wait_item {
-        .semaphore = semaphore,
-        .value = value,
-        .callback = std::move(fn),
-    });
+    if (!semaphore->wait_fd) {
+        semaphore->wait_fd = wrei_fd_adopt(eventfd(0, EFD_CLOEXEC));
+
+        wrei_fd_set_listener(semaphore->wait_fd.get(), ctx->event_loop.get(), wrei_fd_event_bit::readable,
+            [semaphore](wrei_fd*, wrei_fd_event_bits) {
+                handle_waits(semaphore);
+            });
+    }
+
+    wren_semaphore::wait_item* cur = semaphore->waits.last();
+    while (cur != semaphore->waits.end()) {
+        if (cur->point <= wait->point) break;
+        cur = cur->prev();
+    }
+    cur->insert_after(wait);
 
     unix_check(drmIoctl(ctx->drm_fd, DRM_IOCTL_SYNCOBJ_EVENTFD, wrei_ptr_to(drm_syncobj_eventfd {
         .handle = semaphore->syncobj,
-        .point = value,
-        .fd = ctx->waiter->fd,
+        .point = wait->point,
+        .fd = semaphore->wait_fd->get(),
     })));
 }
 
@@ -193,7 +203,13 @@ void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value)
     }), UINT64_MAX));
 
     if (std::this_thread::get_id() == ctx->event_loop->main_thread) {
-        ctx->waiter->process_signalled(semaphore, value);
+        wren_semaphore::wait_item* w;
+        while (w = semaphore->waits.first(), w != semaphore->waits.end() && w->point <= value) {
+            semaphore->wait_skips++;
+            w->remove();
+            w->handle(value);
+            delete w;
+        }
     }
 }
 
