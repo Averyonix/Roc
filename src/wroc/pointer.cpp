@@ -153,6 +153,8 @@ void wroc_pointer_constraint::deactivate()
         return;
     }
 
+    has_been_deactivated = true;
+
     pointer->active_constraint = nullptr;
 
     log_debug("Pointer constraint deactivated");
@@ -217,9 +219,47 @@ static
 bool is_constraint_focused(wroc_pointer_constraint* constraint)
 {
     if (!constraint->surface) return false;
+
+    // Constraints are disabled during any compositor interaction
+    if (server->interaction_mode != wroc_interaction_mode::normal) return false;
+
     auto* seat = server->seat.get();
     return seat->keyboard->focused_surface == constraint->surface
         && seat->pointer->focused_surface == constraint->surface;
+}
+
+void wroc_update_pointer_constraint_state()
+{
+    auto* pointer = server->seat->pointer.get();
+
+    bool queue_new_motion = false;
+    if (pointer->active_constraint) {
+        if (!is_constraint_focused(pointer->active_constraint.get())) {
+            log_debug("Deactivating constraint");
+            pointer->active_constraint->deactivate();
+            queue_new_motion = true;
+        }
+    } else if (pointer->focused_surface) {
+        auto* candidate = wroc_surface_get_addon<wroc_pointer_constraint>(pointer->focused_surface.get());
+        if (candidate
+                && is_constraint_focused(candidate)
+                && (!candidate->has_been_deactivated || candidate->lifetime == ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT)) {
+            log_debug("Activating constraint");
+            candidate->activate();
+            queue_new_motion = true;
+        }
+    }
+
+    if (queue_new_motion) {
+        // Sent an empty motion event to update visual state after constraint changes immediately
+        wrei_event_loop_enqueue(server->event_loop.get(), [] {
+            wroc_post_event(wroc_pointer_event {
+                .type = wroc_event_type::pointer_motion,
+                .pointer = server->seat->pointer.get(),
+                .motion = {},
+            });
+        });
+    }
 }
 
 static
@@ -342,8 +382,13 @@ void wroc_pointer::relative(vec2f64 rel_unaccel)
     auto old_pos = target->position;
     target->position = wroc_output_layout_clamp_position(server->output_layout.get(), target->position + delta);
 
-    if (auto* constraint = server->seat->pointer->active_constraint.get(); constraint && is_constraint_focused(constraint)) {
-        target->position = apply_constraint(constraint, old_pos, target->position);
+    if (auto* constraint = server->seat->pointer->active_constraint.get()) {
+        if (is_constraint_focused(constraint)) {
+            target->position = apply_constraint(constraint, old_pos, target->position);
+        } else {
+            log_debug("Constraint is no longer focused, deactivating...");
+            constraint->deactivate();
+        }
     }
 
     wroc_post_event(wroc_pointer_event {
@@ -442,10 +487,8 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
 {
     if (focused_surface != pointer->focused_surface.get()) {
         if (auto* old_surface = pointer->focused_surface.get(); old_surface && old_surface->resource) {
-            log_info("Leaving surface: {}", (void*)pointer->focused_surface.get());
-            if (auto* constraint = wroc_surface_get_addon<wroc_pointer_constraint>(focused_surface)) {
-                constraint->deactivate();
-            }
+            log_info("Leaving surface: {}", (void*)old_surface);
+
             auto serial = wl_display_next_serial(server->display);
             for (auto* resource : pointer->resources) {
                 if (!wroc_pointer_resource_matches_focus_client(pointer, resource)) continue;
@@ -474,6 +517,8 @@ void wroc_pointer_update_focus(wroc_seat_pointer* pointer, wroc_surface* focused
                 wroc_pointer_send_frame(resource);
             }
         }
+
+        wroc_update_pointer_constraint_state();
     }
 }
 
@@ -561,9 +606,7 @@ void wroc_pointer_motion(wroc_seat_pointer* pointer, vec2f64 rel, vec2f64 _rel_u
     // log_trace("motion, grab = {}", (void*)server->implicit_grab_surface.surface.get());
     wroc_pointer_update_focus(pointer, focused_surface);
 
-    if (auto* constraint = wroc_surface_get_addon<wroc_pointer_constraint>(focused_surface)) {
-        constraint->activate();
-    }
+    wroc_update_pointer_constraint_state();
 
     if (focused_surface && focused_surface->resource) {
 

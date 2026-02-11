@@ -415,22 +415,17 @@ const struct wl_surface_interface wroc_wl_surface_impl = {
     .offset               = wroc_wl_surface_offset,
 };
 
-static
-void wroc_surface_destroy_state(wroc_surface* surface, wroc_surface_state& state)
+wroc_surface_state::~wroc_surface_state()
 {
     // TODO: Should we send a done instead?
-    while (auto* callback = state.frame_callbacks.front()) wl_resource_destroy(callback);
+    while (auto* callback = frame_callbacks.front()) {
+        wl_resource_destroy(callback);
+    }
 }
 
 wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
-
-    // TODO: destructor on packet
-    for (auto& packet : cached) {
-        wroc_surface_destroy_state(this, packet.state);
-    }
-    wroc_surface_destroy_state(this, current);
 
     log_debug("Surface {} was destroyed", (void*)this);
 }

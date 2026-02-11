@@ -192,8 +192,20 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wp_cursor_shape_dev
 
 wroc_surface* wroc_cursor_get_current(wroc_seat_pointer* pointer, wroc_cursor* cursor)
 {
-    return pointer->focused_surface
-        ? pointer->focused_surface->cursor.get()
+    if (server->interaction_mode != wroc_interaction_mode::normal) {
+        // TODO: Per-interaction shapes
+        return wroc_cursor_get_shape(cursor, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+    }
+
+    auto pointer_focus = pointer->focused_surface;
+
+    // Only allow client to hide pointer (with null surface) if surface has keyboard focus.
+    // This heuristic isn't perfect. A client can get around it by committing a transparent
+    // cursor image. But this catches all non-pathological cases in practice.
+    bool is_visible = pointer_focus && pointer_focus->cursor && pointer_focus->cursor->mapped;
+
+    return pointer_focus && (is_visible || pointer_focus == server->seat->keyboard->focused_surface)
+        ? pointer_focus->cursor.get()
         : wroc_cursor_get_shape(cursor, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
 }
 

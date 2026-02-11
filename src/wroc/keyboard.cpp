@@ -284,9 +284,9 @@ void wroc_keyboard_clear_focus(wroc_seat_keyboard* kb)
             wroc_send(wl_keyboard_send_modifiers, resource, serial, 0, 0, 0, 0);
             wroc_send(wl_keyboard_send_leave, resource, serial, surface->resource);
         }
-
-        kb->focused_surface = nullptr;
     }
+    kb->focused_surface = nullptr;
+    wroc_update_pointer_constraint_state();
 }
 
 void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
@@ -307,6 +307,8 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
 
     log_debug("Keyboard entered surface: {}", (void*)surface);
     kb->focused_surface = surface;
+
+    wroc_update_pointer_constraint_state();
 
     auto serial = wl_display_next_serial(server->display);
 

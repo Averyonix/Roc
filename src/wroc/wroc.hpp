@@ -308,6 +308,8 @@ struct wroc_surface_state
     // This tracks layer and position for all subsurfaces in the stack
     // This state is set from the subsurface, but owned and updated on the parent surface
     std::vector<wroc_surface_stack_element> surface_stack;
+
+    ~wroc_surface_state();
 };
 
 struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_state>
@@ -925,6 +927,8 @@ struct wroc_pointer_constraint : wroc_surface_addon, wroc_surface_state_queue_ba
     weak<wroc_seat_pointer> pointer;
     zwp_pointer_constraints_v1_lifetime lifetime;
 
+    bool has_been_deactivated = false;
+
     virtual void commit(wroc_commit_id) final override;
     virtual void apply(wroc_commit_id) final override;
 
@@ -933,6 +937,8 @@ struct wroc_pointer_constraint : wroc_surface_addon, wroc_surface_state_queue_ba
 
     ~wroc_pointer_constraint();
 };
+
+void wroc_update_pointer_constraint_state();
 
 // -----------------------------------------------------------------------------
 
@@ -1067,7 +1073,7 @@ struct wroc_renderer : wrei_object
     i32  fps_limit = 120;
 
     u32 max_frames_in_flight = 2;
-    u32 max_swapchain_images = 3;
+    u32 max_swapchain_images = 2;
 
     bool screenshot_queued = false;
 
