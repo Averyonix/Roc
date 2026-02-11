@@ -144,8 +144,8 @@ bool wroc_surface_is_focusable(wroc_surface* surface)
 static
 void refocus_on_unmap()
 {
-    auto first = std::ranges::find_if(server->surfaces, wroc_surface_is_focusable);
-    auto target = first == server->surfaces.end() ? nullptr : *first;
+    auto found = std::ranges::find_last_if(server->surfaces, wroc_surface_is_focusable);
+    auto target = found.empty() ? nullptr : found.front();
     log_info("Refocusing -> {}", (void*)target);
     wroc_keyboard_enter(server->seat->keyboard.get(), target);
 }
@@ -426,6 +426,7 @@ wroc_surface::~wroc_surface()
 {
     std::erase(server->surfaces, this);
 
+    // TODO: destructor on packet
     for (auto& packet : cached) {
         wroc_surface_destroy_state(this, packet.state);
     }

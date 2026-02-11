@@ -90,7 +90,7 @@ void wroc_listen_xdg_surface_configure(void* data, xdg_surface* surface, u32 ser
 
     xdg_surface_ack_configure(surface, serial);
 
-    if (!output->frame_callback && !output->frame_available) {
+    if (!output->frame_callback && !output->frame_available && output->size.x && output->size.y) {
         log_info("Initial configure complete, marking output frame available");
         output->frame_available = true;
         wroc_post_event(wroc_output_event {

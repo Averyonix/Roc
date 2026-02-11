@@ -6,7 +6,10 @@ wrei_registry::~wrei_registry()
         log_error("Registry found {} remaining active allocations", active_allocations);
     }
 
+    usz total_allocation_size = 0;
+
     for (auto[i, bin] : bins | std::views::enumerate) {
+        total_allocation_size += bin.size() * (usz(1) << i);
         if (!bin.empty()) {
             log_debug("Registry cleaning up {} allocations from bin size: {}", bin.size(), 1 << i);
         }
@@ -14,6 +17,8 @@ wrei_registry::~wrei_registry()
             ::free(header);
         }
     }
+
+    log_debug("Peak registry allocation: {}", wrei_byte_size_to_string(total_allocation_size));
 }
 
 auto wrei_registry::allocate(usz size) -> wrei_allocation_header*

@@ -454,7 +454,8 @@ struct wroc_xdg_surface : wroc_surface_addon, wroc_surface_state_queue_base<wrox
 
     wroc_resource resource;
 
-    u32 sent_configure_serial = {};
+    u32 sent_serial = {};
+    u32 acked_serial = {};
 
     virtual void commit(wroc_commit_id) final override;
     virtual void apply(wroc_commit_id) final override;

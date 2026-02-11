@@ -111,15 +111,37 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
 {
     auto* xdg_surface = wroc_get_userdata<wroc_xdg_surface>(resource);
 
+    if (serial > xdg_surface->sent_serial) {
+        wroc_post_error(xdg_surface->resource, XDG_SURFACE_ERROR_INVALID_SERIAL,
+            "Client acked configure {} which is higher than latest sent sent configure {}",
+            serial, xdg_surface->sent_serial);
+        return;
+    }
+
+    if (serial <= xdg_surface->acked_serial) {
+        log_warn("Client acked old configure serial");
+        return;
+    }
+
     log_info("Client acked configure: {}", serial);
     xdg_surface->pending->acked_serial = serial;
     xdg_surface->pending->committed |= wroc_xdg_surface_committed_state::ack;
+
+    xdg_surface->acked_serial = serial;
+
+    // TODO: We are now flushing all configured state on ack for correctness (previously we flushed on commit)
+    //       This prevents some applications from deadlocking, but may result in sending too many resize
+    //       requests to applications that eagerly flush asynchronously from resizing.
+    //       As such we should throttle resizes separately.
+    if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(xdg_surface->surface.get())) {
+        wroc_toplevel_flush_configure(toplevel);
+    }
 }
 
 void wroc_xdg_surface_flush_configure(wroc_xdg_surface* xdg_surface)
 {
-    xdg_surface->sent_configure_serial = wl_display_next_serial(server->display);
-    wroc_send(xdg_surface_send_configure, xdg_surface->resource, xdg_surface->sent_configure_serial);
+    xdg_surface->sent_serial = wl_display_next_serial(server->display);
+    wroc_send(xdg_surface_send_configure, xdg_surface->resource, xdg_surface->sent_serial);
 }
 
 static
@@ -352,10 +374,6 @@ void wroc_toplevel::apply(wroc_commit_id id)
         initial_size_receieved = true;
         toplevel_on_initial_size(this);
     }
-
-    // NOTE: This will always see up-to-date xdg_surface state, as xdg_toplevel will always
-    //       come after xdg_surface in the addon list.
-    wroc_toplevel_flush_configure(this);
 }
 
 void wroc_toplevel::on_mapped_change()
@@ -442,7 +460,7 @@ void wroc_toplevel_flush_configure(wroc_toplevel* toplevel)
 
     // TODO: We probably shouldn't always wait for a commit after an ack_configure?
     //       If the surface acks and then never submits, we would softlock on further configures
-    if (toplevel->base()->sent_configure_serial > toplevel->base()->current.acked_serial) {
+    if (toplevel->base()->sent_serial > toplevel->base()->acked_serial) {
         log_warn("Waiting for client ack before reconfiguring");
         return;
     }
