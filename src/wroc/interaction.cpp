@@ -50,27 +50,56 @@ void close_window(wroc_toplevel* toplevel)
     wroc_toplevel_close(toplevel);
 }
 
+static
+bool handle_key_keybind(const wroc_keyboard_event& event)
+{
+    auto mods = wroc_get_active_modifiers();
+
+    if (!event.key.pressed) return false;
+    switch (event.key.upper()) {
+        break;case XKB_KEY_S:
+            if (mods.contains(wroc_modifier::mod)) {
+                drop_focus();
+                return true;
+            }
+        break;case XKB_KEY_Q:
+            if (mods.contains(wroc_modifier::mod)) {
+                if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(server->seat->keyboard->focused_surface.get())) {
+                    close_window(toplevel);
+                }
+                return true;
+            }
+
+        // TODO: These shouldn't be hardcoded
+
+        break;case XKB_KEY_XF86AudioLowerVolume: wroc_spawn("wpctl", {"wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.01-" }, {}); return true;
+        break;case XKB_KEY_XF86AudioRaiseVolume: wroc_spawn("wpctl", {"wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.01+" }, {}); return true;
+        break;case XKB_KEY_XF86AudioMute:        wroc_spawn("wpctl", {"wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "toggle"}, {}); return true;
+
+        break;case XKB_KEY_XF86AudioPlay: wroc_spawn("playerctl", {"playerctl", "play-pause"}, {}); return false;
+        break;case XKB_KEY_XF86AudioPrev: wroc_spawn("playerctl", {"playerctl", "previous"  }, {}); return false;
+        break;case XKB_KEY_XF86AudioNext: wroc_spawn("playerctl", {"playerctl", "next"      }, {}); return false;
+    }
+    return false;
+}
+
+bool wroc_handle_keybinds(const wroc_event& base_event)
+{
+    switch (wroc_event_get_type(base_event)) {
+        break;case wroc_event_type::keyboard_key: {
+            return handle_key_keybind(static_cast<const wroc_keyboard_event&>(base_event));
+        }
+        break;default:
+            ;
+    }
+    return false;
+}
+
 bool wroc_handle_movesize_interaction(const wroc_event& base_event)
 {
     auto mods = wroc_get_active_modifiers();
 
     switch (wroc_event_get_type(base_event)) {
-        break;case wroc_event_type::keyboard_key: {
-            auto& event = static_cast<const wroc_keyboard_event&>(base_event);
-            if (event.key.pressed && mods.contains(wroc_modifier::mod)) {
-                if (event.key.upper() == XKB_KEY_S) {
-                    drop_focus();
-                    return true;
-                }
-                else if (event.key.upper() == XKB_KEY_Q) {
-                    auto* surface = server->seat->keyboard->focused_surface.get();
-                    if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
-                        close_window(toplevel);
-                    }
-                    return true;
-                }
-            }
-        }
         break;case wroc_event_type::pointer_button: {
             auto& event = static_cast<const wroc_pointer_event&>(base_event);
             if (event.button.pressed) {

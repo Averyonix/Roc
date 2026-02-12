@@ -10,6 +10,7 @@ void wroc_handle_event(const wroc_event& base_event)
     if (wroc_handle_zone_interaction(base_event)) return;
     if (wroc_handle_focus_cycle_interaction(base_event)) return;
     if (wroc_handle_movesize_interaction(base_event)) return;
+    if (wroc_handle_keybinds(base_event)) return;
 
     switch (wroc_event_get_type(base_event)) {
         case wroc_event_type::output_added:

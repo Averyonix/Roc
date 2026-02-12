@@ -117,6 +117,7 @@ void wroc_post_event(const wroc_event&);
 bool wroc_handle_zone_interaction(const wroc_event&);
 bool wroc_handle_focus_cycle_interaction(const wroc_event&);
 bool wroc_handle_movesize_interaction(const wroc_event&);
+bool wroc_handle_keybinds(const wroc_event&);
 
 void wroc_handle_output_event(  const wroc_output_event&);
 void wroc_handle_keyboard_event(const wroc_keyboard_event&);

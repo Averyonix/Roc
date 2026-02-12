@@ -213,6 +213,10 @@ void wroc_run(int argc, char* argv[])
 
     WROC_GLOBAL(wp_cursor_shape_manager_v1);
 
+    // TODO: Hardcoded extras - these should be enabled via a configuration or plugin system
+
+    wroc_spawn("playerctld", {"playerctld"}, {});
+
     // Run
 
     log_info("WAYLAND_DISPLAY={}", server->socket);
