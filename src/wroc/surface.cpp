@@ -499,7 +499,9 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
         break;case wroc_surface_role::xdg_popup:
             if (auto* popup = wroc_surface_get_addon<wroc_popup>(surface); popup && popup->parent) {
                 auto space = wroc_surface_get_coord_space(popup->parent->surface.get());
-                return {space.origin + vec2f64(popup->position) * space.scale, space.scale};
+                auto parent_geom = wroc_xdg_surface_get_geometry(popup->parent.get());
+                auto geom = wroc_xdg_surface_get_geometry(popup->base());
+                return {space.origin + (popup->position + vec2f64(parent_geom.origin) - vec2f64(geom.origin)) * space.scale, space.scale};
             }
         break;case wroc_surface_role::xdg_toplevel:
             if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {

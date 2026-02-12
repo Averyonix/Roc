@@ -786,14 +786,16 @@ void popup_position(wroc_popup* popup)
 
     rect2i32 constraint = {};
 
+    auto parent_geom = wroc_xdg_surface_get_geometry(popup->parent.get());
+
     {
-        auto anchor_origin = wroc_surface_pos_to_global(parent_surface, popup->positioner->rules.anchor_rect.origin);
+        auto anchor_origin = wroc_surface_pos_to_global(parent_surface, popup->positioner->rules.anchor_rect.origin + parent_geom.origin);
         wroc_output* output;
         wroc_output_layout_clamp_position(server->output_layout.get(), anchor_origin, &output);
         if (output) {
             aabb2f64 rect = output->layout_rect;
-            rect.min = wroc_surface_pos_from_global(parent_surface, rect.min);
-            rect.max = wroc_surface_pos_from_global(parent_surface, rect.max);
+            rect.min = wroc_surface_pos_from_global(parent_surface, rect.min) - vec2f64(parent_geom.origin);
+            rect.max = wroc_surface_pos_from_global(parent_surface, rect.max) - vec2f64(parent_geom.origin);
             constraint = rect;
         }
     }
