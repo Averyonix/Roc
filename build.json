@@ -2,7 +2,7 @@
     "dependencies": {
         "concurrent-queue": {
             "branch": "master",
-            "commit": "c68072129c8a5b4025122ca5a0c82ab14b30cb03",
+            "commit": "00dd7ba09164fcd25b590818747e3d9a32dddc9c",
             "repo": "https://github.com/cameron314/concurrentqueue.git"
         },
         "glm": {
@@ -12,7 +12,7 @@
         },
         "imgui": {
             "branch": "docking",
-            "commit": "f89ef40cb2d0dda03702a9126af11163521f4b2c",
+            "commit": "943fcc4f104582a0c219d5f6e50288b9ee859106",
             "repo": "https://github.com/ocornut/imgui.git"
         },
         "kde-protocols": {
@@ -22,12 +22,12 @@
         },
         "magic-enum": {
             "branch": "master",
-            "commit": "2e6e8bfff361c2c40990426c462b44af6c27820b",
+            "commit": "c1aa6de965960250f4ab762e97e67e6290395dc7",
             "repo": "https://github.com/Neargye/magic_enum.git"
         },
         "slang": {
             "branch": "master",
-            "commit": "749a076a576fe866490c35ba5010cb5a880cd129",
+            "commit": "75e0c71197f11009739d614d2b9d607a9dcb1ee9",
             "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
@@ -37,12 +37,12 @@
         },
         "unordered-dense": {
             "branch": "main",
-            "commit": "3234af2c03549bc85656bfd3a86993bf1cd8aef1",
+            "commit": "7b55cab8418da1603496462ce3ccdb4cb1dc3368",
             "repo": "https://github.com/martinus/unordered_dense.git"
         },
         "vulkan-headers": {
             "branch": "main",
-            "commit": "0007545ec811852c8ea6154f201624583c88563f",
+            "commit": "49f1a381e2aec33ef32adf4a377b5a39ec016ec4",
             "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git"
         },
         "vulkan-memory-allocator": {
@@ -52,12 +52,12 @@
         },
         "vulkan-utility-libraries": {
             "branch": "main",
-            "commit": "0d5c138f5019ee58be2ba7aed6e82345fd1ddab9",
+            "commit": "50af38b6cd43afb1462f9ad26b8d015382d11a3d",
             "repo": "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git"
         },
         "xwayland-satellite": {
             "branch": "main",
-            "commit": "ed1cef792b4def3321ff9ab5479df09609f17a69",
+            "commit": "86f5bd5d867ad6e120935dfe825f6b903ebbeddd",
             "repo": "https://github.com/Supreeeme/xwayland-satellite.git"
         }
     }
