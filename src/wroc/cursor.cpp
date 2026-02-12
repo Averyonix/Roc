@@ -74,17 +74,13 @@ void set_cursor_states(wl_client* client, wroc_surface* surface)
     }
 }
 
-#define WROC_NOISY_CURSOR 0
-
 void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surface, vec2i32 hotspot)
 {
     bool created;
     auto* cursor_surface = surface ? wroc_surface_get_or_create_addon<wroc_cursor_surface>(surface, &created) : nullptr;
     if (cursor_surface) {
-#if WROC_NOISY_CURSOR
-        log_debug("wroc_cursor_set(surface = {}, hotspot = {})", created ? "created" : "reused", wrei_to_string(hotspot));
-#endif
         surface->buffer_dst.origin = -hotspot;
+        wroc_surface_update_map_state(surface);
     }
     set_cursor_states(client, surface);
 }
@@ -184,9 +180,6 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
 
 void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wp_cursor_shape_device_v1_shape shape)
 {
-#if WROC_NOISY_CURSOR
-    log_debug("wroc_cursor_set({})", wrei_enum_to_string(shape));
-#endif
     set_cursor_states(client, wroc_cursor_get_shape(cursor, shape));
 }
 

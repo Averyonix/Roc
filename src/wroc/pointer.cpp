@@ -235,7 +235,6 @@ void wroc_update_pointer_constraint_state()
     bool queue_new_motion = false;
     if (pointer->active_constraint) {
         if (!is_constraint_focused(pointer->active_constraint.get())) {
-            log_debug("Deactivating constraint");
             pointer->active_constraint->deactivate();
             queue_new_motion = true;
         }
@@ -244,7 +243,6 @@ void wroc_update_pointer_constraint_state()
         if (candidate
                 && is_constraint_focused(candidate)
                 && (!candidate->has_been_deactivated || candidate->lifetime == ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT)) {
-            log_debug("Activating constraint");
             candidate->activate();
             queue_new_motion = true;
         }

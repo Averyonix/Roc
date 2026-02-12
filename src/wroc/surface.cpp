@@ -174,8 +174,7 @@ void surface_set_mapped(wroc_surface* surface, bool mapped)
     }
 }
 
-static
-void update_map_state(wroc_surface* surface)
+void wroc_surface_update_map_state(wroc_surface* surface)
 {
     bool can_be_mapped =
            surface->current.buffer
@@ -378,7 +377,7 @@ void wroc_surface_flush_apply(wroc_surface* surface)
 
     // Handle map/unmap
 
-    update_map_state(surface);
+    wroc_surface_update_map_state(surface);
 
     // Flush subsurface state recursively
 

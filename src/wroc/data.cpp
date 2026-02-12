@@ -407,6 +407,8 @@ void wroc_wl_data_device_start_drag(wl_client* client, wl_resource* resource, wl
     auto drag_icon = wroc_surface_get_or_create_addon<wroc_drag_icon>(drag_surface);
     drag_surface->buffer_dst.origin = {};
 
+    wroc_surface_update_map_state(drag_surface);
+
     log_debug("Drag started (device = {}, source = {}, surface = {})", (void*)data_device, (void*)data_source, (void*)drag_surface);
 
     server->data_manager.drag.device = data_device;

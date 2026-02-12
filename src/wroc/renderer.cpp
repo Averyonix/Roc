@@ -270,6 +270,7 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         auto* surface = server->imgui->wants_mouse
             ? wroc_cursor_get_shape(server->cursor.get(), server->imgui->cursor_shape)
             : wroc_cursor_get_current(pointer, server->cursor.get());
+
         if (surface) {
             draw_surface(surface, pointer->position, vec2f64(1.0));
         }

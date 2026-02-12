@@ -341,6 +341,8 @@ struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_st
 // Attempts to dequeue state packets
 void wroc_surface_flush_apply(wroc_surface*);
 
+void wroc_surface_update_map_state(wroc_surface*);
+
 rect2f64 wroc_surface_get_frame(wroc_surface*);
 wroc_coord_space wroc_surface_get_coord_space(wroc_surface*);
 vec2f64 wroc_surface_pos_from_global(wroc_surface*, vec2f64 global_pos);
