@@ -125,31 +125,4 @@ extern "C" {
 
 // -----------------------------------------------------------------------------
 
-#include <wayland-server-core.h>
-#include <wayland-server-protocol.h>
-
-#include <wayland/server/xdg-shell.h>
-#include <wayland/server/linux-dmabuf-v1.h>
-#include <wayland/server/pointer-gestures-unstable-v1.h>
-#include <wayland/server/viewporter.h>
-#include <wayland/server/relative-pointer-unstable-v1.h>
-#include <wayland/server/pointer-constraints-unstable-v1.h>
-#include <wayland/server/xdg-decoration-unstable-v1.h>
-#include <wayland/server/server-decoration.h>
-#include <wayland/server/cursor-shape-v1.h>
-#include <wayland/server/linux-drm-syncobj-v1.h>
-
-// -----------------------------------------------------------------------------
-
-#include <wayland-client-core.h>
-
-#include <wayland/client/xdg-shell.h>
-#include <wayland/client/xdg-decoration-unstable-v1.h>
-#include <wayland/client/relative-pointer-unstable-v1.h>
-#include <wayland/client/pointer-constraints-unstable-v1.h>
-#include <wayland/client/linux-dmabuf-v1.h>
-#include <wayland/client/linux-drm-syncobj-v1.h>
-
-// -----------------------------------------------------------------------------
-
 using namespace std::literals;

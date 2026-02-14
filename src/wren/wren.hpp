@@ -515,8 +515,6 @@ struct wren_dma_params
     vec2u32 extent;
     wren_format format;
     wren_drm_modifier modifier;
-
-    zwp_linux_buffer_params_v1_flags flags;
 };
 
 struct wren_image_dmabuf : wren_image

@@ -4,6 +4,17 @@
 
 // -----------------------------------------------------------------------------
 
+#include <wayland-client-core.h>
+
+#include <wayland/client/xdg-shell.h>
+#include <wayland/client/xdg-decoration-unstable-v1.h>
+#include <wayland/client/relative-pointer-unstable-v1.h>
+#include <wayland/client/pointer-constraints-unstable-v1.h>
+#include <wayland/client/linux-dmabuf-v1.h>
+#include <wayland/client/linux-drm-syncobj-v1.h>
+
+// -----------------------------------------------------------------------------
+
 struct wroc_wayland_backend;
 
 template<typename K, typename V, void(*Destroy)(V*)>

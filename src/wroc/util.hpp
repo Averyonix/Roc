@@ -6,6 +6,22 @@
 
 // -----------------------------------------------------------------------------
 
+#include <wayland-server-core.h>
+#include <wayland-server-protocol.h>
+
+#include <wayland/server/xdg-shell.h>
+#include <wayland/server/linux-dmabuf-v1.h>
+#include <wayland/server/pointer-gestures-unstable-v1.h>
+#include <wayland/server/viewporter.h>
+#include <wayland/server/relative-pointer-unstable-v1.h>
+#include <wayland/server/pointer-constraints-unstable-v1.h>
+#include <wayland/server/xdg-decoration-unstable-v1.h>
+#include <wayland/server/server-decoration.h>
+#include <wayland/server/cursor-shape-v1.h>
+#include <wayland/server/linux-drm-syncobj-v1.h>
+
+// -----------------------------------------------------------------------------
+
 #define WROC_STUB(Member)       .Member = [](auto...) { log_warn("TODO: " #Member); }
 #define WROC_STUB_QUIET(Member) .Member = [](auto...) { }
 

@@ -127,9 +127,10 @@ wroc_dma_buffer* wroc_dmabuf_create_buffer(wl_client* client, wl_resource* param
 
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wl_buffer_impl, buffer);
 
+    // TODO: Handle zwp_linux_buffer_params_v1_flags(flags)
+
     params.format = format;
     params.extent = {width, height};
-    params.flags = zwp_linux_buffer_params_v1_flags(flags);
 
     buffer->extent = {width, height};
     log_debug("Importing DMA-BUF, size = {}, format = {}, mod = {}",
