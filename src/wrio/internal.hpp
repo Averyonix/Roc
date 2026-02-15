@@ -35,10 +35,45 @@ struct wrio_context : wrei_object
     ref<wrio_layer_stack> scene;
 };
 
+// -----------------------------------------------------------------------------
+
+enum class wrio_output_commit_flag : u32
+{
+    vsync = 1 << 0,
+};
+
+struct wrio_swapchain
+{
+    struct release_slot
+    {
+        ref<wren_semaphore> semaphore;
+        ref<wren_image> image;
+        u64 release_point;
+    };
+
+    std::vector<ref<wren_image>> free_images;
+    std::vector<release_slot> release_slots;
+
+    u32 max_images = 2;
+    u32 images_in_flight;
+};
+
 struct wrio_output : wrei_object
 {
-    virtual void commit() = 0;
+    wrio_context* ctx;
+
+    vec2u32 size;
+
+    wrio_swapchain swapchain;
+
+    // True if commit will accept a new frame
+    bool commit_available = true;
+    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag>) = 0;
 };
+
+void wrio_output_try_render(wrio_output*);
+
+// -----------------------------------------------------------------------------
 
 struct wrio_input_device : wrei_object
 {

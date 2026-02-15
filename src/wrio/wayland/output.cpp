@@ -1,21 +1,33 @@
 #include "wayland.hpp"
 
 static
-auto get_impl(wrio_output* output) -> wrio_output_wayland*
+void configure(void* udata, xdg_surface* xdg_surface, u32 serial)
 {
-    return static_cast<wrio_output_wayland*>(output);
+    xdg_surface_ack_configure(xdg_surface, serial);
+    wrio_output_try_render(static_cast<wrio_output_wayland*>(udata));
 }
 
 WRIO_WL_LISTENER(xdg_surface) = {
-    WRIO_WL_STUB(xdg_surface, configure),
+    .configure = configure,
 };
 
 WRIO_WL_LISTENER(zxdg_toplevel_decoration_v1) = {
-    WRIO_WL_STUB(zxdg_toplevel_decoration_v1, configure),
+    .configure = [](void*, zxdg_toplevel_decoration_v1*, u32 mode) {
+        if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE) {
+            log_warn("WRIO - <zxdg_toplevel_decoration_v1> requested client-side decorations, outputs will remain undecorated");
+        }
+    }
 };
 
+static
+void toplevel_configure(void* udata, xdg_toplevel* toplevel, i32 width, i32 height, wl_array* states)
+{
+    auto output = static_cast<wrio_output_wayland*>(udata);
+    output->size = (width && height) ? vec2i32{width, height} : vec2i32{1920, 1080};
+}
+
 WRIO_WL_LISTENER(xdg_toplevel) = {
-    WRIO_WL_STUB(xdg_toplevel, configure),
+    .configure = toplevel_configure,
     WRIO_WL_STUB(xdg_toplevel, close),
     WRIO_WL_STUB(xdg_toplevel, configure_bounds),
     WRIO_WL_STUB(xdg_toplevel, wm_capabilities),
@@ -34,13 +46,13 @@ WRIO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
 auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
 {
     auto* wl = ctx->wayland.get();
-    wrei_assert(wl);
+    if (!wl) return nullptr;
 
     static u32 window_id = 0;
     auto title = std::format("WL-{}", ++window_id);
-    log_info("Creating new output: {}", title);
 
     auto output = wrei_create<wrio_output_wayland>();
+    output->ctx = ctx;
     ctx->outputs.emplace_back(output);
 
     output->wl_surface = wl_compositor_create_surface(wl->wl_compositor);
@@ -61,14 +73,93 @@ auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
         log_warn("WRIO - <zxdg_decoration_manager_v1> protocol not available, outputs will remain undecorated");
     }
 
+    output->wp_linux_drm_syncobj_surface_v1 = wp_linux_drm_syncobj_manager_v1_get_surface(wl->wp_linux_drm_syncobj_manager_v1, output->wl_surface);
+
     wl_surface_commit(output->wl_surface);
     wl_display_flush(wl->wl_display);
 
     return output.get();
 }
 
-void wrio_output_wayland::commit()
+// -----------------------------------------------------------------------------
+
+static
+wl_buffer* get_image_proxy(wrio_context* ctx, wren_image* image)
 {
-    auto impl = get_impl(this);
-    log_error("TODO - wrio_output_wayland{{{}}}::commit", (void*)impl);
+    auto* wl = ctx->wayland.get();
+
+    if (auto* found = wl->buffer_cache.find(image)) return found;
+
+    auto size = image->extent;
+    auto format = image->format;
+
+    auto dma_params = wren_image_export_dmabuf(image);
+    u32 mod_hi = dma_params.modifier >> 32;
+    u32 mod_lo = dma_params.modifier & ~0u;
+
+    auto buffer_params = zwp_linux_dmabuf_v1_create_params(wl->zwp_linux_dmabuf_v1);
+    for (u32 plane_idx = 0; plane_idx < dma_params.planes.count; ++plane_idx) {
+        auto& plane = dma_params.planes[plane_idx];
+        zwp_linux_buffer_params_v1_add(buffer_params, plane.fd->get(), plane_idx, plane.offset, plane.stride, mod_hi, mod_lo);
+    }
+    auto buffer = zwp_linux_buffer_params_v1_create_immed(buffer_params, size.x, size.y, format->drm, 0);
+    zwp_linux_buffer_params_v1_destroy(buffer_params);
+
+    return wl->buffer_cache.insert(image, buffer);
+}
+
+static
+wp_linux_drm_syncobj_timeline_v1* get_semaphore_proxy(wrio_context* ctx, wren_semaphore* semaphore)
+{
+    auto* wl = ctx->wayland.get();
+
+    if (auto* found = wl->syncobj_cache.find(semaphore)) return found;
+
+    auto fd = wren_semaphore_export_syncobj(semaphore);
+    auto syncobj = wp_linux_drm_syncobj_manager_v1_import_timeline(wl->wp_linux_drm_syncobj_manager_v1, fd);
+    close(fd);
+
+    return wl->syncobj_cache.insert(semaphore, syncobj);
+}
+
+static
+void on_present_frame(void* udata, wl_callback*, u32 time)
+{
+    auto* output = static_cast<wrio_output_wayland*>(udata);
+
+    wl_callback_destroy(output->frame_callback);
+    output->frame_callback = nullptr;
+
+    if (!output->commit_available) {
+        output->commit_available = true;
+        wrio_output_try_render(output);
+    }
+}
+
+void wrio_output_wayland::commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag> flags)
+{
+    wrei_assert(commit_available);
+
+    auto* wl_buffer = get_image_proxy(ctx, image);
+    auto* acquire_syncpoint = get_semaphore_proxy(ctx, acquire.semaphore);
+    auto* release_syncpoint = get_semaphore_proxy(ctx, release.semaphore);
+
+    wl_surface_attach(wl_surface, wl_buffer, 0, 0);
+    wl_surface_damage_buffer(wl_surface, 0, 0, INT32_MAX, INT32_MAX);
+
+    wp_linux_drm_syncobj_surface_v1_set_acquire_point(wp_linux_drm_syncobj_surface_v1, acquire_syncpoint, acquire.value >> 32, acquire.value & ~0u);
+    wp_linux_drm_syncobj_surface_v1_set_release_point(wp_linux_drm_syncobj_surface_v1, release_syncpoint, release.value >> 32, release.value & ~0u);
+
+    if (!frame_callback) {
+        frame_callback = wl_surface_frame(wl_surface);
+        static constexpr wl_callback_listener listener { on_present_frame };
+        wl_callback_add_listener(frame_callback, &listener, this);
+    }
+
+    if (flags.contains(wrio_output_commit_flag::vsync)) {
+        commit_available = false;
+    }
+
+    wl_surface_commit(wl_surface);
+    wl_display_flush(ctx->wayland->wl_display);
 }

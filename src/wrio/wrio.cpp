@@ -14,6 +14,8 @@ auto wrio_context_create() -> ref<wrio_context>
     wrio_drm_init(     ctx.get());
     wrio_wayland_init( ctx.get());
 
+    ctx->wren = wren_create({}, ctx->event_loop.get(), -1);
+
     return ctx;
 }
 

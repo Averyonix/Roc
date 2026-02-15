@@ -191,6 +191,8 @@ target_link_libraries(wren PUBLIC wrei shaders)
 init_library(wrio)
 target_sources(wrio PUBLIC
     src/wrio/wrio.cpp
+    src/wrio/render.cpp
+
     src/wrio/drm/drm.cpp
     src/wrio/evdev/evdev.cpp
     src/wrio/libinput/libinput.cpp

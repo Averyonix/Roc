@@ -71,6 +71,8 @@ WRIO_WL_LISTENER(xdg_wm_base) = {
 static
 void display_read(wrio_context* ctx, wrei_fd_event_bits events)
 {
+    ctx->wayland->current_dispatch_time = std::chrono::steady_clock::now();
+
     timespec timeout = {};
     if (unix_check(wl_display_dispatch_timeout(ctx->wayland->wl_display, &timeout)).err()) {
         wrei_debugkill();
