@@ -18,7 +18,15 @@ void wrio_wayland_create_output(wrio_context*);
 
 struct wrio_context : wrei_object
 {
+    std::move_only_function<wrio_event_handler> event_handler;
+
     ref<wrei_event_loop> event_loop;
+    ref<wren_context>    wren;
+
+    std::vector<wrio_input_device*> input_devices;
+    std::vector<wrio_output*>       outputs;
+
+    ref<wrio_layer_stack> scene;
 
     ref<wrio_udev>     udev;
     ref<wrio_session>  session;
@@ -26,16 +34,9 @@ struct wrio_context : wrei_object
     ref<wrio_evdev>    evdev;    // input_device
     ref<wrio_drm>      drm;      // output
     ref<wrio_wayland>  wayland;  // output | input_device
-
-    ref<wren_context> wren;
-
-    std::move_only_function<wrio_event_handler> event_handler;
-
-    std::vector<wrio_input_device*> input_devices;
-    std::vector<wrio_output*>       outputs;
-
-    ref<wrio_layer_stack> scene;
 };
+
+void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason);
 
 // -----------------------------------------------------------------------------
 
@@ -93,7 +94,7 @@ struct wrio_input_device : wrei_object
     wrio_context* ctx;
 };
 
-void wrio_post_event(wrio_context*, wrio_event*);
+void wrio_post_event(wrio_event*);
 
 void wrio_input_device_add(           wrio_input_device*);
 void wrio_input_device_remove(        wrio_input_device*);

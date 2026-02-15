@@ -105,3 +105,30 @@ void wrio_wayland_init(wrio_context* ctx)
 
     wrio_context_add_output(ctx);
 }
+
+wrio_wayland::~wrio_wayland()
+{
+    if (keyboard) keyboard = nullptr;
+    if (pointer)  pointer = nullptr;
+
+    wl_display_fd = nullptr;
+
+    outputs.clear();
+
+    zwp_linux_dmabuf_v1_destroy(zwp_linux_dmabuf_v1);
+    syncobj_cache.entries.clear();
+    buffer_cache.entries.clear();
+    wp_linux_drm_syncobj_manager_v1_destroy(wp_linux_drm_syncobj_manager_v1);
+
+    zwp_relative_pointer_manager_v1_destroy(zwp_relative_pointer_manager_v1);
+    zwp_pointer_constraints_v1_destroy(zwp_pointer_constraints_v1);
+
+    if (zxdg_decoration_manager_v1) zxdg_decoration_manager_v1_destroy(zxdg_decoration_manager_v1);
+    wl_compositor_destroy(wl_compositor);
+    xdg_wm_base_destroy(xdg_wm_base);
+    wl_seat_destroy(wl_seat);
+
+    wl_registry_destroy(wl_registry);
+
+    wl_display_disconnect(wl_display);
+}

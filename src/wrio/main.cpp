@@ -7,6 +7,9 @@ void handle_event(wrio_event* event)
     auto& device = input.device;
 
     switch (event->type) {
+        break;case wrio_event_type::shutdown_requested:
+            log_error("wrio::shutdown_requested({})", wrei_enum_to_string(event->shutdown.reason));
+            wrio_context_stop(event->ctx);
         break;case wrio_event_type::input_leave:
             log_info("wrio::input_leave{{{}}}()", (void*)device);
         break;case wrio_event_type::input_key_enter:

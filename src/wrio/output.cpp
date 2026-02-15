@@ -9,7 +9,8 @@ void wrio_output_add(wrio_output* output)
 {
     wrei_assert(!std::ranges::contains(output->ctx->outputs, output));
     output->ctx->outputs.emplace_back(output);
-    wrio_post_event(output->ctx, wrei_ptr_to(wrio_event {
+    wrio_post_event(wrei_ptr_to(wrio_event {
+        .ctx = output->ctx,
         .type = wrio_event_type::output_added,
         .output = output,
     }));
@@ -18,7 +19,8 @@ void wrio_output_add(wrio_output* output)
 void wrio_output_remove(wrio_output* output)
 {
     if (std::erase(output->ctx->outputs, output)) {
-        wrio_post_event(output->ctx, wrei_ptr_to(wrio_event {
+        wrio_post_event(wrei_ptr_to(wrio_event {
+            .ctx = output->ctx,
             .type = wrio_event_type::output_removed,
             .output = output,
         }));

@@ -25,12 +25,19 @@ enum class wrio_pointer_axis
     vertical,
 };
 
+enum class wrio_shutdown_reason
+{
+    no_more_outputs,        // Sent when no more outputs will be opened by the backend
+    terminate_receieved,    // Sent when SIGTERM is received
+    interrupt_receieved,    // Sent when SIGINT  is received
+};
+
 enum class wrio_event_type
 {
+    shutdown_requested,
+
     input_added,
     input_removed,
-
-
     input_leave,            // Sent when the state of input becomes unreadable.
     input_key_enter,        // Sent when a key is discovered to already be pressed (does not trigger on-press actions)
     input_key_press,        // Sent when a key or button is pressed
@@ -62,9 +69,13 @@ struct wrio_input_event_data
 
 struct wrio_event
 {
+    wrio_context* ctx;
     wrio_event_type type;
 
     union {
+        struct {
+            wrio_shutdown_reason reason;
+        } shutdown;
         wrio_input_event_data input;
         wrio_output*          output;
     };
@@ -74,9 +85,10 @@ using wrio_event_handler = void(wrio_event*);
 
 auto wrio_context_create(std::move_only_function<wrio_event_handler>) -> ref<wrio_context>;
 void wrio_context_run(wrio_context*);
+void wrio_context_stop(wrio_context*);
 
-auto wrio_context_list_input_devices(wrio_context*) -> std::span<ref<wrio_input_device>>;
-auto wrio_context_list_outputs(      wrio_context*) -> std::span<ref<wrio_output>>;
+auto wrio_context_list_input_devices(wrio_context*) -> std::span<wrio_input_device*>;
+auto wrio_context_list_outputs(      wrio_context*) -> std::span<wrio_output*>;
 
 auto wrio_context_add_output(wrio_context*) -> wrio_output*;
 void wrio_context_close_output(wrio_output*);

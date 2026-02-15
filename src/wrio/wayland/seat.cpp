@@ -55,6 +55,7 @@ void set_keyboard(wrio_context* ctx)
 
 wrio_input_device_wayland_pointer::~wrio_input_device_wayland_pointer()
 {
+    zwp_relative_pointer_v1_destroy(zwp_relative_pointer_v1);
     wl_pointer_destroy(wl_pointer);
 }
 

@@ -274,3 +274,13 @@ using ref = wrei_ref<T>;
 
 template<typename T>
 using weak = wrei_weak<T>;
+
+template<typename T>
+struct wrei_object_equals
+{
+    T* value;
+
+    constexpr bool operator()(const auto& c) const noexcept {
+        return c.get() == value;
+    }
+};

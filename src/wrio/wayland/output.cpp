@@ -26,15 +26,28 @@ void toplevel_configure(void* udata, xdg_toplevel* toplevel, i32 width, i32 heig
     output->size = (width && height) ? vec2i32{width, height} : vec2i32{1920, 1080};
 }
 
+static
+void toplevel_close(void* udata, xdg_toplevel*)
+{
+    auto* output = static_cast<wrio_output_wayland*>(udata);
+    auto* ctx = output->ctx;
+    std::erase_if(ctx->wayland->outputs, wrei_object_equals{output});
+    if (ctx->wayland->outputs.empty()) {
+        wrio_context_request_shutdown(ctx, wrio_shutdown_reason::no_more_outputs);
+    }
+}
+
 WRIO_WL_LISTENER(xdg_toplevel) = {
     .configure = toplevel_configure,
-    WRIO_WL_STUB(xdg_toplevel, close),
+    .close = toplevel_close,
     WRIO_WL_STUB(xdg_toplevel, configure_bounds),
     WRIO_WL_STUB(xdg_toplevel, wm_capabilities),
 };
 
 WRIO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
-    WRIO_WL_STUB(zwp_linux_dmabuf_feedback_v1, done),
+    .done = [](void*, zwp_linux_dmabuf_feedback_v1 *feedback) {
+        zwp_linux_dmabuf_feedback_v1_destroy(feedback);
+    },
     WRIO_WL_STUB(zwp_linux_dmabuf_feedback_v1, format_table),
     WRIO_WL_STUB(zwp_linux_dmabuf_feedback_v1, main_device),
     WRIO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_done),
@@ -181,4 +194,20 @@ void wrio_output_wayland::commit(wren_image* image, wren_syncpoint acquire, wren
 
     wl_surface_commit(wl_surface);
     wl_display_flush(ctx->wayland->wl_display);
+}
+
+
+wrio_output_wayland::~wrio_output_wayland()
+{
+    wp_linux_drm_syncobj_surface_v1_destroy(wp_linux_drm_syncobj_surface_v1);
+
+    if (frame_callback) wl_callback_destroy(frame_callback);
+
+    zwp_locked_pointer_v1_destroy(zwp_locked_pointer_v1);
+
+    if (zxdg_toplevel_decoration_v1) zxdg_toplevel_decoration_v1_destroy(zxdg_toplevel_decoration_v1);
+
+    xdg_toplevel_destroy(xdg_toplevel);
+    xdg_surface_destroy(xdg_surface);
+    wl_surface_destroy(wl_surface);
 }

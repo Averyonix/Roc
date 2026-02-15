@@ -20,12 +20,59 @@ auto wrio_context_create(std::move_only_function<wrio_event_handler> event_handl
     return ctx;
 }
 
-void wrio_context_run(wrio_context* ctx)
+static
+weak<wrio_context> signal_context;
+
+static
+void signal_handler(int sig)
 {
-    wrei_event_loop_run(ctx->event_loop.get());
+    if (sig == SIGINT) {
+        // Immediately unregister SIGINT in case of unresponsive event loop
+        std::signal(sig, SIG_DFL);
+    }
+
+    if (!signal_context) return;
+
+    switch (sig) {
+        break;case SIGTERM:
+            wrio_context_request_shutdown(signal_context.get(), wrio_shutdown_reason::terminate_receieved);
+        break;case SIGINT:
+            wrio_context_request_shutdown(signal_context.get(), wrio_shutdown_reason::interrupt_receieved);
+    }
 }
 
-void wrio_post_event(wrio_context* ctx, wrio_event* event)
+void wrio_context_run(wrio_context* ctx)
 {
-    ctx->event_handler(event);
+    signal_context = ctx;
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    wrei_event_loop_run(ctx->event_loop.get());
+
+    signal_context = nullptr;
+    signal(SIGINT, SIG_DFL);
+    signal(SIGTERM, SIG_IGN);
+}
+
+void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason)
+{
+    wrei_event_loop_enqueue(ctx->event_loop.get(), [ctx, reason] {
+        wrio_post_event(wrei_ptr_to(wrio_event {
+            .ctx = ctx,
+            .type = wrio_event_type::shutdown_requested,
+            .shutdown {
+                .reason = reason,
+            }
+        }));
+    });
+}
+
+void wrio_context_stop(wrio_context* ctx)
+{
+    wrei_event_loop_stop(ctx->event_loop.get());
+}
+
+void wrio_post_event(wrio_event* event)
+{
+    event->ctx->event_handler(event);
 }

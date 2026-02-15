@@ -85,6 +85,8 @@ struct wrio_wayland
 
     wrio_wl_proxy_cache<wren_semaphore, wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
     wrio_wl_proxy_cache<wren_image,     wl_buffer,                        wl_buffer_destroy>                        buffer_cache;
+
+    ~wrio_wayland();
 };
 
 // -----------------------------------------------------------------------------
@@ -102,6 +104,8 @@ struct wrio_output_wayland : wrio_output
     bool pointer_locked = false;
 
     virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag>) final override;
+
+    ~wrio_output_wayland();
 };
 
 inline
