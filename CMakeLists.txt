@@ -115,10 +115,19 @@ function(init_target target_name)
     endif()
 endfunction()
 
+function(init_library target_name)
+    add_library(${target_name})
+    init_target(${target_name})
+endfunction()
+
+function(init_executable target_name)
+    add_executable(${target_name})
+    init_target(${target_name})
+endfunction()
+
 # ------------------------------------------------------------------------------
 
-add_library(wrei)
-init_target(wrei)
+init_library(wrei)
 target_precompile_headers(wrei PUBLIC src/wrei/pch.hpp)
 target_compile_definitions(wrei PUBLIC PROGRAM_NAME="wroc" PROJECT_NAME="Roc")
 target_sources(wrei PUBLIC
@@ -163,8 +172,7 @@ target_link_libraries(wrei PUBLIC
 
 add_subdirectory(.build/shaders)
 
-add_library(wren)
-init_target(wren)
+init_library(wren)
 target_sources(wren PUBLIC
     src/wren/wren.cpp
     src/wren/functions.cpp
@@ -180,8 +188,27 @@ target_link_libraries(wren PUBLIC wrei shaders)
 
 # ------------------------------------------------------------------------------
 
-add_executable(wroc)
-init_target(wroc)
+init_library(wrio)
+target_sources(wrio PUBLIC
+    src/wrio/wrio.cpp
+    src/wrio/drm/drm.cpp
+    src/wrio/evdev/evdev.cpp
+    src/wrio/libinput/libinput.cpp
+    src/wrio/session/session.cpp
+    src/wrio/udev/udev.cpp
+    src/wrio/wayland/wayland.cpp
+    src/wrio/wayland/output.cpp
+    src/wrio/wayland/seat.cpp
+    )
+target_link_libraries(wrio PUBLIC wrei wren)
+
+init_executable(wrio-test)
+target_sources(wrio-test PUBLIC src/wrio/main.cpp)
+target_link_libraries(wrio-test PUBLIC wrio)
+
+# ------------------------------------------------------------------------------
+
+init_executable(wroc)
 target_sources(wroc PUBLIC
     src/wroc/client.cpp
     src/wroc/server.cpp

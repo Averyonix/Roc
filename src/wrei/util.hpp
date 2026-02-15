@@ -31,14 +31,14 @@ void wrei_unreachable()
 }
 
 [[noreturn]] [[clang::noinline]] inline
-void wrei_assert_fail(std::string_view message)
+void wrei_assert_fail(std::string_view expr, std::string_view reason = {})
 {
-    wrei_log(wrei_log_level::error, message);
+    log_error("assert({}) failed{}{}", expr, reason.empty() ? "" : ": ", reason);
     wrei_debugkill();
 }
 
-#define wrei_assert(Expr) \
-    (static_cast<bool>(Expr) ? void() : wrei_assert_fail("wrei_assert failed: " #Expr))
+#define wrei_assert(Expr, ...) \
+    (static_cast<bool>(Expr) ? void() : wrei_assert_fail(#Expr __VA_OPT__(, std::format(__VA_ARGS__))))
 
 // -----------------------------------------------------------------------------
 
