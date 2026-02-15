@@ -19,25 +19,45 @@ WREI_OBJECT_EXPLICIT_DECLARE(wrio_context);
 
 // -----------------------------------------------------------------------------
 
+enum class wrio_pointer_axis
+{
+    horizontal,
+    vertical,
+};
+
 enum class wrio_event_type
 {
-    input_added,     // Sent on input device discovery
-    input_removed,   // Sent on input device removal
-    input_key,       // Sent on EV_KEY input event
-    input_rel,       // Sent on EV_REL input event
-    input_abs,       // Sent on EV_ABS input event
+    input_added,
+    input_removed,
 
-    output_added,    // Sent when an output is first detected
-    output_removed,  // Sent before a output is removed from the output list
-    output_modified, // Sent when an output's configuration changes
-    output_redraw,   // Sent just before the content for a given output is rendered and committed
+
+    input_leave,            // Sent when the state of input becomes unreadable.
+    input_key_enter,        // Sent when a key is discovered to already be pressed (does not trigger on-press actions)
+    input_key_press,        // Sent when a key or button is pressed
+    input_key_release,      // Sent when a key or button is released
+    input_pointer_motion,   // Sent when a pointer moves
+    input_pointer_axis,     // Sent when a pointer axis is moved
+
+    output_added,           // Sent when an output is first detected
+    output_removed,         // Sent before a output is removed from the output list
+    output_modified,        // Sent when an output's configuration changes
+    output_redraw,          // Sent before an output's content is rendered and committed
 };
+
+// An evdev key code - `[KEY|BTN]_*`
+using wrio_key = u32;
 
 struct wrio_input_event_data
 {
     wrio_input_device* device;
-    int code;
-    f32 value;
+    union {
+        wrio_key key;
+        vec2f64  motion;
+        struct {
+            wrio_pointer_axis axis;
+            f64               delta;
+        } axis;
+    };
 };
 
 struct wrio_event
@@ -50,13 +70,13 @@ struct wrio_event
     };
 };
 
-auto wrio_context_create() -> ref<wrio_context>;
+using wrio_event_handler = void(wrio_event*);
+
+auto wrio_context_create(std::move_only_function<wrio_event_handler>) -> ref<wrio_context>;
 void wrio_context_run(wrio_context*);
 
 auto wrio_context_list_input_devices(wrio_context*) -> std::span<ref<wrio_input_device>>;
 auto wrio_context_list_outputs(      wrio_context*) -> std::span<ref<wrio_output>>;
-
-void wrio_context_set_event_listener(wrio_context*, std::move_only_function<void(wrio_event*)>);
 
 auto wrio_context_add_output(wrio_context*) -> wrio_output*;
 void wrio_context_close_output(wrio_output*);

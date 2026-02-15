@@ -43,6 +43,15 @@ WRIO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
     WRIO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_flags),
 };
 
+WRIO_WL_LISTENER(zwp_locked_pointer_v1) = {
+    .locked   = [](void* udata, zwp_locked_pointer_v1*) {
+        static_cast<wrio_output_wayland*>(udata)->pointer_locked = true;
+    },
+    .unlocked = [](void* udata, zwp_locked_pointer_v1*) {
+        static_cast<wrio_output_wayland*>(udata)->pointer_locked = false;
+    },
+};
+
 auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
 {
     auto* wl = ctx->wayland.get();
@@ -53,7 +62,7 @@ auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
 
     auto output = wrei_create<wrio_output_wayland>();
     output->ctx = ctx;
-    ctx->outputs.emplace_back(output);
+    wl->outputs.emplace_back(output);
 
     output->wl_surface = wl_compositor_create_surface(wl->wl_compositor);
     output->xdg_surface = xdg_wm_base_get_xdg_surface(wl->xdg_wm_base, output->wl_surface);
@@ -73,10 +82,20 @@ auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
         log_warn("WRIO - <zxdg_decoration_manager_v1> protocol not available, outputs will remain undecorated");
     }
 
+    output->zwp_locked_pointer_v1 = zwp_pointer_constraints_v1_lock_pointer(
+        wl->zwp_pointer_constraints_v1,
+        output->wl_surface,
+        wl->pointer->wl_pointer,
+        nullptr,
+        ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
+    zwp_locked_pointer_v1_add_listener(output->zwp_locked_pointer_v1, &wrio_zwp_locked_pointer_v1_listener, output.get());
+
     output->wp_linux_drm_syncobj_surface_v1 = wp_linux_drm_syncobj_manager_v1_get_surface(wl->wp_linux_drm_syncobj_manager_v1, output->wl_surface);
 
     wl_surface_commit(output->wl_surface);
     wl_display_flush(wl->wl_display);
+
+    wrio_output_add(output.get());
 
     return output.get();
 }

@@ -45,12 +45,21 @@ struct wrio_wl_proxy_cache
     }
 };
 
+template<typename T>
+std::span<T> wrio_to_span(wl_array* array)
+{
+    usz count = array->size / sizeof(T);
+    return std::span<T>(static_cast<T*>(array->data), count);
+}
+
 // -----------------------------------------------------------------------------
 
 #define WRIO_WL_INTERFACE(Name) struct Name* Name = {}
 #define WRIO_WL_LISTENER(Name) const Name##_listener wrio_##Name##_listener
 #define WRIO_WL_STUB(Type, Name) \
     .Name = [](void*, Type* t, auto...) { log_error("TODO - " #Type "{{{}}}::" #Name, (void*) t); }
+#define WRIO_WL_STUB_QUIET(Name) \
+    .Name = [](auto...) {}
 
 struct wrio_wayland
 {
@@ -66,6 +75,8 @@ struct wrio_wayland
     WRIO_WL_INTERFACE(wp_linux_drm_syncobj_manager_v1);
 
     ref<wrei_fd> wl_display_fd = {};
+
+    std::vector<ref<wrio_output_wayland>> outputs;
 
     std::chrono::steady_clock::time_point current_dispatch_time;
 
@@ -88,20 +99,35 @@ struct wrio_output_wayland : wrio_output
     WRIO_WL_INTERFACE(wp_linux_drm_syncobj_surface_v1);
 
     wl_callback* frame_callback = {};
+    bool pointer_locked = false;
 
     virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag>) final override;
 };
+
+inline
+auto get_impl(wrio_output* output) -> wrio_output_wayland*
+{
+    return dynamic_cast<wrio_output_wayland*>(output);
+}
 
 // -----------------------------------------------------------------------------
 
 struct wrio_input_device_wayland_keyboard : wrio_input_device
 {
     WRIO_WL_INTERFACE(wl_keyboard);
+
+    ~wrio_input_device_wayland_keyboard();
 };
 
 struct wrio_input_device_wayland_pointer : wrio_input_device
 {
     WRIO_WL_INTERFACE(wl_pointer);
+    WRIO_WL_INTERFACE(zwp_relative_pointer_v1);
+
+    weak<wrio_output> current_output;
+    u32 last_serial;
+
+    ~wrio_input_device_wayland_pointer();
 };
 
 // -----------------------------------------------------------------------------
