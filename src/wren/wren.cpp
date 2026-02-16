@@ -198,6 +198,10 @@ VkBool32 VKAPI_CALL debug_callback(
         wrei_log(level, data->pMessage);
     }
 
+    if (severity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        wrei_debugkill();
+    }
+
     return VK_FALSE;
 }
 
@@ -348,6 +352,7 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
                     .descriptorIndexing = true,
                     .shaderSampledImageArrayNonUniformIndexing = true,
                     .descriptorBindingSampledImageUpdateAfterBind = true,
+                    .descriptorBindingStorageImageUpdateAfterBind = true,
                     .descriptorBindingUpdateUnusedWhilePending = true,
                     .descriptorBindingPartiallyBound = true,
                     .runtimeDescriptorArray = true,

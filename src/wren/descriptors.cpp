@@ -17,11 +17,11 @@ void wren_init_descriptors(wren_context* ctx)
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = wrei_ptr_to(VkDescriptorSetLayoutBindingFlagsCreateInfo {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
-            .bindingCount = 2,
-            .pBindingFlags = std::array { binding_flags, binding_flags }.data(),
+            .bindingCount = 3,
+            .pBindingFlags = std::array { binding_flags, binding_flags, binding_flags }.data(),
         }),
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-        .bindingCount = 2,
+        .bindingCount = 3,
         .pBindings = std::array {
             VkDescriptorSetLayoutBinding {
                 .binding = 0,
@@ -31,6 +31,12 @@ void wren_init_descriptors(wren_context* ctx)
             },
             VkDescriptorSetLayoutBinding {
                 .binding = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .descriptorCount = num_image_descriptors_each,
+                .stageFlags = VK_SHADER_STAGE_ALL,
+            },
+            VkDescriptorSetLayoutBinding {
+                .binding = 2,
                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
                 .descriptorCount = num_sampler_descriptors,
                 .stageFlags = VK_SHADER_STAGE_ALL,
@@ -53,9 +59,10 @@ void wren_init_descriptors(wren_context* ctx)
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
         .maxSets = 1,
-        .poolSizeCount = 2,
+        .poolSizeCount = 3,
         .pPoolSizes = std::array {
             VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, num_image_descriptors_each },
+            VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, num_image_descriptors_each },
             VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, num_sampler_descriptors },
         }.data(),
     }), nullptr, &ctx->pool));
@@ -112,20 +119,41 @@ void wren_allocate_image_descriptor(wren_image* image)
 
     log_debug("Image allocated ID: {}", std::to_underlying(image->id));
 
-    vk.UpdateDescriptorSets(ctx->device, 1, std::array {
-        VkWriteDescriptorSet {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = ctx->set,
-            .dstBinding = 0,
-            .dstArrayElement = std::to_underlying(image->id),
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .pImageInfo = wrei_ptr_to(VkDescriptorImageInfo {
-                .imageView = image->view,
-                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            }),
-        },
-    }.data(), 0, nullptr);
+    auto usage = wren_image_usage_to_vk(image->usage);
+
+    if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
+        vk.UpdateDescriptorSets(ctx->device, 1, std::array {
+            VkWriteDescriptorSet {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = ctx->set,
+                .dstBinding = 0,
+                .dstArrayElement = std::to_underlying(image->id),
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .pImageInfo = wrei_ptr_to(VkDescriptorImageInfo {
+                    .imageView = image->view,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                }),
+            },
+        }.data(), 0, nullptr);
+    }
+
+    if (usage & VK_IMAGE_USAGE_STORAGE_BIT) {
+        vk.UpdateDescriptorSets(ctx->device, 1, std::array {
+            VkWriteDescriptorSet {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = ctx->set,
+                .dstBinding = 1,
+                .dstArrayElement = std::to_underlying(image->id),
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = wrei_ptr_to(VkDescriptorImageInfo {
+                    .imageView = image->view,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                }),
+            },
+        }.data(), 0, nullptr);
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -149,7 +177,7 @@ void wren_allocate_sampler_descriptor(wren_sampler* sampler)
         VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = ctx->set,
-            .dstBinding = 1,
+            .dstBinding = 2,
             .dstArrayElement = std::to_underlying(sampler->id),
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,

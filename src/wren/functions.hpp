@@ -27,6 +27,7 @@
     DO(CreatePipelineLayout) \
     DO(CreateDescriptorPool) \
     DO(CreateGraphicsPipelines) \
+    DO(CreateComputePipelines) \
     DO(WaitForFences) \
     DO(ResetFences) \
     DO(QueueWaitIdle) \
@@ -89,6 +90,7 @@
     DO(GetImageDrmFormatModifierPropertiesEXT) \
     DO(GetImageSubresourceLayout) \
     DO(GetMemoryFdKHR) \
+    DO(CmdDispatch) \
 
 #define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

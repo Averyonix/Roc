@@ -5,6 +5,7 @@
 VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage> usage)
 {
     VkImageUsageFlags vk_usage = {};
+    if (usage.contains(wren_image_usage::storage))      vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
     if (usage.contains(wren_image_usage::render))       vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     if (usage.contains(wren_image_usage::texture))      vk_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
     if (usage.contains(wren_image_usage::transfer_src)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -15,8 +16,9 @@ VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage> usage)
 VkFormatFeatureFlags wren_get_required_format_features(wren_format format, flags<wren_image_usage> usage)
 {
     VkFormatFeatureFlags features = {};
-    if (usage.contains(wren_image_usage::render)) features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
-                                                           |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+    if (usage.contains(wren_image_usage::storage)) features |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+    if (usage.contains(wren_image_usage::render))  features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                                            |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
     if (usage.contains(wren_image_usage::texture)) {
         features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
                  |  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
@@ -145,21 +147,24 @@ void wren_image_init(wren_image* image)
 {
     auto* ctx = image->ctx;
 
-    wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image->image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = image->format->vk,
-        .components {
-            .a = image->format->vk_flags.contains(wren_vk_format_flag::ignore_alpha)
-                ? VK_COMPONENT_SWIZZLE_ONE
-                : VK_COMPONENT_SWIZZLE_IDENTITY,
-        },
-        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-    }), nullptr, &image->view));
+    auto vk_usage = wren_image_usage_to_vk(image->usage);
+    if (vk_usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
+        wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = image->image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = image->format->vk,
+            .components {
+                .a = image->format->vk_flags.contains(wren_vk_format_flag::ignore_alpha)
+                    ? VK_COMPONENT_SWIZZLE_ONE
+                    : VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+        }), nullptr, &image->view));
 
-    if (image->usage.contains(wren_image_usage::texture)) {
-        wren_allocate_image_descriptor(image);
+        if (vk_usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)) {
+            wren_allocate_image_descriptor(image);
+        }
     }
 
     auto queue = wren_get_queue(ctx, wren_queue_type::transfer);
@@ -376,6 +381,14 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
     image->stats.allocation_size += mem_reqs.size;
     ctx->stats.active_image_memory += mem_reqs.size;
 
+    // Query modifier
+
+    VkImageDrmFormatModifierPropertiesEXT image_drm_format_mod_props {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT,
+    };
+    ctx->vk.GetImageDrmFormatModifierPropertiesEXT(ctx->device, image->image, &image_drm_format_mod_props);
+    image->modifier = image_drm_format_mod_props.drmFormatModifier;
+
     // Initialize
 
     wren_image_init(image.get());
@@ -394,14 +407,7 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
 
     params.extent = image->extent;
     params.format = image->format;
-
-    // Query modifier
-
-    VkImageDrmFormatModifierPropertiesEXT image_drm_format_mod_props {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT,
-    };
-    ctx->vk.GetImageDrmFormatModifierPropertiesEXT(ctx->device, image->image, &image_drm_format_mod_props);
-    params.modifier = image_drm_format_mod_props.drmFormatModifier;
+    params.modifier = image->modifier;
 
     // Query plane layouts
 
@@ -467,6 +473,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
     image->extent = params.extent;
     image->format = params.format;
     image->usage = usage;
+    image->modifier = params.modifier;
 
     static constexpr auto handle_type = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 

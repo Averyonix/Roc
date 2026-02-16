@@ -58,7 +58,8 @@ typedef wren_rect<f32> rect2f32;
 // -----------------------------------------------------------------------------
 
 [[vk::binding(0, 0)]] __DynamicResource<__DynamicResourceKind.General> wren_heap_texture[];
-[[vk::binding(1, 0)]] __DynamicResource<__DynamicResourceKind.Sampler> wren_heap_sampler[];
+[[vk::binding(1, 0)]] __DynamicResource<__DynamicResourceKind.General> wren_heap_storage[];
+[[vk::binding(2, 0)]] __DynamicResource<__DynamicResourceKind.Sampler> wren_heap_sampler[];
 
 struct wren_image_handle<T : ITexelElement>
 {
@@ -109,6 +110,12 @@ struct wren_image_handle<T : ITexelElement>
     T load(vec2u32 idx)
     {
         return wren_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()[idx];
+    }
+
+    void store(vec2u32 idx, T value)
+    {
+        wren_heap_storage[NonUniformResourceIndex(image)].as<RWTexture2D<T>>()
+            .Store(idx, value);
     }
 };
 

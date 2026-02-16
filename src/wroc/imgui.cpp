@@ -32,7 +32,7 @@ void wroc_imgui_init()
     server->imgui = wrei_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
 
-    imgui->pipeline = wren_pipeline_create(wren,
+    imgui->pipeline = wren_pipeline_create_graphics(wren,
         wren_blend_mode::postmultiplied, server->renderer->output_format,
         wroc_imgui_shader, "vertex", "fragment");
 

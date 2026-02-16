@@ -61,7 +61,7 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
 
     renderer->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    renderer->pipeline = wren_pipeline_create(wren,
+    renderer->pipeline = wren_pipeline_create_graphics(wren,
         wren_blend_mode::premultiplied, renderer->output_format,
         wroc_blit_shader, "vertex", "fragment");
 

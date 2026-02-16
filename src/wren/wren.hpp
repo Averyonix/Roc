@@ -422,6 +422,7 @@ enum class wren_image_usage : u32
     transfer     = transfer_dst | transfer_src,
     texture      = 1 << 2,
     render       = 1 << 3,
+    storage      = 1 << 4,
 };
 
 VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage>);
@@ -489,12 +490,16 @@ struct wren_pipeline : wrei_object
     ~wren_pipeline();
 };
 
-ref<wren_pipeline> wren_pipeline_create(wren_context*,
+ref<wren_pipeline> wren_pipeline_create_graphics(wren_context*,
     wren_blend_mode,
     wren_format,
     std::span<const u32> spirv,
     const char* vertex_entry,
     const char* fragment_entry);
+
+ref<wren_pipeline> wren_pipeline_create_compute(wren_context*,
+    std::span<const u32> spirv,
+    const char* entry);
 
 // -----------------------------------------------------------------------------
 
@@ -520,6 +525,7 @@ struct wren_dma_params
 struct wren_image_dmabuf : wren_image
 {
     wrei_fixed_array<VkDeviceMemory, wren_dma_max_planes> memory;
+    wren_drm_modifier modifier;
 
     struct {
         usz allocation_size;
@@ -547,6 +553,6 @@ struct wren_image_handle
 
     wren_image_handle(wren_image* image, wren_sampler* sampler)
         : image(std::to_underlying(image->id))
-        , sampler(std::to_underlying(sampler->id))
+        , sampler(sampler ? std::to_underlying(sampler->id) : 0)
     {}
 };

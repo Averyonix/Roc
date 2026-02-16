@@ -1,6 +1,31 @@
 #include "internal.hpp"
 
-ref<wren_pipeline> wren_pipeline_create(
+ref<wren_pipeline> wren_pipeline_create_compute(wren_context* ctx,
+    std::span<const u32> spirv,
+    const char* entry)
+{
+    ref pipeline = wrei_create<wren_pipeline>();
+    pipeline->ctx = ctx;
+
+    wren_check(ctx->vk.CreateComputePipelines(ctx->device, nullptr, 1, wrei_ptr_to(VkComputePipelineCreateInfo {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = VkPipelineShaderStageCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = wrei_ptr_to(VkShaderModuleCreateInfo {
+                    .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                    .codeSize = spirv.size_bytes(),
+                    .pCode = spirv.data(),
+                }),
+                .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+                .pName = "main",
+        },
+        .layout = ctx->pipeline_layout,
+    }), nullptr, &pipeline->pipeline));
+
+    return pipeline;
+}
+
+ref<wren_pipeline> wren_pipeline_create_graphics(
     wren_context* ctx,
     wren_blend_mode blend_mode,
     wren_format format,
