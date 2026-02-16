@@ -2,12 +2,13 @@
 
 WREI_OBJECT_EXPLICIT_DEFINE(wrio_context);
 
-auto wrio_context_create(std::move_only_function<wrio_event_handler> event_handler) -> ref<wrio_context>
+auto wrio_context_create(
+
+) -> ref<wrio_context>
 {
     auto ctx = wrei_create<wrio_context>();
 
     ctx->event_loop = wrei_event_loop_create();
-    ctx->event_handler = std::move(event_handler);
 
     wrio_session_init( ctx.get());
     wrio_libinput_init(ctx.get());
@@ -18,6 +19,15 @@ auto wrio_context_create(std::move_only_function<wrio_event_handler> event_handl
     ctx->wren = wren_create({}, ctx->event_loop.get(), -1);
 
     return ctx;
+}
+
+wrio_context::~wrio_context()
+{
+}
+
+void wrio_context_set_event_handler(wrio_context* ctx, std::move_only_function<wrio_event_handler>&& handler)
+{
+    ctx->event_handler = std::move(handler);
 }
 
 static
@@ -43,9 +53,15 @@ void signal_handler(int sig)
 
 void wrio_context_run(wrio_context* ctx)
 {
+    wrei_assert(ctx->event_handler);
+
     signal_context = ctx;
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+
+    if (ctx->wayland) {
+        wrio_wayland_start(ctx);
+    }
 
     wrei_event_loop_run(ctx->event_loop.get());
 

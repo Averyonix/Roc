@@ -87,6 +87,11 @@ void wrio_wayland_init(wrio_context* ctx)
     auto* wl = ctx->wayland.get();
 
     wl->wl_display = wl_display_connect(nullptr);
+}
+
+void wrio_wayland_start(wrio_context* ctx)
+{
+    auto* wl = ctx->wayland.get();
 
     wl->wl_registry = wl_display_get_registry(wl->wl_display);
     wl_registry_add_listener(wl->wl_registry, &wrio_wl_registry_listener, ctx);

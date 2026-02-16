@@ -14,7 +14,7 @@ WRIO_BACKEND(wrio_evdev);
 WRIO_BACKEND(wrio_drm);
 WRIO_BACKEND(wrio_wayland);
 
-void wrio_wayland_create_output(wrio_context*);
+void wrio_wayland_start(wrio_context*);
 
 struct wrio_context : wrei_object
 {
@@ -26,14 +26,14 @@ struct wrio_context : wrei_object
     std::vector<wrio_input_device*> input_devices;
     std::vector<wrio_output*>       outputs;
 
-    ref<wrio_layer_stack> scene;
-
     ref<wrio_udev>     udev;
     ref<wrio_session>  session;
     ref<wrio_libinput> libinput; // input_device
     ref<wrio_evdev>    evdev;    // input_device
     ref<wrio_drm>      drm;      // output
     ref<wrio_wayland>  wayland;  // output | input_device
+
+    ~wrio_context();
 };
 
 void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason);

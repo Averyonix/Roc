@@ -12,7 +12,9 @@ void wrio_output_add(wrio_output* output)
     wrio_post_event(wrei_ptr_to(wrio_event {
         .ctx = output->ctx,
         .type = wrio_event_type::output_added,
-        .output = output,
+        .output = {
+            .output = output
+        },
     }));
 }
 
@@ -22,7 +24,9 @@ void wrio_output_remove(wrio_output* output)
         wrio_post_event(wrei_ptr_to(wrio_event {
             .ctx = output->ctx,
             .type = wrio_event_type::output_removed,
-            .output = output,
+            .output = {
+                .output = output
+            },
         }));
     }
 }
@@ -62,7 +66,7 @@ ref<wren_image> acquire(wrio_output* output)
     auto wren = output->ctx->wren.get();
 
     auto format = wren_format_from_drm(DRM_FORMAT_ABGR8888);
-    auto usage = wren_image_usage::transfer_dst;
+    auto usage = wren_image_usage::transfer_dst | wren_image_usage::render;
     auto mods = wren_get_format_props(wren, format, usage)->mods;
     auto image = wren_image_create_dmabuf(wren, output->size, format, usage, mods);
 
@@ -121,6 +125,7 @@ auto render(wrio_context* ctx, wren_image* image) -> wren_syncpoint
 
     return wren_commands_submit(commands.get(), {});
 }
+
 
 void wrio_output_try_render(wrio_output* output)
 {

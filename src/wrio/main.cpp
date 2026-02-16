@@ -26,14 +26,15 @@ void handle_event(wrio_event* event)
               case wrio_event_type::input_removed:
               case wrio_event_type::output_added:
               case wrio_event_type::output_removed:
-              case wrio_event_type::output_modified:
+              case wrio_event_type::output_configure:
               case wrio_event_type::output_redraw:
-            log_trace("wrio::{}", wrei_enum_to_string(event->type));
+            log_warn("wrio::{}", wrei_enum_to_string(event->type));
     }
 }
 
 int main()
 {
-    auto wrio = wrio_context_create(handle_event);
+    auto wrio = wrio_context_create();
+    wrio_context_set_event_handler(wrio.get(), handle_event);
     wrio_context_run(wrio.get());
 }
