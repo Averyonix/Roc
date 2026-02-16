@@ -30,6 +30,16 @@ void wrio_context_set_event_handler(wrio_context* ctx, std::move_only_function<w
     ctx->event_handler = std::move(handler);
 }
 
+auto wrio_context_get_wren(wrio_context* ctx) -> wren_context*
+{
+    return ctx->wren.get();
+}
+
+auto wrio_context_get_event_loop(wrio_context* ctx) -> wrei_event_loop*
+{
+    return ctx->event_loop.get();
+}
+
 static
 weak<wrio_context> signal_context;
 

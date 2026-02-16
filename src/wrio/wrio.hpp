@@ -76,6 +76,9 @@ struct wrio_input_event
 struct wrio_output_event
 {
     wrio_output* output;
+    union {
+        wren_image* target;
+    };
 };
 
 // -----------------------------------------------------------------------------
@@ -98,13 +101,17 @@ using wrio_event_handler = void(wrio_event*);
 
 auto wrio_context_create() -> ref<wrio_context>;
 void wrio_context_set_event_handler(wrio_context*, std::move_only_function<wrio_event_handler>&&);
+auto wrio_context_get_wren(wrio_context*) -> wren_context*;
+auto wrio_context_get_event_loop(wrio_context*) -> wrei_event_loop*;
 void wrio_context_run(wrio_context*);
 void wrio_context_stop(wrio_context*);
 
 auto wrio_context_list_input_devices(wrio_context*) -> std::span<wrio_input_device*>;
 auto wrio_context_list_outputs(      wrio_context*) -> std::span<wrio_output*>;
 
-auto wrio_context_add_output(wrio_context*) -> wrio_output*;
+void wrio_context_add_output(wrio_context*);
 void wrio_context_close_output(wrio_output*);
 
-void wrio_output_request_frame(wrio_output*);
+auto wrio_output_get_size(wrio_output*) -> vec2u32;
+void wrio_output_request_frame(wrio_output*, flags<wren_image_usage>);
+void wrio_output_present(wrio_output*, wren_image*, wren_syncpoint);

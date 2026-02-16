@@ -3,8 +3,20 @@
 static
 void configure(void* udata, xdg_surface* xdg_surface, u32 serial)
 {
+    auto* output = static_cast<wrio_output_wayland*>(udata);
+
     xdg_surface_ack_configure(xdg_surface, serial);
-    wrio_output_try_render(static_cast<wrio_output_wayland*>(udata));
+    wl_surface_commit(output->wl_surface);
+
+    bool post_configure = false;
+
+    post_configure |= output->size != output->configure.size;
+    output->size = output->configure.size;
+
+    if (post_configure) {
+        wrio_output_post_configure(output);
+    }
+    wrio_output_try_redraw_later(output);
 }
 
 WRIO_WL_LISTENER(xdg_surface) = {
@@ -23,7 +35,8 @@ static
 void toplevel_configure(void* udata, xdg_toplevel* toplevel, i32 width, i32 height, wl_array* states)
 {
     auto output = static_cast<wrio_output_wayland*>(udata);
-    output->size = (width && height) ? vec2i32{width, height} : vec2i32{1920, 1080};
+
+    output->configure.size = (width && height) ? vec2i32{width, height} : vec2i32{1920, 1080};
 }
 
 static
@@ -65,10 +78,10 @@ WRIO_WL_LISTENER(zwp_locked_pointer_v1) = {
     },
 };
 
-auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
+void wrio_context_add_output(wrio_context* ctx)
 {
     auto* wl = ctx->wayland.get();
-    if (!wl) return nullptr;
+    if (!wl) return;
 
     static u32 window_id = 0;
     auto title = std::format("WL-{}", ++window_id);
@@ -109,8 +122,6 @@ auto wrio_context_add_output(wrio_context* ctx) -> wrio_output*
     wl_display_flush(wl->wl_display);
 
     wrio_output_add(output.get());
-
-    return output.get();
 }
 
 // -----------------------------------------------------------------------------
@@ -164,7 +175,7 @@ void on_present_frame(void* udata, wl_callback*, u32 time)
 
     if (!output->commit_available) {
         output->commit_available = true;
-        wrio_output_try_render(output);
+        wrio_output_try_redraw(output);
     }
 }
 

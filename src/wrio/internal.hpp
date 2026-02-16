@@ -65,6 +65,9 @@ struct wrio_output : wrei_object
 {
     wrio_context* ctx;
 
+    bool frame_requested;
+    flags<wren_image_usage> requested_usage;
+
     vec2u32 size;
 
     wrio_swapchain swapchain;
@@ -76,7 +79,9 @@ struct wrio_output : wrei_object
     ~wrio_output();
 };
 
-void wrio_output_try_render(wrio_output*);
+void wrio_output_try_redraw(wrio_output*);
+void wrio_output_try_redraw_later(wrio_output*);
+void wrio_output_post_configure(wrio_output*);
 
 void wrio_output_add(   wrio_output*);
 void wrio_output_remove(wrio_output*);

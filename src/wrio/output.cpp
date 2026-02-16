@@ -38,8 +38,10 @@ ref<wren_image> acquire(wrio_output* output)
 {
     auto& swapchain = output->swapchain;
 
-    // Clear out any incorrectly sized images
-    std::erase_if(swapchain.free_images, [&](auto& i) { return i->extent != output->size; });
+    // Clear out any images that don't meet requirements
+    std::erase_if(swapchain.free_images, [&](auto& i) {
+        return i->extent != output->size || i->usage != output->requested_usage;
+    });
 
     // Clear out any other free images if we have too many in flight
     auto total_images = swapchain.free_images.size() + swapchain.images_in_flight;
@@ -66,9 +68,8 @@ ref<wren_image> acquire(wrio_output* output)
     auto wren = output->ctx->wren.get();
 
     auto format = wren_format_from_drm(DRM_FORMAT_ABGR8888);
-    auto usage = wren_image_usage::transfer_dst | wren_image_usage::render;
-    auto mods = wren_get_format_props(wren, format, usage)->mods;
-    auto image = wren_image_create_dmabuf(wren, output->size, format, usage, mods);
+    auto mods = wren_get_format_props(wren, format, output->requested_usage)->mods;
+    auto image = wren_image_create_dmabuf(wren, output->size, format, output->requested_usage, mods);
 
     return image;
 }
@@ -83,11 +84,10 @@ void release(wrio_output* output, u32 slot_idx, u64 signalled)
     output->swapchain.free_images.emplace_back(std::move(slot.image));
     output->swapchain.images_in_flight--;
 
-    wrio_output_try_render(output);
+    wrio_output_try_redraw(output);
 }
 
-static
-void present(wrio_output* output, wren_image* image, wren_syncpoint acquire)
+void wrio_output_present(wrio_output* output, wren_image* image, wren_syncpoint acquire)
 {
     auto& swapchain = output->swapchain;
 
@@ -112,31 +112,55 @@ void present(wrio_output* output, wren_image* image, wren_syncpoint acquire)
         });
 }
 
-static
-auto render(wrio_context* ctx, wren_image* image) -> wren_syncpoint
+void wrio_output_try_redraw(wrio_output* output)
 {
-    auto wren = ctx->wren.get();
-
-    auto queue = wren_get_queue(wren, wren_queue_type::graphics);
-    auto commands = wren_commands_begin(queue);
-    wren->vk.CmdClearColorImage(commands->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL,
-        wrei_ptr_to(VkClearColorValue{.float32{1,0,0,1}}),
-        1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
-
-    return wren_commands_submit(commands.get(), {});
-}
-
-
-void wrio_output_try_render(wrio_output* output)
-{
-    auto* ctx = output->ctx;
-
+    if (!output->frame_requested) return;
     if (!output->commit_available) return;
+    if (!output->size.x || !output->size.y) return;
 
     auto image = acquire(output);
     if (!image) return;
 
-    auto done = render(ctx, image.get());
+    output->frame_requested = false;
 
-    present(output, image.get(), done);
+    wrio_post_event(wrei_ptr_to(wrio_event {
+        .ctx = output->ctx,
+        .type = wrio_event_type::output_redraw,
+        .output = {
+            .output = output,
+            .target = image.get(),
+        }
+    }));
+}
+
+void wrio_output_try_redraw_later(wrio_output* output)
+{
+    wrei_event_loop_enqueue(output->ctx->event_loop.get(), [output = weak(output)] {
+        if (output) {
+            wrio_output_try_redraw(output.get());
+        }
+    });
+}
+
+void wrio_output_request_frame(wrio_output* output, flags<wren_image_usage> usage)
+{
+    output->frame_requested = true;
+    output->requested_usage = usage;
+    wrio_output_try_redraw_later(output);
+}
+
+auto wrio_output_get_size(wrio_output* output) -> vec2u32
+{
+    return output->size;
+}
+
+void wrio_output_post_configure(wrio_output* output)
+{
+    wrio_post_event(wrei_ptr_to(wrio_event {
+        .ctx = output->ctx,
+        .type = wrio_event_type::output_configure,
+        .output = {
+            .output = output,
+        }
+    }));
 }

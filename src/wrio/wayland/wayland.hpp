@@ -103,6 +103,10 @@ struct wrio_output_wayland : wrio_output
     wl_callback* frame_callback = {};
     bool pointer_locked = false;
 
+    struct {
+        vec2u32 size;
+    } configure;
+
     virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag>) final override;
 
     ~wrio_output_wayland();
