@@ -2,21 +2,18 @@
 
 WREI_OBJECT_EXPLICIT_DEFINE(wrio_context);
 
-auto wrio_context_create(
-
-) -> ref<wrio_context>
+auto wrio_context_create(wrei_event_loop* event_loop, wren_context* wren) -> ref<wrio_context>
 {
     auto ctx = wrei_create<wrio_context>();
 
-    ctx->event_loop = wrei_event_loop_create();
+    ctx->event_loop = event_loop;
+    ctx->wren = wren;
 
     wrio_session_init( ctx.get());
     wrio_libinput_init(ctx.get());
     wrio_evdev_init(   ctx.get());
     wrio_drm_init(     ctx.get());
     wrio_wayland_init( ctx.get());
-
-    ctx->wren = wren_create({}, ctx->event_loop.get(), -1);
 
     return ctx;
 }
@@ -28,16 +25,6 @@ wrio_context::~wrio_context()
 void wrio_context_set_event_handler(wrio_context* ctx, std::move_only_function<wrio_event_handler>&& handler)
 {
     ctx->event_handler = std::move(handler);
-}
-
-auto wrio_context_get_wren(wrio_context* ctx) -> wren_context*
-{
-    return ctx->wren.get();
-}
-
-auto wrio_context_get_event_loop(wrio_context* ctx) -> wrei_event_loop*
-{
-    return ctx->event_loop.get();
 }
 
 static
@@ -73,7 +60,7 @@ void wrio_context_run(wrio_context* ctx)
         wrio_wayland_start(ctx);
     }
 
-    wrei_event_loop_run(ctx->event_loop.get());
+    wrei_event_loop_run(ctx->event_loop);
 
     signal_context = nullptr;
     signal(SIGINT, SIG_DFL);
@@ -82,7 +69,7 @@ void wrio_context_run(wrio_context* ctx)
 
 void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason)
 {
-    wrei_event_loop_enqueue(ctx->event_loop.get(), [ctx, reason] {
+    wrei_event_loop_enqueue(ctx->event_loop, [ctx, reason] {
         wrio_post_event(wrei_ptr_to(wrio_event {
             .ctx = ctx,
             .type = wrio_event_type::shutdown_requested,
@@ -95,7 +82,7 @@ void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reaso
 
 void wrio_context_stop(wrio_context* ctx)
 {
-    wrei_event_loop_stop(ctx->event_loop.get());
+    wrei_event_loop_stop(ctx->event_loop);
 }
 
 void wrio_post_event(wrio_event* event)

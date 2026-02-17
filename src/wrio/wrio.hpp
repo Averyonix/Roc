@@ -99,10 +99,8 @@ using wrio_event_handler = void(wrio_event*);
 
 // -----------------------------------------------------------------------------
 
-auto wrio_context_create() -> ref<wrio_context>;
+auto wrio_context_create(wrei_event_loop*, wren_context*) -> ref<wrio_context>;
 void wrio_context_set_event_handler(wrio_context*, std::move_only_function<wrio_event_handler>&&);
-auto wrio_context_get_wren(wrio_context*) -> wren_context*;
-auto wrio_context_get_event_loop(wrio_context*) -> wrei_event_loop*;
 void wrio_context_run(wrio_context*);
 void wrio_context_stop(wrio_context*);
 

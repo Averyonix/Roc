@@ -103,7 +103,7 @@ void wrio_wayland_start(wrio_context* ctx)
     wl_display_roundtrip(wl->wl_display);
 
     wl->wl_display_fd = wrei_fd_reference(wl_display_get_fd(wl->wl_display));
-    wrei_fd_set_listener(wl->wl_display_fd.get(), ctx->event_loop.get(), wrei_fd_event_bit::readable,
+    wrei_fd_set_listener(wl->wl_display_fd.get(), ctx->event_loop, wrei_fd_event_bit::readable,
         [ctx = weak(ctx)](wrei_fd*, wrei_fd_event_bits events) {
             if (ctx) display_read(ctx.get(), events);
         });

@@ -333,25 +333,16 @@ void drm_handle_event(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_b
 
 void wroc_backend_init_drm(wroc_direct_backend* backend)
 {
-    int drm_fd = -1;
-    {
-        auto num_devices = drmGetDevices2(0, nullptr, 0);
-        std::vector<drmDevice*> devices(num_devices);
-        num_devices = drmGetDevices2(0, devices.data(), devices.size());
-        devices.resize(std::min(devices.size(), usz(num_devices)));
-        defer { drmFreeDevices(devices.data(), devices.size()); };
+    int drm_fd = [&] {
+        auto* device = server->wren->drm.device;
+        if (!(device->available_nodes & (1 << DRM_NODE_PRIMARY))) return -1;
+        auto* opened = wroc_open_restricted(backend, server->wren->drm.device->nodes[DRM_NODE_PRIMARY]);
+        if (!opened) return -1;
+        return opened->fd;
+    }();
 
-        for (auto candidate : devices) {
-            if (!(candidate->available_nodes & (1 << DRM_NODE_PRIMARY))) continue;
-
-            auto device = wroc_open_restricted(backend, candidate->nodes[DRM_NODE_PRIMARY]);
-            if (!device) continue;
-
-            drm_fd = device->fd;
-        }
-    }
     if (drm_fd < 0) {
-        log_error("Failed to find suitable DRM node for direct backend!");
+        log_error("Failed to open DRM primary node for render device!");
         wrei_debugkill();
     }
 

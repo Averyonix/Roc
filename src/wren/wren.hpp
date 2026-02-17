@@ -188,8 +188,11 @@ struct wren_context : wrei_object
     VkPhysicalDevice physical_device;
     VkDevice device;
 
-    dev_t drm_id;
-    int   drm_fd;
+    struct {
+        drmDevice* device;
+        dev_t      id;
+        int        fd;
+    } drm;
 
     VmaAllocator vma;
 
@@ -223,7 +226,7 @@ struct wren_context : wrei_object
     ~wren_context();
 };
 
-ref<wren_context> wren_create(flags<wren_feature>, wrei_event_loop*, int drm_fd);
+ref<wren_context> wren_create(flags<wren_feature>, wrei_event_loop*);
 
 // -----------------------------------------------------------------------------
 

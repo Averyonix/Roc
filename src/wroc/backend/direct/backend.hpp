@@ -77,11 +77,6 @@ struct wroc_direct_backend : wroc_backend
     virtual void init() final override;
     virtual void start() final override;
 
-    virtual int get_preferred_drm_device() final override
-    {
-        return drm_fd->get();
-    };
-
     wren_format_set format_set;
 
     virtual const wren_format_set& get_output_format_set() final override

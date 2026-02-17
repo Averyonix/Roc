@@ -1,10 +1,8 @@
 #include "wrio.hpp"
 
 static
-void render(wrio_context* ctx, wrio_output* output, wren_image* image)
+void render(wren_context* wren, wrio_output* output, wren_image* image)
 {
-    auto wren = wrio_context_get_wren(ctx);
-
     auto queue = wren_get_queue(wren, wren_queue_type::graphics);
     auto commands = wren_commands_begin(queue);
 
@@ -17,7 +15,7 @@ void render(wrio_context* ctx, wrio_output* output, wren_image* image)
 }
 
 static
-void handle_event(wrio_event* event)
+void handle_event(wren_context* wren, wrio_event* event)
 {
     auto& input = event->input;
 
@@ -41,7 +39,7 @@ void handle_event(wrio_event* event)
             log_info("wrio::output_configure{}", wrei_to_string(wrio_output_get_size(event->output.output)));
             wrio_output_request_frame(event->output.output, wren_image_usage::transfer_dst);
         break;case wrio_event_type::output_redraw:
-            render(event->ctx, event->output.output, event->output.target);
+            render(wren, event->output.output, event->output.target);
         break;case wrio_event_type::input_added:
               case wrio_event_type::input_removed:
               case wrio_event_type::output_added:
@@ -52,7 +50,11 @@ void handle_event(wrio_event* event)
 
 int main()
 {
-    auto wrio = wrio_context_create();
-    wrio_context_set_event_handler(wrio.get(), handle_event);
+    auto event_loop = wrei_event_loop_create();
+    auto wren = wren_create({}, event_loop.get());
+    auto wrio = wrio_context_create(event_loop.get(), wren.get());
+    wrio_context_set_event_handler(wrio.get(), [wren = wren.get()](wrio_event* event) {
+        handle_event(wren, event);
+    });
     wrio_context_run(wrio.get());
 }

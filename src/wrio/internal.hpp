@@ -20,8 +20,8 @@ struct wrio_context : wrei_object
 {
     std::move_only_function<wrio_event_handler> event_handler;
 
-    ref<wrei_event_loop> event_loop;
-    ref<wren_context>    wren;
+    wrei_event_loop* event_loop;
+    wren_context*    wren;
 
     std::vector<wrio_input_device*> input_devices;
     std::vector<wrio_output*>       outputs;

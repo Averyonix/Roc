@@ -34,6 +34,9 @@ wren_context::~wren_context()
     vk.DestroyDevice(device, nullptr);
     vk.DestroyDebugUtilsMessengerEXT(instance, debug_messenger, nullptr);
     vk.DestroyInstance(instance, nullptr);
+
+    drmFreeDevice(&drm.device);
+    close(drm.fd);
 }
 
 static
@@ -53,7 +56,7 @@ std::array required_device_extensions = {
 };
 
 static
-bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat* drm_stat)
+bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev)
 {
     {
         VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
@@ -100,46 +103,33 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev, struct stat*
     dev_t primary_dev_id = makedev(drm_props.primaryMajor, drm_props.primaryMinor);
     dev_t render_dev_id = makedev(drm_props.renderMajor, drm_props.renderMinor);
 
-    if (drm_stat) {
-        if (drm_props.hasPrimary && primary_dev_id == drm_stat->st_rdev) {
-            log_debug("  matched primary device id");
-        } else if (drm_props.hasRender && render_dev_id == drm_stat->st_rdev) {
-            log_debug("  matched secondary device id");
-        } else {
-            log_warn("  device does not matched requested drm fd");
-            return false;
-        }
-    } else {
-        if (!drm_props.hasPrimary && !drm_props.hasRender) {
-            log_warn("  device has no primary or render node");
-            return false;
-        }
+    if (!drm_props.hasPrimary && !drm_props.hasRender) {
+        log_warn("  device has no primary or render node");
+        return false;
     }
 
     // Prefer to open the render node for normal render operations,
     //   even the requested drm was opened from a primary node
 
-    ctx->drm_id = drm_props.hasRender ? render_dev_id : primary_dev_id;
-    log_debug("  device id: {} ({})", ctx->drm_id, drm_props.hasRender ? "render" : "primary");
+    ctx->drm.id = drm_props.hasRender ? render_dev_id : primary_dev_id;
+    log_debug("  device id: {} ({})", ctx->drm.id, drm_props.hasRender ? "render" : "primary");
 
     // Open
 
-    drmDevice* device = nullptr;
-    unix_check(drmGetDeviceFromDevId(ctx->drm_id, 0, &device));
-    defer { drmFreeDevice(&device); };
+    unix_check(drmGetDeviceFromDevId(ctx->drm.id, 0, &ctx->drm.device));
     const char* name = nullptr;
 
-    if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
-        name = device->nodes[DRM_NODE_RENDER];
+    if (ctx->drm.device->available_nodes & (1 << DRM_NODE_RENDER)) {
+        name = ctx->drm.device->nodes[DRM_NODE_RENDER];
     } else {
-        wrei_assert(device->available_nodes & (1 << DRM_NODE_PRIMARY));
-        name = device->nodes[DRM_NODE_PRIMARY];
+        wrei_assert(ctx->drm.device->available_nodes & (1 << DRM_NODE_PRIMARY));
+        name = ctx->drm.device->nodes[DRM_NODE_PRIMARY];
         log_warn("  device {} has no render node, falling back to primary node", name);
     }
 
     log_debug("  device path: {}", name);
-    ctx->drm_fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-    log_debug("  drm fd: {}", ctx->drm_fd);
+    ctx->drm.fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    log_debug("  drm fd: {}", ctx->drm.fd);
 
     log_info("  device selected");
 
@@ -205,7 +195,7 @@ VkBool32 VKAPI_CALL debug_callback(
     return VK_FALSE;
 }
 
-ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* event_loop, int drm_fd)
+ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* event_loop)
 {
     auto ctx = wrei_create<wren_context>();
     ctx->features = _features;
@@ -272,20 +262,10 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
     std::vector<VkPhysicalDevice> physical_devices;
     wren_vk_enumerate(physical_devices, ctx->vk.EnumeratePhysicalDevices, ctx->instance);
 
-    {
-        struct stat drm_stat;
-        if (drm_fd >= 0) {
-            if (unix_check(fstat(drm_fd, &drm_stat)).err()) {
-                log_error("Wren initialization failed - failed to fstat requested drm fd");
-                return nullptr;
-            }
-            log_debug("Matching against requested DRM {} (id: {})", drm_fd, drm_stat.st_rdev);
-        }
-        for (auto& phdev : physical_devices) {
-            if (try_physical_device(ctx.get(), phdev, drm_fd >= 0 ? &drm_stat : nullptr)) {
-                ctx->physical_device = phdev;
-                break;
-            }
+    for (auto& phdev : physical_devices) {
+        if (try_physical_device(ctx.get(), phdev)) {
+            ctx->physical_device = phdev;
+            break;
         }
     }
 

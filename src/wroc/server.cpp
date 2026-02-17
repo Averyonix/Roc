@@ -154,18 +154,18 @@ void wroc_run(int argc, char* argv[])
 
     wroc_output_layout_init();
 
+    // Wren
+
+    log_info("Initializing wren");
+    auto wren = wren_create(wren_features, event_loop.get());
+    server->wren = wren.get();
+
     // Backend
 
     log_info("Initializing backend");
     server->backend = wroc_backend_create(backend_type);
     server->backend->init();
     log_info("Backend initialized");
-
-    // Wren
-
-    log_info("Initializing wren");
-    auto wren = wren_create(wren_features, event_loop.get(), server->backend->get_preferred_drm_device());
-    server->wren = wren.get();
 
     // Renderer
 

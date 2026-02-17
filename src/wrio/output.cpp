@@ -65,7 +65,7 @@ ref<wren_image> acquire(wrio_output* output)
 
     log_warn("Creating new swapchain image {}", wrei_to_string(output->size));
 
-    auto wren = output->ctx->wren.get();
+    auto wren = output->ctx->wren;
 
     auto format = wren_format_from_drm(DRM_FORMAT_ABGR8888);
     auto mods = wren_get_format_props(wren, format, output->requested_usage)->mods;
@@ -94,7 +94,7 @@ void wrio_output_present(wrio_output* output, wren_image* image, wren_syncpoint 
     auto slot = std::ranges::find_if(swapchain.release_slots, [](auto& s) { return !s.image; });
     if (slot == swapchain.release_slots.end()) {
         slot = swapchain.release_slots.insert(swapchain.release_slots.end(), wrio_swapchain::release_slot {
-            .semaphore = wren_semaphore_create(output->ctx->wren.get()),
+            .semaphore = wren_semaphore_create(output->ctx->wren),
         });
     }
 
@@ -135,7 +135,7 @@ void wrio_output_try_redraw(wrio_output* output)
 
 void wrio_output_try_redraw_later(wrio_output* output)
 {
-    wrei_event_loop_enqueue(output->ctx->event_loop.get(), [output = weak(output)] {
+    wrei_event_loop_enqueue(output->ctx->event_loop, [output = weak(output)] {
         if (output) {
             wrio_output_try_redraw(output.get());
         }
