@@ -2,7 +2,7 @@
 
 WREI_OBJECT_EXPLICIT_DEFINE(wrio_context);
 
-auto wrio_context_create(wrei_event_loop* event_loop, wren_context* wren) -> ref<wrio_context>
+auto wrio_create(wrei_event_loop* event_loop, wren_context* wren) -> ref<wrio_context>
 {
     auto ctx = wrei_create<wrio_context>();
 
@@ -22,7 +22,7 @@ wrio_context::~wrio_context()
 {
 }
 
-void wrio_context_set_event_handler(wrio_context* ctx, std::move_only_function<wrio_event_handler>&& handler)
+void wrio_set_event_handler(wrio_context* ctx, std::move_only_function<wrio_event_handler>&& handler)
 {
     ctx->event_handler = std::move(handler);
 }
@@ -42,13 +42,13 @@ void signal_handler(int sig)
 
     switch (sig) {
         break;case SIGTERM:
-            wrio_context_request_shutdown(signal_context.get(), wrio_shutdown_reason::terminate_receieved);
+            wrio_request_shutdown(signal_context.get(), wrio_shutdown_reason::terminate_receieved);
         break;case SIGINT:
-            wrio_context_request_shutdown(signal_context.get(), wrio_shutdown_reason::interrupt_receieved);
+            wrio_request_shutdown(signal_context.get(), wrio_shutdown_reason::interrupt_receieved);
     }
 }
 
-void wrio_context_run(wrio_context* ctx)
+void wrio_run(wrio_context* ctx)
 {
     wrei_assert(ctx->event_handler);
 
@@ -67,7 +67,7 @@ void wrio_context_run(wrio_context* ctx)
     signal(SIGTERM, SIG_IGN);
 }
 
-void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason)
+void wrio_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason)
 {
     wrei_event_loop_enqueue(ctx->event_loop, [ctx, reason] {
         wrio_post_event(wrei_ptr_to(wrio_event {
@@ -80,7 +80,7 @@ void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reaso
     });
 }
 
-void wrio_context_stop(wrio_context* ctx)
+void wrio_stop(wrio_context* ctx)
 {
     wrei_event_loop_stop(ctx->event_loop);
 }

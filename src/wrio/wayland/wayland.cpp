@@ -108,7 +108,7 @@ void wrio_wayland_start(wrio_context* ctx)
             if (ctx) display_read(ctx.get(), events);
         });
 
-    wrio_context_add_output(ctx);
+    wrio_add_output(ctx);
 }
 
 wrio_wayland::~wrio_wayland()

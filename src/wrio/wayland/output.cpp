@@ -46,7 +46,7 @@ void toplevel_close(void* udata, xdg_toplevel*)
     auto* ctx = output->ctx;
     std::erase_if(ctx->wayland->outputs, wrei_object_equals{output});
     if (ctx->wayland->outputs.empty()) {
-        wrio_context_request_shutdown(ctx, wrio_shutdown_reason::no_more_outputs);
+        wrio_request_shutdown(ctx, wrio_shutdown_reason::no_more_outputs);
     }
 }
 
@@ -78,7 +78,7 @@ WRIO_WL_LISTENER(zwp_locked_pointer_v1) = {
     },
 };
 
-void wrio_context_add_output(wrio_context* ctx)
+void wrio_add_output(wrio_context* ctx)
 {
     auto* wl = ctx->wayland.get();
     if (!wl) return;

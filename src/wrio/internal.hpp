@@ -36,7 +36,7 @@ struct wrio_context : wrei_object
     ~wrio_context();
 };
 
-void wrio_context_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason);
+void wrio_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason);
 
 // -----------------------------------------------------------------------------
 

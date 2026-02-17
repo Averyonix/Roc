@@ -211,6 +211,20 @@ target_link_libraries(wrio-test PUBLIC wrio)
 
 # ------------------------------------------------------------------------------
 
+init_library(wrui)
+target_sources(wrui PUBLIC
+    src/wrui/wrui.cpp
+    src/wrui/render.cpp
+    src/wrui/scene.cpp
+    )
+target_link_libraries(wrui PUBLIC wrio)
+
+init_executable(wrui-test)
+target_sources(wrui-test PUBLIC src/wrui/main.cpp)
+target_link_libraries(wrui-test PUBLIC wrui)
+
+# ------------------------------------------------------------------------------
+
 init_executable(wroc)
 target_sources(wroc PUBLIC
     src/wroc/client.cpp

@@ -1,21 +1,10 @@
-#include "wrio.hpp"
+#include "internal.hpp"
+
+WREI_OBJECT_EXPLICIT_DEFINE(wrui_context);
+WREI_OBJECT_EXPLICIT_DEFINE(wrui_window);
 
 static
-void render(wren_context* wren, wrio_output* output, wren_image* image)
-{
-    auto queue = wren_get_queue(wren, wren_queue_type::graphics);
-    auto commands = wren_commands_begin(queue);
-
-    wren->vk.CmdClearColorImage(commands->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL,
-        wrei_ptr_to(VkClearColorValue{.float32{1,0,0,1}}),
-        1, wrei_ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
-
-    auto done = wren_commands_submit(commands.get(), {});
-    wrio_output_present(output, image, done);
-}
-
-static
-void handle_event(wren_context* wren, wrio_event* event)
+void handle_wrio_event(wrui_context* ctx, struct wrio_event* event)
 {
     auto& input = event->input;
 
@@ -32,14 +21,14 @@ void handle_event(wren_context* wren, wrio_event* event)
         break;case wrio_event_type::input_key_release:
             log_info("wrio::input_key_release({})", libevdev_event_code_get_name(EV_KEY, input.key));
         break;case wrio_event_type::input_pointer_motion:
-            log_info("wrio::input_pointer_motion{}", wrei_to_string(input.motion));
+            // log_info("wrio::input_pointer_motion{}", wrei_to_string(input.motion));
         break;case wrio_event_type::input_pointer_axis:
             log_info("wrio::input_pointer_axis({}, {})", wrei_enum_to_string(input.axis.axis), input.axis.delta);
         break;case wrio_event_type::output_configure:
             log_info("wrio::output_configure{}", wrei_to_string(wrio_output_get_size(event->output.output)));
-            wrio_output_request_frame(event->output.output, wren_image_usage::transfer_dst);
+            wrio_output_request_frame(event->output.output, wren_image_usage::render);
         break;case wrio_event_type::output_redraw:
-            render(wren, event->output.output, event->output.target);
+            wrui_render(ctx, event->output.output, event->output.target);
         break;case wrio_event_type::input_added:
               case wrio_event_type::input_removed:
               case wrio_event_type::output_added:
@@ -48,13 +37,41 @@ void handle_event(wren_context* wren, wrio_event* event)
     }
 }
 
-int main()
+auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
 {
-    auto event_loop = wrei_event_loop_create();
-    auto wren = wren_create({}, event_loop.get());
-    auto wrio = wrio_create(event_loop.get(), wren.get());
-    wrio_set_event_handler(wrio.get(), [wren = wren.get()](wrio_event* event) {
-        handle_event(wren, event);
+    auto wrui = wrei_create<wrui_context>();
+
+    wrui->wren = wren;
+    wrio_set_event_handler(wrio, [&](wrio_event* event) {
+        handle_wrio_event(wrui.get(), event);
     });
-    wrio_run(wrio.get());
+
+    wrui->scene = wrui_tree_create(wrui.get());
+    wrui->root_transform = wrui_transform_create(wrui.get());
+
+    wrui_render_init(wrui.get());
+
+    return wrui;
+}
+
+auto wrui_get_scene(wrui_context* ctx) -> wrui_scene
+{
+    return { ctx->scene.get(), ctx->root_transform.get() };
+}
+
+auto wrui_window_create(wrui_context* ctx) -> ref<wrui_window>
+{
+    auto window = wrei_create<wrui_window>();
+    window->ctx = ctx;
+
+    window->transform = wrui_transform_create(ctx);
+    wrui_node_set_transform(window->transform.get(), ctx->root_transform.get());
+
+    window->tree = wrui_tree_create(ctx);
+    wrui_tree_place_above(ctx->scene.get(), nullptr, window->tree.get());
+
+    window->decorations = wrui_tree_create(ctx);
+    wrui_tree_place_above(window->tree.get(), nullptr, window->decorations.get());
+
+    return window;
 }

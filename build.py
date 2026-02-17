@@ -103,7 +103,7 @@ def cmake_build(src_dir: Path, build_dir: Path, install_dir, opts: list[str]):
     if not build_dir.exists() or args.update:
         cmd  = ["cmake", "-B", build_dir.absolute(), "-G", "Ninja"]
         cmd += [f"-DCMAKE_INSTALL_PREFIX={install_dir.absolute()}"]
-        cmd += ["-DCMAKE_INSTALL_MESSAGE=LAZY"]
+        cmd += [ "-DCMAKE_INSTALL_MESSAGE=LAZY"]
         cmd += opts
         subprocess.run(cmd, cwd=src_dir)
 
@@ -220,6 +220,7 @@ def build_shaders():
     shaders = [
         ("src/wroc/shaders/blit.slang", "wroc_blit_shader"),
         ("src/wroc/shaders/imgui.slang", "wroc_imgui_shader"),
+        ("src/wrui/render.slang", "wrui_render_shader"),
     ]
 
     shader_include_dirs = [

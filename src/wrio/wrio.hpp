@@ -99,16 +99,16 @@ using wrio_event_handler = void(wrio_event*);
 
 // -----------------------------------------------------------------------------
 
-auto wrio_context_create(wrei_event_loop*, wren_context*) -> ref<wrio_context>;
-void wrio_context_set_event_handler(wrio_context*, std::move_only_function<wrio_event_handler>&&);
-void wrio_context_run(wrio_context*);
-void wrio_context_stop(wrio_context*);
+auto wrio_create(wrei_event_loop*, wren_context*) -> ref<wrio_context>;
+void wrio_set_event_handler(wrio_context*, std::move_only_function<wrio_event_handler>&&);
+void wrio_run(wrio_context*);
+void wrio_stop(wrio_context*);
 
-auto wrio_context_list_input_devices(wrio_context*) -> std::span<wrio_input_device*>;
-auto wrio_context_list_outputs(      wrio_context*) -> std::span<wrio_output*>;
+auto wrio_list_input_devices(wrio_context*) -> std::span<wrio_input_device*>;
+auto wrio_list_outputs(      wrio_context*) -> std::span<wrio_output*>;
 
-void wrio_context_add_output(wrio_context*);
-void wrio_context_close_output(wrio_output*);
+void wrio_add_output(wrio_context*);
+void wrio_close_output(wrio_output*);
 
 auto wrio_output_get_size(wrio_output*) -> vec2u32;
 void wrio_output_request_frame(wrio_output*, flags<wren_image_usage>);
