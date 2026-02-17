@@ -1,5 +1,3 @@
-#include "imgui.h"
-
 struct ImDrawVert
 {
     vec2f32 pos;
@@ -7,7 +5,9 @@ struct ImDrawVert
     vec4u8 color;
 };
 
-[vk::push_constant] wroc_imgui_shader_in pc;
+#include "imgui.h"
+
+[vk::push_constant] wroc_imgui_shader_in si;
 
 struct vertex_output
 {
@@ -19,9 +19,9 @@ struct vertex_output
 [shader("vertex")]
 vertex_output vertex(u32 id : SV_VulkanVertexID)
 {
-    var v = pc.vertices[id];
+    var v = si.vertices[id];
     vertex_output out;
-    out.pos = vec4f32((v.pos * pc.scale) + pc.offset, 0, 1);
+    out.pos = vec4f32((v.pos * si.scale) + si.offset, 0, 1);
     out.uv = v.uv;
     out.color = wrei_unpack_unorm4u8(v.color);
     return out;
@@ -30,5 +30,5 @@ vertex_output vertex(u32 id : SV_VulkanVertexID)
 [shader("fragment")]
 vec4f32 fragment(in vertex_output vout)
 {
-    return pc.texture.sample(vout.uv) * vout.color;
+    return si.texture.sample(vout.uv) * vout.color;
 }
