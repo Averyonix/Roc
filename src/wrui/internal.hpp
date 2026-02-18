@@ -27,7 +27,13 @@ struct wrui_window
 {
     wrui_context* ctx;
 
+    std::move_only_function<wrui_event_handle_fn> event_handler;
+
+    vec2u32 size;
+    bool mapped;
+
     ref<wrui_tree> tree;
-    ref<wrui_tree> decorations;
     ref<wrui_transform> transform;
+
+    ~wrui_window();
 };

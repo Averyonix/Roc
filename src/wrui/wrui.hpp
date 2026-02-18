@@ -92,6 +92,7 @@ void wrui_texture_damage(   wrui_texture*, aabb2f32 damage);
 
 // -----------------------------------------------------------------------------
 
+// Represents a normal interactable "toplevel" window.
 struct wrui_window;
 WREI_OBJECT_EXPLICIT_DECLARE(wrui_window);
 
@@ -110,16 +111,18 @@ struct wrui_event
     };
 };
 
+using wrui_event_handle_fn = void(wrui_event*);
+
 auto wrui_window_create(wrui_context*) -> ref<wrui_window>;
-void wrui_window_set_event_handler(wrui_window*, std::move_only_function<void(wrui_event*)> event_handler);
+void wrui_window_set_event_handler(wrui_window*, std::move_only_function<wrui_event_handle_fn>&&);
+// Adds the window to the UI scene. In response to this event
+// the window may be repositioned and/or resized to fit in layout.
+void wrui_window_map(wrui_window*);
+// Removes the window from the scene.
+void wrui_window_unmap(wrui_window*);
 // Sets the window frame size for decorations and layout placement.
 void wrui_window_set_size(wrui_window*, vec2u32);
 // Get the window tree, this is used to attach window contents to
 auto wrui_window_get_tree(wrui_window*) -> wrui_tree*;
-// Returns the subtree in which decorations are placed.
-// If not null, this entry is a child of `get_tree`.
-// This can be pass as `reference` to `place_[below/above]` when
-// ordering subsurfaces.
-auto wrui_window_get_decorations(wrui_window*) -> wrui_tree*;
 // Get the window transform, this is used to anchor window contents to
 auto wrui_window_get_transform(wrui_window*) -> wrui_transform*;

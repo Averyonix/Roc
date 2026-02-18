@@ -42,6 +42,7 @@ auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
     auto wrui = wrei_create<wrui_context>();
 
     wrui->wren = wren;
+
     wrio_set_event_handler(wrio, [&](wrio_event* event) {
         handle_wrio_event(wrui.get(), event);
     });
@@ -57,21 +58,4 @@ auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
 auto wrui_get_scene(wrui_context* ctx) -> wrui_scene
 {
     return { ctx->scene.get(), ctx->root_transform.get() };
-}
-
-auto wrui_window_create(wrui_context* ctx) -> ref<wrui_window>
-{
-    auto window = wrei_create<wrui_window>();
-    window->ctx = ctx;
-
-    window->transform = wrui_transform_create(ctx);
-    wrui_node_set_transform(window->transform.get(), ctx->root_transform.get());
-
-    window->tree = wrui_tree_create(ctx);
-    wrui_tree_place_above(ctx->scene.get(), nullptr, window->tree.get());
-
-    window->decorations = wrui_tree_create(ctx);
-    wrui_tree_place_above(window->tree.get(), nullptr, window->decorations.get());
-
-    return window;
 }
