@@ -44,10 +44,13 @@ static
 flags<xkb_state_component> handle_key(wrui_context* ctx, wrui_keyboard* kb, wrui_scancode code, bool pressed, bool quiet)
 {
     if (pressed ? kb->pressed.inc(code) : kb->pressed.dec(code)) {
-        log_trace("TODO: {} {}{}",
-            pressed ? "Press   " : "Release ",
-            std::string_view(libevdev_event_code_get_name(EV_KEY, code)).substr("KEY_"sv.length()),
-            quiet ? " (quiet)" : "");
+
+        char utf8[128] = {};
+        if (pressed) xkb_state_key_get_utf8(kb->state, evdev_to_xkb(code), utf8, sizeof(utf8));
+        auto sym = xkb_state_key_get_one_sym(kb->state, evdev_to_xkb(code));
+
+        wrui_imgui_handle_key(ctx, sym, pressed, utf8);
+
         return xkb_state_update_key(kb->state, evdev_to_xkb(code), pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
     }
     return {};
@@ -59,9 +62,9 @@ void update_leds(wrui_keyboard* kb)
     if (kb->led_devices.empty()) return;
 
     flags<libinput_led> leds = {};
-    if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_NUM))    leds |= LIBINPUT_LED_NUM_LOCK;
-    if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_CAPS))   leds |= LIBINPUT_LED_CAPS_LOCK;
-    if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_SCROLL)) leds |= LIBINPUT_LED_SCROLL_LOCK;
+    if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_NUM)    > 0) leds |= LIBINPUT_LED_NUM_LOCK;
+    if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_CAPS)   > 0) leds |= LIBINPUT_LED_CAPS_LOCK;
+    if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_SCROLL) > 0) leds |= LIBINPUT_LED_SCROLL_LOCK;
 
     for (auto& device : kb->led_devices) {
         wrio_input_device_update_leds(device, leds);
@@ -80,13 +83,14 @@ flags<wrui_modifier> get_modifiers(wrui_keyboard* kb, xkb_state_component compon
 }
 
 static
-void handle_xkb_component_updates(wrui_keyboard* kb, flags<xkb_state_component> changed)
+void handle_xkb_component_updates(wrui_context* ctx, wrui_keyboard* kb, flags<xkb_state_component> changed)
 {
-    if (changed & XKB_STATE_MODS_DEPRESSED)   log_warn("TODO: XKB mods depressed: [{}]", wrei_bitfield_to_string(get_modifiers(kb, XKB_STATE_MODS_DEPRESSED).get()));
-    if (changed & XKB_STATE_MODS_LATCHED)     log_warn("TODO: XKB mods latched:   [{}]", wrei_bitfield_to_string(get_modifiers(kb, XKB_STATE_MODS_LATCHED).get()));
-    if (changed & XKB_STATE_MODS_LOCKED)      log_warn("TODO: XKB mods locked:    [{}]", wrei_bitfield_to_string(get_modifiers(kb, XKB_STATE_MODS_LOCKED).get()));
-    if (changed & XKB_STATE_LAYOUT_EFFECTIVE) log_warn("TODO: XKB layout effective: [{:#x}]", xkb_state_serialize_layout(kb->state, XKB_STATE_LAYOUT_EFFECTIVE));
-    if (changed & XKB_STATE_LEDS)             update_leds(kb);
+    if (changed & XKB_STATE_MODS_EFFECTIVE) {
+        auto mods = get_modifiers(kb, XKB_STATE_MODS_EFFECTIVE);
+        wrui_imgui_handle_mods(ctx, mods);
+    }
+
+    if (changed & XKB_STATE_LEDS) update_leds(kb);
 }
 
 // -----------------------------------------------------------------------------
@@ -100,15 +104,28 @@ auto wrui_pointer_create(wrui_context* ctx) -> ref<wrui_pointer>
     ptr->transform = wrui_transform_create(ctx);
     wrui_node_set_transform(ptr->transform.get(), scene.transform);
 
-    ptr->texture = wrui_texture_create(ctx);
-    wrui_node_set_transform(ptr->texture.get(), ptr->transform.get());
-    auto hdim = 8;
-    wrui_texture_set_dst(ptr->texture.get(), {{-hdim, -hdim}, {hdim, hdim}, wrei_minmax});
-    wrui_texture_set_tint(ptr->texture.get(), {255, 255, 255, 255});
+    auto* cursor = XcursorLibraryLoadImage("default", "breeze_cursors", 24);
+    defer { XcursorImageDestroy(cursor); };
+    auto image = wren_image_create(ctx->wren, {cursor->width, cursor->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
+        wren_image_usage::texture | wren_image_usage::transfer);
+    wren_image_update_immed(image.get(), cursor->pixels);
 
-    wrui_tree_place_above(scene.tree, nullptr, ptr->texture.get());
+    ptr->visual = wrui_texture_create(ctx);
+    wrui_texture_set_image(ptr->visual.get(), image.get(), ctx->render.sampler.get(), wren_blend_mode::premultiplied);
+    wrui_texture_set_dst(ptr->visual.get(), {-vec2f32{cursor->xhot, cursor->yhot}, {cursor->width, cursor->height}, wrei_xywh});
+    wrui_node_set_transform(ptr->visual.get(), ptr->transform.get());
+
+    wrui_tree_place_above(scene.tree, nullptr, ptr->visual.get());
 
     return ptr;
+}
+
+static
+void handle_button(wrui_context* ctx, wrui_pointer* ptr, wrui_scancode code, bool pressed, bool quiet)
+{
+    if (pressed ? ptr->pressed.inc(code) : ptr->pressed.dec(code)) {
+        wrui_imgui_handle_button(ctx, code, pressed);
+    }
 }
 
 static
@@ -117,13 +134,13 @@ void handle_motion(wrui_context* ctx, vec2f32 motion)
     auto ptr = ctx->pointer.get();
     auto cur = wrui_transform_get_local(ptr->transform.get());
     wrui_transform_update(ptr->transform.get(), cur.translation + motion, cur.scale);
-    log_trace("TODO: Motion   {}", wrei_to_string(wrui_transform_get_global(ptr->transform.get()).translation));
+    wrui_imgui_handle_motion(ctx);
 }
 
 static
-void handle_scroll(wrui_context* ctx, vec2f32 axis)
+void handle_scroll(wrui_context* ctx, vec2f32 delta)
 {
-    log_trace("TODO: Scroll   {}", wrei_to_string(axis));
+    wrui_imgui_handle_wheel(ctx, delta);
 }
 
 // -----------------------------------------------------------------------------
@@ -150,29 +167,29 @@ void wrui_handle_input(wrui_context* ctx, const wrio_input_event& event)
         switch (channel.type) {
             break;case EV_KEY:
                 switch (channel.code) {
-                    break;case BTN_MOUSE      ... BTN_TASK:
-                        log_warn("TODO: Mouse    {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
+                    break;case BTN_MOUSE ... BTN_TASK:
+                        handle_button(ctx, ctx->pointer.get(), channel.code, channel.value, event.quiet);
                     break;case KEY_ESC        ... KEY_MICMUTE:
                           case KEY_OK         ... KEY_LIGHTS_TOGGLE:
                           case KEY_ALS_TOGGLE ... KEY_PERFORMANCE:
                         xkb_updates |= handle_key(ctx, ctx->keyboard.get(), channel.code, channel.value, event.quiet);
                     break;default:
-                        log_warn("TODO: Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
+                        log_warn("Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
                 }
             break;case EV_REL:
                 switch (channel.code) {
                     break;case REL_X: motion.x += channel.value;
                     break;case REL_Y: motion.y += channel.value;
-                    break;case REL_WHEEL:  scroll.x += channel.value;
-                    break;case REL_HWHEEL: scroll.y += channel.value;
+                    break;case REL_HWHEEL: scroll.x += channel.value;
+                    break;case REL_WHEEL:  scroll.y += channel.value;
                 }
             break;case EV_ABS:
-                log_warn("TODO: Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
+                log_warn("Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
         }
     }
 
     if (motion.x || motion.y) handle_motion(ctx, motion);
     if (scroll.x || scroll.y) handle_scroll(ctx, scroll);
 
-    if (xkb_updates) handle_xkb_component_updates(ctx->keyboard.get(), xkb_updates);
+    if (xkb_updates) handle_xkb_component_updates(ctx, ctx->keyboard.get(), xkb_updates);
 }

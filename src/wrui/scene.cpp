@@ -4,7 +4,7 @@ static
 void request_frame(wrui_context* ctx)
 {
     for (auto* output : wrio_list_outputs(ctx->wrio)) {
-        wrio_output_request_frame(output, wren_image_usage::render);
+        wrio_output_request_frame(output, ctx->render.usage);
     }
 }
 
@@ -13,14 +13,15 @@ void damage_node(wrui_node* node)
 {
     switch (node->type) {
         break;case wrui_node_type::transform:
-            for (auto& child : static_cast<wrui_transform*>(node)->children) {
-                damage_node(child.get());
+            for (auto* child : static_cast<wrui_transform*>(node)->children) {
+                damage_node(child);
             }
         break;case wrui_node_type::tree:
             for (auto& child : static_cast<wrui_tree*>(node)->children) {
                 damage_node(child.get());
             }
         break;case wrui_node_type::texture:
+              case wrui_node_type::mesh:
             if (node->parent) {
                 request_frame(node->parent->ctx);
                 // TODO: Damage affected regions only.
@@ -35,9 +36,7 @@ void damage_node(wrui_node* node)
 
 wrui_transform::~wrui_transform()
 {
-    for (auto& child : children) {
-        child->transform = nullptr;
-    }
+    wrei_assert(children.empty());
 }
 
 auto wrui_transform_create(wrui_context*) -> ref<wrui_transform>
@@ -54,9 +53,9 @@ void update_transform_global(wrui_transform* transform, const wrui_transform_sta
 {
     transform->global.translation = parent.translation + transform->local.translation * parent.scale;
     transform->global.scale       = parent.scale * transform->local.scale;
-    for (auto& child : transform->children) {
+    for (auto* child : transform->children) {
         if (child->type == wrui_node_type::transform) {
-            update_transform_global(static_cast<wrui_transform*>(child.get()), transform->global);
+            update_transform_global(static_cast<wrui_transform*>(child), transform->global);
         }
     }
 }
@@ -66,7 +65,7 @@ void wrui_transform_update(wrui_transform* transform, vec2f32 translation, f32 s
     damage_node(transform);
     transform->local.translation = translation;
     transform->local.scale = scale;
-    auto* parent = transform->transform;
+    auto* parent = transform->transform.get();
     update_transform_global(transform, parent ? parent->global : wrui_transform_state{});
     damage_node(transform);
 }
@@ -83,16 +82,21 @@ auto wrui_transform_get_global(wrui_transform* transform) -> wrui_transform_stat
 
 void wrui_node_set_transform(wrui_node* node, wrui_transform* transform)
 {
-    if (node->transform == transform) return;
-    if (transform) {
-        transform->children.emplace_back(node);
-    }
+    if (node->transform.get() == transform) return;
     if (auto old_transform = std::exchange(node->transform, transform)) {
         damage_node(node);
-        std::erase_if(old_transform->children, wrei_object_equals<wrui_node>{node});
+        std::erase(old_transform->children, node);
     }
     if (transform) {
+        transform->children.emplace_back(node);
         damage_node(node);
+    }
+}
+
+wrui_node::~wrui_node()
+{
+    if (transform) {
+        std::erase(transform->children, this);
     }
 }
 
@@ -134,25 +138,25 @@ void reparent_unsafe(wrui_node* node, wrui_tree* tree)
 static
 void tree_place(wrui_tree* tree, wrui_node* reference, wrui_node* node, bool above)
 {
-    auto cur = std::ranges::find_if(tree->children, wrei_object_equals{node});
-    auto sib = std::ranges::find_if(tree->children, wrei_object_equals{reference});
+    auto end = tree->children.end();
+    auto cur =             std::ranges::find_if(tree->children, wrei_object_equals{node});
+    auto ref = reference ? std::ranges::find_if(tree->children, wrei_object_equals{reference}) : end;
 
-    if (sib == tree->children.end()) {
-        if (reference) {
-            log_error("wrui::tree_place called with reference that doesn't exist in tree, inserting at end");
+    if (ref == end) {
+        if (tree->children.empty()) {
+            tree->children.emplace_back(node);
+            return;
         }
-        if (above) tree->children.emplace_back(node);
-        else       tree->children.insert(tree->children.begin(), node);
-        return;
+        ref = above ? end - 1 : tree->children.begin();
     }
 
-    if (cur == sib) {
-        log_error("wrui::tree_place called with node == reference");
-        return;
+    if (cur == end) {
+        if (above) tree->children.insert(ref + 1, node);
+        else       tree->children.insert(ref,     node);
+    } else if (cur != ref) {
+        if (cur > ref) std::rotate(ref + i32(above), cur, cur + 1);
+        else           std::rotate(cur, cur + 1, ref + i32(above));
     }
-
-    if (cur > sib) std::rotate(sib + i32(above), cur, cur + 1);
-    else           std::rotate(cur, cur + 1, sib + i32(above));
 }
 
 void wrui_tree_place_below(wrui_tree* tree, wrui_node* reference, wrui_node* to_place)
@@ -173,15 +177,18 @@ void wrui_tree_place_above(wrui_tree* tree, wrui_node* reference, wrui_node* to_
 auto wrui_texture_create(wrui_context*) -> ref<wrui_texture>
 {
     auto texture = wrei_create<wrui_texture>();
+    texture->blend = wren_blend_mode::postmultiplied;
     texture->type = wrui_node_type::texture;
     texture->tint = {255, 255, 255, 255};
     texture->src = {{}, {1, 1}, wrei_minmax};
     return texture;
 }
 
-void wrui_texture_set_image(wrui_texture* texture, wren_image* image)
+void wrui_texture_set_image(wrui_texture* texture, wren_image* image, wren_sampler* sampler, wren_blend_mode blend)
 {
     texture->image = image;
+    texture->sampler = sampler;
+    texture->blend = blend;
     damage_node(texture);
 }
 
@@ -207,4 +214,24 @@ void wrui_texture_set_dst(wrui_texture* texture, aabb2f32 extent)
 void wrui_texture_damage(wrui_texture* texture, aabb2f32 damage)
 {
     wrei_assert_fail("wrui_texture_damage", "TODO");
+}
+
+// -----------------------------------------------------------------------------
+
+auto wrui_mesh_create(wrui_context* ctx) -> ref<wrui_mesh>
+{
+    auto mesh = wrei_create<wrui_mesh>();
+    mesh->type = wrui_node_type::mesh;
+    return mesh;
+}
+
+void wrui_mesh_update(wrui_mesh* mesh, wren_image* image, wren_sampler* sampler, wren_blend_mode blend, std::span<const wrui_vertex> vertices, std::span<const u16> indices)
+{
+    damage_node(mesh);
+    mesh->image = image;
+    mesh->sampler = sampler;
+    mesh->blend = blend;
+    mesh->vertices.assign_range(vertices);
+    mesh->indices.assign_range(indices);
+    damage_node(mesh);
 }

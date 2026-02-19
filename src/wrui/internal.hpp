@@ -11,27 +11,64 @@ struct wrui_context
     wren_context* wren;
     wrio_context* wrio;
 
-    ref<wren_pipeline> pipeline;
-    ref<wren_image> white;
-    ref<wren_sampler> sampler;
+    struct {
+        ref<wren_pipeline> premult;
+        ref<wren_pipeline> postmult;
+        ref<wren_image>    white;
+        ref<wren_sampler>  sampler;
+        flags<wren_image_usage> usage;
+    } render;
 
     ref<wrui_transform> root_transform;
     ref<wrui_tree> scene;
 
+    std::vector<wrui_client*> clients;
     std::vector<wrui_window*> windows;
 
     ref<wrui_keyboard> keyboard;
     ref<wrui_pointer>  pointer;
+
+    struct {
+        ImGuiContext* context;
+        rect2f32 region;
+        u32 frames_requested;
+        ref<wrui_tree> draws;
+        struct texture {
+            ref<wren_image> image;
+            ref<wren_sampler> sampler;
+            wren_blend_mode blend;
+        };
+        std::vector<texture> textures;
+        ref<wren_image> font_image;
+    } imgui;
 };
 
 void wrui_render_init(wrui_context*);
 void wrui_render(wrui_context*, wrio_output*, wren_image*);
 
-struct wrui_window
+void wrui_imgui_init(wrui_context*);
+void wrui_imgui_frame(wrui_context*);
+void wrui_imgui_request_frame(wrui_context*);
+void wrui_imgui_handle_key(wrui_context*, xkb_keysym_t, bool pressed, const char* utf8);
+void wrui_imgui_handle_mods(wrui_context*, flags<wrui_modifier>);
+void wrui_imgui_handle_motion(wrui_context*);
+void wrui_imgui_handle_button(wrui_context*, wrui_scancode, bool pressed);
+void wrui_imgui_handle_wheel(wrui_context*, vec2f32 delta);
+
+struct wrui_client
 {
     wrui_context* ctx;
 
-    std::move_only_function<wrui_event_handle_fn> event_handler;
+    std::move_only_function<wrui_event_handler_fn> event_handler;
+
+    ~wrui_client();
+};
+
+void wrui_client_post_event(wrui_client*, wrui_event*);
+
+struct wrui_window
+{
+    wrui_client* client;
 
     vec2u32 size;
     bool mapped;
@@ -67,7 +104,7 @@ struct wrui_pointer
     wrei_counting_set<u32> pressed;
 
     ref<wrui_transform> transform;
-    ref<wrui_texture>   texture;
+    ref<wrui_texture>   visual;
 };
 
 auto wrui_pointer_create(wrui_context*) -> ref<wrui_pointer>;

@@ -218,6 +218,8 @@ target_sources(wrui PUBLIC
     src/wrui/scene.cpp
     src/wrui/window.cpp
     src/wrui/input.cpp
+    src/wrui/client.cpp
+    src/wrui/imgui.cpp
     )
 target_link_libraries(wrui PUBLIC wrio)
 

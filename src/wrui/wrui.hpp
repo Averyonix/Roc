@@ -3,6 +3,8 @@
 #include "wrei/object.hpp"
 #include "wren/wren.hpp"
 
+#include "render.h"
+
 // -----------------------------------------------------------------------------
 
 struct wrui_node;
@@ -22,6 +24,17 @@ struct wrui_scene
 };
 
 auto wrui_get_scene(wrui_context*) -> wrui_scene;
+
+// -----------------------------------------------------------------------------
+
+struct wrui_client;
+WREI_OBJECT_EXPLICIT_DECLARE(wrui_client);
+auto wrui_client_create(wrui_context*) -> ref<wrui_client>;
+
+// -----------------------------------------------------------------------------
+
+void wrui_imgui_request_frame(wrui_client*);
+auto wrui_imgui_get_texture(wrui_context*, wren_image*, wren_sampler*, wren_blend_mode) -> ImTextureID;
 
 // -----------------------------------------------------------------------------
 
@@ -48,13 +61,16 @@ enum class wrui_node_type
     transform,
     tree,
     texture,
+    mesh,
 };
 
 struct wrui_node : wrei_object
 {
-    wrui_node_type  type;      // Node type
-    wrui_tree*      parent;    // Parent in the layer hierarchy, controls z-order and visibility
-    wrui_transform* transform; // Parent in the transform hierarhcy, controls xy positioning
+    wrui_node_type      type;      // Node type
+    wrui_tree*          parent;    // Parent in the layer hierarchy, controls z-order and visibility
+    ref<wrui_transform> transform; // Parent in the transform hierarhcy, controls xy positioning
+
+    ~wrui_node();
 };
 
 void wrui_node_unparent(     wrui_node*);
@@ -71,7 +87,7 @@ struct wrui_transform : wrui_node
     wrui_transform_state local;
     wrui_transform_state global;
 
-    std::vector<ref<wrui_node>> children;
+    std::vector<wrui_node*> children;
 
     ~wrui_transform();
 };
@@ -96,18 +112,34 @@ void wrui_tree_place_above(wrui_tree*, wrui_node* reference, wrui_node* to_place
 
 struct wrui_texture : wrui_node
 {
-    ref<wren_image> image;
-    vec4u8          tint;
-    aabb2f32        src;
-    rect2f32        dst;
+    ref<wren_image>   image;
+    ref<wren_sampler> sampler;
+    wren_blend_mode   blend;
+
+    vec4u8   tint;
+    aabb2f32 src;
+    rect2f32 dst;
 };
 
 auto wrui_texture_create(wrui_context*) -> ref<wrui_texture>;
-void wrui_texture_set_image(wrui_texture*, wren_image*);
+void wrui_texture_set_image(wrui_texture*, wren_image*, wren_sampler*, wren_blend_mode);
 void wrui_texture_set_tint( wrui_texture*, vec4u8   tint);
 void wrui_texture_set_src(  wrui_texture*, aabb2f32 src);
 void wrui_texture_set_dst(  wrui_texture*, aabb2f32 dst);
 void wrui_texture_damage(   wrui_texture*, aabb2f32 damage);
+
+struct wrui_mesh : wrui_node
+{
+    ref<wren_image>   image;
+    ref<wren_sampler> sampler;
+    wren_blend_mode   blend;
+
+    std::vector<wrui_vertex> vertices;
+    std::vector<u16>         indices;
+};
+
+auto wrui_mesh_create(wrui_context*) -> ref<wrui_mesh>;
+void wrui_mesh_update(wrui_mesh*, wren_image*, wren_sampler*, wren_blend_mode, std::span<const wrui_vertex> vertices, std::span<const u16> indices);
 
 // -----------------------------------------------------------------------------
 
@@ -115,25 +147,7 @@ void wrui_texture_damage(   wrui_texture*, aabb2f32 damage);
 struct wrui_window;
 WREI_OBJECT_EXPLICIT_DECLARE(wrui_window);
 
-enum class wrui_event_type
-{
-    resize,
-};
-
-struct wrui_event
-{
-    wrui_event_type type;
-    wrui_window* window;
-
-    union {
-        vec2u32 resize;
-    };
-};
-
-using wrui_event_handle_fn = void(wrui_event*);
-
-auto wrui_window_create(wrui_context*) -> ref<wrui_window>;
-void wrui_window_set_event_handler(wrui_window*, std::move_only_function<wrui_event_handle_fn>&&);
+auto wrui_window_create(wrui_client*) -> ref<wrui_window>;
 // Adds the window to the UI scene. In response to this event
 // the window may be repositioned and/or resized to fit in layout.
 void wrui_window_map(wrui_window*);
@@ -145,3 +159,42 @@ void wrui_window_set_size(wrui_window*, vec2u32);
 auto wrui_window_get_tree(wrui_window*) -> wrui_tree*;
 // Get the window transform, this is used to anchor window contents to
 auto wrui_window_get_transform(wrui_window*) -> wrui_transform*;
+
+// -----------------------------------------------------------------------------
+
+enum class wrui_event_type
+{
+    // keyboard_key,
+    // keyboard_modifier,
+
+    // pointer_motion,
+    // pointer_button,
+    // pointer_scroll,
+
+    imgui_frame,
+
+    window_resize,
+    // window_focus_keyboard,
+    // window_focus_pointer,
+};
+
+struct wrui_window_event
+{
+    wrui_window* window;
+    union {
+        vec2u32 resize;
+    };
+};
+
+struct wrui_event
+{
+    wrui_event_type type;
+
+    union {
+        wrui_window_event window;
+    };
+};
+
+using wrui_event_handler_fn = void(wrui_event*);
+
+void wrui_client_set_event_handler(wrui_client*, std::move_only_function<wrui_event_handler_fn>&&);

@@ -7,31 +7,30 @@
 
 void wrui_render_init(wrui_context* ctx)
 {
-    ctx->pipeline = wren_pipeline_create_graphics(
+    ctx->render.usage = wren_image_usage::render;
+
+    ctx->render.postmult = wren_pipeline_create_graphics(
+        ctx->wren, wren_blend_mode::postmultiplied,
+        wren_format_from_drm(DRM_FORMAT_ABGR8888),
+        wrui_render_shader, "vertex", "fragment");
+
+    ctx->render.premult = wren_pipeline_create_graphics(
         ctx->wren, wren_blend_mode::premultiplied,
         wren_format_from_drm(DRM_FORMAT_ABGR8888),
         wrui_render_shader, "vertex", "fragment");
 
-    ctx->white = wren_image_create(ctx->wren, {1, 1},
+    ctx->render.white = wren_image_create(ctx->wren, {1, 1},
         wren_format_from_drm(DRM_FORMAT_ABGR8888),
         wren_image_usage::texture | wren_image_usage::transfer_dst);
-    wren_image_update_immed(ctx->white.get(), wrei_ptr_to(vec4u8{255, 255, 255, 255}));
+    wren_image_update_immed(ctx->render.white.get(), wrei_ptr_to(vec4u8{255, 255, 255, 255}));
 
-    ctx->sampler = wren_sampler_create(ctx->wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
-}
-
-static
-auto apply(wrui_transform* transform, aabb2f32 rect) -> aabb2f32
-{
-    return {
-        transform->global.translation + rect.min * transform->global.scale,
-        transform->global.translation + rect.max * transform->global.scale,
-        wrei_minmax
-    };
+    ctx->render.sampler = wren_sampler_create(ctx->wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 }
 
 void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
 {
+    auto& render = ctx->render;
+
     struct wrui_draw
     {
         u32 first_vertex;
@@ -39,6 +38,9 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
         u32 num_indices;
         vec2f32 clip;
         wren_image* image;
+        wren_sampler* sampler;
+        wren_blend_mode blend;
+        wrui_transform_state transform;
     };
 
     std::vector<wrui_vertex> vertices;
@@ -55,10 +57,28 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
                     walk_node(child.get());
                 }
             }
+            break;case wrui_node_type::mesh: {
+                auto* mesh = static_cast<wrui_mesh*>(node);
+
+                u32 vtx = vertices.size();
+                u32 idx = indices.size();
+                vertices.insert_range(vertices.end(), mesh->vertices);
+                indices.insert_range(indices.end(), mesh->indices);
+
+                draws.emplace_back(wrui_draw {
+                    .first_vertex = vtx,
+                    .first_index = idx,
+                    .num_indices = u32(mesh->indices.size()),
+                    .image = mesh->image.get() ?: render.white.get(),
+                    .sampler = mesh->sampler.get() ?: render.sampler.get(),
+                    .blend = mesh->blend,
+                    .transform = mesh->transform->global,
+                });
+            }
             break;case wrui_node_type::texture: {
                 auto* texture = static_cast<wrui_texture*>(node);
                 aabb2f32 src = texture->src;
-                aabb2f32 dst = apply(texture->transform, texture->dst);
+                aabb2f32 dst = texture->dst;
 
                 //  0 ---- 1
                 //  | a /  |  a = 0,2,1
@@ -80,7 +100,10 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
                     .first_vertex = vtx,
                     .first_index = idx,
                     .num_indices = 6,
-                    .image = texture->image.get() ?: ctx->white.get(),
+                    .image = texture->image.get() ?: render.white.get(),
+                    .sampler = texture->sampler.get() ?: render.sampler.get(),
+                    .blend = texture->blend,
+                    .transform = texture->transform->global,
                 });
             }
         }
@@ -107,7 +130,7 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
 
     // Protect images
 
-    wren_commands_protect_object(commands.get(), ctx->white.get());
+    wren_commands_protect_object(commands.get(), render.white.get());
     for (auto& draw : draws) {
         wren_commands_protect_object(commands.get(), draw.image);
     }
@@ -133,7 +156,6 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
     }));
     wren->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wren->pipeline_layout, 0, 1, &wren->set, 0, nullptr);
     wren->vk.CmdBindIndexBuffer(cmd, gpu_indices.buffer->buffer, 0, VK_INDEX_TYPE_UINT32);
-    wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ctx->pipeline->pipeline);
 
     wren->vk.CmdSetViewport(cmd, 0, 1, wrei_ptr_to(VkViewport {
         0, 0,
@@ -148,13 +170,21 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
     rect2f32 viewport{{}, target_extent, wrei_xywh};
 
     for (auto& draw : draws) {
+        switch (draw.blend) {
+            break;case wren_blend_mode::premultiplied:
+                wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, render.premult->pipeline);
+            break;case wren_blend_mode::postmultiplied:
+                wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, render.postmult->pipeline);
+            break;case wren_blend_mode::none:
+                wrei_assert_fail("", "Must select blend mode");
+        }
         auto draw_scale = 2.f / viewport.extent;
         wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wrui_render_input),
             wrei_ptr_to(wrui_render_input {
                 .vertices = gpu_vertices.device(),
-                .scale = draw_scale,
-                .offset = vec2f32(-1.f) - (viewport.origin * draw_scale),
-                .texture = {draw.image, ctx->sampler.get()},
+                .scale = draw_scale * draw.transform.scale,
+                .offset = (draw.transform.translation - viewport.origin) * draw_scale - 1.f,
+                .texture = {draw.image, render.sampler.get()},
             }));
         wren->vk.CmdDrawIndexed(cmd, draw.num_indices, 1, draw.first_index, draw.first_vertex, 0);
     }

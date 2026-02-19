@@ -12,8 +12,10 @@ struct event_handler
             break;case wrio_event_type::input_added:        wrui_handle_input_added(  ctx, event->input.device);
             break;case wrio_event_type::input_removed:      wrui_handle_input_removed(ctx, event->input.device);
             break;case wrio_event_type::input_event:        wrui_handle_input(        ctx, event->input);
-            break;case wrio_event_type::output_configure:   wrio_output_request_frame(event->output.output, wren_image_usage::render);
-            break;case wrio_event_type::output_redraw:      wrui_render(ctx, event->output.output, event->output.target);
+            break;case wrio_event_type::output_configure:   wrio_output_request_frame(event->output.output, ctx->render.usage);
+            break;case wrio_event_type::output_redraw:
+                wrui_imgui_frame(ctx);
+                wrui_render(ctx, event->output.output, event->output.target);
             break;case wrio_event_type::output_added:
                   case wrio_event_type::output_removed:
                 log_warn("wrio::{}", wrei_enum_to_string(event->type));
@@ -37,6 +39,8 @@ auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
 
     wrui->keyboard = wrui_keyboard_create(wrui.get());
     wrui->pointer = wrui_pointer_create(wrui.get());
+
+    wrui_imgui_init(wrui.get());
 
     return wrui;
 }

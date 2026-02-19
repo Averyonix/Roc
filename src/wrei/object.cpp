@@ -30,8 +30,6 @@ auto wrei_registry::allocate(usz size) -> wrei_allocation_header*
     u8 bin_idx = std::countr_zero(size);
     auto& bin = bins[bin_idx];
 
-    // log_trace("allocate({}), bin[{}].count = {}", size, bin_idx, bin.size());
-
     wrei_allocation_header* header;
     if (bin.empty()) {
         header = static_cast<wrei_allocation_header*>(::malloc(size));

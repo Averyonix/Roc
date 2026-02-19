@@ -9,6 +9,8 @@ int main()
     auto wrio = wrio_create(event_loop.get(), wren.get());
     auto wrui = wrui_create(wren.get(), wrio.get());
 
+    auto sampler = wren_sampler_create(wren.get(), VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+
     auto texture = wrui_texture_create(wrui.get());
     wrui_node_set_transform(texture.get(), wrui_get_scene(wrui.get()).transform);
     wrui_tree_place_below(wrui_get_scene(wrui.get()).tree, nullptr, texture.get());
@@ -22,15 +24,17 @@ int main()
 
         log_info("Loaded background ({}, width = {}, height = {})", path.c_str(), w, h);
 
-        auto image = wren_image_create(wren.get(), {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
+        auto image = wren_image_create(wren.get(), {w, h}, wren_format_from_drm(DRM_FORMAT_XBGR8888),
             wren_image_usage::texture | wren_image_usage::transfer);
         wren_image_update_immed(image.get(), data);
 
-        wrui_texture_set_image(texture.get(), image.get());
+        wrui_texture_set_image(texture.get(), image.get(), sampler.get(), wren_blend_mode::premultiplied);
         wrui_texture_set_dst(texture.get(), {{}, {w, h}, wrei_xywh});
     }
 
-    auto window = wrui_window_create(wrui.get());
+    auto client = wrui_client_create(wrui.get());
+
+    auto window = wrui_window_create(client.get());
     auto initial_size = vec2f32{256, 256};
     wrui_window_set_size(window.get(), initial_size);
 
@@ -52,14 +56,19 @@ int main()
 
     wrui_transform_update(wrui_window_get_transform(window.get()), {64, 64}, 2);
 
-    wrui_window_set_event_handler(window.get(), [canvas = canvas.get()](wrui_event* event) {
+    wrui_client_set_event_handler(client.get(), [client = client.get(), canvas = canvas.get()](wrui_event* event) {
         switch (event->type) {
-            break;case wrui_event_type::resize:
-                wrui_texture_set_dst(canvas, {{}, event->resize, wrei_xywh});
-                wrui_window_set_size(event->window, event->resize);
+            break;case wrui_event_type::imgui_frame:
+                ImGui::ShowDemoWindow();
+            break;case wrui_event_type::window_resize:
+                wrui_texture_set_dst(canvas, {{}, event->window.resize, wrei_xywh});
+                wrui_window_set_size(event->window.window, event->window.resize);
         }
     });
+
     wrui_window_map(window.get());
+
+    wrui_imgui_request_frame(client.get());
 
     wrio_run(wrio.get());
 }
