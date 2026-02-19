@@ -25,12 +25,29 @@ auto wrui_get_scene(wrui_context*) -> wrui_scene;
 
 // -----------------------------------------------------------------------------
 
+enum class wrui_modifier : u32
+{
+    mod   = 1 << 0,
+    super = 1 << 1,
+    shift = 1 << 2,
+    ctrl  = 1 << 3,
+    alt   = 1 << 4,
+    num   = 1 << 5,
+    caps  = 1 << 6,
+};
+
+using wrui_scancode = u32;
+
+struct wrui_keyboard;
+struct wrui_pointer;
+
+// -----------------------------------------------------------------------------
+
 enum class wrui_node_type
 {
     transform,
     tree,
     texture,
-    output,
 };
 
 struct wrui_node : wrei_object
@@ -61,6 +78,8 @@ struct wrui_transform : wrui_node
 
 auto wrui_transform_create(wrui_context*) -> ref<wrui_transform>;
 void wrui_transform_update(wrui_transform*, vec2f32 translation, f32 scale);
+auto wrui_transform_get_local( wrui_transform*) -> wrui_transform_state;
+auto wrui_transform_get_global(wrui_transform*) -> wrui_transform_state;
 
 struct wrui_tree : wrui_node
 {

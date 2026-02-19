@@ -11,7 +11,7 @@ int main()
 
     auto texture = wrui_texture_create(wrui.get());
     wrui_node_set_transform(texture.get(), wrui_get_scene(wrui.get()).transform);
-    wrui_tree_place_above(wrui_get_scene(wrui.get()).tree, nullptr, texture.get());
+    wrui_tree_place_below(wrui_get_scene(wrui.get()).tree, nullptr, texture.get());
     {
         std::filesystem::path path = getenv("WALLPAPER");
 

@@ -107,9 +107,10 @@ static
 void pointer_axis_value120(void* udata, wl_pointer*, u32 axis, i32 value120)
 {
     auto* ptr = static_cast<wrio_context*>(udata)->wayland->pointer.get();
+    f32 value = value120 / 120.f;
     switch (axis) {
-        break;case WL_POINTER_AXIS_HORIZONTAL_SCROLL: wrio_input_device_pointer_axis(ptr, wrio_pointer_axis::horizontal, value120 / 120.0);
-        break;case WL_POINTER_AXIS_VERTICAL_SCROLL:   wrio_input_device_pointer_axis(ptr, wrio_pointer_axis::vertical,   value120 / 120.0);
+        break;case WL_POINTER_AXIS_HORIZONTAL_SCROLL: wrio_input_device_pointer_scroll(ptr, {value, 0});
+        break;case WL_POINTER_AXIS_VERTICAL_SCROLL:   wrio_input_device_pointer_scroll(ptr, {0, value});
     }
 }
 

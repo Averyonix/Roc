@@ -23,18 +23,13 @@ void handle_event(wren_context* wren, wrio_event* event)
         break;case wrio_event_type::shutdown_requested:
             log_error("wrio::shutdown_requested({})", wrei_enum_to_string(event->shutdown.reason));
             wrio_stop(event->ctx);
-        break;case wrio_event_type::input_leave:
-            log_info("wrio::input_leave()");
-        break;case wrio_event_type::input_key_enter:
-            log_info("wrio::input_key_enter({})", libevdev_event_code_get_name(EV_KEY, input.key));
-        break;case wrio_event_type::input_key_press:
-            log_info("wrio::input_key_press({})", libevdev_event_code_get_name(EV_KEY, input.key));
-        break;case wrio_event_type::input_key_release:
-            log_info("wrio::input_key_release({})", libevdev_event_code_get_name(EV_KEY, input.key));
-        break;case wrio_event_type::input_pointer_motion:
-            log_info("wrio::input_pointer_motion{}", wrei_to_string(input.motion));
-        break;case wrio_event_type::input_pointer_axis:
-            log_info("wrio::input_pointer_axis({}, {})", wrei_enum_to_string(input.axis.axis), input.axis.delta);
+        break;case wrio_event_type::input_event:
+            static constexpr auto channel_to_str = [](auto& e) {
+                return std::format("{} = {}", libevdev_event_code_get_name(e.type, e.code), e.value);
+            };
+            log_info("wrio::input_event({:s}{})",
+                input.channels | std::views::transform(channel_to_str) | std::views::join_with(", "sv),
+                input.quiet ? ", QUIET" : "");
         break;case wrio_event_type::output_configure:
             log_info("wrio::output_configure{}", wrei_to_string(wrio_output_get_size(event->output.output)));
             wrio_output_request_frame(event->output.output, wren_image_usage::transfer_dst);

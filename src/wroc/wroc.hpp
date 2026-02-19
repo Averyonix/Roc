@@ -1118,17 +1118,15 @@ struct wroc_imgui : wrei_object
     std::vector<std::move_only_function<void()>> on_render;
 };
 
-struct alignas(u64) wroc_imgui_texture
+struct alignas(ImTextureID) wroc_imgui_texture
 {
     wren_image_handle<vec4f32> handle;
-    wren_format format;
 
     wroc_imgui_texture(wren_image* image, wren_sampler* sampler)
         : handle(image, sampler)
-        , format(image->format)
     {}
 
-    operator ImTextureID() const { return std::bit_cast<ImTextureID>(*this); }
+    explicit operator ImTextureID() const { return std::bit_cast<ImTextureID>(*this); }
 };
 
 template<typename ...Args>

@@ -1,5 +1,36 @@
 #include "internal.hpp"
 
+static
+void request_frame(wrui_context* ctx)
+{
+    for (auto* output : wrio_list_outputs(ctx->wrio)) {
+        wrio_output_request_frame(output, wren_image_usage::render);
+    }
+}
+
+static
+void damage_node(wrui_node* node)
+{
+    switch (node->type) {
+        break;case wrui_node_type::transform:
+            for (auto& child : static_cast<wrui_transform*>(node)->children) {
+                damage_node(child.get());
+            }
+        break;case wrui_node_type::tree:
+            for (auto& child : static_cast<wrui_tree*>(node)->children) {
+                damage_node(child.get());
+            }
+        break;case wrui_node_type::texture:
+            if (node->parent) {
+                request_frame(node->parent->ctx);
+                // TODO: Damage affected regions only.
+                //       Since currently we're just forcing a global redraw,
+                //       we can immediately return after a frame has been requested.
+                return;
+            }
+    }
+}
+
 // -----------------------------------------------------------------------------
 
 wrui_transform::~wrui_transform()
@@ -13,7 +44,7 @@ auto wrui_transform_create(wrui_context*) -> ref<wrui_transform>
 {
     auto transform = wrei_create<wrui_transform>();
     transform->type = wrui_node_type::transform;
-    transform->local.scale = 1;
+    transform->local.scale  = 1;
     transform->global.scale = 1;
     return transform;
 }
@@ -32,10 +63,22 @@ void update_transform_global(wrui_transform* transform, const wrui_transform_sta
 
 void wrui_transform_update(wrui_transform* transform, vec2f32 translation, f32 scale)
 {
+    damage_node(transform);
     transform->local.translation = translation;
     transform->local.scale = scale;
     auto* parent = transform->transform;
     update_transform_global(transform, parent ? parent->global : wrui_transform_state{});
+    damage_node(transform);
+}
+
+auto wrui_transform_get_local(wrui_transform* transform) -> wrui_transform_state
+{
+    return transform->local;
+}
+
+auto wrui_transform_get_global(wrui_transform* transform) -> wrui_transform_state
+{
+    return transform->global;
 }
 
 void wrui_node_set_transform(wrui_node* node, wrui_transform* transform)
@@ -45,7 +88,11 @@ void wrui_node_set_transform(wrui_node* node, wrui_transform* transform)
         transform->children.emplace_back(node);
     }
     if (auto old_transform = std::exchange(node->transform, transform)) {
+        damage_node(node);
         std::erase_if(old_transform->children, wrei_object_equals<wrui_node>{node});
+    }
+    if (transform) {
+        damage_node(node);
     }
 }
 
@@ -80,6 +127,8 @@ void reparent_unsafe(wrui_node* node, wrui_tree* tree)
         wrui_node_unparent(node);
     }
     node->parent = tree;
+    // TODO: We only need to damage regions that were visually affected by the rotate
+    damage_node(node);
 }
 
 static
@@ -110,6 +159,7 @@ void wrui_tree_place_below(wrui_tree* tree, wrui_node* reference, wrui_node* to_
 {
     tree_place(tree, reference, to_place, false);
     reparent_unsafe(to_place, tree);
+
 }
 
 void wrui_tree_place_above(wrui_tree* tree, wrui_node* reference, wrui_node* to_place)
@@ -132,21 +182,26 @@ auto wrui_texture_create(wrui_context*) -> ref<wrui_texture>
 void wrui_texture_set_image(wrui_texture* texture, wren_image* image)
 {
     texture->image = image;
+    damage_node(texture);
 }
 
 void wrui_texture_set_tint(wrui_texture* texture, vec4u8 tint)
 {
     texture->tint = tint;
+    damage_node(texture);
 }
 
 void wrui_texture_set_src(wrui_texture* texture, aabb2f32 source)
 {
     texture->src = source;
+    damage_node(texture);
 }
 
 void wrui_texture_set_dst(wrui_texture* texture, aabb2f32 extent)
 {
+    damage_node(texture);
     texture->dst = extent;
+    damage_node(texture);
 }
 
 void wrui_texture_damage(wrui_texture* texture, aabb2f32 damage)

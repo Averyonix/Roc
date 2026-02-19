@@ -83,16 +83,10 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
                     .image = texture->image.get() ?: ctx->white.get(),
                 });
             }
-            break;case wrui_node_type::output:
-                wrei_assert_fail("", "Unexpected output node in layer stack");
         }
     };
 
     walk_node(ctx->scene.get());
-
-    for (auto[i, v] : vertices | std::views::enumerate) {
-        log_info("vertex[{}] = (pos = {})", i, wrei_to_string(v.pos));
-    }
 
     auto wren = ctx->wren;
 
@@ -111,14 +105,14 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
     wren_commands_protect_object(commands.get(), gpu_vertices.buffer.get());
     wren_commands_protect_object(commands.get(), gpu_indices.buffer.get());
 
-    {
-        ankerl::unordered_dense::set<wren_image*> protected_images;
-        for (auto& draw : draws) {
-            if (protected_images.insert(draw.image).second) {
-                wren_commands_protect_object(commands.get(), draw.image);
-            }
-        }
+    // Protect images
+
+    wren_commands_protect_object(commands.get(), ctx->white.get());
+    for (auto& draw : draws) {
+        wren_commands_protect_object(commands.get(), draw.image);
     }
+
+    // Record
 
     VkExtent2D vk_extent = { target->extent.x, target->extent.y };
     vec2f32 target_extent = target->extent;

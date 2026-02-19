@@ -1,5 +1,10 @@
 #include "internal.hpp"
 
+auto wrio_list_outputs(wrio_context* ctx) -> std::span<wrio_output* const>
+{
+    return ctx->outputs;
+}
+
 wrio_output::~wrio_output()
 {
     wrio_output_remove(this);

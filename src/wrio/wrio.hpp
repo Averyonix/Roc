@@ -21,17 +21,12 @@ enum class wrio_event_type
 
     input_added,
     input_removed,
-    input_leave,            // Sent when the state of input becomes unreadable.
-    input_key_enter,        // Sent when a key is discovered to already be pressed (does not trigger on-press actions)
-    input_key_press,        // Sent when a key or button is pressed
-    input_key_release,      // Sent when a key or button is released
-    input_pointer_motion,   // Sent when a pointer moves
-    input_pointer_axis,     // Sent when a pointer axis is moved
+    input_event,
 
-    output_added,           // Sent when an output is first detected
-    output_removed,         // Sent before a output is removed from the output list
-    output_configure,       // Sent when an output's configuration changes
-    output_redraw,          // Sent when an output's content should be redrawn
+    output_added,       // Sent when an output is first detected
+    output_removed,     // Sent before a output is removed from the output list
+    output_configure,   // Sent when an output's configuration changes
+    output_redraw,      // Sent when an output's content should be redrawn
 };
 
 // -----------------------------------------------------------------------------
@@ -50,25 +45,36 @@ struct wrio_shutdown_event
 
 // -----------------------------------------------------------------------------
 
-using wrio_key = u32;       // An evdev key code - `[KEY|BTN]_*`
-
-enum class wrio_pointer_axis
+enum class wrio_input_device_capability : u32
 {
-    horizontal,
-    vertical,
+    libinput_led = 1 << 0,
 };
 
+struct wrio_input_channel
+{
+    u32 type;   // evdev type
+    u32 code;   // evdev code
+    f32 value;  // normalized channel value
+};
+
+/**
+ * A grouping of associated input channel events.
+ * This event reuses evdev codes for simplicity, with some minor changes:
+ * - Values are sent as normalized floating point quantities.
+ * - `REL_(H)WHEEL` events are sent with fractional detent deltas (~15 degrees / detent), instead of `REL_(H)WHEEL_HI_RES`.
+ * - No `SYN_*` events are sent, instead `wrio_input_event` contains *all* events since the last report, and
+ *   wrio always re-synchronizes internally.
+ *
+ * The `quiet` flag denotes that actions should not be taken in response to this event. E.g. on input
+ * enter/leave events.
+ *
+ * Event design for touch, tablet and gesture controls is still pending.
+ */
 struct wrio_input_event
 {
     wrio_input_device* device;
-    union {
-        wrio_key key;
-        vec2f64  motion;
-        struct {
-            wrio_pointer_axis axis;
-            f64               delta;
-        } axis;
-    };
+    bool quiet;
+    std::span<const wrio_input_channel> channels;
 };
 
 // -----------------------------------------------------------------------------
@@ -101,15 +107,17 @@ using wrio_event_handler = void(wrio_event*);
 
 auto wrio_create(wrei_event_loop*, wren_context*) -> ref<wrio_context>;
 void wrio_set_event_handler(wrio_context*, std::move_only_function<wrio_event_handler>&&);
-void wrio_run(wrio_context*);
+void wrio_run( wrio_context*);
 void wrio_stop(wrio_context*);
 
-auto wrio_list_input_devices(wrio_context*) -> std::span<wrio_input_device*>;
-auto wrio_list_outputs(      wrio_context*) -> std::span<wrio_output*>;
+auto wrio_list_input_devices(wrio_context*) -> std::span<wrio_input_device* const>;
+auto wrio_input_device_get_capabilities(wrio_input_device*) -> flags<wrio_input_device_capability>;
+void wrio_input_device_update_leds(wrio_input_device*, flags<libinput_led>);
 
-void wrio_add_output(wrio_context*);
+auto wrio_list_outputs(wrio_context*) -> std::span<wrio_output* const>;
+void wrio_add_output(  wrio_context*);
 void wrio_close_output(wrio_output*);
 
-auto wrio_output_get_size(wrio_output*) -> vec2u32;
+auto wrio_output_get_size(     wrio_output*) -> vec2u32;
 void wrio_output_request_frame(wrio_output*, flags<wren_image_usage>);
-void wrio_output_present(wrio_output*, wren_image*, wren_syncpoint);
+void wrio_output_present(      wrio_output*, wren_image*, wren_syncpoint);

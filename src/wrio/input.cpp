@@ -1,5 +1,20 @@
 #include "internal.hpp"
 
+auto wrio_list_input_devices(wrio_context* ctx) -> std::span<wrio_input_device* const>
+{
+    return ctx->input_devices;
+}
+
+auto wrio_input_device_get_capabilities(wrio_input_device* device) -> flags<wrio_input_device_capability>
+{
+    return device->capabilities;
+}
+
+void wrio_input_device_update_leds(wrio_input_device* device, flags<libinput_led> leds)
+{
+    log_warn("TODO: Keyboard LEDs: [{}]", wrei_bitfield_to_string(leds.get()));
+}
+
 void wrio_input_device_add(wrio_input_device* device)
 {
     wrei_assert(!std::ranges::contains(device->ctx->input_devices, device));
@@ -26,78 +41,77 @@ void wrio_input_device_remove(wrio_input_device* device)
     }
 }
 
-void wrio_input_device_leave(wrio_input_device* device)
+static
+void post_input(wrio_input_device* device, bool quiet, std::span<const wrio_input_channel> channels)
 {
     wrio_post_event(wrei_ptr_to(wrio_event {
         .ctx = device->ctx,
-        .type = wrio_event_type::input_leave,
+        .type = wrio_event_type::input_event,
         .input = wrio_input_event {
             .device = device,
+            .quiet = quiet,
+            .channels = channels,
         },
     }));
 }
 
+void wrio_input_device_leave(wrio_input_device* device)
+{
+    std::vector<wrio_input_channel> events;
+    events.reserve(device->pressed.size());
+    for (auto key : device->pressed) {
+        events.emplace_back(EV_KEY, key, 0);
+    }
+    if (!events.empty()) {
+        post_input(device, true, events);
+    }
+    device->pressed.clear();
+}
+
 void wrio_input_device_key_enter(wrio_input_device* device, std::span<const u32> keys)
 {
+    std::vector<wrio_input_channel> events;
+    events.reserve(keys.size());
     for (auto key : keys) {
-        wrio_post_event(wrei_ptr_to(wrio_event {
-            .ctx = device->ctx,
-            .type = wrio_event_type::input_key_enter,
-            .input = wrio_input_event {
-                .device = device,
-                .key = key,
-            },
-        }));
+        if (device->pressed.insert(key).second) {
+            events.emplace_back(EV_KEY, key, 1);
+        }
+    }
+    if (!events.empty()) {
+        post_input(device, true, events);
     }
 }
 
 void wrio_input_device_key_press(wrio_input_device* device, u32 key)
 {
-    wrio_post_event(wrei_ptr_to(wrio_event {
-        .ctx = device->ctx,
-        .type = wrio_event_type::input_key_press,
-        .input = wrio_input_event {
-            .device = device,
-            .key = key,
-        },
-    }));
+    if (device->pressed.insert(key).second) {
+        post_input(device, false, {{EV_KEY, key, 1}});
+    }
 }
 
 void wrio_input_device_key_release(wrio_input_device* device, u32 key)
 {
-    wrio_post_event(wrei_ptr_to(wrio_event {
-        .ctx = device->ctx,
-        .type = wrio_event_type::input_key_release,
-        .input = wrio_input_event {
-            .device = device,
-            .key = key,
-        },
-    }));
+    if (device->pressed.erase(key)) {
+        post_input(device, false, {{EV_KEY, key, 0}});
+    }
 }
 
-void wrio_input_device_pointer_motion(wrio_input_device* device, vec2f64 delta)
+static
+void post_rel2(wrio_input_device* device, vec2u32 code, vec2f32 delta)
 {
-    wrio_post_event(wrei_ptr_to(wrio_event {
-        .ctx = device->ctx,
-        .type = wrio_event_type::input_pointer_motion,
-        .input = wrio_input_event {
-            .device = device,
-            .motion = delta,
-        },
-    }));
+    wrio_input_channel events[2];
+    u32 count = 0;
+    if (delta.x) events[count++] = {EV_REL, code.x, delta.x};
+    if (delta.y) events[count++] = {EV_REL, code.y, delta.y};
+    post_input(device, false, std::span(events, count));
 }
 
-void wrio_input_device_pointer_axis(wrio_input_device* device, wrio_pointer_axis axis, f64 delta)
+void wrio_input_device_pointer_motion(wrio_input_device* device, vec2f32 delta)
 {
-    wrio_post_event(wrei_ptr_to(wrio_event {
-        .ctx = device->ctx,
-        .type = wrio_event_type::input_pointer_axis,
-        .input = wrio_input_event {
-            .device = device,
-            .axis = {
-                .axis = axis,
-                .delta = delta,
-            },
-        },
-    }));
+    post_rel2(device, {REL_X, REL_Y}, delta);
+}
+
+void wrio_input_device_pointer_scroll(wrio_input_device* device, vec2f32 delta)
+{
+    post_rel2(device, {REL_HWHEEL, REL_WHEEL}, delta);
 }

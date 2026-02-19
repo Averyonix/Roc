@@ -97,6 +97,10 @@ void wrio_output_remove(wrio_output*);
 struct wrio_input_device : wrei_object
 {
     wrio_context* ctx;
+
+    flags<wrio_input_device_capability> capabilities;
+
+    std::flat_set<u32> pressed;
 };
 
 void wrio_post_event(wrio_event*);
@@ -107,5 +111,5 @@ void wrio_input_device_leave(         wrio_input_device*);
 void wrio_input_device_key_enter(     wrio_input_device*, std::span<const u32> keys);
 void wrio_input_device_key_press(     wrio_input_device*, u32 key);
 void wrio_input_device_key_release(   wrio_input_device*, u32 key);
-void wrio_input_device_pointer_motion(wrio_input_device*, vec2f64 delta);
-void wrio_input_device_pointer_axis(  wrio_input_device*, wrio_pointer_axis axis, f64 delta);
+void wrio_input_device_pointer_motion(wrio_input_device*, vec2f32 delta);
+void wrio_input_device_pointer_scroll(wrio_input_device*, vec2f32 delta);

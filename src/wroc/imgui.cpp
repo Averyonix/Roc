@@ -57,7 +57,7 @@ void wroc_imgui_init()
             wren_image_usage::texture | wren_image_usage::transfer);
         wren_image_update_immed(imgui->font_image.get(), pixels);
 
-        io.Fonts->SetTexID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get()));
+        io.Fonts->SetTexID(ImTextureID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get())));
     }
 
     imgui->cursor_shape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
