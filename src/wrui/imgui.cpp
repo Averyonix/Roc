@@ -142,6 +142,8 @@ void wrui_imgui_frame(wrui_context* ctx)
 
     auto data = ImGui::GetDrawData();
 
+    auto scene = wrui_get_scene(ctx);
+
     ctx->imgui.draws = wrui_tree_create(ctx);
 
     for (auto& list : std::span(data->CmdLists.Data, data->CmdLists.Size)) {
@@ -160,17 +162,18 @@ void wrui_imgui_frame(wrui_context* ctx)
             wrei_assert(sizeof(wrui_vertex) ==  sizeof(ImDrawVert) && alignof(wrui_vertex) == alignof(ImDrawVert));
 
             wrui_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
+                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, wrei_minmax},
                 std::span(reinterpret_cast<wrui_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1),
                 indices);
 
-            wrui_node_set_transform(mesh.get(), wrui_get_scene(ctx).transform);
+            wrui_node_set_transform(mesh.get(), scene.transform);
             wrui_tree_place_above(ctx->imgui.draws.get(), nullptr, mesh.get());
         }
     }
 
     // TODO|FIXME: Separate the scene into several subtrees for each relevant UI layer.
-    wrui_tree_place_above(wrui_get_scene(ctx).tree, nullptr, ctx->imgui.draws.get());
-    wrui_tree_place_above(wrui_get_scene(ctx).tree, nullptr, ctx->pointer->visual.get());
+    wrui_tree_place_above(scene.tree, nullptr, ctx->imgui.draws.get());
+    wrui_tree_place_above(scene.tree, nullptr, ctx->pointer->visual.get());
 }
 
 // -----------------------------------------------------------------------------

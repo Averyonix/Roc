@@ -225,12 +225,13 @@ auto wrui_mesh_create(wrui_context* ctx) -> ref<wrui_mesh>
     return mesh;
 }
 
-void wrui_mesh_update(wrui_mesh* mesh, wren_image* image, wren_sampler* sampler, wren_blend_mode blend, std::span<const wrui_vertex> vertices, std::span<const u16> indices)
+void wrui_mesh_update(wrui_mesh* mesh, wren_image* image, wren_sampler* sampler, wren_blend_mode blend, aabb2f32 clip, std::span<const wrui_vertex> vertices, std::span<const u16> indices)
 {
     damage_node(mesh);
     mesh->image = image;
     mesh->sampler = sampler;
     mesh->blend = blend;
+    mesh->clip = clip;
     mesh->vertices.assign_range(vertices);
     mesh->indices.assign_range(indices);
     damage_node(mesh);

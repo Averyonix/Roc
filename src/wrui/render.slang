@@ -14,7 +14,7 @@ vertex_output vertex(u32 id : SV_VulkanVertexID)
 {
     var v = si.vertices[id];
     vertex_output out;
-    out.pos = vec4f32((v.pos * si.scale) + si.offset, 0, 1);
+    out.pos = vec4f32(fma(v.pos, si.scale, si.offset), 0, 1);
     out.uv = v.uv;
     out.color = wrei_unpack_unorm4u8(v.color);
     return out;

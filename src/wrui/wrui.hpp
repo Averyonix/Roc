@@ -134,12 +134,14 @@ struct wrui_mesh : wrui_node
     ref<wren_sampler> sampler;
     wren_blend_mode   blend;
 
+    aabb2f32 clip;
+
     std::vector<wrui_vertex> vertices;
     std::vector<u16>         indices;
 };
 
 auto wrui_mesh_create(wrui_context*) -> ref<wrui_mesh>;
-void wrui_mesh_update(wrui_mesh*, wren_image*, wren_sampler*, wren_blend_mode, std::span<const wrui_vertex> vertices, std::span<const u16> indices);
+void wrui_mesh_update(wrui_mesh*, wren_image*, wren_sampler*, wren_blend_mode, aabb2f32 clip, std::span<const wrui_vertex> vertices, std::span<const u16> indices);
 
 // -----------------------------------------------------------------------------
 

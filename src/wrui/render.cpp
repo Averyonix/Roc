@@ -36,7 +36,7 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
         u32 first_vertex;
         u32 first_index;
         u32 num_indices;
-        vec2f32 clip;
+        aabb2f32 clip;
         wren_image* image;
         wren_sampler* sampler;
         wren_blend_mode blend;
@@ -46,6 +46,8 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
     std::vector<wrui_vertex> vertices;
     std::vector<u32> indices;
     std::vector<wrui_draw> draws;
+
+    aabb2f32 default_clip = {{}, target->extent, wrei_xywh};
 
     auto walk_node = [&](this auto&& walk_node, wrui_node* node) -> void
     {
@@ -69,6 +71,11 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
                     .first_vertex = vtx,
                     .first_index = idx,
                     .num_indices = u32(mesh->indices.size()),
+                    .clip = wrei_aabb_inner(default_clip, {
+                        node->transform->global.translation + mesh->clip.min * node->transform->global.scale,
+                        node->transform->global.translation + mesh->clip.max * node->transform->global.scale,
+                        wrei_minmax
+                    }),
                     .image = mesh->image.get() ?: render.white.get(),
                     .sampler = mesh->sampler.get() ?: render.sampler.get(),
                     .blend = mesh->blend,
@@ -100,6 +107,7 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
                     .first_vertex = vtx,
                     .first_index = idx,
                     .num_indices = 6,
+                    .clip = default_clip,
                     .image = texture->image.get() ?: render.white.get(),
                     .sampler = texture->sampler.get() ?: render.sampler.get(),
                     .blend = texture->blend,
@@ -162,10 +170,6 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
         target_extent.x, target_extent.y,
         0, 1,
     }));
-    wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D {
-        .offset = {},
-        .extent = vk_extent,
-    }));
 
     rect2f32 viewport{{}, target_extent, wrei_xywh};
 
@@ -178,6 +182,11 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
             break;case wren_blend_mode::none:
                 wrei_assert_fail("", "Must select blend mode");
         }
+        rect2f32 scissor = draw.clip;
+        wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D {
+            .offset = {i32(scissor.origin.x), i32(scissor.origin.y)},
+            .extent = {u32(scissor.extent.x), u32(scissor.extent.y)},
+        }));
         auto draw_scale = 2.f / viewport.extent;
         wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wrui_render_input),
             wrei_ptr_to(wrui_render_input {
