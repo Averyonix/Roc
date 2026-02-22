@@ -82,7 +82,7 @@ wren_descriptor_id_allocator::wren_descriptor_id_allocator(u32 count)
     , capacity(count)
 {}
 
-std::optional<wren_descriptor_id> wren_descriptor_id_allocator::allocate()
+wren_descriptor_id wren_descriptor_id_allocator::allocate()
 {
     if (!freelist.empty()) {
         auto id = freelist.back();
@@ -90,7 +90,7 @@ std::optional<wren_descriptor_id> wren_descriptor_id_allocator::allocate()
         return id;
     }
 
-    if (next_id >= capacity) return std::nullopt;
+    if (next_id >= capacity) return wren_descriptor_id::invalid;
 
     return wren_descriptor_id(next_id++);
 }
@@ -110,12 +110,12 @@ void wren_allocate_image_descriptor(wren_image* image)
     auto& vk = ctx->vk;
 
     auto id = ctx->image_descriptor_allocator.allocate();
-    if (!id) {
+    if (id == wren_descriptor_id::invalid) {
         log_error("No more available image descriptors ids");
         return;
     }
 
-    image->id = *id;
+    image->id = id;
 
     log_debug("Image allocated ID: {}", std::to_underlying(image->id));
 
@@ -164,12 +164,12 @@ void wren_allocate_sampler_descriptor(wren_sampler* sampler)
     auto& vk = ctx->vk;
 
     auto id = ctx->sampler_descriptor_allocator.allocate();
-    if (!id) {
+    if (id == wren_descriptor_id::invalid) {
         log_error("No more available image descriptors ids");
         return;
     }
 
-    sampler->id = *id;
+    sampler->id = id;
 
     log_debug("Sampler allocated ID: {}", std::to_underlying(sampler->id));
 

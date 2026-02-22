@@ -284,3 +284,14 @@ struct wrei_object_equals
         return c.get() == value;
     }
 };
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+T* wrei_object_cast(wrei_object* base)
+{
+    if (!base) return nullptr;
+    auto derived = dynamic_cast<T*>(base);
+    wrei_assert(derived, "Fatal error casting void to object: expected {} got {}", typeid(T).name(), typeid(*base).name());
+    return derived;
+}

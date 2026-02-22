@@ -2,6 +2,7 @@
 
 wrui_window::~wrui_window()
 {
+    wrui_window_unmap(this);
     std::erase(client->ctx->windows, this);
 }
 

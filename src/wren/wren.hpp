@@ -30,7 +30,7 @@ struct wren_descriptor_id_allocator
     wren_descriptor_id_allocator() = default;
     wren_descriptor_id_allocator(u32 count);
 
-    std::optional<wren_descriptor_id> allocate();
+    wren_descriptor_id allocate();
     void free(wren_descriptor_id);
 };
 

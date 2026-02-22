@@ -119,6 +119,7 @@ auto wrui_tree_create(wrui_context* ctx) -> ref<wrui_tree>
 
 void wrui_node_unparent(wrui_node* node)
 {
+    damage_node(node);
     auto parent = std::exchange(node->parent, nullptr);
     std::erase_if(parent->children, wrei_object_equals<wrui_node>{node});
 }
