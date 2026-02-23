@@ -183,6 +183,8 @@ struct wren_context : wrei_object
 
     void* loader;
 
+    RENDERDOC_API_1_7_0* renderdoc;
+
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_messenger;
     VkPhysicalDevice physical_device;

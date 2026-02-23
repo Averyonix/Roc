@@ -86,6 +86,11 @@ target_compile_definitions(vma-object PUBLIC "VMA_STATIC_VULKAN_FUNCTIONS=0" "VM
 
 # ------------------------------------------------------------------------------
 
+add_library(renderdoc-api INTERFACE)
+target_include_directories(renderdoc-api INTERFACE ${VENDOR_DIR}/renderdoc/renderdoc/api/app)
+
+# ------------------------------------------------------------------------------
+
 function(init_target target_name)
     target_compile_options(${target_name} PRIVATE
         -std=c++26
@@ -166,6 +171,7 @@ target_link_libraries(wrei PUBLIC
     imgui
     cap
     libgio2
+    renderdoc-api
     )
 
 # ------------------------------------------------------------------------------

@@ -40,6 +40,31 @@ wren_context::~wren_context()
 }
 
 static
+void load_renderdoc(wren_context* ctx)
+{
+    log_debug("Loading RenderDoc API");
+
+    void* mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD);
+    if (!mod) {
+        log_error("Failed to load shared object: [librenderdoc.so]");
+        return;
+    }
+
+    auto RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)dlsym(mod, "RENDERDOC_GetAPI");
+    if (!RENDERDOC_GetAPI) {
+        log_error("Failed to load symbol: [RENDERDOC_GetAPI]");
+        return;
+    }
+
+    RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_7_0, (void**)&ctx->renderdoc);
+
+    int major, minor, patch;
+    ctx->renderdoc->GetAPIVersion(&major, &minor, &patch);
+
+    log_debug("RenderDoc API loaded: {}.{}.{}", major, minor, patch);
+}
+
+static
 std::array required_device_extensions = {
     VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
     VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
@@ -52,8 +77,39 @@ std::array required_device_extensions = {
     VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
     VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
     VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
-    VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
 };
+
+static
+bool open_drm(wren_context* ctx, drmDevice* device)
+{
+    // Prefer to open the render node for normal render operations,
+    // even the requested drm was opened from a primary node
+
+    const char* name = nullptr;
+    if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
+        name = device->nodes[DRM_NODE_RENDER];
+    } else if (device->available_nodes & (1 << DRM_NODE_PRIMARY)) {
+        name = device->nodes[DRM_NODE_PRIMARY];
+        log_warn("  device has no render node, falling back to primary node");
+    } else {
+        log_warn("  device has no render or primary nodes, ignoring.");
+        return false;
+    }
+
+    log_debug("  drm path: {}", name);
+    ctx->drm.fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    log_debug("  drm fd: {}", ctx->drm.fd);
+
+    if (ctx->drm.fd) {
+        ctx->drm.device = device;
+        struct stat drm_stat;
+        stat(name, &drm_stat);
+        log_debug("  drm id: {}", drm_stat.st_rdev);
+        ctx->drm.id = drm_stat.st_rdev;
+        return true;
+    }
+    return false;
+}
 
 static
 bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev)
@@ -90,46 +146,84 @@ bool try_physical_device(wren_context* ctx, VkPhysicalDevice phdev)
         }
     }
 
-    // DRM file descriptor
+    // Match DRM device
 
-    VkPhysicalDeviceDrmPropertiesEXT drm_props {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
-    };
-    ctx->vk.GetPhysicalDeviceProperties2(phdev, wrei_ptr_to(VkPhysicalDeviceProperties2 {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-        .pNext = &drm_props,
-    }));
+    ctx->drm.fd = -1;
 
-    dev_t primary_dev_id = makedev(drm_props.primaryMajor, drm_props.primaryMinor);
-    dev_t render_dev_id = makedev(drm_props.renderMajor, drm_props.renderMinor);
+    if (check_extension(VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME) && false) {
+        VkPhysicalDeviceDrmPropertiesEXT drm_props {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
+        };
+        ctx->vk.GetPhysicalDeviceProperties2(phdev, wrei_ptr_to(VkPhysicalDeviceProperties2 {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+            .pNext = &drm_props,
+        }));
 
-    if (!drm_props.hasPrimary && !drm_props.hasRender) {
-        log_warn("  device has no primary or render node");
+        dev_t primary_dev_id = makedev(drm_props.primaryMajor, drm_props.primaryMinor);
+        dev_t render_dev_id  = makedev(drm_props.renderMajor,  drm_props.renderMinor);
+
+        if (!drm_props.hasPrimary && !drm_props.hasRender) {
+            log_warn("  device has no primary or render node");
+            return false;
+        }
+
+        drmDevice* device;
+        unix_check(drmGetDeviceFromDevId(drm_props.hasRender ? render_dev_id : primary_dev_id, 0, &device));
+
+        if (!open_drm(ctx, device)) {
+            drmFreeDevice(&device);
+            return false;
+        }
+    } else {
+        auto num_devices = drmGetDevices2(0, nullptr, 0);
+        std::vector<drmDevice*> devices(num_devices);
+        num_devices = drmGetDevices2(0, devices.data(), devices.size());
+        devices.resize(std::min(devices.size(), usz(num_devices)));
+        defer {
+            for (auto& device : devices) if (device) drmFreeDevice(&device);
+        };
+
+        VkPhysicalDevicePCIBusInfoPropertiesEXT pci_props = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT,
+        };
+        VkPhysicalDeviceProperties2 props {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        };
+        bool pci_info = check_extension(VK_EXT_PCI_BUS_INFO_EXTENSION_NAME);
+        if (pci_info) props.pNext = &pci_props;
+        ctx->vk.GetPhysicalDeviceProperties2(phdev, &props);
+
+        if (check_extension(VK_EXT_PCI_BUS_INFO_EXTENSION_NAME)) {
+            log_debug("Device does not support " VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME );
+            log_debug("Matching DRM against " VK_EXT_PCI_BUS_INFO_EXTENSION_NAME);
+        } else {
+            log_warn("Device does not support " VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME " or " VK_EXT_PCI_BUS_INFO_EXTENSION_NAME);
+            log_warn("Matching DRM against vendorID/deviceID");
+        }
+
+        for (auto*& candidate : devices)  {
+            if (pci_info) {
+                if (pci_props.pciDomain   != candidate->businfo.pci->domain) continue;
+                if (pci_props.pciBus      != candidate->businfo.pci->bus)    continue;
+                if (pci_props.pciDevice   != candidate->businfo.pci->dev)    continue;
+                if (pci_props.pciFunction != candidate->businfo.pci->func)   continue;
+            } else {
+                if (props.properties.vendorID != candidate->deviceinfo.pci->vendor_id) continue;
+                if (props.properties.deviceID != candidate->deviceinfo.pci->device_id) continue;
+            }
+
+            if (open_drm(ctx, candidate)) {
+                // Prevent candidate from being destroyed
+                candidate = nullptr;
+                break;
+            }
+        }
+    }
+
+    if (ctx->drm.fd == -1)  {
+        log_warn("  failed to find or open DRM device, skipping...");
         return false;
     }
-
-    // Prefer to open the render node for normal render operations,
-    //   even the requested drm was opened from a primary node
-
-    ctx->drm.id = drm_props.hasRender ? render_dev_id : primary_dev_id;
-    log_debug("  device id: {} ({})", ctx->drm.id, drm_props.hasRender ? "render" : "primary");
-
-    // Open
-
-    unix_check(drmGetDeviceFromDevId(ctx->drm.id, 0, &ctx->drm.device));
-    const char* name = nullptr;
-
-    if (ctx->drm.device->available_nodes & (1 << DRM_NODE_RENDER)) {
-        name = ctx->drm.device->nodes[DRM_NODE_RENDER];
-    } else {
-        wrei_assert(ctx->drm.device->available_nodes & (1 << DRM_NODE_PRIMARY));
-        name = ctx->drm.device->nodes[DRM_NODE_PRIMARY];
-        log_warn("  device {} has no render node, falling back to primary node", name);
-    }
-
-    log_debug("  device path: {}", name);
-    ctx->drm.fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-    log_debug("  drm fd: {}", ctx->drm.fd);
 
     log_info("  device selected");
 
@@ -284,6 +378,9 @@ ref<wren_context> wren_create(flags<wren_feature> _features, wrei_event_loop* ev
             if (tool.layer == "VK_LAYER_KHRONOS_validation"sv) {
                 log_warn("Detected validation layers, enabling validation support");
                 ctx->features |= wren_feature::validation;
+
+            } else if (tool.name == "RenderDoc"sv) {
+                load_renderdoc(ctx.get());
             }
         }
     }

@@ -31,6 +31,14 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
 {
     auto& render = ctx->render;
 
+    static u32 captures = 3;
+    bool capture = ctx->wren->renderdoc && captures;
+    if (capture) {
+        captures--;
+        ctx->wren->renderdoc->StartFrameCapture(nullptr, nullptr);
+        ctx->wren->renderdoc->SetCaptureTitle(std::format("Roc capture {}", 3 - captures).c_str());
+    }
+
     struct wrui_draw
     {
         u32 first_vertex;
@@ -201,5 +209,10 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
     wren->vk.CmdEndRendering(cmd);
 
     auto done = wren_commands_submit(commands.get(), {});
+
+    if (capture) {
+        ctx->wren->renderdoc->EndFrameCapture(nullptr, nullptr);
+    }
+
     wrio_output_present(output, target, done);
 }
