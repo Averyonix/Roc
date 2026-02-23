@@ -66,24 +66,6 @@ std::string_view wrei_enum_to_string(Enum value)
     return name;
 }
 
-template<typename Enum>
-std::string wrei_bitfield_to_string(Enum value)
-{
-    std::string result;
-
-    using Type = std::underlying_type_t<Enum>;
-    Type v = std::to_underlying(value);
-
-    while (v) {
-        Type lsb = Type(1) << std::countr_zero(v);
-        if (!result.empty()) result += "|";
-        result += wrei_enum_to_string(Enum(lsb));
-        v &= ~lsb;
-    }
-
-    return result;
-}
-
 // -----------------------------------------------------------------------------
 
 template<typename Fn>

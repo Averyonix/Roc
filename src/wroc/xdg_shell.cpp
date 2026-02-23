@@ -766,7 +766,7 @@ void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _p
     log_debug("  anchor_rect = {}", wrei_to_string(rules.anchor_rect));
     log_debug("  anchor = {}", wrei_enum_to_string(rules.anchor));
     log_debug("  gravity = {}", wrei_enum_to_string(rules.gravity));
-    log_debug("  adjustment = {}", wrei_bitfield_to_string(rules.constraint_adjustment));
+    log_debug("  adjustment = {}", wrei_to_string(rules.constraint_adjustment));
     log_debug("  offset = {}", wrei_to_string(rules.offset));
     log_debug("  reactive = {}", rules.reactive);
     log_debug("  parent_size = {}", wrei_to_string(rules.parent_size));

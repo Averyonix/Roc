@@ -29,6 +29,8 @@ void damage_node(wrui_node* node)
                 //       we can immediately return after a frame has been requested.
                 return;
             }
+        break;case wrui_node_type::input_plane:
+            ;
     }
 }
 
@@ -236,4 +238,28 @@ void wrui_mesh_update(wrui_mesh* mesh, wren_image* image, wren_sampler* sampler,
     mesh->vertices.assign_range(vertices);
     mesh->indices.assign_range(indices);
     damage_node(mesh);
+}
+
+// -----------------------------------------------------------------------------
+
+wrui_input_plane::~wrui_input_plane()
+{
+    if (parent) {
+        wrui_node_unparent(this);
+    }
+
+    wrui_update_pointer_focus(client->ctx);
+}
+
+auto wrui_input_plane_create(wrui_client* client) -> ref<wrui_input_plane>
+{
+    auto plane = wrei_create<wrui_input_plane>();
+    plane->type = wrui_node_type::input_plane;
+    plane->client = client;
+    return plane;
+}
+
+void wrui_input_plane_set_rect(wrui_input_plane* plane, aabb2f32 rect)
+{
+    plane->rect = rect;
 }

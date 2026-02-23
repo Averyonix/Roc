@@ -48,5 +48,23 @@ constexpr wrei_flags<E> operator|(E a, E b)
     return wrei_flags(a) | b;
 }
 
+template<typename Enum>
+std::string wrei_to_string(wrei_flags<Enum> bitfield)
+{
+    std::string result;
+
+    using Type = wrei_flags<Enum>::underlying_type;
+    Type v = bitfield.value;
+
+    while (v) {
+        Type lsb = Type(1) << std::countr_zero(v);
+        if (!result.empty()) result += "|";
+        result += wrei_enum_to_string(Enum(lsb));
+        v &= ~lsb;
+    }
+
+    return result;
+}
+
 template<typename E>
 using flags = wrei_flags<E>;

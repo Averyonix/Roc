@@ -12,7 +12,7 @@ auto wrio_input_device_get_capabilities(wrio_input_device* device) -> flags<wrio
 
 void wrio_input_device_update_leds(wrio_input_device* device, flags<libinput_led> leds)
 {
-    log_warn("TODO: Keyboard LEDs: [{}]", wrei_bitfield_to_string(leds.get()));
+    log_warn("TODO: Keyboard LEDs: [{}]", wrei_to_string(leds));
 }
 
 void wrio_input_device_add(wrio_input_device* device)

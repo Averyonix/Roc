@@ -122,10 +122,12 @@ void wrui_render(wrui_context* ctx, wrio_output* output, wren_image* target)
                     .transform = texture->transform->global,
                 });
             }
+            break;case wrui_node_type::input_plane:
+                ;
         }
     };
 
-    walk_node(ctx->scene.get());
+    walk_node(ctx->root_tree.get());
 
     auto wren = ctx->wren;
 

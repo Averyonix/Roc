@@ -225,7 +225,6 @@ target_sources(wrui PUBLIC
     src/wrui/window.cpp
     src/wrui/input.cpp
     src/wrui/client.cpp
-    src/wrui/imgui.cpp
     )
 target_link_libraries(wrui PUBLIC wrio)
 
@@ -235,20 +234,20 @@ target_link_libraries(wrui-test PUBLIC wrui)
 
 # ------------------------------------------------------------------------------
 
-init_library(wrocx)
-target_sources(wrocx PUBLIC
-    src/wrocx/wroc.cpp
+# init_library(wrocx)
+# target_sources(wrocx PUBLIC
+#     src/wrocx/wroc.cpp
 
-    src/wrocx/buffer.cpp
-    src/wrocx/surface.cpp
-    src/wrocx/shell.cpp
-    src/wrocx/shm.cpp
-    )
-target_link_libraries(wrocx PUBLIC wrui)
+#     src/wrocx/buffer.cpp
+#     src/wrocx/surface.cpp
+#     src/wrocx/shell.cpp
+#     src/wrocx/shm.cpp
+#     )
+# target_link_libraries(wrocx PUBLIC wrui)
 
-init_executable(wrocx-test)
-target_sources(wrocx-test PUBLIC src/wrocx/main.cpp)
-target_link_libraries(wrocx-test PUBLIC wrocx)
+# init_executable(wrocx-test)
+# target_sources(wrocx-test PUBLIC src/wrocx/main.cpp)
+# target_link_libraries(wrocx-test PUBLIC wrocx)
 
 # ------------------------------------------------------------------------------
 

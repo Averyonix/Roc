@@ -19,7 +19,7 @@ auto wrui_window_create(wrui_client* client) -> ref<wrui_window>
     wrui_node_set_transform(window->transform.get(), ctx->root_transform.get());
 
     window->tree = wrui_tree_create(ctx);
-    wrui_tree_place_above(ctx->scene.get(), nullptr, window->tree.get());
+    wrui_tree_place_above(wrui_get_layer(ctx, wrui_layer::normal), nullptr, window->tree.get());
 
     return window;
 }
@@ -43,7 +43,7 @@ void wrui_window_map(wrui_window* window)
 {
     if (window->mapped) return;
 
-    wrui_tree_place_above(window->client->ctx->scene.get(), nullptr, window->tree.get());
+    wrui_tree_place_above(wrui_get_layer(window->client->ctx, wrui_layer::normal), nullptr, window->tree.get());
 
     window->mapped = true;
 }

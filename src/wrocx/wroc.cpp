@@ -43,15 +43,20 @@ auto wroc_create(wrei_event_loop* event_loop, wren_context* wren, wrui_context* 
     server->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
     server->client = wrui_client_create(wrui);
-    wrui_imgui_request_frame(server->client.get());
     wrui_client_set_event_handler(server->client.get(), [client = server->client.get()](wrui_event* event) {
         switch (event->type) {
-            break;case wrui_event_type::imgui_frame:
-                ImGui::ShowDemoWindow();
+            break;case wrui_event_type::keyboard_key:
+            break;case wrui_event_type::keyboard_modifier:
+            break;case wrui_event_type::pointer_motion:
+            break;case wrui_event_type::pointer_button:
+            break;case wrui_event_type::pointer_scroll:
+            break;case wrui_event_type::pointer_enter:
+            break;case wrui_event_type::pointer_leave:
             break;case wrui_event_type::window_resize:
                 log_error("TODO: window resize");
                 // wrui_texture_set_dst(canvas, {{}, event->window.resize, wrei_xywh});
                 // wrui_window_set_size(event->window.window, event->window.resize);
+            break;case wrui_event_type::window_focus_keyboard:
         }
     });
 

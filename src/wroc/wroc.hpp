@@ -576,7 +576,7 @@ struct wroc_positioner_rules
     rect2i32 anchor_rect;
     xdg_positioner_anchor anchor;
     xdg_positioner_gravity gravity;
-    xdg_positioner_constraint_adjustment constraint_adjustment;
+    flags<xdg_positioner_constraint_adjustment> constraint_adjustment;
     vec2i32 offset;
     bool reactive = false;
     vec2i32 parent_size;

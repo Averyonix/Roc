@@ -9,6 +9,10 @@ wrui_client::~wrui_client()
         wrei_assert(window->client != this);
     }
 
+    if (ctx->keyboard->focus.client == this) {
+        wrui_keyboard_ungrab(this);
+    }
+
     std::erase(ctx->clients, this);
 }
 

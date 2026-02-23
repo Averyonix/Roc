@@ -20,40 +20,20 @@ struct wrui_context
     } render;
 
     ref<wrui_transform> root_transform;
-    ref<wrui_tree> scene;
+    ref<wrui_tree>      root_tree;
+    wrei_enum_map<wrui_layer, ref<wrui_tree>> layers;
 
     std::vector<wrui_client*> clients;
     std::vector<wrui_window*> windows;
 
     ref<wrui_keyboard> keyboard;
     ref<wrui_pointer>  pointer;
-
-    struct {
-        ImGuiContext* context;
-        rect2f32 region;
-        u32 frames_requested;
-        ref<wrui_tree> draws;
-        struct texture {
-            ref<wren_image> image;
-            ref<wren_sampler> sampler;
-            wren_blend_mode blend;
-        };
-        std::vector<texture> textures;
-        ref<wren_image> font_image;
-    } imgui;
 };
+
+void wrui_broadcast_event(wrui_context*, wrui_event*);
 
 void wrui_render_init(wrui_context*);
 void wrui_render(wrui_context*, wrio_output*, wren_image*);
-
-void wrui_imgui_init(wrui_context*);
-void wrui_imgui_frame(wrui_context*);
-void wrui_imgui_request_frame(wrui_context*);
-void wrui_imgui_handle_key(wrui_context*, xkb_keysym_t, bool pressed, const char* utf8);
-void wrui_imgui_handle_mods(wrui_context*, flags<wrui_modifier>);
-void wrui_imgui_handle_motion(wrui_context*);
-void wrui_imgui_handle_button(wrui_context*, wrui_scancode, bool pressed);
-void wrui_imgui_handle_wheel(wrui_context*, vec2f32 delta);
 
 struct wrui_client
 {
@@ -94,6 +74,8 @@ struct wrui_keyboard
     i32 rate = 25;
     i32 delay = 600;
 
+    wrui_focus focus;
+
     ~wrui_keyboard();
 };
 
@@ -105,7 +87,11 @@ struct wrui_pointer
 
     ref<wrui_transform> transform;
     ref<wrui_texture>   visual;
+
+    wrui_focus focus;
 };
+
+void wrui_update_pointer_focus(wrui_context*);
 
 auto wrui_pointer_create(wrui_context*) -> ref<wrui_pointer>;
 

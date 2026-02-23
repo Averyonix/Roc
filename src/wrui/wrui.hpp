@@ -11,6 +11,7 @@ struct wrui_node;
 struct wrui_tree;
 struct wrui_transform;
 struct wrui_texture;
+struct wrui_input_plane;
 
 struct wrui_context;
 WREI_OBJECT_EXPLICIT_DECLARE(wrui_context);
@@ -23,7 +24,15 @@ struct wrui_scene
     wrui_transform* transform;
 };
 
-auto wrui_get_scene(wrui_context*) -> wrui_scene;
+enum class wrui_layer
+{
+    background,
+    normal,
+    overlay,
+};
+
+auto wrui_get_layer(wrui_context*, wrui_layer) -> wrui_tree*;
+auto wrui_get_root_transform(wrui_context*) -> wrui_transform*;
 
 // -----------------------------------------------------------------------------
 
@@ -33,26 +42,29 @@ auto wrui_client_create(wrui_context*) -> ref<wrui_client>;
 
 // -----------------------------------------------------------------------------
 
-void wrui_imgui_request_frame(wrui_client*);
-auto wrui_imgui_get_texture(wrui_context*, wren_image*, wren_sampler*, wren_blend_mode) -> ImTextureID;
-
-// -----------------------------------------------------------------------------
-
 enum class wrui_modifier : u32
 {
-    mod   = 1 << 0,
-    super = 1 << 1,
-    shift = 1 << 2,
-    ctrl  = 1 << 3,
-    alt   = 1 << 4,
-    num   = 1 << 5,
-    caps  = 1 << 6,
+    super = 1 << 0,
+    shift = 1 << 1,
+    ctrl  = 1 << 2,
+    alt   = 1 << 3,
+    num   = 1 << 4,
+    caps  = 1 << 5,
 };
 
 using wrui_scancode = u32;
 
 struct wrui_keyboard;
 struct wrui_pointer;
+
+auto wrui_pointer_get_position(wrui_context*) -> vec2f32;
+
+auto wrui_keyboard_get_modifiers(wrui_context*) -> flags<wrui_modifier>;
+void wrui_keyboard_grab(wrui_client*);
+// Clear client keyboard grab, defers to next most recent keyboard grab
+void wrui_keyboard_ungrab(wrui_client*);
+// Clear all keyboard grabs
+void wrui_keyboard_clear_focus(wrui_context*);
 
 // -----------------------------------------------------------------------------
 
@@ -62,6 +74,7 @@ enum class wrui_node_type
     tree,
     texture,
     mesh,
+    input_plane,
 };
 
 struct wrui_node : wrei_object
@@ -143,6 +156,17 @@ struct wrui_mesh : wrui_node
 auto wrui_mesh_create(wrui_context*) -> ref<wrui_mesh>;
 void wrui_mesh_update(wrui_mesh*, wren_image*, wren_sampler*, wren_blend_mode, aabb2f32 clip, std::span<const wrui_vertex> vertices, std::span<const u16> indices);
 
+struct wrui_input_plane : wrui_node
+{
+    wrui_client* client;
+    aabb2f32     rect;   // input region in transform-local space
+
+    ~wrui_input_plane();
+};
+
+auto wrui_input_plane_create(wrui_client*) -> ref<wrui_input_plane>;
+void wrui_input_plane_set_rect(wrui_input_plane*, aabb2f32);
+
 // -----------------------------------------------------------------------------
 
 // Represents a normal interactable "toplevel" window.
@@ -166,18 +190,46 @@ auto wrui_window_get_transform(wrui_window*) -> wrui_transform*;
 
 enum class wrui_event_type
 {
-    // keyboard_key,
-    // keyboard_modifier,
+    keyboard_key,
+    keyboard_modifier,
 
-    // pointer_motion,
-    // pointer_button,
-    // pointer_scroll,
+    pointer_motion,
+    pointer_button,
+    pointer_scroll,
 
-    imgui_frame,
+    focus_keyboard,
+    focus_pointer,
 
     window_resize,
-    // window_focus_keyboard,
-    // window_focus_pointer,
+};
+
+struct wrui_keyboard_event
+{
+    wrui_scancode code;
+    xkb_keysym_t sym;
+    const char* utf8;
+    bool pressed;
+    bool quiet;
+};
+
+struct wrui_pointer_event
+{
+    vec2f32 delta;
+    wrui_scancode button;
+    bool pressed;
+    bool quiet;
+};
+
+struct wrui_focus
+{
+    wrui_client*      client;
+    wrui_input_plane* plane;
+};
+
+struct wrui_focus_event
+{
+    wrui_focus lost;
+    wrui_focus gained;
 };
 
 struct wrui_window_event
@@ -193,7 +245,10 @@ struct wrui_event
     wrui_event_type type;
 
     union {
-        wrui_window_event window;
+        wrui_window_event   window;
+        wrui_keyboard_event key;
+        wrui_pointer_event  pointer;
+        wrui_focus_event    focus;
     };
 };
 

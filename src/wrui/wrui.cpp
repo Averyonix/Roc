@@ -13,9 +13,7 @@ struct event_handler
             break;case wrio_event_type::input_removed:      wrui_handle_input_removed(ctx, event->input.device);
             break;case wrio_event_type::input_event:        wrui_handle_input(        ctx, event->input);
             break;case wrio_event_type::output_configure:   wrio_output_request_frame(event->output.output, ctx->render.usage);
-            break;case wrio_event_type::output_redraw:
-                wrui_imgui_frame(ctx);
-                wrui_render(ctx, event->output.output, event->output.target);
+            break;case wrio_event_type::output_redraw:      wrui_render(ctx, event->output.output, event->output.target);
             break;case wrio_event_type::output_added:
                   case wrio_event_type::output_removed:
                 log_warn("wrio::{}", wrei_enum_to_string(event->type));
@@ -32,7 +30,14 @@ auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
     wrui->wrio = wrio;
     wrio_set_event_handler(wrio, event_handler{wrui.get()});
 
-    wrui->scene = wrui_tree_create(wrui.get());
+    wrui->root_tree = wrui_tree_create(wrui.get());
+
+    for (auto layer : magic_enum::enum_values<wrui_layer>()) {
+        auto* tree = (wrui->layers[layer] = wrui_tree_create(wrui.get())).get();
+        wrui_node_set_transform(tree, wrui->root_transform.get());
+        wrui_tree_place_above(wrui->root_tree.get(), nullptr, tree);
+    }
+
     wrui->root_transform = wrui_transform_create(wrui.get());
 
     wrui_render_init(wrui.get());
@@ -40,12 +45,21 @@ auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
     wrui->keyboard = wrui_keyboard_create(wrui.get());
     wrui->pointer = wrui_pointer_create(wrui.get());
 
-    wrui_imgui_init(wrui.get());
-
     return wrui;
 }
 
-auto wrui_get_scene(wrui_context* ctx) -> wrui_scene
+auto wrui_get_layer(wrui_context* ctx, wrui_layer layer) -> wrui_tree*
 {
-    return { ctx->scene.get(), ctx->root_transform.get() };
+    return ctx->layers[layer].get();
+}
+auto wrui_get_root_transform(wrui_context* ctx) -> wrui_transform*
+{
+    return ctx->root_transform.get();
+}
+
+void wrui_broadcast_event(wrui_context* ctx, wrui_event* event)
+{
+    for (auto* client : ctx->clients) {
+        wrui_client_post_event(client, event);
+    }
 }

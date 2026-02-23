@@ -61,7 +61,7 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
 
 #if WROC_NOISY_DRAG
     log_trace("<- wl_data_offer.set_actions({}, {})",
-        wrei_bitfield_to_string(wl_data_device_manager_dnd_action(dnd_actions)),
+        wrei_to_string(flags(wl_data_device_manager_dnd_action(dnd_actions))),
         wrei_enum_to_string(wl_data_device_manager_dnd_action(preferred_action)));
 #endif
 

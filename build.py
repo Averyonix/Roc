@@ -316,13 +316,17 @@ if ((args.build or args.install) and not cmake_dir.exists()) or args.configure:
         cmd += ["-DUSE_ASAN=1"]
 
     print(cmd)
-    configure_ok = 0 == subprocess.run(cmd).returncode
+    res = subprocess.run(cmd)
+    if res.returncode != 0:
+        os._exit(res.returncode)
 
 if (cmake_dir / "compile_commands.json").exists():
     shutil.copy2(cmake_dir / "compile_commands.json", build_dir / "compile_commands.json")
 
 if configure_ok and (args.build or args.install):
-    subprocess.run(["cmake", "--build", cmake_dir])
+    res = subprocess.run(["cmake", "--build", cmake_dir])
+    if res.returncode != 0:
+        os._exit(res.returncode)
 
 # -----------------------------------------------------------------------------
 
