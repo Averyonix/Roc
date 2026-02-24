@@ -2,6 +2,7 @@
 
 #include "io/io.hpp"
 
+#include "imui/imui.hpp"
 #include "way/way.hpp"
 
 int main()
@@ -98,12 +99,18 @@ int main()
             break;case scene_event_type::window_resize:
                 scene_texture_set_dst(canvas, {{}, event->window.resize, core_xywh});
                 scene_window_set_size(event->window.window, event->window.resize);
+            break;case scene_event_type::redraw:
+                ;
         }
     });
 
     scene_window_map(window.get());
 
     auto way = way_create(event_loop.get(), gpu.get(), scene.get());
+
+    auto imui = imui_create(gpu.get(), scene.get());
+    imui_add_frame_handler(imui.get(), [] { ImGui::ShowDemoWindow(); });
+    imui_request_frame(imui.get());
 
     io_run(io.get());
 }

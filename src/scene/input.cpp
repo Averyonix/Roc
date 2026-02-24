@@ -120,6 +120,8 @@ void update_keyboard_focus(scene_keyboard* kb, scene_client* new_client)
 
     kb->focus = { new_client };
 
+    if (old_client == new_client) return;
+
     scene_event event {
         .type = scene_event_type::focus_keyboard,
         .focus = {
@@ -182,12 +184,27 @@ scene_input_plane* find_input_plane_at(scene_tree* tree, vec2f32 pos)
 }
 
 static
+auto get_pointer_focus_client(scene_pointer* ptr) -> scene_client*
+{
+    return ptr->grab ?: ptr->focus.client;
+}
+
+static
 void update_pointer_focus(scene_context* ctx, vec2f32 pos)
 {
-    auto* new_plane = find_input_plane_at(ctx->root_tree.get(), pos);
-    auto old_focus = ctx->pointer->focus;
-    if (old_focus.plane == new_plane) return;
-    scene_focus new_focus { new_plane ? new_plane->client : nullptr, new_plane };
+    scene_focus old_focus = ctx->pointer->focus;
+    scene_focus new_focus = {};
+
+    if (ctx->pointer->grab) {
+        new_focus.client = ctx->pointer->grab;
+    } else if (auto* plane = find_input_plane_at(ctx->root_tree.get(), pos)) {
+        new_focus.client = plane->client;
+        new_focus.plane = plane;
+    }
+
+    if (old_focus.plane == new_focus.plane && old_focus.client == new_focus.client) {
+        return;
+    }
 
     ctx->pointer->focus = new_focus;
 
@@ -242,8 +259,8 @@ static
 void handle_button(scene_context* ctx, scene_pointer* ptr, scene_scancode code, bool pressed, bool quiet)
 {
     if (pressed ? ptr->pressed.inc(code) : ptr->pressed.dec(code)) {
-        if (ctx->pointer->focus.client) {
-            scene_client_post_event(ctx->pointer->focus.client, ptr_to(scene_event {
+        if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
+            scene_client_post_event(focus, ptr_to(scene_event {
                 .type = scene_event_type::pointer_button,
                 .pointer = {
                     .button = code,
@@ -265,8 +282,8 @@ void handle_motion(scene_context* ctx, vec2f32 motion)
 
     update_pointer_focus(ctx, pos);
 
-    if (ctx->pointer->focus.client) {
-        scene_client_post_event(ctx->pointer->focus.client, ptr_to(scene_event {
+    if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
+        scene_client_post_event(focus, ptr_to(scene_event {
             .type = scene_event_type::pointer_motion,
             .pointer = {
                 .delta = motion,
@@ -278,13 +295,29 @@ void handle_motion(scene_context* ctx, vec2f32 motion)
 static
 void handle_scroll(scene_context* ctx, vec2f32 delta)
 {
-    if (ctx->pointer->focus.client) {
-        scene_client_post_event(ctx->pointer->focus.client, ptr_to(scene_event {
+    if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
+        scene_client_post_event(focus, ptr_to(scene_event {
             .type = scene_event_type::pointer_scroll,
             .pointer = {
                 .delta = delta,
             },
         }));
+    }
+}
+
+void scene_pointer_grab(scene_client* client)
+{
+    auto* ctx = client->ctx;
+    ctx->pointer->grab = client;
+    update_pointer_focus(ctx, scene_pointer_get_position(ctx));
+}
+
+void scene_pointer_ungrab(scene_client* client)
+{
+    auto* ctx = client->ctx;
+    if (ctx->pointer->grab == client) {
+        ctx->pointer->grab = nullptr;
+        update_pointer_focus(ctx, scene_pointer_get_position(ctx));
     }
 }
 

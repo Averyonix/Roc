@@ -13,7 +13,9 @@ struct event_handler
             break;case io_event_type::input_removed:      scene_handle_input_removed(ctx, event->input.device);
             break;case io_event_type::input_event:        scene_handle_input(        ctx, event->input);
             break;case io_event_type::output_configure:   io_output_request_frame(event->output.output, ctx->render.usage);
-            break;case io_event_type::output_redraw:      scene_render(ctx, event->output.output, event->output.target);
+            break;case io_event_type::output_redraw:
+                scene_broadcast_event(ctx, ptr_to(scene_event { .type = scene_event_type::redraw }));
+                scene_render(ctx, event->output.output, event->output.target);
             break;case io_event_type::output_added:
                   case io_event_type::output_removed:
                 log_warn("io::{}", core_enum_to_string(event->type));
@@ -52,9 +54,17 @@ auto scene_get_layer(scene_context* ctx, scene_layer layer) -> scene_tree*
 {
     return ctx->layers[layer].get();
 }
+
 auto scene_get_root_transform(scene_context* ctx) -> scene_transform*
 {
     return ctx->root_transform.get();
+}
+
+void scene_request_redraw(scene_context* ctx)
+{
+    for (auto* output : io_list_outputs(ctx->io)) {
+        io_output_request_frame(output, ctx->render.usage);
+    }
 }
 
 void scene_broadcast_event(scene_context* ctx, scene_event* event)

@@ -53,6 +53,8 @@ struct scene_window
     vec2u32 size;
     bool mapped;
 
+    std::string title;
+
     ref<scene_tree> tree;
     ref<scene_transform> transform;
 
@@ -88,7 +90,8 @@ struct scene_pointer
     ref<scene_transform> transform;
     ref<scene_texture>   visual;
 
-    scene_focus focus;
+    scene_client* grab;
+    scene_focus   focus;
 };
 
 void scene_update_pointer_focus(scene_context*);

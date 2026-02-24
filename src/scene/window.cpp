@@ -19,7 +19,7 @@ auto scene_window_create(scene_client* client) -> ref<scene_window>
     scene_node_set_transform(window->transform.get(), ctx->root_transform.get());
 
     window->tree = scene_tree_create(ctx);
-    scene_tree_place_above(scene_get_layer(ctx, scene_layer::normal), nullptr, window->tree.get());
+    scene_tree_place_above(scene_get_layer(ctx, scene_layer::window), nullptr, window->tree.get());
 
     return window;
 }
@@ -34,18 +34,35 @@ auto scene_window_get_transform(scene_window* window) -> scene_transform*
     return window->transform.get();
 }
 
+void scene_window_set_title(scene_window* window, std::string_view title)
+{
+    window->title = title;
+}
+
 void scene_window_set_size(scene_window* window, vec2u32 size)
 {
     window->size = size;
+}
+
+auto scene_window_get_size(scene_window* window) -> vec2u32
+{
+    return window->size;
 }
 
 void scene_window_map(scene_window* window)
 {
     if (window->mapped) return;
 
-    scene_tree_place_above(scene_get_layer(window->client->ctx, scene_layer::normal), nullptr, window->tree.get());
+    scene_tree_place_above(scene_get_layer(window->client->ctx, scene_layer::window), nullptr, window->tree.get());
 
     window->mapped = true;
+}
+
+void scene_window_raise(scene_window* window)
+{
+    if (!window->mapped) return;
+
+    scene_tree_place_above(scene_get_layer(window->client->ctx, scene_layer::window), nullptr, window->tree.get());
 }
 
 void scene_window_unmap(scene_window* window)

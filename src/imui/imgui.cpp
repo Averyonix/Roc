@@ -2,96 +2,179 @@
 
 static ImGuiKey imgui_key_from_xkb_sym(xkb_keysym_t);
 
-void imui_handle_key(imui_context* ctx, xkb_keysym_t sym, bool pressed, const char* utf8)
+// -----------------------------------------------------------------------------
+
+template<typename T>
+auto to_span(ImVector<T>& v) -> std::span<T>
 {
-    auto& io = ImGui::GetIO();
-    io.AddKeyEvent(imgui_key_from_xkb_sym(sym), pressed);
-    if (pressed) io.AddInputCharactersUTF8(utf8);
-    imui_request_frame(ctx);
-}
-
-void imui_handle_mods(imui_context* ctx, flags<scene_modifier> mods)
-{
-    auto& io = ImGui::GetIO();
-    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(scene_modifier::shift));
-    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(scene_modifier::ctrl));
-    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(scene_modifier::alt));
-    io.AddKeyEvent(ImGuiMod_Super, mods.contains(scene_modifier::super));
-    imui_request_frame(ctx);
-}
-
-void imui_handle_motion(imui_context* ctx)
-{
-    auto& io = ImGui::GetIO();
-    auto pos = scene_pointer_get_position(ctx->scene) - ctx->region.origin;
-    io.AddMousePosEvent(pos.x, pos.y);
-    imui_request_frame(ctx);
-}
-
-void imui_handle_button(imui_context* ctx, scene_scancode code, bool pressed)
-{
-    auto& io = ImGui::GetIO();
-    switch (code) {
-        break;case BTN_LEFT:   io.AddMouseButtonEvent(ImGuiMouseButton_Left,   pressed); imui_request_frame(ctx);
-        break;case BTN_RIGHT:  io.AddMouseButtonEvent(ImGuiMouseButton_Right,  pressed); imui_request_frame(ctx);
-        break;case BTN_MIDDLE: io.AddMouseButtonEvent(ImGuiMouseButton_Middle, pressed); imui_request_frame(ctx);
-    }
-}
-
-void imui_handle_wheel(imui_context* ctx, vec2f32 delta)
-{
-    auto& io = ImGui::GetIO();
-    io.AddMouseWheelEvent(delta.x, -delta.y);
-    imui_request_frame(ctx);
-}
-
-void imui_init(gpu_context* gpu, imui_context* ctx)
-{
-    ctx->region = {{}, {1920, 1080}, core_xywh};
-
-    ctx->context = ImGui::CreateContext();
-    ImGui::SetCurrentContext(ctx->context);
-
-    auto& style = ImGui::GetStyle();
-    style.FrameRounding     = 3;
-    style.ScrollbarRounding = 3;
-    style.WindowRounding    = 5;
-    style.WindowBorderSize  = 0;
-
-    auto& io = ImGui::GetIO();
-
-    {
-        unsigned char* pixels;
-        int width, height;
-        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-        ctx->font_image = gpu_image_create(ctx->gpu, {width, height},
-            gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-            gpu_image_usage::texture | gpu_image_usage::transfer);
-        gpu_image_update_immed(ctx->font_image.get(), pixels);
-    }
+    return std::span(v.Data, v.Size);
 }
 
 static
-void request_frame(imui_context* ctx)
+auto get_context() -> imui_context*
 {
-    // TODO: Request frames for outputs covered by `imgui.region`
+    return static_cast<imui_context*>(ImGui::GetIO().BackendPlatformUserData);
 }
 
-void imui_request_frame(imui_context* ctx)
+static
+auto get_data(ImGuiViewport* vp) -> imui_viewport_data*
 {
-    // As ImGui always works based on the *last* frame state. We need to double pump frames
-    // in order to ensure that input has been tested against the latest state.
-    ctx->frames_requested = 2;
-
-    request_frame(ctx);
+    return static_cast<imui_viewport_data*>(vp->PlatformUserData);
 }
+
+// -----------------------------------------------------------------------------
+
+static
+auto find_viewport_for_input_plane(imui_context* ctx, scene_input_plane* plane) -> ImGuiViewport*
+{
+    for (auto* vp : to_span(ImGui::GetPlatformIO().Viewports)) {
+        if (auto* data = get_data(vp); data && data->input_plane.get() == plane) {
+            return vp;
+        }
+    }
+
+    core_assert_fail("find_viewport_for_input_plane", "Failed to find viewport for plane");
+}
+
+static
+auto find_viewport_for_id(imui_context* ctx, ImGuiID id) -> ImGuiViewport*
+{
+    for (auto* vp : to_span(ImGui::GetPlatformIO().Viewports)) {
+        if (vp->ID == id) return vp;
+    }
+
+    return nullptr;
+}
+
+// -----------------------------------------------------------------------------
+
+static
+void Platform_CreateWindow(ImGuiViewport* vp)
+{
+    auto* ctx = get_context();
+    auto* data = new imui_viewport_data();
+
+    data->window = scene_window_create(ctx->client.get());
+    scene_window_set_size(data->window.get(), {u32(vp->Size.x), u32(vp->Size.y)});
+
+    data->input_plane = scene_input_plane_create(ctx->client.get());
+    scene_input_plane_set_rect(data->input_plane.get(), {{}, {vp->Size.x, vp->Size.y}, core_xywh});
+    scene_node_set_transform(data->input_plane.get(), scene_window_get_transform(data->window.get()));
+    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->input_plane.get());
+
+    vp->PlatformUserData = data;
+}
+
+static
+void Platform_DestroyWindow(ImGuiViewport* vp)
+{
+    delete get_data(vp);
+    vp->PlatformUserData = nullptr;
+}
+
+static
+void Platform_ShowWindow(ImGuiViewport* vp)
+{
+    scene_window_map(get_data(vp)->window.get());
+}
+
+static
+auto Platform_GetWindowPos(ImGuiViewport* vp) -> ImVec2
+{
+    auto* data = get_data(vp);
+    auto global = scene_transform_get_global(data->window
+        ? scene_window_get_transform(data->window.get())
+        : scene_get_root_transform(get_context()->scene));
+    return {global.translation.x, global.translation.y};
+}
+
+static
+void Platform_SetWindowPos(ImGuiViewport* vp, ImVec2 pos)
+{
+    auto* transform = scene_window_get_transform(get_data(vp)->window.get());
+    scene_transform_update(transform, {pos.x, pos.y}, scene_transform_get_local(transform).scale);
+}
+
+static
+auto Platform_GetWindowSize(ImGuiViewport* vp) -> ImVec2
+{
+    auto size = scene_window_get_size(get_data(vp)->window.get());
+    return {f32(size.x), f32(size.y)};
+}
+
+static
+void Platform_SetWindowSize(ImGuiViewport* vp, ImVec2 size)
+{
+    auto* data = get_data(vp);
+    scene_window_set_size(data->window.get(), {u32(size.x), u32(size.y)});
+    scene_input_plane_set_rect(data->input_plane.get(), {{}, {size.x, size.y}, core_xywh});
+}
+
+static
+void Platform_SetWindowTitle(ImGuiViewport* vp, const char* title)
+{
+    scene_window_set_title(get_data(vp)->window.get(), title);
+}
+
+// -----------------------------------------------------------------------------
+
+static
+void render_viewport(imui_context* ctx, ImGuiViewport* vp)
+{
+    auto* data = get_data(vp);
+    if (!data || !vp->DrawData) return;
+
+    if (data->draws) scene_node_unparent(data->draws.get());
+    data->draws = scene_tree_create(ctx->scene);
+
+    auto* root_transform = scene_get_root_transform(ctx->scene);
+
+    for (auto* list : to_span(vp->DrawData->CmdLists)) {
+        for (auto& cmd : to_span(list->CmdBuffer)) {
+            auto indices = std::span(list->IdxBuffer.Data + cmd.IdxOffset, cmd.ElemCount);
+            auto max_vtx = std::ranges::max(indices);
+
+            core_assert(sizeof(scene_vertex) == sizeof(ImDrawVert) && alignof(scene_vertex) == alignof(ImDrawVert));
+            auto vertices = std::span(reinterpret_cast<scene_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1);
+
+            auto [image, sampler, blend] = ctx->textures[cmd.GetTexID()];
+            auto mesh = scene_mesh_create(ctx->scene);
+            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
+                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, core_minmax},
+                vertices, indices);
+            scene_node_set_transform(mesh.get(), root_transform);
+            scene_tree_place_above(data->draws.get(), nullptr, mesh.get());
+        }
+    }
+
+    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->draws.get());
+}
+
+static
+void Renderer_RenderWindow(ImGuiViewport* vp, void*)
+{
+    auto* ctx = get_context();
+    render_viewport(ctx, vp);
+}
+
+// -----------------------------------------------------------------------------
+
+CORE_OBJECT_EXPLICIT_DEFINE(imui_context);
+
+imui_context::~imui_context()
+{
+    ImGui::SetCurrentContext(context);
+    ImGui::DestroyPlatformWindows();
+    ImGui::GetIO().BackendPlatformUserData = nullptr;
+    ImGui::DestroyContext(context);
+}
+
+// -----------------------------------------------------------------------------
 
 static
 void reset_frame_textures(imui_context* ctx)
 {
     ctx->textures.clear();
-
     // Leave 0 as an invalid texture id
     ctx->textures.emplace_back();
 }
@@ -103,66 +186,221 @@ auto imui_get_texture(imui_context* ctx, gpu_image* image, gpu_sampler* sampler,
     return idx;
 }
 
+// -----------------------------------------------------------------------------
+
+void imui_init(imui_context* ctx)
+{
+    ctx->context = ImGui::CreateContext();
+    ImGui::SetCurrentContext(ctx->context);
+
+    auto& style = ImGui::GetStyle();
+    style.FrameRounding     = 3;
+    style.ScrollbarRounding = 3;
+    style.WindowRounding    = 5;
+    style.WindowBorderSize  = 0;
+
+    auto& io = ImGui::GetIO();
+    io.ConfigFlags         |= ImGuiConfigFlags_ViewportsEnable;
+    io.BackendFlags        |= ImGuiBackendFlags_PlatformHasViewports
+                           |  ImGuiBackendFlags_RendererHasViewports
+                           |  ImGuiBackendFlags_HasMouseHoveredViewport;
+    io.BackendPlatformName  = "scene";
+    io.BackendRendererName  = "scene";
+    io.BackendPlatformUserData = ctx;
+
+    {
+        unsigned char* pixels;
+        int width, height;
+        io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+        ctx->font_image = gpu_image_create(ctx->gpu, {width, height},
+            gpu_format_from_drm(DRM_FORMAT_ABGR8888),
+            gpu_image_usage::texture | gpu_image_usage::transfer);
+        gpu_image_update_immed(ctx->font_image.get(), pixels);
+    }
+
+    auto& platform_io = ImGui::GetPlatformIO();
+    platform_io.Platform_CreateWindow   = Platform_CreateWindow;
+    platform_io.Platform_DestroyWindow  = Platform_DestroyWindow;
+    platform_io.Platform_ShowWindow     = Platform_ShowWindow;
+    platform_io.Platform_GetWindowPos   = Platform_GetWindowPos;
+    platform_io.Platform_SetWindowPos   = Platform_SetWindowPos;
+    platform_io.Platform_GetWindowSize  = Platform_GetWindowSize;
+    platform_io.Platform_SetWindowSize  = Platform_SetWindowSize;
+    platform_io.Platform_SetWindowTitle = Platform_SetWindowTitle;
+    platform_io.Renderer_RenderWindow   = Renderer_RenderWindow;
+
+    // TODO: Manage and expose output layout in scene
+    ImGuiPlatformMonitor monitor = {};
+    monitor.WorkSize = monitor.MainSize = {1920, 1080};
+    platform_io.Monitors.push_back(monitor);
+
+    // Create dummy main viewport.
+    // This will never be used to draw anything as it will be zero sized but
+    // it needs to exist until ImGui removes the requirement for a main viewport.
+    ImGui::GetMainViewport()->PlatformUserData = new imui_viewport_data();
+}
+
+// -----------------------------------------------------------------------------
+
+void imui_request_frame(imui_context* ctx)
+{
+    // Double-pump frames: ImGui always works based on last frame state,
+    // so input needs a second frame to react against the updated state.
+    ctx->frames_requested = 2;
+    scene_request_redraw(ctx->scene);
+}
+
 void imui_frame(imui_context* ctx)
 {
     if (!ctx->frames_requested) return;
     ctx->frames_requested--;
 
-    if (ctx->frames_requested) {
-        request_frame(ctx);
-    }
+    if (ctx->frames_requested) scene_request_redraw(ctx->scene);
 
     auto& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2(ctx->region.extent.x, ctx->region.extent.y);
+    io.DisplaySize = {};
 
     reset_frame_textures(ctx);
-    io.Fonts->SetTexID(imui_get_texture(ctx, ctx->font_image.get(), ctx->sampler.get(), gpu_blend_mode::postmultiplied));
+    io.Fonts->SetTexID(imui_get_texture(ctx, ctx->font_image.get(), ctx->sampler.get(),
+                                        gpu_blend_mode::postmultiplied));
 
     ImGui::NewFrame();
-
-    // TODO: Request imgui contents from registered clients
-    ImGui::ShowDemoWindow();
-
+    for (auto& handler : ctx->frame_handlers) handler();
     ImGui::Render();
 
-    if (ctx->draws) {
-        scene_node_unparent(ctx->draws.get());
+    // Zero-sized main viewport should never contain draw data
+    if (auto* main_draw_data = ImGui::GetDrawData()) {
+        core_assert(!main_draw_data->TotalIdxCount, "Unexpected geometry in main viewport");
     }
 
-    auto data = ImGui::GetDrawData();
+    ImGui::UpdatePlatformWindows();
+    ImGui::RenderPlatformWindowsDefault();
+}
 
-    auto* layer = scene_get_layer(ctx->scene, scene_layer::normal);
-    auto* root_transform = scene_get_root_transform(ctx->scene);
+// -----------------------------------------------------------------------------
 
-    ctx->draws = scene_tree_create(ctx->scene);
+auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
+{
+    auto ctx = core_create<imui_context>();
+    ctx->scene   = scene;
+    ctx->gpu     = gpu;
+    ctx->sampler = gpu_sampler_create(ctx->gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    ctx->client  = scene_client_create(scene);
 
-    for (auto& list : std::span(data->CmdLists.Data, data->CmdLists.Size)) {
-        for (auto& cmd : std::span(list->CmdBuffer.Data, list->CmdBuffer.Size)) {
-            auto mesh = scene_mesh_create(ctx->scene);
+    imui_init(ctx.get());
 
-            auto indices = std::span(list->IdxBuffer.Data + cmd.IdxOffset, cmd.ElemCount);
-
-            ImDrawIdx max_vtx = 0;
-            for (ImDrawIdx idx : indices) {
-                max_vtx = std::max(max_vtx, idx);
-            }
-
-            auto[image, sampler, blend] = ctx->textures[cmd.GetTexID()];
-
-            core_assert(sizeof(scene_vertex) ==  sizeof(ImDrawVert) && alignof(scene_vertex) == alignof(ImDrawVert));
-
-            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
-                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, core_minmax},
-                std::span(reinterpret_cast<scene_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1),
-                indices);
-
-            scene_node_set_transform(mesh.get(), root_transform);
-            scene_tree_place_above(ctx->draws.get(), nullptr, mesh.get());
+    scene_client_set_event_handler(ctx->client.get(), [ctx = ctx.get()](scene_event* event) {
+        ImGui::SetCurrentContext(ctx->context);
+        switch (event->type) {
+            break;case scene_event_type::keyboard_key:
+                imui_handle_key(ctx, event->key.sym, event->key.pressed, event->key.utf8);
+            break;case scene_event_type::keyboard_modifier:
+                imui_handle_mods(ctx, scene_keyboard_get_modifiers(ctx->scene));
+            break;case scene_event_type::pointer_motion:
+                imui_handle_motion(ctx);
+            break;case scene_event_type::pointer_button:
+                imui_handle_button(ctx, event->pointer.button, event->pointer.pressed);
+            break;case scene_event_type::pointer_scroll:
+                imui_handle_wheel(ctx, event->pointer.delta);
+            break;case scene_event_type::focus_pointer:
+                imui_handle_focus_pointer(ctx, event->focus.gained);
+            break;case scene_event_type::focus_keyboard:
+                ;
+            break;case scene_event_type::window_resize:
+                ;
+            break;case scene_event_type::redraw:
+                imui_frame(ctx);
         }
+    });
+
+    return ctx;
+}
+
+void imui_add_frame_handler(imui_context* ctx, std::move_only_function<imui_frame_fn>&& handler)
+{
+    ctx->frame_handlers.emplace_back(std::move(handler));
+}
+
+// -----------------------------------------------------------------------------
+
+void imui_handle_key(imui_context* ctx, xkb_keysym_t sym, bool pressed, const char* utf8)
+{
+    auto& io = ImGui::GetIO();
+
+    io.AddKeyEvent(imgui_key_from_xkb_sym(sym), pressed);
+    if (pressed) io.AddInputCharactersUTF8(utf8);
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_mods(imui_context* ctx, flags<scene_modifier> mods)
+{
+    auto& io = ImGui::GetIO();
+
+    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(scene_modifier::shift));
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(scene_modifier::ctrl));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(scene_modifier::alt));
+    io.AddKeyEvent(ImGuiMod_Super, mods.contains(scene_modifier::super));
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_motion(imui_context* ctx)
+{
+    auto& io = ImGui::GetIO();
+
+    auto pos = scene_pointer_get_position(ctx->scene);
+    io.AddMousePosEvent(pos.x, pos.y);
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_button(imui_context* ctx, scene_scancode code, bool pressed)
+{
+    auto& io = ImGui::GetIO();
+
+    bool handled = false;
+    switch (code) {
+        break;case BTN_LEFT:   io.AddMouseButtonEvent(ImGuiMouseButton_Left,   pressed); handled = true;
+        break;case BTN_RIGHT:  io.AddMouseButtonEvent(ImGuiMouseButton_Right,  pressed); handled = true;
+        break;case BTN_MIDDLE: io.AddMouseButtonEvent(ImGuiMouseButton_Middle, pressed); handled = true;
     }
 
-    // TODO|FIXME: This should be implemented using a scene_window
-    scene_tree_place_above(layer, nullptr, ctx->draws.get());
+    if (!handled) return;
+
+    if (pressed) {
+        scene_keyboard_grab(ctx->client.get());
+        scene_pointer_grab(ctx->client.get());
+        if (auto* vp = find_viewport_for_id(ctx, ImGui::GetIO().MouseHoveredViewport)) {
+            scene_window_raise(get_data(vp)->window.get());
+        }
+    } else {
+        scene_pointer_ungrab(ctx->client.get());
+    }
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_wheel(imui_context* ctx, vec2f32 delta)
+{
+    auto& io = ImGui::GetIO();
+
+    io.AddMouseWheelEvent(delta.x, -delta.y);
+    imui_request_frame(ctx);
+}
+
+void imui_handle_focus_pointer(imui_context* ctx, scene_focus gained)
+{
+    auto& io = ImGui::GetIO();
+
+    if (gained.client != ctx->client.get()) {
+        io.AddMouseViewportEvent(0);
+    } else if (gained.plane) {
+        io.AddMouseViewportEvent(find_viewport_for_input_plane(ctx, gained.plane)->ID);
+    }
+
+    imui_request_frame(ctx);
 }
 
 // -----------------------------------------------------------------------------
@@ -296,17 +534,17 @@ ImGuiKey imgui_key_from_xkb_sym(xkb_keysym_t sym)
         case XKB_KEY_KP_Enter:    return ImGuiKey_KeypadEnter;
         case XKB_KEY_KP_Equal:    return ImGuiKey_KeypadEqual;
 
-        case XKB_KEY_KP_Home:     return ImGuiKey_Home;
-        case XKB_KEY_KP_End:      return ImGuiKey_End;
-        case XKB_KEY_KP_Prior:    return ImGuiKey_PageUp;
-        case XKB_KEY_KP_Next:     return ImGuiKey_PageDown;
-        case XKB_KEY_KP_Insert:   return ImGuiKey_Insert;
-        case XKB_KEY_KP_Delete:   return ImGuiKey_Delete;
+        case XKB_KEY_KP_Home:   return ImGuiKey_Home;
+        case XKB_KEY_KP_End:    return ImGuiKey_End;
+        case XKB_KEY_KP_Prior:  return ImGuiKey_PageUp;
+        case XKB_KEY_KP_Next:   return ImGuiKey_PageDown;
+        case XKB_KEY_KP_Insert: return ImGuiKey_Insert;
+        case XKB_KEY_KP_Delete: return ImGuiKey_Delete;
 
-        case XKB_KEY_KP_Left:     return ImGuiKey_LeftArrow;
-        case XKB_KEY_KP_Right:    return ImGuiKey_RightArrow;
-        case XKB_KEY_KP_Up:       return ImGuiKey_UpArrow;
-        case XKB_KEY_KP_Down:     return ImGuiKey_DownArrow;
+        case XKB_KEY_KP_Left:  return ImGuiKey_LeftArrow;
+        case XKB_KEY_KP_Right: return ImGuiKey_RightArrow;
+        case XKB_KEY_KP_Up:    return ImGuiKey_UpArrow;
+        case XKB_KEY_KP_Down:  return ImGuiKey_DownArrow;
 
         // TODO: ImGuiKey_AppBack
         // TODO: ImGuiKey_AppForward

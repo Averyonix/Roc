@@ -27,12 +27,13 @@ struct scene_scene
 enum class scene_layer
 {
     background,
-    normal,
+    window,
     overlay,
 };
 
 auto scene_get_layer(scene_context*, scene_layer) -> scene_tree*;
 auto scene_get_root_transform(scene_context*) -> scene_transform*;
+void scene_request_redraw(scene_context*);
 
 // -----------------------------------------------------------------------------
 
@@ -58,6 +59,8 @@ struct scene_keyboard;
 struct scene_pointer;
 
 auto scene_pointer_get_position(scene_context*) -> vec2f32;
+void scene_pointer_grab(scene_client*);
+void scene_pointer_ungrab(scene_client*);
 
 auto scene_keyboard_get_modifiers(scene_context*) -> flags<scene_modifier>;
 void scene_keyboard_grab(scene_client*);
@@ -174,17 +177,21 @@ struct scene_window;
 CORE_OBJECT_EXPLICIT_DECLARE(scene_window);
 
 auto scene_window_create(scene_client*) -> ref<scene_window>;
+void scene_window_set_title(scene_window*, std::string_view title);
 // Adds the window to the UI scene. In response to this event
 // the window may be repositioned and/or resized to fit in layout.
 void scene_window_map(scene_window*);
 // Removes the window from the scene.
 void scene_window_unmap(scene_window*);
+void scene_window_raise(scene_window*);
 // Sets the window frame size for decorations and layout placement.
 void scene_window_set_size(scene_window*, vec2u32);
 // Get the window tree, this is used to attach window contents to
 auto scene_window_get_tree(scene_window*) -> scene_tree*;
 // Get the window transform, this is used to anchor window contents to
 auto scene_window_get_transform(scene_window*) -> scene_transform*;
+// Get the current window frame size
+auto scene_window_get_size(scene_window*) -> vec2u32;
 
 // -----------------------------------------------------------------------------
 
@@ -201,6 +208,8 @@ enum class scene_event_type
     focus_pointer,
 
     window_resize,
+
+    redraw,
 };
 
 struct scene_keyboard_event
