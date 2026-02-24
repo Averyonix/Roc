@@ -3,7 +3,7 @@
 #include "pch.hpp"
 #include "types.hpp"
 
-enum class wrei_log_level : u32
+enum class core_log_level : u32
 {
     trace,
     debug,
@@ -13,47 +13,47 @@ enum class wrei_log_level : u32
     fatal,
 };
 
-void wrei_log_set_message_sink(struct MessageConnection*);
-wrei_log_level wrei_get_log_level();
-bool wrei_is_log_level_enabled(wrei_log_level);
-void wrei_init_log(wrei_log_level, const char* log_file);
-void      wrei_log(wrei_log_level, std::string_view message);
+void core_log_set_message_sink(struct MessageConnection*);
+core_log_level core_get_log_level();
+bool core_is_log_level_enabled(core_log_level);
+void core_init_log(core_log_level, const char* log_file);
+void      core_log(core_log_level, std::string_view message);
 
-struct wrei_log_entry
+struct core_log_entry
 {
-    wrei_log_level level;
+    core_log_level level;
     std::chrono::system_clock::time_point timestamp;
     u32 start;
     u32 len;
     u32 line_start;
     u32 lines;
-    const struct wrei_stacktrace* stacktrace;
+    const struct core_stacktrace* stacktrace;
 
     std::string_view message() const noexcept;
 };
-struct wrei_log_history
+struct core_log_history
 {
     std::unique_lock<std::recursive_mutex> mutex;
-    std::span<const wrei_log_entry> entries;
+    std::span<const core_log_entry> entries;
     u32 lines;
     usz buffer_size;
 
-    const wrei_log_entry* find(u32 line) const noexcept;
+    const core_log_entry* find(u32 line) const noexcept;
 };
-wrei_log_history wrei_log_get_history();
-void wrei_log_set_history_enabled(bool enabled);
-bool wrei_log_is_history_enabled();
-void wrei_log_clear_history();
+core_log_history core_log_get_history();
+void core_log_set_history_enabled(bool enabled);
+bool core_log_is_history_enabled();
+void core_log_clear_history();
 
 template<typename ...Args>
-void wrei_log(wrei_log_level level, std::format_string<Args...> fmt, Args&&... args)
+void core_log(core_log_level level, std::format_string<Args...> fmt, Args&&... args)
 {
-    if (wrei_get_log_level() > level) return;
-    wrei_log(level, std::vformat(fmt.get(), std::make_format_args(args...)));
+    if (core_get_log_level() > level) return;
+    core_log(level, std::vformat(fmt.get(), std::make_format_args(args...)));
 }
 
-#define log_trace(fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::trace)) wrei_log(wrei_log_level::trace, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_debug(fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::debug)) wrei_log(wrei_log_level::debug, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_info( fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::info )) wrei_log(wrei_log_level::info,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_warn( fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::warn )) wrei_log(wrei_log_level::warn,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_error(fmt, ...) do { if (wrei_is_log_level_enabled(wrei_log_level::error)) wrei_log(wrei_log_level::error, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_trace(fmt, ...) do { if (core_is_log_level_enabled(core_log_level::trace)) core_log(core_log_level::trace, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_debug(fmt, ...) do { if (core_is_log_level_enabled(core_log_level::debug)) core_log(core_log_level::debug, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_info( fmt, ...) do { if (core_is_log_level_enabled(core_log_level::info )) core_log(core_log_level::info,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_warn( fmt, ...) do { if (core_is_log_level_enabled(core_log_level::warn )) core_log(core_log_level::warn,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_error(fmt, ...) do { if (core_is_log_level_enabled(core_log_level::error)) core_log(core_log_level::error, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)

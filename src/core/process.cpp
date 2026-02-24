@@ -1,6 +1,6 @@
 #include "util.hpp"
 
-bool wrei_capability_has(cap_value_t cap)
+bool core_capability_has(cap_value_t cap)
 {
     cap_t caps = unix_check(cap_get_proc()).value;
     if (!caps) return false;
@@ -10,7 +10,7 @@ bool wrei_capability_has(cap_value_t cap)
     return value == CAP_SET;
 }
 
-void wrei_capability_drop(cap_value_t cap)
+void core_capability_drop(cap_value_t cap)
 {
     cap_t caps = unix_check(cap_get_proc()).value;
     if (!caps) return;

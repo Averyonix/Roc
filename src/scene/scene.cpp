@@ -1,65 +1,65 @@
 #include "internal.hpp"
 
-WREI_OBJECT_EXPLICIT_DEFINE(wrui_context);
-WREI_OBJECT_EXPLICIT_DEFINE(wrui_window);
+CORE_OBJECT_EXPLICIT_DEFINE(scene_context);
+CORE_OBJECT_EXPLICIT_DEFINE(scene_window);
 
 struct event_handler
 {
-    wrui_context* ctx;
-    void operator()(wrio_event* event) const {
+    scene_context* ctx;
+    void operator()(io_event* event) const {
         switch (event->type) {
-            break;case wrio_event_type::shutdown_requested: wrio_stop(event->ctx);
-            break;case wrio_event_type::input_added:        wrui_handle_input_added(  ctx, event->input.device);
-            break;case wrio_event_type::input_removed:      wrui_handle_input_removed(ctx, event->input.device);
-            break;case wrio_event_type::input_event:        wrui_handle_input(        ctx, event->input);
-            break;case wrio_event_type::output_configure:   wrio_output_request_frame(event->output.output, ctx->render.usage);
-            break;case wrio_event_type::output_redraw:      wrui_render(ctx, event->output.output, event->output.target);
-            break;case wrio_event_type::output_added:
-                  case wrio_event_type::output_removed:
-                log_warn("wrio::{}", wrei_enum_to_string(event->type));
+            break;case io_event_type::shutdown_requested: io_stop(event->ctx);
+            break;case io_event_type::input_added:        scene_handle_input_added(  ctx, event->input.device);
+            break;case io_event_type::input_removed:      scene_handle_input_removed(ctx, event->input.device);
+            break;case io_event_type::input_event:        scene_handle_input(        ctx, event->input);
+            break;case io_event_type::output_configure:   io_output_request_frame(event->output.output, ctx->render.usage);
+            break;case io_event_type::output_redraw:      scene_render(ctx, event->output.output, event->output.target);
+            break;case io_event_type::output_added:
+                  case io_event_type::output_removed:
+                log_warn("io::{}", core_enum_to_string(event->type));
         }
     }
 };
 
-auto wrui_create(wren_context* wren, wrio_context* wrio) -> ref<wrui_context>
+auto scene_create(gpu_context* gpu, io_context* io) -> ref<scene_context>
 {
-    auto wrui = wrei_create<wrui_context>();
+    auto scene = core_create<scene_context>();
 
-    wrui->wren = wren;
+    scene->gpu = gpu;
 
-    wrui->wrio = wrio;
-    wrio_set_event_handler(wrio, event_handler{wrui.get()});
+    scene->io = io;
+    io_set_event_handler(io, event_handler{scene.get()});
 
-    wrui->root_tree = wrui_tree_create(wrui.get());
+    scene->root_tree = scene_tree_create(scene.get());
 
-    for (auto layer : magic_enum::enum_values<wrui_layer>()) {
-        auto* tree = (wrui->layers[layer] = wrui_tree_create(wrui.get())).get();
-        wrui_node_set_transform(tree, wrui->root_transform.get());
-        wrui_tree_place_above(wrui->root_tree.get(), nullptr, tree);
+    for (auto layer : magic_enum::enum_values<scene_layer>()) {
+        auto* tree = (scene->layers[layer] = scene_tree_create(scene.get())).get();
+        scene_node_set_transform(tree, scene->root_transform.get());
+        scene_tree_place_above(scene->root_tree.get(), nullptr, tree);
     }
 
-    wrui->root_transform = wrui_transform_create(wrui.get());
+    scene->root_transform = scene_transform_create(scene.get());
 
-    wrui_render_init(wrui.get());
+    scene_render_init(scene.get());
 
-    wrui->keyboard = wrui_keyboard_create(wrui.get());
-    wrui->pointer = wrui_pointer_create(wrui.get());
+    scene->keyboard = scene_keyboard_create(scene.get());
+    scene->pointer = scene_pointer_create(scene.get());
 
-    return wrui;
+    return scene;
 }
 
-auto wrui_get_layer(wrui_context* ctx, wrui_layer layer) -> wrui_tree*
+auto scene_get_layer(scene_context* ctx, scene_layer layer) -> scene_tree*
 {
     return ctx->layers[layer].get();
 }
-auto wrui_get_root_transform(wrui_context* ctx) -> wrui_transform*
+auto scene_get_root_transform(scene_context* ctx) -> scene_transform*
 {
     return ctx->root_transform.get();
 }
 
-void wrui_broadcast_event(wrui_context* ctx, wrui_event* event)
+void scene_broadcast_event(scene_context* ctx, scene_event* event)
 {
     for (auto* client : ctx->clients) {
-        wrui_client_post_event(client, event);
+        scene_client_post_event(client, event);
     }
 }

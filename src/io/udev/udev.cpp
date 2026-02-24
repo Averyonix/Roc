@@ -1,12 +1,12 @@
 #include "../internal.hpp"
 
-struct wrio_udev
+struct io_udev
 {
 };
 
-WREI_OBJECT_EXPLICIT_DEFINE(wrio_udev);
+CORE_OBJECT_EXPLICIT_DEFINE(io_udev);
 
-void wrio_udev_init(wrio_context*)
+void io_udev_init(io_context*)
 {
-    log_error("WRIO - udev backend not implemented");
+    log_error("IO_ - udev backend not implemented");
 }

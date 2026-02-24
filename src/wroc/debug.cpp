@@ -5,7 +5,7 @@ static constexpr int x11_disabled = 0;
 static constexpr int x11_enabled = 1;
 static constexpr int x11_forced = 2;
 
-struct wroc_debug_gui : wrei_object
+struct wroc_debug_gui : core_object
 {
     bool show_debug_menu = false;
     bool show_log_window = false;
@@ -38,11 +38,11 @@ struct wroc_debug_gui : wrei_object
         int x11_mode = x11_disabled;
     } launch;
 };
-WREI_OBJECT_EXPLICIT_DEFINE(wroc_debug_gui)
+CORE_OBJECT_EXPLICIT_DEFINE(wroc_debug_gui)
 
 void wroc_debug_gui_init(bool show_on_startup)
 {
-    auto debug = (server->debug_gui = wrei_create<wroc_debug_gui>()).get();
+    auto debug = (server->debug_gui = core_create<wroc_debug_gui>()).get();
 
     if (show_on_startup) {
         debug->show_debug_menu = true;
@@ -153,7 +153,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
         }
 
         {
-            ImGui::Checkbox("Force Accel", toplevel ? &toplevel->tweaks.force_accel : wrei_ptr_to(false));
+            ImGui::Checkbox("Force Accel", toplevel ? &toplevel->tweaks.force_accel : ptr_to(false));
         }
     }
 
@@ -184,11 +184,11 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             stats.last_poll_waits = server->event_loop->stats.poll_waits;
         }
 
-        ImGui_Text("Date:          {}", wrei_time_to_string(std::chrono::system_clock::now(), wrei_time_format::date_pretty));
-        ImGui_Text("Time:          {}", wrei_time_to_string(std::chrono::system_clock::now(), wrei_time_format::datetime));
-        ImGui_Text("Elapsed:       {}", wrei_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
+        ImGui_Text("Date:          {}", core_time_to_string(std::chrono::system_clock::now(), core_time_format::date_pretty));
+        ImGui_Text("Time:          {}", core_time_to_string(std::chrono::system_clock::now(), core_time_format::datetime));
+        ImGui_Text("Elapsed:       {}", core_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
         ImGui_Text("Events:        {}/s ({}/s)", stats.events_per_second, stats.poll_waits_per_second);
-        ImGui_Text("Frametime:     {} ({:.2f} Hz)", wrei_duration_to_string(stats.frametime), stats.fps);
+        ImGui_Text("Frametime:     {} ({:.2f} Hz)", core_duration_to_string(stats.frametime), stats.fps);
     }
 
     category_separator();
@@ -248,21 +248,21 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     // Allocations
 
     ImGui_Text("Objects:       {}/{}",
-        wrei_registry.active_allocations,
-        wrei_registry.inactive_allocations);
+        core_registry.active_allocations,
+        core_registry.inactive_allocations);
 
     ImGui::Separator();
 
-    auto* wren = server->wren;
-    ImGui_Text("Wren.Images:   {} ({})", wren->stats.active_images,  wrei_byte_size_to_string(wren->stats.active_image_memory));
-    ImGui_Text("Wren.Buffers:  {} ({})", wren->stats.active_buffers, wrei_byte_size_to_string(wren->stats.active_buffer_memory));
+    auto* gpu = server->gpu;
+    ImGui_Text("GPU.Images:   {} ({})", gpu->stats.active_images,  core_byte_size_to_string(gpu->stats.active_image_memory));
+    ImGui_Text("GPU.Buffers:  {} ({})", gpu->stats.active_buffers, core_byte_size_to_string(gpu->stats.active_buffer_memory));
 
     ImGui::Separator();
 
     // Surfaces
 
     {
-        wrei_enum_map<wroc_surface_role, u32> counts = {};
+        core_enum_map<wroc_surface_role, u32> counts = {};
         for (auto* surface : server->surfaces) {
             counts[surface->role]++;
         }
@@ -293,7 +293,7 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             server->renderer->screenshot_queued = true;
             aabb2f64 rect = outputs.front()->layout_rect;
             for (auto& output : outputs) {
-                rect = wrei_aabb_outer<f64>(rect, output->layout_rect);
+                rect = core_aabb_outer<f64>(rect, output->layout_rect);
             }
             server->imgui->on_render.emplace_back([rect] {
                 wroc_screenshot(rect);
@@ -331,32 +331,32 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
 {
     if (!debug->show_log_window) return;
 
-    auto history = wrei_log_get_history();
+    auto history = core_log_get_history();
 
     defer { ImGui::End(); };
     if (!ImGui::Begin(std::format("Log ({} entries - {})###Log",
             history.entries.size(),
-            wrei_byte_size_to_string(history.entries.size_bytes() + history.buffer_size)
+            core_byte_size_to_string(history.entries.size_bytes() + history.buffer_size)
         ).c_str(),
         &debug->show_log_window, ImGuiWindowFlags_NoCollapse)) return;
 
     auto scroll_to_bottom = ImGui::Button("Follow");
 
     ImGui::SameLine();
-    bool history_enabled = wrei_log_is_history_enabled();
+    bool history_enabled = core_log_is_history_enabled();
     if (ImGui::Checkbox("Enabled", &history_enabled)) {
-        wrei_log_set_history_enabled(history_enabled);
+        core_log_set_history_enabled(history_enabled);
     }
 
     ImGui::SameLine();
     if (ImGui::Button("Clear")) {
-        wrei_log_clear_history();
+        core_log_clear_history();
     }
 
     ImGui::SameLine();
     ImGui::Checkbox("Details", &debug->log.show_details);
 
-    static constexpr auto make_color = [](std::string_view hex) { return vec4f32(wrei_color_from_hex(hex)) / 255.f; };
+    static constexpr auto make_color = [](std::string_view hex) { return vec4f32(core_color_from_hex(hex)) / 255.f; };
     static constexpr auto to_imvec =   [](vec4f32 v)            { return ImVec4(v.x, v.y, v.z, v.w); };
 
     static constexpr vec4f32 color_trace = make_color("#63686D");
@@ -393,17 +393,17 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
     auto spacing = ImGui::GetStyle().ItemSpacing.y;
     auto line_height = font_height + spacing;
 
-    auto draw_entry = [&](int id, const wrei_log_entry& entry, bool* hovered = nullptr) ->  bool {
+    auto draw_entry = [&](int id, const core_log_entry& entry, bool* hovered = nullptr) ->  bool {
         ImVec4 color;
         const char* format;
 
         switch (entry.level) {
-            break;case wrei_log_level::trace: format = "[TRACE] %.*s"; color = to_imvec(color_trace);
-            break;case wrei_log_level::debug: format = "[DEBUG] %.*s"; color = to_imvec(color_debug);
-            break;case wrei_log_level::info:  format = " [INFO] %.*s"; color = to_imvec(color_info);
-            break;case wrei_log_level::warn:  format = " [WARN] %.*s"; color = to_imvec(color_warn);
-            break;case wrei_log_level::error: format = "[ERROR] %.*s"; color = to_imvec(color_error);
-            break;case wrei_log_level::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
+            break;case core_log_level::trace: format = "[TRACE] %.*s"; color = to_imvec(color_trace);
+            break;case core_log_level::debug: format = "[DEBUG] %.*s"; color = to_imvec(color_debug);
+            break;case core_log_level::info:  format = " [INFO] %.*s"; color = to_imvec(color_info);
+            break;case core_log_level::warn:  format = " [WARN] %.*s"; color = to_imvec(color_warn);
+            break;case core_log_level::error: format = "[ERROR] %.*s"; color = to_imvec(color_error);
+            break;case core_log_level::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
         }
 
         ImGui::PushStyleColor(ImGuiCol_Text, color);
@@ -515,7 +515,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
                     ImGui::PushID(section_id++);
                     ImGui::Selectable("##selectable", false, ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns);
                     ImGui::SameLine();
-                    ImGui::TextUnformatted(wrei_time_to_string(entry.timestamp, wrei_time_format::datetime_ms).c_str());
+                    ImGui::TextUnformatted(core_time_to_string(entry.timestamp, core_time_format::datetime_ms).c_str());
                     ImGui::PopID();
                 }
 

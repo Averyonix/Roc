@@ -12,19 +12,19 @@ template<typename T>
 T* wroc_try_get_userdata(wl_resource* resource)
 {
     if (!resource) return nullptr;
-    return dynamic_cast<T*>(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
+    return dynamic_cast<T*>(static_cast<core_object*>(wl_resource_get_user_data(resource)));
 }
 
 template<typename T>
 T* wroc_get_userdata(wl_resource* resource)
 {
     if (!resource) return nullptr;
-    auto* base = static_cast<wrei_object*>(wl_resource_get_user_data(resource));
+    auto* base = static_cast<core_object*>(wl_resource_get_user_data(resource));
     if (!base) return nullptr;
     auto* cast = dynamic_cast<T*>(base);
     if (!cast) {
         log_error("Fatal error casting wl_resource userdata: expected {} got {}", typeid(T).name(), typeid(*base).name());
-        wrei_debugbreak();
+        core_debugbreak();
     }
     return cast;
 }
@@ -53,17 +53,17 @@ wl_resource* wroc_resource_create(wl_client* client, const wl_interface* interfa
 inline
 void wroc_resource_simple_unref(wl_resource* resource)
 {
-    wrei_remove_ref(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
+    core_remove_ref(static_cast<core_object*>(wl_resource_get_user_data(resource)));
 }
 
 inline
-void wroc_resource_set_implementation_refcounted(wl_resource* resource, const void* implementation, wrei_object* base)
+void wroc_resource_set_implementation_refcounted(wl_resource* resource, const void* implementation, core_object* base)
 {
     wl_resource_set_implementation(resource, implementation, base, wroc_resource_simple_unref);
 }
 
 inline
-void wroc_resource_set_implementation(wl_resource* resource, const void* implementation, wrei_object* base)
+void wroc_resource_set_implementation(wl_resource* resource, const void* implementation, core_object* base)
 {
     wl_resource_set_implementation(resource, implementation, base, nullptr);
 }

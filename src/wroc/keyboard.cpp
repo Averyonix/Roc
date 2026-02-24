@@ -55,7 +55,7 @@ wroc_keyboard::~wroc_keyboard()
 
 void wroc_seat_keyboard::attach(wroc_keyboard* kb)
 {
-    wrei_assert(!kb->target && "wroc_keyboard already attached to seat keyboard");
+    core_assert(!kb->target && "wroc_keyboard already attached to seat keyboard");
 
     sources.emplace_back(kb);
     kb->target = this;
@@ -66,7 +66,7 @@ void wroc_seat_keyboard::attach(wroc_keyboard* kb)
 
 void wroc_seat_init_keyboard(wroc_seat* seat)
 {
-    seat->keyboard = wrei_create<wroc_seat_keyboard>();
+    seat->keyboard = core_create<wroc_seat_keyboard>();
     seat->keyboard->seat = seat;
 
     auto* kb = seat->keyboard.get();
@@ -75,7 +75,7 @@ void wroc_seat_init_keyboard(wroc_seat* seat)
 
     kb->context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
-    kb->keymap = xkb_keymap_new_from_names(kb->context, wrei_ptr_to(xkb_rule_names{
+    kb->keymap = xkb_keymap_new_from_names(kb->context, ptr_to(xkb_rule_names{
         .layout = "gb",
     }), XKB_KEYMAP_COMPILE_NO_FLAGS);
 
@@ -101,7 +101,7 @@ void wroc_seat_init_keyboard(wroc_seat* seat)
 
     int rw_fd = -1;
     int ro_fd = -1;
-    if (!wrei_allocate_shm_file_pair(keymap_size, &rw_fd, &ro_fd)) {
+    if (!core_allocate_shm_file_pair(keymap_size, &rw_fd, &ro_fd)) {
         log_error("Failed to allocate shm file for keymap");
         return;
     }
@@ -319,7 +319,7 @@ void wroc_keyboard_enter(wroc_seat_keyboard* kb, wroc_surface* surface)
 
         wroc_send(wl_keyboard_send_enter, resource,
             serial,
-            surface->resource, wrei_ptr_to(wroc_to_wl_array<const u32>(kb->pressed)));
+            surface->resource, ptr_to(wroc_to_wl_array<const u32>(kb->pressed)));
 
         wroc_send(wl_keyboard_send_modifiers, resource,
             serial,
@@ -347,7 +347,7 @@ void wroc_debug_print_key(wroc_seat_keyboard* kb, const wroc_keyboard_event& eve
     char name[128] = {};
     xkb_keysym_get_name(sym, name, sizeof(name) - 1);
 
-    auto utf8_escaped = wrei_escape_utf8(event.key.utf8);
+    auto utf8_escaped = core_escape_utf8(event.key.utf8);
 
     if (strcmp(name, event.key.utf8) == 0) {
         log_debug("key '{}' (sym: {}, evdev: {}) = {}", utf8_escaped, sym, evdev_keycode, pressed ? "press" : "release");

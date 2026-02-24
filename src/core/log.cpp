@@ -2,92 +2,92 @@
 #include "log.hpp"
 #include "util.hpp"
 
-#define WREI_VT_COLOR_BEGIN(color) "\u001B[" #color "m"
-#define WREI_VT_COLOR_RESET "\u001B[0m"
-#define WREI_VT_COLOR(color, text) WREI_VT_COLOR_BEGIN(color) text WREI_VT_COLOR_RESET
+#define CORE_VT_COLOR_BEGIN(color) "\u001B[" #color "m"
+#define CORE_VT_COLOR_RESET "\u001B[0m"
+#define CORE_VT_COLOR(color, text) CORE_VT_COLOR_BEGIN(color) text CORE_VT_COLOR_RESET
 
 static struct {
-    wrei_log_level log_level = wrei_log_level::trace;
+    core_log_level log_level = core_log_level::trace;
     std::ofstream log_file;
     MessageConnection* ipc_sink = {};
 
     struct {
         std::string buffer;
-        std::vector<wrei_log_entry> entries;
+        std::vector<core_log_entry> entries;
         u32 lines;
         bool enabled;
     } history;
 
-    wrei_stacktrace_cache stacktraces;
+    core_stacktrace_cache stacktraces;
     std::recursive_mutex mutex;
-} wrei_log_state = {};
+} core_log_state = {};
 
-void wrei_log_set_message_sink(struct MessageConnection* conn)
+void core_log_set_message_sink(struct MessageConnection* conn)
 {
-    wrei_log_state.ipc_sink = conn;
+    core_log_state.ipc_sink = conn;
 }
 
-wrei_log_level wrei_get_log_level()
+core_log_level core_get_log_level()
 {
-    return wrei_log_state.log_level;
+    return core_log_state.log_level;
 }
 
-bool wrei_is_log_level_enabled(wrei_log_level level)
+bool core_is_log_level_enabled(core_log_level level)
 {
-    return level >= wrei_get_log_level();
+    return level >= core_get_log_level();
 }
 
-bool wrei_log_is_history_enabled()
+bool core_log_is_history_enabled()
 {
-    std::scoped_lock _ { wrei_log_state.mutex };
+    std::scoped_lock _ { core_log_state.mutex };
 
-    return wrei_log_state.history.enabled;
+    return core_log_state.history.enabled;
 }
 
-void wrei_log_set_history_enabled(bool enabled)
+void core_log_set_history_enabled(bool enabled)
 {
-    std::scoped_lock _ { wrei_log_state.mutex };
+    std::scoped_lock _ { core_log_state.mutex };
 
-    wrei_log_state.history.enabled = enabled;
+    core_log_state.history.enabled = enabled;
 }
 
-void wrei_log_clear_history()
+void core_log_clear_history()
 {
-    std::scoped_lock _ { wrei_log_state.mutex };
+    std::scoped_lock _ { core_log_state.mutex };
 
-    wrei_log_state.history.buffer.clear();
-    wrei_log_state.history.entries.clear();
-    wrei_log_state.history.lines = 0;
+    core_log_state.history.buffer.clear();
+    core_log_state.history.entries.clear();
+    core_log_state.history.lines = 0;
 }
 
-wrei_log_history wrei_log_get_history()
+core_log_history core_log_get_history()
 {
-    std::unique_lock lock { wrei_log_state.mutex };
+    std::unique_lock lock { core_log_state.mutex };
     return {
         std::move(lock),
-        wrei_log_state.history.entries,
-        wrei_log_state.history.lines,
-        wrei_log_state.history.buffer.size()
+        core_log_state.history.entries,
+        core_log_state.history.lines,
+        core_log_state.history.buffer.size()
     };
 }
 
-std::string_view wrei_log_entry::message() const noexcept
+std::string_view core_log_entry::message() const noexcept
 {
-    return std::string_view(wrei_log_state.history.buffer).substr(start, len);
+    return std::string_view(core_log_state.history.buffer).substr(start, len);
 }
 
-const wrei_log_entry* wrei_log_history::find(u32 line) const noexcept
+const core_log_entry* core_log_history::find(u32 line) const noexcept
 {
-    auto& state = wrei_log_state;
+    auto& state = core_log_state;
 
     struct Compare
     {
-        bool operator()(const wrei_log_entry& entry, u32 line)
+        bool operator()(const core_log_entry& entry, u32 line)
         {
             return entry.line_start < line;
         }
 
-        bool operator()(u32 line, const wrei_log_entry& entry)
+        bool operator()(u32 line, const core_log_entry& entry)
         {
             return line < entry.line_start;
         }
@@ -105,16 +105,16 @@ const wrei_log_entry* wrei_log_history::find(u32 line) const noexcept
     return &iter[-1];
 }
 
-void wrei_log(wrei_log_level level, std::string_view message)
+void core_log(core_log_level level, std::string_view message)
 {
-    auto& state = wrei_log_state;
+    auto& state = core_log_state;
 
     if (state.log_level > level) return;
 
     // Strip trailing newlines
     while (message.ends_with('\n')) message.remove_suffix(1);
 
-    auto timestamp = wrei_time_current();
+    auto timestamp = core_time_current();
 
     std::scoped_lock _ { state.mutex };
 
@@ -124,7 +124,7 @@ void wrei_log(wrei_log_level level, std::string_view message)
         auto start = state.history.buffer.size();
         state.history.buffer.append(message);
         auto lines = u32(std::ranges::count(message, '\n') + 1);
-        state.history.entries.emplace_back(wrei_log_entry {
+        state.history.entries.emplace_back(core_log_entry {
             .level = level,
             .timestamp = timestamp,
             .start = u32(start),
@@ -142,30 +142,30 @@ void wrei_log(wrei_log_level level, std::string_view message)
     } fmt;
 
     switch (level) {
-        break;case wrei_log_level::trace:
-            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(90, "TRACE") "] " WREI_VT_COLOR(90, "{}") "\n", "{} [TRACE] {}\n" };
-        break;case wrei_log_level::debug:
-            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(96, "DEBUG") "] {}\n",                          "{} [DEBUG] {}\n" };
-        break;case wrei_log_level::info:
-            fmt = { WREI_VT_COLOR(90, "{}") "  [" WREI_VT_COLOR(94, "INFO") "] {}\n",                          "{}  [INFO] {}\n" };
-        break;case wrei_log_level::warn:
-            fmt = { WREI_VT_COLOR(90, "{}") "  [" WREI_VT_COLOR(93, "WARN") "] {}\n",                          "{}  [WARN] {}\n" };
-        break;case wrei_log_level::error:
-            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(91, "ERROR") "] {}\n",                          "{} [ERROR] {}\n" };
-        break;case wrei_log_level::fatal:
-            fmt = { WREI_VT_COLOR(90, "{}") " [" WREI_VT_COLOR(91, "FATAL") "] {}\n",                          "{} [FATAL] {}\n" };
+        break;case core_log_level::trace:
+            fmt = { CORE_VT_COLOR(90, "{}") " [" CORE_VT_COLOR(90, "TRACE") "] " CORE_VT_COLOR(90, "{}") "\n", "{} [TRACE] {}\n" };
+        break;case core_log_level::debug:
+            fmt = { CORE_VT_COLOR(90, "{}") " [" CORE_VT_COLOR(96, "DEBUG") "] {}\n",                          "{} [DEBUG] {}\n" };
+        break;case core_log_level::info:
+            fmt = { CORE_VT_COLOR(90, "{}") "  [" CORE_VT_COLOR(94, "INFO") "] {}\n",                          "{}  [INFO] {}\n" };
+        break;case core_log_level::warn:
+            fmt = { CORE_VT_COLOR(90, "{}") "  [" CORE_VT_COLOR(93, "WARN") "] {}\n",                          "{}  [WARN] {}\n" };
+        break;case core_log_level::error:
+            fmt = { CORE_VT_COLOR(90, "{}") " [" CORE_VT_COLOR(91, "ERROR") "] {}\n",                          "{} [ERROR] {}\n" };
+        break;case core_log_level::fatal:
+            fmt = { CORE_VT_COLOR(90, "{}") " [" CORE_VT_COLOR(91, "FATAL") "] {}\n",                          "{} [FATAL] {}\n" };
     }
 
-    auto time_str = wrei_time_to_string(timestamp, wrei_time_format::time_ms);
+    auto time_str = core_time_to_string(timestamp, core_time_format::time_ms);
     std::cout << std::vformat(fmt.vt, std::make_format_args(time_str, message));
     if (state.log_file.is_open()) {
-        auto datetime_str = wrei_time_to_string(timestamp, wrei_time_format::datetime_ms);
+        auto datetime_str = core_time_to_string(timestamp, core_time_format::datetime_ms);
         state.log_file << std::vformat(fmt.plain, std::make_format_args(datetime_str, message)) << std::flush;
     }
 }
 
-void wrei_init_log(wrei_log_level log_level,  const char* log_file)
+void core_init_log(core_log_level log_level,  const char* log_file)
 {
-    wrei_log_state.log_level = log_level;
-    if (log_file) wrei_log_state.log_file = std::ofstream(log_file);
+    core_log_state.log_level = log_level;
+    if (log_file) core_log_state.log_file = std::ofstream(log_file);
 }

@@ -9,7 +9,7 @@ wroc_device* open_device(wroc_direct_backend* backend, const char* path)
         return nullptr;
     }
 
-    auto device = wrei_create<wroc_device>();
+    auto device = core_create<wroc_device>();
     device->dev_id = dev_id;
     device->fd = fd;
 
@@ -50,7 +50,7 @@ static constexpr libseat_seat_listener wroc_seat_listener {
 };
 
 static
-int handle_libseat_readable(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_bits events)
+int handle_libseat_readable(wroc_direct_backend* backend, core_fd* fd, core_fd_event_bits events)
 {
     log_debug("SEAT DISPATCH");
     libseat_dispatch(backend->seat, 0);
@@ -99,7 +99,7 @@ static constexpr libinput_interface wroc_libinput_interface {
 };
 
 static
-int handle_libinput_readable(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_bits events)
+int handle_libinput_readable(wroc_direct_backend* backend, core_fd* fd, core_fd_event_bits events)
 {
     unix_check(libinput_dispatch(backend->libinput));
 
@@ -116,16 +116,16 @@ int handle_libinput_readable(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_
 
 static
 void log_libinput(libinput* libinput, libinput_log_priority priority, const char* fmt, va_list args) {
-    wrei_log_level level;
+    core_log_level level;
     switch (priority) {
-        break;case LIBINPUT_LOG_PRIORITY_ERROR: level = wrei_log_level::error;
-        break;case LIBINPUT_LOG_PRIORITY_INFO: level = wrei_log_level::info;
-        break;default: level = wrei_log_level::debug;
+        break;case LIBINPUT_LOG_PRIORITY_ERROR: level = core_log_level::error;
+        break;case LIBINPUT_LOG_PRIORITY_INFO: level = core_log_level::info;
+        break;default: level = core_log_level::debug;
     }
 
     static char wlr_fmt[4096] = {};
     vsnprintf(wlr_fmt, sizeof(wlr_fmt) - 1, fmt, args);
-    wrei_log(level, std::format("[libinput] {}", wlr_fmt));
+    core_log(level, std::format("[libinput] {}", wlr_fmt));
 }
 
 // -----------------------------------------------------------------------------
@@ -149,18 +149,18 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
     backend->seat = libseat_open_seat(&wroc_seat_listener, nullptr);
     if (!backend->seat) {
         log_error("Failed to open seat");
-        wrei_debugkill();
+        core_debugkill();
     }
 
     backend->seat_name = libseat_seat_name(backend->seat);
     log_info("Seat name: {}", backend->seat_name);
 
     int seat_fd = libseat_get_fd(backend->seat);
-    wrei_assert(seat_fd >= 0);
+    core_assert(seat_fd >= 0);
 
-    backend->libseat_fd = wrei_fd_reference(seat_fd);
-    wrei_fd_set_listener(backend->libseat_fd.get(), server->event_loop.get(), wrei_fd_event_bit::readable,
-        [backend](wrei_fd* fd, wrei_fd_event_bits events) {
+    backend->libseat_fd = core_fd_reference(seat_fd);
+    core_fd_set_listener(backend->libseat_fd.get(), server->event_loop.get(), core_fd_event_bit::readable,
+        [backend](core_fd* fd, core_fd_event_bits events) {
             handle_libseat_readable(backend, fd, events);
         });
 
@@ -169,7 +169,7 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
     backend->libinput = libinput_udev_create_context(&wroc_libinput_interface, backend, backend->udev);
     if (!backend->libinput) {
         log_error("Failed to create libinput context");
-        wrei_debugkill();
+        core_debugkill();
     }
 
     libinput_log_set_handler(backend->libinput, log_libinput);
@@ -177,21 +177,21 @@ void wroc_backend_init_session(wroc_direct_backend* backend)
 
     if (unix_check(libinput_udev_assign_seat(backend->libinput, backend->seat_name)).err()) {
         log_error("Libinput failed to acquire seat");
-        wrei_debugkill();
+        core_debugkill();
     }
 
     int libinput_fd = libinput_get_fd(backend->libinput);
     log_debug("Libinput fd = {}", libinput_fd);
 
-    handle_libinput_readable(backend, backend->libinput_fd.get(), wrei_fd_event_bit::readable);
+    handle_libinput_readable(backend, backend->libinput_fd.get(), core_fd_event_bit::readable);
     if (backend->input_devices.empty()) {
         log_error("Libinput initialization failed, no keyboard or mouse detected");
-        wrei_debugkill();
+        core_debugkill();
     }
 
-    backend->libinput_fd = wrei_fd_reference(libinput_fd);
-    wrei_fd_set_listener(backend->libinput_fd.get(), server->event_loop.get(), wrei_fd_event_bit::readable,
-        [backend](wrei_fd* fd, wrei_fd_event_bits events) {
+    backend->libinput_fd = core_fd_reference(libinput_fd);
+    core_fd_set_listener(backend->libinput_fd.get(), server->event_loop.get(), core_fd_event_bit::readable,
+        [backend](core_fd* fd, core_fd_event_bits events) {
             handle_libinput_readable(backend, fd, events);
         });
 

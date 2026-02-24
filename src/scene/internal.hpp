@@ -6,95 +6,95 @@
 
 // -----------------------------------------------------------------------------
 
-struct wrui_context
+struct scene_context
 {
-    wren_context* wren;
-    wrio_context* wrio;
+    gpu_context* gpu;
+    io_context* io;
 
     struct {
-        ref<wren_pipeline> premult;
-        ref<wren_pipeline> postmult;
-        ref<wren_image>    white;
-        ref<wren_sampler>  sampler;
-        flags<wren_image_usage> usage;
+        ref<gpu_pipeline> premult;
+        ref<gpu_pipeline> postmult;
+        ref<gpu_image>    white;
+        ref<gpu_sampler>  sampler;
+        flags<gpu_image_usage> usage;
     } render;
 
-    ref<wrui_transform> root_transform;
-    ref<wrui_tree>      root_tree;
-    wrei_enum_map<wrui_layer, ref<wrui_tree>> layers;
+    ref<scene_transform> root_transform;
+    ref<scene_tree>      root_tree;
+    core_enum_map<scene_layer, ref<scene_tree>> layers;
 
-    std::vector<wrui_client*> clients;
-    std::vector<wrui_window*> windows;
+    std::vector<scene_client*> clients;
+    std::vector<scene_window*> windows;
 
-    ref<wrui_keyboard> keyboard;
-    ref<wrui_pointer>  pointer;
+    ref<scene_keyboard> keyboard;
+    ref<scene_pointer>  pointer;
 };
 
-void wrui_broadcast_event(wrui_context*, wrui_event*);
+void scene_broadcast_event(scene_context*, scene_event*);
 
-void wrui_render_init(wrui_context*);
-void wrui_render(wrui_context*, wrio_output*, wren_image*);
+void scene_render_init(scene_context*);
+void scene_render(scene_context*, io_output*, gpu_image*);
 
-struct wrui_client
+struct scene_client
 {
-    wrui_context* ctx;
+    scene_context* ctx;
 
-    std::move_only_function<wrui_event_handler_fn> event_handler;
+    std::move_only_function<scene_event_handler_fn> event_handler;
 
-    ~wrui_client();
+    ~scene_client();
 };
 
-void wrui_client_post_event(wrui_client*, wrui_event*);
+void scene_client_post_event(scene_client*, scene_event*);
 
-struct wrui_window
+struct scene_window
 {
-    wrui_client* client;
+    scene_client* client;
 
     vec2u32 size;
     bool mapped;
 
-    ref<wrui_tree> tree;
-    ref<wrui_transform> transform;
+    ref<scene_tree> tree;
+    ref<scene_transform> transform;
 
-    ~wrui_window();
+    ~scene_window();
 };
 
-struct wrui_keyboard
+struct scene_keyboard
 {
-    wrei_counting_set<u32> pressed;
+    core_counting_set<u32> pressed;
 
-    std::vector<wrio_input_device*> led_devices;
+    std::vector<io_input_device*> led_devices;
 
     struct xkb_context* context;
     struct xkb_state*   state;
     struct xkb_keymap*  keymap;
 
-    wrei_enum_map<wrui_modifier, xkb_mod_mask_t> mod_masks;
+    core_enum_map<scene_modifier, xkb_mod_mask_t> mod_masks;
 
     i32 rate = 25;
     i32 delay = 600;
 
-    wrui_focus focus;
+    scene_focus focus;
 
-    ~wrui_keyboard();
+    ~scene_keyboard();
 };
 
-auto wrui_keyboard_create(wrui_context*) -> ref<wrui_keyboard>;
+auto scene_keyboard_create(scene_context*) -> ref<scene_keyboard>;
 
-struct wrui_pointer
+struct scene_pointer
 {
-    wrei_counting_set<u32> pressed;
+    core_counting_set<u32> pressed;
 
-    ref<wrui_transform> transform;
-    ref<wrui_texture>   visual;
+    ref<scene_transform> transform;
+    ref<scene_texture>   visual;
 
-    wrui_focus focus;
+    scene_focus focus;
 };
 
-void wrui_update_pointer_focus(wrui_context*);
+void scene_update_pointer_focus(scene_context*);
 
-auto wrui_pointer_create(wrui_context*) -> ref<wrui_pointer>;
+auto scene_pointer_create(scene_context*) -> ref<scene_pointer>;
 
-void wrui_handle_input_added(wrui_context*, wrio_input_device*);
-void wrui_handle_input_removed(wrui_context*, wrio_input_device*);
-void wrui_handle_input(wrui_context*, const wrio_input_event&);
+void scene_handle_input_added(scene_context*, io_input_device*);
+void scene_handle_input_removed(scene_context*, io_input_device*);
+void scene_handle_input(scene_context*, const io_input_event&);

@@ -22,18 +22,18 @@ wp_cursor_shape_device_v1_shape from_imgui_cursor(ImGuiMouseCursor cursor)
         break;case ImGuiMouseCursor_NotAllowed: return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NOT_ALLOWED;
     }
 
-    wrei_unreachable();
+    core_unreachable();
 }
 
 void wroc_imgui_init()
 {
-    auto* wren = server->wren;
+    auto* gpu = server->gpu;
 
-    server->imgui = wrei_create<wroc_imgui>();
+    server->imgui = core_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
 
-    imgui->pipeline = wren_pipeline_create_graphics(wren,
-        wren_blend_mode::postmultiplied, server->renderer->output_format,
+    imgui->pipeline = gpu_pipeline_create_graphics(gpu,
+        gpu_blend_mode::postmultiplied, server->renderer->output_format,
         wroc_imgui_shader, "vertex", "fragment");
 
     imgui->context = ImGui::CreateContext();
@@ -52,10 +52,10 @@ void wroc_imgui_init()
         int width, height;
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-        imgui->font_image = wren_image_create(wren, {width, height},
-            wren_format_from_drm(DRM_FORMAT_ABGR8888),
-            wren_image_usage::texture | wren_image_usage::transfer);
-        wren_image_update_immed(imgui->font_image.get(), pixels);
+        imgui->font_image = gpu_image_create(gpu, {width, height},
+            gpu_format_from_drm(DRM_FORMAT_ABGR8888),
+            gpu_image_usage::texture | gpu_image_usage::transfer);
+        gpu_image_update_immed(imgui->font_image.get(), pixels);
 
         io.Fonts->SetTexID(ImTextureID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get())));
     }
@@ -329,7 +329,7 @@ void wroc_imgui_frame(wroc_imgui* imgui, rect2f64 layout_rect)
     imgui->on_render.clear();
 }
 
-void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 viewport, vec2u32 framebuffer_extent)
+void wroc_imgui_render(wroc_imgui* imgui, gpu_commands* commands, rect2f64 viewport, vec2u32 framebuffer_extent)
 {
     auto data = ImGui::GetDrawData();
     if (!data || !data->TotalIdxCount) return;
@@ -343,11 +343,11 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
         .scale = viewport.extent / vec2f64(framebuffer_extent),
     };
 
-    auto* wren = server->wren;
+    auto* gpu = server->gpu;
 
     // Dynamically allocated per-frame data
 
-    struct frame_guard : wrei_object
+    struct frame_guard : core_object
     {
         wroc_imgui_frame_data frame_data;
         weak<wroc_imgui> imgui;
@@ -359,9 +359,9 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
             }
         }
     };
-    auto guard = wrei_create<frame_guard>();
+    auto guard = core_create<frame_guard>();
     guard->imgui = imgui;
-    wren_commands_protect_object(commands, guard.get());
+    gpu_commands_protect_object(commands, guard.get());
 
     wroc_imgui_frame_data* frame = &guard->frame_data;
     if (!imgui->available_frames.empty()) {
@@ -372,22 +372,22 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
     }
 
     if (frame->vertices.count < usz(data->TotalVtxCount)) {
-        auto new_size = wrei_compute_geometric_growth(frame->vertices.count, data->TotalVtxCount);
+        auto new_size = core_compute_geometric_growth(frame->vertices.count, data->TotalVtxCount);
         log_debug("ImGui - reallocating vertex buffer, size: {}", new_size);
-        frame->vertices = {wren_buffer_create(wren, new_size * sizeof(ImDrawVert), {}), usz(new_size)};
+        frame->vertices = {gpu_buffer_create(gpu, new_size * sizeof(ImDrawVert), {}), usz(new_size)};
     }
 
     if (frame->indices.count < usz(data->TotalIdxCount)) {
-        auto new_size = wrei_compute_geometric_growth(frame->indices.count, data->TotalIdxCount);
+        auto new_size = core_compute_geometric_growth(frame->indices.count, data->TotalIdxCount);
         log_debug("ImGui - reallocating index buffer, size: {}", new_size);
-        frame->indices = {wren_buffer_create(wren, new_size * sizeof(ImDrawIdx), {}), usz(new_size)};
+        frame->indices = {gpu_buffer_create(gpu, new_size * sizeof(ImDrawIdx), {}), usz(new_size)};
     }
 
     // TODO: Protect images
     auto cmd = commands->buffer;
 
-    wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline->pipeline);
-    wren->vk.CmdBindIndexBuffer(cmd,
+    gpu->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline->pipeline);
+    gpu->vk.CmdBindIndexBuffer(cmd,
         frame->indices.buffer->buffer, frame->indices.byte_offset,
         sizeof(ImDrawIdx) == sizeof(u16) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 
@@ -402,7 +402,7 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
         for (i32 j = 0; j < list->CmdBuffer.size(); ++j) {
             const auto& im_cmd = list->CmdBuffer[j];
 
-            wrei_assert(!im_cmd.UserCallback);
+            core_assert(!im_cmd.UserCallback);
 
             auto clip_min = glm::max(space.from_global({im_cmd.ClipRect.x, im_cmd.ClipRect.y}), {});
             auto clip_max = glm::min(space.from_global({im_cmd.ClipRect.z, im_cmd.ClipRect.w}), vec2f64(framebuffer_extent));
@@ -411,20 +411,20 @@ void wroc_imgui_render(wroc_imgui* imgui, wren_commands* commands, rect2f64 view
                 continue;
             }
 
-            wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D {
+            gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D {
                 .offset = {i32(clip_min.x), i32(clip_min.y)},
                 .extent = {u32(clip_max.x - clip_min.x), u32(clip_max.y - clip_min.y)},
             }));
 
             auto draw_scale = 2.f / vec2f32(viewport.extent);
-            wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wroc_imgui_shader_in),
-                wrei_ptr_to(wroc_imgui_shader_in {
+            gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wroc_imgui_shader_in),
+                ptr_to(wroc_imgui_shader_in {
                     .vertices = frame->vertices.device(),
                     .scale = draw_scale,
                     .offset = vec2f32(-1.f) - (vec2f32(viewport.origin) * draw_scale),
                     .texture = std::bit_cast<wroc_imgui_texture>(im_cmd.GetTexID()).handle,
                 }));
-            wren->vk.CmdDrawIndexed(cmd, im_cmd.ElemCount, 1, index_offset + im_cmd.IdxOffset, vertex_offset + im_cmd.VtxOffset, 0);
+            gpu->vk.CmdDrawIndexed(cmd, im_cmd.ElemCount, 1, index_offset + im_cmd.IdxOffset, vertex_offset + im_cmd.VtxOffset, 0);
         }
 
         vertex_offset += list->VtxBuffer.size();

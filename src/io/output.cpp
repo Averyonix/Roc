@@ -1,34 +1,34 @@
 #include "internal.hpp"
 
-auto wrio_list_outputs(wrio_context* ctx) -> std::span<wrio_output* const>
+auto io_list_outputs(io_context* ctx) -> std::span<io_output* const>
 {
     return ctx->outputs;
 }
 
-wrio_output::~wrio_output()
+io_output::~io_output()
 {
-    wrio_output_remove(this);
+    io_output_remove(this);
 }
 
-void wrio_output_add(wrio_output* output)
+void io_output_add(io_output* output)
 {
-    wrei_assert(!std::ranges::contains(output->ctx->outputs, output));
+    core_assert(!std::ranges::contains(output->ctx->outputs, output));
     output->ctx->outputs.emplace_back(output);
-    wrio_post_event(wrei_ptr_to(wrio_event {
+    io_post_event(ptr_to(io_event {
         .ctx = output->ctx,
-        .type = wrio_event_type::output_added,
+        .type = io_event_type::output_added,
         .output = {
             .output = output
         },
     }));
 }
 
-void wrio_output_remove(wrio_output* output)
+void io_output_remove(io_output* output)
 {
     if (std::erase(output->ctx->outputs, output)) {
-        wrio_post_event(wrei_ptr_to(wrio_event {
+        io_post_event(ptr_to(io_event {
             .ctx = output->ctx,
-            .type = wrio_event_type::output_removed,
+            .type = io_event_type::output_removed,
             .output = {
                 .output = output
             },
@@ -39,7 +39,7 @@ void wrio_output_remove(wrio_output* output)
 // -----------------------------------------------------------------------------
 
 static
-ref<wren_image> acquire(wrio_output* output)
+ref<gpu_image> acquire(io_output* output)
 {
     auto& swapchain = output->swapchain;
 
@@ -68,56 +68,56 @@ ref<wren_image> acquire(wrio_output* output)
         return image;
     }
 
-    log_warn("Creating new swapchain image {}", wrei_to_string(output->size));
+    log_warn("Creating new swapchain image {}", core_to_string(output->size));
 
-    auto wren = output->ctx->wren;
+    auto gpu = output->ctx->gpu;
 
-    auto format = wren_format_from_drm(DRM_FORMAT_ABGR8888);
-    auto mods = wren_get_format_props(wren, format, output->requested_usage)->mods;
-    auto image = wren_image_create_dmabuf(wren, output->size, format, output->requested_usage, mods);
+    auto format = gpu_format_from_drm(DRM_FORMAT_ABGR8888);
+    auto mods = gpu_get_format_props(gpu, format, output->requested_usage)->mods;
+    auto image = gpu_image_create_dmabuf(gpu, output->size, format, output->requested_usage, mods);
 
     return image;
 }
 
 static
-void release(wrio_output* output, u32 slot_idx, u64 signalled)
+void release(io_output* output, u32 slot_idx, u64 signalled)
 {
     auto& slot = output->swapchain.release_slots[slot_idx];
 
-    wrei_assert(signalled == slot.release_point);
+    core_assert(signalled == slot.release_point);
 
     output->swapchain.free_images.emplace_back(std::move(slot.image));
     output->swapchain.images_in_flight--;
 
-    wrio_output_try_redraw(output);
+    io_output_try_redraw(output);
 }
 
-void wrio_output_present(wrio_output* output, wren_image* image, wren_syncpoint acquire)
+void io_output_present(io_output* output, gpu_image* image, gpu_syncpoint acquire)
 {
     auto& swapchain = output->swapchain;
 
     auto slot = std::ranges::find_if(swapchain.release_slots, [](auto& s) { return !s.image; });
     if (slot == swapchain.release_slots.end()) {
-        slot = swapchain.release_slots.insert(swapchain.release_slots.end(), wrio_swapchain::release_slot {
-            .semaphore = wren_semaphore_create(output->ctx->wren),
+        slot = swapchain.release_slots.insert(swapchain.release_slots.end(), io_swapchain::release_slot {
+            .semaphore = gpu_semaphore_create(output->ctx->gpu),
         });
     }
 
     slot->image = image;
     slot->release_point++;
 
-    flags<wrio_output_commit_flag> flags = {};
-    flags |= wrio_output_commit_flag::vsync;
+    flags<io_output_commit_flag> flags = {};
+    flags |= io_output_commit_flag::vsync;
     output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
 
     auto slot_idx = std::distance(swapchain.release_slots.begin(), slot);
-    wren_semaphore_wait_value(slot->semaphore.get(), slot->release_point,
+    gpu_semaphore_wait_value(slot->semaphore.get(), slot->release_point,
         [output = weak(output), slot_idx](u64 signalled) {
             if (output) release(output.get(), slot_idx,signalled);
         });
 }
 
-void wrio_output_try_redraw(wrio_output* output)
+void io_output_try_redraw(io_output* output)
 {
     if (!output->frame_requested) return;
     if (!output->commit_available) return;
@@ -128,9 +128,9 @@ void wrio_output_try_redraw(wrio_output* output)
 
     output->frame_requested = false;
 
-    wrio_post_event(wrei_ptr_to(wrio_event {
+    io_post_event(ptr_to(io_event {
         .ctx = output->ctx,
-        .type = wrio_event_type::output_redraw,
+        .type = io_event_type::output_redraw,
         .output = {
             .output = output,
             .target = image.get(),
@@ -138,32 +138,32 @@ void wrio_output_try_redraw(wrio_output* output)
     }));
 }
 
-void wrio_output_try_redraw_later(wrio_output* output)
+void io_output_try_redraw_later(io_output* output)
 {
-    wrei_event_loop_enqueue(output->ctx->event_loop, [output = weak(output)] {
+    core_event_loop_enqueue(output->ctx->event_loop, [output = weak(output)] {
         if (output) {
-            wrio_output_try_redraw(output.get());
+            io_output_try_redraw(output.get());
         }
     });
 }
 
-void wrio_output_request_frame(wrio_output* output, flags<wren_image_usage> usage)
+void io_output_request_frame(io_output* output, flags<gpu_image_usage> usage)
 {
     output->frame_requested = true;
     output->requested_usage = usage;
-    wrio_output_try_redraw_later(output);
+    io_output_try_redraw_later(output);
 }
 
-auto wrio_output_get_size(wrio_output* output) -> vec2u32
+auto io_output_get_size(io_output* output) -> vec2u32
 {
     return output->size;
 }
 
-void wrio_output_post_configure(wrio_output* output)
+void io_output_post_configure(io_output* output)
 {
-    wrio_post_event(wrei_ptr_to(wrio_event {
+    io_post_event(ptr_to(io_event {
         .ctx = output->ctx,
-        .type = wrio_event_type::output_configure,
+        .type = io_event_type::output_configure,
         .output = {
             .output = output,
         }

@@ -1,25 +1,21 @@
 #include "internal.hpp"
 
-WROC_NAMESPACE_USE
+CORE_OBJECT_EXPLICIT_DEFINE(way_server);
 
-WREI_OBJECT_EXPLICIT_DEFINE(wroc_server);
-
-WROC_NAMESPACE_BEGIN
-
-wroc_server::~wroc_server()
+way_server::~way_server()
 {
     wl_event_loop_fd = nullptr;
     wl_display_terminate(wl_display);
     wl_display_destroy(wl_display);
 }
 
-auto wroc_create(wrei_event_loop* event_loop, wren_context* wren, wrui_context* wrui) -> ref<wroc_server>
+auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* scene) -> ref<way_server>
 {
-    auto server = wrei_create<wroc_server>();
+    auto server = core_create<way_server>();
 
     server->event_loop = event_loop;
-    server->wren = wren;
-    server->wrui = wrui;
+    server->gpu = gpu;
+    server->scene = scene;
 
     server->wl_display = wl_display_create();
 
@@ -27,54 +23,54 @@ auto wroc_create(wrei_event_loop* event_loop, wren_context* wren, wrui_context* 
 
     server->socket_name = wl_display_add_socket_auto(server->wl_display);
 
-    server->wl_event_loop_fd = wrei_fd_reference(wl_event_loop_get_fd(wl_display_get_event_loop(server->wl_display)));
-    wrei_fd_set_listener(server->wl_event_loop_fd.get(), event_loop, wrei_fd_event_bit::readable,
-        [server = server.get()](wrei_fd* fd, wrei_fd_event_bits events) {
+    server->wl_event_loop_fd = core_fd_reference(wl_event_loop_get_fd(wl_display_get_event_loop(server->wl_display)));
+    core_fd_set_listener(server->wl_event_loop_fd.get(), event_loop, core_fd_event_bit::readable,
+        [server = server.get()](core_fd* fd, core_fd_event_bits events) {
             log_error("wl_display - read started");
             unix_check(wl_event_loop_dispatch(wl_display_get_event_loop(server->wl_display), 0));
             wl_display_flush_clients(server->wl_display);
             log_error("wl_display - read finished");
         });
 
-    wroc_global(server.get(), wl_shm);
-    wroc_global(server.get(), wl_compositor);
-    wroc_global(server.get(), xdg_wm_base);
+    way_global(server.get(), wl_shm);
+    way_global(server.get(), wl_compositor);
+    way_global(server.get(), xdg_wm_base);
 
-    server->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    server->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    server->client = wrui_client_create(wrui);
-    wrui_client_set_event_handler(server->client.get(), [client = server->client.get()](wrui_event* event) {
+    server->client = scene_client_create(scene);
+    scene_client_set_event_handler(server->client.get(), [client = server->client.get()](scene_event* event) {
         switch (event->type) {
-            break;case wrui_event_type::keyboard_key:
-            break;case wrui_event_type::keyboard_modifier:
-            break;case wrui_event_type::pointer_motion:
-            break;case wrui_event_type::pointer_button:
-            break;case wrui_event_type::pointer_scroll:
-            break;case wrui_event_type::focus_pointer:
-            break;case wrui_event_type::focus_keyboard:
-            break;case wrui_event_type::window_resize:
+            break;case scene_event_type::keyboard_key:
+            break;case scene_event_type::keyboard_modifier:
+            break;case scene_event_type::pointer_motion:
+            break;case scene_event_type::pointer_button:
+            break;case scene_event_type::pointer_scroll:
+            break;case scene_event_type::focus_pointer:
+            break;case scene_event_type::focus_keyboard:
+            break;case scene_event_type::window_resize:
                 log_error("TODO: window resize");
-                // wrui_texture_set_dst(canvas, {{}, event->window.resize, wrei_xywh});
-                // wrui_window_set_size(event->window.window, event->window.resize);
+                // scene_texture_set_dst(canvas, {{}, event->window.resize, core_xywh});
+                // scene_window_set_size(event->window.window, event->window.resize);
         }
     });
 
     return server;
 }
 
-wl_global* wroc_global_(wroc_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
+wl_global* way_global_(way_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
 {
-    wrei_assert(version <= interface->version);
+    core_assert(version <= interface->version);
     return wl_global_create(server->wl_display, interface, version, data ?: server, bind);
 }
 
-wl_resource* wroc_resource_create_(wl_client* client, const wl_interface* interface, int version, int id, const void* impl, wrei_object* data, bool refcount)
+wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, int version, int id, const void* impl, core_object* data, bool refcount)
 {
     auto resource = wl_resource_create(client, interface, version, id);
     if (refcount) {
-        wrei_add_ref(data);
+        core_add_ref(data);
         wl_resource_set_implementation(resource, impl, data, [](wl_resource* resource) {
-            wrei_remove_ref(static_cast<wrei_object*>(wl_resource_get_user_data(resource)));
+            core_remove_ref(static_cast<core_object*>(wl_resource_get_user_data(resource)));
         });
     } else {
         wl_resource_set_implementation(resource, impl, data, nullptr);
@@ -82,19 +78,17 @@ wl_resource* wroc_resource_create_(wl_client* client, const wl_interface* interf
     return resource;
 }
 
-u32 wroc_next_serial(wroc_server* server)
+u32 way_next_serial(way_server* server)
 {
     return wl_display_next_serial(server->wl_display);
 }
 
-void wroc_queue_client_flush(wroc_server* server)
+void way_queue_client_flush(way_server* server)
 {
-    log_trace("wroc_queue_client_flush");
+    log_trace("way_queue_client_flush");
 }
 
-void wroc_simple_destroy(wl_client* client, wl_resource* resource)
+void way_simple_destroy(wl_client* client, wl_resource* resource)
 {
     wl_resource_destroy(resource);
 }
-
-WROC_NAMESPACE_END

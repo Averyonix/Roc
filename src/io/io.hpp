@@ -7,15 +7,15 @@
 
 // -----------------------------------------------------------------------------
 
-struct wrio_context;
-struct wrio_input_device;
-struct wrio_output;
+struct io_context;
+struct io_input_device;
+struct io_output;
 
-WREI_OBJECT_EXPLICIT_DECLARE(wrio_context);
+CORE_OBJECT_EXPLICIT_DECLARE(io_context);
 
 // -----------------------------------------------------------------------------
 
-enum class wrio_event_type
+enum class io_event_type
 {
     shutdown_requested,
 
@@ -31,26 +31,26 @@ enum class wrio_event_type
 
 // -----------------------------------------------------------------------------
 
-enum class wrio_shutdown_reason
+enum class io_shutdown_reason
 {
     no_more_outputs,        // Sent when no more outputs will be opened by the backend
     terminate_receieved,    // Sent when SIGTERM is received
     interrupt_receieved,    // Sent when SIGINT  is received
 };
 
-struct wrio_shutdown_event
+struct io_shutdown_event
 {
-    wrio_shutdown_reason reason;
+    io_shutdown_reason reason;
 };
 
 // -----------------------------------------------------------------------------
 
-enum class wrio_input_device_capability : u32
+enum class io_input_device_capability : u32
 {
     libinput_led = 1 << 0,
 };
 
-struct wrio_input_channel
+struct io_input_channel
 {
     u32 type;   // evdev type
     u32 code;   // evdev code
@@ -62,62 +62,62 @@ struct wrio_input_channel
  * This event reuses evdev codes for simplicity, with some minor changes:
  * - Values are sent as normalized floating point quantities.
  * - `REL_(H)WHEEL` events are sent with fractional detent deltas (~15 degrees / detent), instead of `REL_(H)WHEEL_HI_RES`.
- * - No `SYN_*` events are sent, instead `wrio_input_event` contains *all* events since the last report, and
- *   wrio always re-synchronizes internally.
+ * - No `SYN_*` events are sent, instead `io_input_event` contains *all* events since the last report, and
+ *   io always re-synchronizes internally.
  *
  * The `quiet` flag denotes that actions should not be taken in response to this event. E.g. on input
  * enter/leave events.
  *
  * Event design for touch, tablet and gesture controls is still pending.
  */
-struct wrio_input_event
+struct io_input_event
 {
-    wrio_input_device* device;
+    io_input_device* device;
     bool quiet;
-    std::span<const wrio_input_channel> channels;
+    std::span<const io_input_channel> channels;
 };
 
 // -----------------------------------------------------------------------------
 
-struct wrio_output_event
+struct io_output_event
 {
-    wrio_output* output;
+    io_output* output;
     union {
-        wren_image* target;
+        gpu_image* target;
     };
 };
 
 // -----------------------------------------------------------------------------
 
-struct wrio_event
+struct io_event
 {
-    wrio_context* ctx;
-    wrio_event_type type;
+    io_context* ctx;
+    io_event_type type;
 
     union {
-        wrio_shutdown_event shutdown;
-        wrio_input_event    input;
-        wrio_output_event   output;
+        io_shutdown_event shutdown;
+        io_input_event    input;
+        io_output_event   output;
     };
 };
 
-using wrio_event_handler = void(wrio_event*);
+using io_event_handler = void(io_event*);
 
 // -----------------------------------------------------------------------------
 
-auto wrio_create(wrei_event_loop*, wren_context*) -> ref<wrio_context>;
-void wrio_set_event_handler(wrio_context*, std::move_only_function<wrio_event_handler>&&);
-void wrio_run( wrio_context*);
-void wrio_stop(wrio_context*);
+auto io_create(core_event_loop*, gpu_context*) -> ref<io_context>;
+void io_set_event_handler(io_context*, std::move_only_function<io_event_handler>&&);
+void io_run( io_context*);
+void io_stop(io_context*);
 
-auto wrio_list_input_devices(wrio_context*) -> std::span<wrio_input_device* const>;
-auto wrio_input_device_get_capabilities(wrio_input_device*) -> flags<wrio_input_device_capability>;
-void wrio_input_device_update_leds(wrio_input_device*, flags<libinput_led>);
+auto io_list_input_devices(io_context*) -> std::span<io_input_device* const>;
+auto io_input_device_get_capabilities(io_input_device*) -> flags<io_input_device_capability>;
+void io_input_device_update_leds(io_input_device*, flags<libinput_led>);
 
-auto wrio_list_outputs(wrio_context*) -> std::span<wrio_output* const>;
-void wrio_add_output(  wrio_context*);
-void wrio_close_output(wrio_output*);
+auto io_list_outputs(io_context*) -> std::span<io_output* const>;
+void io_add_output(  io_context*);
+void io_close_output(io_output*);
 
-auto wrio_output_get_size(     wrio_output*) -> vec2u32;
-void wrio_output_request_frame(wrio_output*, flags<wren_image_usage>);
-void wrio_output_present(      wrio_output*, wren_image*, wren_syncpoint);
+auto io_output_get_size(     io_output*) -> vec2u32;
+void io_output_request_frame(io_output*, flags<gpu_image_usage>);
+void io_output_present(      io_output*, gpu_image*, gpu_syncpoint);

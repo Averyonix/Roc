@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpoint)
+VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoint)
 {
     return {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
@@ -11,16 +11,16 @@ VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpo
 }
 
 static
-ref<wren_semaphore> create_semaphore_base(wren_context* ctx)
+ref<gpu_semaphore> create_semaphore_base(gpu_context* ctx)
 {
-    auto semaphore = wrei_create<wren_semaphore>();
+    auto semaphore = core_create<gpu_semaphore>();
     semaphore->ctx = ctx;
 
-    wren_check(ctx->vk.CreateSemaphore(ctx->device, wrei_ptr_to(VkSemaphoreCreateInfo {
+    gpu_check(ctx->vk.CreateSemaphore(ctx->device, ptr_to(VkSemaphoreCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = wrei_ptr_to(VkSemaphoreTypeCreateInfo {
+        .pNext = ptr_to(VkSemaphoreTypeCreateInfo {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
-            .pNext = wrei_ptr_to(VkExportSemaphoreCreateInfo {
+            .pNext = ptr_to(VkExportSemaphoreCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
                 .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
             }),
@@ -31,7 +31,7 @@ ref<wren_semaphore> create_semaphore_base(wren_context* ctx)
     return semaphore;
 }
 
-ref<wren_semaphore> wren_semaphore_create(wren_context* ctx)
+ref<gpu_semaphore> gpu_semaphore_create(gpu_context* ctx)
 {
     // Here we are creating a timeline sempahore, and exporting a persistent syncobj
     // handle to it that we can use for importing/exporting syncobj files for interop.
@@ -44,7 +44,7 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx)
     auto semaphore = create_semaphore_base(ctx);
 
     int syncobj_fd = -1;
-    wren_check(ctx->vk.GetSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkSemaphoreGetFdInfoKHR {
+    gpu_check(ctx->vk.GetSemaphoreFdKHR(ctx->device, ptr_to(VkSemaphoreGetFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
         .semaphore = semaphore->semaphore,
         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
@@ -57,13 +57,13 @@ ref<wren_semaphore> wren_semaphore_create(wren_context* ctx)
     return semaphore;
 }
 
-ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context* ctx, int syncobj_fd)
+ref<gpu_semaphore> gpu_semaphore_import_syncobj(gpu_context* ctx, int syncobj_fd)
 {
     auto semaphore = create_semaphore_base(ctx);
 
     unix_check(drmSyncobjFDToHandle(ctx->drm.fd, syncobj_fd, &semaphore->syncobj));
 
-    if (wren_check(ctx->vk.ImportSemaphoreFdKHR(ctx->device, wrei_ptr_to(VkImportSemaphoreFdInfoKHR {
+    if (gpu_check(ctx->vk.ImportSemaphoreFdKHR(ctx->device, ptr_to(VkImportSemaphoreFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
         .semaphore = semaphore->semaphore,
         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
@@ -75,14 +75,14 @@ ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context* ctx, int syncobj
     return semaphore;
 }
 
-int wren_semaphore_export_syncobj(wren_semaphore* semaphore)
+int gpu_semaphore_export_syncobj(gpu_semaphore* semaphore)
 {
     int fd = -1;
     unix_check(drmSyncobjHandleToFD(semaphore->ctx->drm.fd, semaphore->syncobj, &fd));
     return fd;
 }
 
-void wren_semaphore_import_syncfile(wren_semaphore* semaphore, int sync_fd, u64 target_point)
+void gpu_semaphore_import_syncfile(gpu_semaphore* semaphore, int sync_fd, u64 target_point)
 {
     auto* ctx = semaphore->ctx;
 
@@ -101,7 +101,7 @@ void wren_semaphore_import_syncfile(wren_semaphore* semaphore, int sync_fd, u64 
     unix_check(drmSyncobjTransfer(ctx->drm.fd, semaphore->syncobj, target_point, syncobj, 0, 0));
 }
 
-int wren_semaphore_export_syncfile(wren_semaphore* semaphore, u64 source_point)
+int gpu_semaphore_export_syncfile(gpu_semaphore* semaphore, u64 source_point)
 {
     auto* ctx = semaphore->ctx;
 
@@ -118,7 +118,7 @@ int wren_semaphore_export_syncfile(wren_semaphore* semaphore, u64 source_point)
     return sync_fd;
 }
 
-wren_semaphore::~wren_semaphore()
+gpu_semaphore::~gpu_semaphore()
 {
     while (!waits.empty()) {
         wait_skips++;
@@ -129,24 +129,24 @@ wren_semaphore::~wren_semaphore()
     unix_check(drmSyncobjDestroy(ctx->drm.fd, syncobj));
 }
 
-u64 wren_semaphore_get_value(wren_semaphore* semaphore)
+u64 gpu_semaphore_get_value(gpu_semaphore* semaphore)
 {
     auto* ctx = semaphore->ctx;
 
     u64 value = 0;
-    wren_check(ctx->vk.GetSemaphoreCounterValue(ctx->device, semaphore->semaphore, &value));
+    gpu_check(ctx->vk.GetSemaphoreCounterValue(ctx->device, semaphore->semaphore, &value));
 
     return value;
 }
 
 static
-void handle_waits(wren_semaphore* semaphore)
+void handle_waits(gpu_semaphore* semaphore)
 {
-    auto count = wrei_eventfd_read(semaphore->wait_fd->get());
+    auto count = core_eventfd_read(semaphore->wait_fd->get());
 
-    if (semaphore->ctx->features.contains(wren_feature::validation)) {
+    if (semaphore->ctx->features.contains(gpu_feature::validation)) {
         // Validation layers need to see the new semaphore value.
-        auto _ = wren_semaphore_get_value(semaphore);
+        auto _ = gpu_semaphore_get_value(semaphore);
     }
 
     if (count > semaphore->wait_skips) {
@@ -159,7 +159,7 @@ void handle_waits(wren_semaphore* semaphore)
         // of the order that events are actually signalled in.
         for (u32 i = 0; i < count; ++i) {
             auto w = semaphore->waits.first();
-            wrei_assert(w != semaphore->waits.end());
+            core_assert(w != semaphore->waits.end());
             w.remove()->handle(w->point);
             delete w.get();
         }
@@ -168,15 +168,15 @@ void handle_waits(wren_semaphore* semaphore)
     }
 }
 
-void wren_semaphore_wait_value_impl(wren_semaphore* semaphore, wren_semaphore::wait_item* wait)
+void gpu_semaphore_wait_value_impl(gpu_semaphore* semaphore, gpu_semaphore::wait_item* wait)
 {
     auto* ctx = semaphore->ctx;
 
     if (!semaphore->wait_fd) {
-        semaphore->wait_fd = wrei_fd_adopt(eventfd(0, EFD_CLOEXEC));
+        semaphore->wait_fd = core_fd_adopt(eventfd(0, EFD_CLOEXEC));
 
-        wrei_fd_set_listener(semaphore->wait_fd.get(), ctx->event_loop.get(), wrei_fd_event_bit::readable,
-            [semaphore](wrei_fd*, wrei_fd_event_bits) {
+        core_fd_set_listener(semaphore->wait_fd.get(), ctx->event_loop.get(), core_fd_event_bit::readable,
+            [semaphore](core_fd*, core_fd_event_bits) {
                 handle_waits(semaphore);
             });
     }
@@ -186,18 +186,18 @@ void wren_semaphore_wait_value_impl(wren_semaphore* semaphore, wren_semaphore::w
     for (; cur != semaphore->waits.end() && cur->point > wait->point; cur = cur.prev());
     cur.insert_after(wait);
 
-    unix_check(drmIoctl(ctx->drm.fd, DRM_IOCTL_SYNCOBJ_EVENTFD, wrei_ptr_to(drm_syncobj_eventfd {
+    unix_check(drmIoctl(ctx->drm.fd, DRM_IOCTL_SYNCOBJ_EVENTFD, ptr_to(drm_syncobj_eventfd {
         .handle = semaphore->syncobj,
         .point = wait->point,
         .fd = semaphore->wait_fd->get(),
     })));
 }
 
-void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value)
+void gpu_semaphore_wait_value(gpu_semaphore* semaphore, u64 value)
 {
     auto* ctx = semaphore->ctx;
 
-    wren_check(ctx->vk.WaitSemaphores(ctx->device, wrei_ptr_to(VkSemaphoreWaitInfo {
+    gpu_check(ctx->vk.WaitSemaphores(ctx->device, ptr_to(VkSemaphoreWaitInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
         .semaphoreCount = 1,
         .pSemaphores = &semaphore->semaphore,
@@ -214,11 +214,11 @@ void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value)
     }
 }
 
-void wren_semaphore_signal_value(wren_semaphore* semaphore, u64 value)
+void gpu_semaphore_signal_value(gpu_semaphore* semaphore, u64 value)
 {
     auto* ctx = semaphore->ctx;
 
-    wren_check(ctx->vk.SignalSemaphore(ctx->device, wrei_ptr_to(VkSemaphoreSignalInfo {
+    gpu_check(ctx->vk.SignalSemaphore(ctx->device, ptr_to(VkSemaphoreSignalInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO,
         .semaphore = semaphore->semaphore,
         .value = value,

@@ -1,34 +1,34 @@
 #include "internal.hpp"
 
-WREI_OBJECT_EXPLICIT_DEFINE(wrio_context);
+CORE_OBJECT_EXPLICIT_DEFINE(io_context);
 
-auto wrio_create(wrei_event_loop* event_loop, wren_context* wren) -> ref<wrio_context>
+auto io_create(core_event_loop* event_loop, gpu_context* gpu) -> ref<io_context>
 {
-    auto ctx = wrei_create<wrio_context>();
+    auto ctx = core_create<io_context>();
 
     ctx->event_loop = event_loop;
-    ctx->wren = wren;
+    ctx->gpu = gpu;
 
-    wrio_session_init( ctx.get());
-    wrio_libinput_init(ctx.get());
-    wrio_evdev_init(   ctx.get());
-    wrio_drm_init(     ctx.get());
-    wrio_wayland_init( ctx.get());
+    io_session_init( ctx.get());
+    io_libinput_init(ctx.get());
+    io_evdev_init(   ctx.get());
+    io_drm_init(     ctx.get());
+    io_wayland_init( ctx.get());
 
     return ctx;
 }
 
-wrio_context::~wrio_context()
+io_context::~io_context()
 {
 }
 
-void wrio_set_event_handler(wrio_context* ctx, std::move_only_function<wrio_event_handler>&& handler)
+void io_set_event_handler(io_context* ctx, std::move_only_function<io_event_handler>&& handler)
 {
     ctx->event_handler = std::move(handler);
 }
 
 static
-weak<wrio_context> signal_context;
+weak<io_context> signal_context;
 
 static
 void signal_handler(int sig)
@@ -42,37 +42,37 @@ void signal_handler(int sig)
 
     switch (sig) {
         break;case SIGTERM:
-            wrio_request_shutdown(signal_context.get(), wrio_shutdown_reason::terminate_receieved);
+            io_request_shutdown(signal_context.get(), io_shutdown_reason::terminate_receieved);
         break;case SIGINT:
-            wrio_request_shutdown(signal_context.get(), wrio_shutdown_reason::interrupt_receieved);
+            io_request_shutdown(signal_context.get(), io_shutdown_reason::interrupt_receieved);
     }
 }
 
-void wrio_run(wrio_context* ctx)
+void io_run(io_context* ctx)
 {
-    wrei_assert(ctx->event_handler);
+    core_assert(ctx->event_handler);
 
     signal_context = ctx;
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
     if (ctx->wayland) {
-        wrio_wayland_start(ctx);
+        io_wayland_start(ctx);
     }
 
-    wrei_event_loop_run(ctx->event_loop);
+    core_event_loop_run(ctx->event_loop);
 
     signal_context = nullptr;
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_IGN);
 }
 
-void wrio_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason)
+void io_request_shutdown(io_context* ctx, io_shutdown_reason reason)
 {
-    wrei_event_loop_enqueue(ctx->event_loop, [ctx, reason] {
-        wrio_post_event(wrei_ptr_to(wrio_event {
+    core_event_loop_enqueue(ctx->event_loop, [ctx, reason] {
+        io_post_event(ptr_to(io_event {
             .ctx = ctx,
-            .type = wrio_event_type::shutdown_requested,
+            .type = io_event_type::shutdown_requested,
             .shutdown {
                 .reason = reason,
             }
@@ -80,12 +80,12 @@ void wrio_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason)
     });
 }
 
-void wrio_stop(wrio_context* ctx)
+void io_stop(io_context* ctx)
 {
-    wrei_event_loop_stop(ctx->event_loop);
+    core_event_loop_stop(ctx->event_loop);
 }
 
-void wrio_post_event(wrio_event* event)
+void io_post_event(io_event* event)
 {
     event->ctx->event_handler(event);
 }

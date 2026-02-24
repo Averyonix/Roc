@@ -1,6 +1,6 @@
 #include "object.hpp"
 
-wrei_registry::~wrei_registry()
+core_registry::~core_registry()
 {
     if (active_allocations) {
         log_error("Registry found {} remaining active allocations", active_allocations);
@@ -18,22 +18,22 @@ wrei_registry::~wrei_registry()
         }
     }
 
-    log_debug("Peak registry allocation: {}", wrei_byte_size_to_string(total_allocation_size));
+    log_debug("Peak registry allocation: {}", core_byte_size_to_string(total_allocation_size));
 }
 
-auto wrei_registry::allocate(usz size) -> wrei_allocation_header*
+auto core_registry::allocate(usz size) -> core_allocation_header*
 {
-    size = wrei_round_up_power2(size + sizeof(wrei_allocation_header));
+    size = core_round_up_power2(size + sizeof(core_allocation_header));
 
     active_allocations++;
 
     u8 bin_idx = std::countr_zero(size);
     auto& bin = bins[bin_idx];
 
-    wrei_allocation_header* header;
+    core_allocation_header* header;
     if (bin.empty()) {
-        header = static_cast<wrei_allocation_header*>(::malloc(size));
-        new (header) wrei_allocation_header {
+        header = static_cast<core_allocation_header*>(::malloc(size));
+        new (header) core_allocation_header {
             .bin = bin_idx,
         };
         header->version = 1;
@@ -48,7 +48,7 @@ auto wrei_registry::allocate(usz size) -> wrei_allocation_header*
     return header;
 }
 
-void wrei_registry::free(wrei_allocation_header* header)
+void core_registry::free(core_allocation_header* header)
 {
     active_allocations--;
     inactive_allocations++;
@@ -58,4 +58,4 @@ void wrei_registry::free(wrei_allocation_header* header)
     bins[header->bin].emplace_back(header);
 }
 
-struct wrei_registry wrei_registry;
+struct core_registry core_registry;

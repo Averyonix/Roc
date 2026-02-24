@@ -199,7 +199,6 @@ target_sources(io PUBLIC
     src/io/io.cpp
     src/io/output.cpp
     src/io/input.cpp
-
     src/io/drm/drm.cpp
     src/io/evdev/evdev.cpp
     src/io/libinput/libinput.cpp
@@ -228,16 +227,19 @@ target_sources(scene PUBLIC
     )
 target_link_libraries(scene PUBLIC io)
 
-init_executable(scene-test)
-target_sources(scene-test PUBLIC src/scene/main.cpp)
-target_link_libraries(scene-test PUBLIC scene)
+# ------------------------------------------------------------------------------
+
+init_library(imui)
+target_sources(imui PUBLIC
+    src/imui/imgui.cpp
+    )
+target_link_libraries(imui PUBLIC scene)
 
 # ------------------------------------------------------------------------------
 
 init_library(way)
 target_sources(way PUBLIC
     src/way/way.cpp
-
     src/way/buffer.cpp
     src/way/surface.cpp
     src/way/shell.cpp
@@ -245,9 +247,13 @@ target_sources(way PUBLIC
     )
 target_link_libraries(way PUBLIC scene)
 
-init_executable(way-test)
-target_sources(way-test PUBLIC src/way/main.cpp)
-target_link_libraries(way-test PUBLIC way)
+# ------------------------------------------------------------------------------
+
+init_executable(roc)
+target_sources(roc PUBLIC
+    src/roc/main.cpp
+    )
+target_link_libraries(roc PUBLIC scene way imui)
 
 # ------------------------------------------------------------------------------
 

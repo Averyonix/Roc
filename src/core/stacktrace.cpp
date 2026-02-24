@@ -1,6 +1,6 @@
 #include "util.hpp"
 
-std::string wrei_to_string(const wrei_stacktrace& st)
+std::string core_to_string(const core_stacktrace& st)
 {
     std::string str;
     for (u32 i = 0; i < st.entries.size(); ++i) {
@@ -11,7 +11,7 @@ std::string wrei_to_string(const wrei_stacktrace& st)
     return str;
 }
 
-std::pair<const wrei_stacktrace*, bool> wrei_stacktrace_cache::insert(const std::stacktrace& st)
+std::pair<const core_stacktrace*, bool> core_stacktrace_cache::insert(const std::stacktrace& st)
 {
     auto& entry = traces[st];
     bool added = entry.size() != st.size();
@@ -21,9 +21,9 @@ std::pair<const wrei_stacktrace*, bool> wrei_stacktrace_cache::insert(const std:
     return {&entry, added};
 }
 
-void wrei_stacktrace::populate(struct wrei_stacktrace_cache& cache, const std::stacktrace& stacktrace)
+void core_stacktrace::populate(struct core_stacktrace_cache& cache, const std::stacktrace& stacktrace)
 {
-    wrei_assert(entries.empty());
+    core_assert(entries.empty());
 
     entries.reserve(stacktrace.size());
     for (auto& e : stacktrace) {

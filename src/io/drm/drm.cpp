@@ -1,12 +1,12 @@
 #include "../internal.hpp"
 
-struct wrio_drm
+struct io_drm
 {
 };
 
-WREI_OBJECT_EXPLICIT_DEFINE(wrio_drm);
+CORE_OBJECT_EXPLICIT_DEFINE(io_drm);
 
-void wrio_drm_init(wrio_context*)
+void io_drm_init(io_context*)
 {
-    log_error("WRIO - drm backend not implemented");
+    log_error("IO_ - drm backend not implemented");
 }

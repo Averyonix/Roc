@@ -1,43 +1,43 @@
 #include "event.hpp"
 
 static
-u32 to_epoll_events(wrei_fd_event_bits events)
+u32 to_epoll_events(core_fd_event_bits events)
 {
     u32 out = 0;
-    if (events.contains(wrei_fd_event_bit::readable))  out |= EPOLLIN;
-    if (events.contains(wrei_fd_event_bit::writable)) out |= EPOLLOUT;
+    if (events.contains(core_fd_event_bit::readable))  out |= EPOLLIN;
+    if (events.contains(core_fd_event_bit::writable)) out |= EPOLLOUT;
     return out;
 }
 
 static
-wrei_fd_event_bits from_epoll_events(u32 events)
+core_fd_event_bits from_epoll_events(u32 events)
 {
-    wrei_fd_event_bits out = {};
-    if (events & EPOLLIN)  out |= wrei_fd_event_bit::readable;
-    if (events & EPOLLOUT) out |= wrei_fd_event_bit::writable;
+    core_fd_event_bits out = {};
+    if (events & EPOLLIN)  out |= core_fd_event_bit::readable;
+    if (events & EPOLLOUT) out |= core_fd_event_bit::writable;
     return out;
 }
 
-void wrei_event_loop_timer_expiry_impl(wrei_event_loop* loop, std::chrono::steady_clock::time_point exp)
+void core_event_loop_timer_expiry_impl(core_event_loop* loop, std::chrono::steady_clock::time_point exp)
 {
     if (loop->current_wakeup && exp > *loop->current_wakeup) {
         // log_error("Earlier timer wakeup already set");
-        // log_error("  current expiration: {}", wrei_duration_to_string(*loop->current_wakeup - std::chrono::steady_clock::now()));
-        // log_error("  new expiration: {}", wrei_duration_to_string(exp - std::chrono::steady_clock::now()));
+        // log_error("  current expiration: {}", core_duration_to_string(*loop->current_wakeup - std::chrono::steady_clock::now()));
+        // log_error("  new expiration: {}", core_duration_to_string(exp - std::chrono::steady_clock::now()));
         return;
     }
 
     loop->current_wakeup = exp;
 
-    // log_trace("Next timeout in {}", wrei_duration_to_string(exp - std::chrono::steady_clock::now()));
+    // log_trace("Next timeout in {}", core_duration_to_string(exp - std::chrono::steady_clock::now()));
 
-    unix_check(timerfd_settime(loop->timer_fd->get(), TFD_TIMER_ABSTIME, wrei_ptr_to(itimerspec {
-        .it_value = wrei_steady_clock_to_timespec<CLOCK_MONOTONIC>(exp),
+    unix_check(timerfd_settime(loop->timer_fd->get(), TFD_TIMER_ABSTIME, ptr_to(itimerspec {
+        .it_value = core_steady_clock_to_timespec<CLOCK_MONOTONIC>(exp),
     }), nullptr));
 }
 
 static
-void handle_timer(wrei_event_loop* loop, int fd)
+void handle_timer(core_event_loop* loop, int fd)
 {
     u64 expirations;
     if (unix_check(read(fd, &expirations, sizeof(expirations))).value != sizeof(expirations)) return;
@@ -64,27 +64,27 @@ void handle_timer(wrei_event_loop* loop, int fd)
     }
 
     if (min_exp) {
-        wrei_event_loop_timer_expiry_impl(loop, *min_exp);
+        core_event_loop_timer_expiry_impl(loop, *min_exp);
     }
 }
 
-ref<wrei_event_loop> wrei_event_loop_create()
+ref<core_event_loop> core_event_loop_create()
 {
-    auto loop = wrei_create<wrei_event_loop>();
+    auto loop = core_create<core_event_loop>();
     loop->main_thread = std::this_thread::get_id();
 
     loop->epoll_fd = unix_check(epoll_create1(EPOLL_CLOEXEC)).value;
 
-    loop->task_fd = wrei_fd_adopt(unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value);
-    wrei_fd_set_listener(loop->task_fd.get(), loop.get(), wrei_fd_event_bit::readable, [loop = loop.get()](wrei_fd* fd, wrei_fd_event_bits events) {
-        loop->tasks_available += wrei_eventfd_read(fd->get());
+    loop->task_fd = core_fd_adopt(unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value);
+    core_fd_set_listener(loop->task_fd.get(), loop.get(), core_fd_event_bit::readable, [loop = loop.get()](core_fd* fd, core_fd_event_bits events) {
+        loop->tasks_available += core_eventfd_read(fd->get());
 
         // Don't double dip task event stats
         loop->stats.events_handled--;
     });
 
-    loop->timer_fd = wrei_fd_adopt(unix_check(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)).value);
-    wrei_fd_set_listener(loop->timer_fd.get(), loop.get(), wrei_fd_event_bit::readable, [loop = loop.get()](wrei_fd* fd, wrei_fd_event_bits events) {
+    loop->timer_fd = core_fd_adopt(unix_check(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)).value);
+    core_fd_set_listener(loop->timer_fd.get(), loop.get(), core_fd_event_bit::readable, [loop = loop.get()](core_fd* fd, core_fd_event_bits events) {
         handle_timer(loop, fd->get());
 
         // Don't double dip timer event stats
@@ -96,19 +96,19 @@ ref<wrei_event_loop> wrei_event_loop_create()
     return loop;
 }
 
-wrei_event_loop::~wrei_event_loop()
+core_event_loop::~core_event_loop()
 {
-    wrei_assert(stopped);
+    core_assert(stopped);
 
     task_fd = nullptr;
     timer_fd = nullptr;
 
-    wrei_assert(listener_count == 0);
+    core_assert(listener_count == 0);
 
     close(epoll_fd);
 }
 
-void wrei_event_loop_stop(wrei_event_loop* loop)
+void core_event_loop_stop(core_event_loop* loop)
 {
     loop->stopped = true;
 
@@ -120,9 +120,9 @@ void wrei_event_loop_stop(wrei_event_loop* loop)
     }
 }
 
-void wrei_event_loop_run(wrei_event_loop* loop)
+void core_event_loop_run(core_event_loop* loop)
 {
-    wrei_assert(std::this_thread::get_id() == loop->main_thread);
+    core_assert(std::this_thread::get_id() == loop->main_thread);
 
     static constexpr usz max_epoll_events = 64;
     std::array<epoll_event, max_epoll_events> events;
@@ -144,16 +144,16 @@ void wrei_event_loop_run(wrei_event_loop* loop)
                 // At this point, we can't assume that we'll receieve any future FD events.
                 // Since this includes all user input, the only safe thing to do is
                 // immediately terminate to avoid locking out the user's system.
-                wrei_debugkill();
+                core_debugkill();
             }
         }
 
         // Flush fd events
 
         if (count > 0) {
-            std::array<weak<wrei_fd>, max_epoll_events> sources;
+            std::array<weak<core_fd>, max_epoll_events> sources;
             for (i32 i = 0; i < count; ++i) {
-                sources[i] = static_cast<wrei_fd*>(events[i].data.ptr);
+                sources[i] = static_cast<core_fd*>(events[i].data.ptr);
             }
 
             for (i32 i = 0; i < count; ++i) {
@@ -163,9 +163,9 @@ void wrei_event_loop_run(wrei_event_loop* loop)
 
                 auto l = sources[i]->listener.get();
                 auto event_bits = from_epoll_events(events[i].events);
-                if (l->flags.contains(wrei_fd_listen_flag::oneshot)) {
+                if (l->flags.contains(core_fd_listen_flag::oneshot)) {
                     ref listener = l;
-                    wrei_fd_remove_listener(sources[i].get());
+                    core_fd_remove_listener(sources[i].get());
                     listener->handle(sources[i].get(), event_bits);
                 } else {
                     l->handle(sources[i].get(), event_bits);
@@ -180,7 +180,7 @@ void wrei_event_loop_run(wrei_event_loop* loop)
 
             loop->stats.events_handled += available;
             for (u64 i = 0; i < available; ++i) {
-                wrei_task task;
+                core_task task;
                 while (!loop->queue.try_dequeue(task));
 
                 task.callback();
@@ -196,23 +196,23 @@ void wrei_event_loop_run(wrei_event_loop* loop)
 
 // -----------------------------------------------------------------------------
 
-void wrei_fd_set_listener(
-    wrei_fd* fd,
-    wrei_event_loop* loop,
-    wrei_fd_listener* listener)
+void core_fd_set_listener(
+    core_fd* fd,
+    core_event_loop* loop,
+    core_fd_listener* listener)
 {
     auto events = listener->events;
 
-    wrei_assert(events);
-    wrei_assert(!listener->loop);
-    wrei_assert(!fd->listener);
+    core_assert(events);
+    core_assert(!listener->loop);
+    core_assert(!fd->listener);
 
     loop->listener_count++;
 
     listener->loop = loop;
     fd->listener = listener;
 
-    unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, fd->get(), wrei_ptr_to(epoll_event {
+    unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, fd->get(), ptr_to(epoll_event {
         .events = to_epoll_events(events),
         .data {
             .ptr = fd,
@@ -220,7 +220,7 @@ void wrei_fd_set_listener(
     })));
 }
 
-void wrei_fd_remove_listener(wrei_fd* fd)
+void core_fd_remove_listener(core_fd* fd)
 {
     fd->listener->loop->listener_count--;
 

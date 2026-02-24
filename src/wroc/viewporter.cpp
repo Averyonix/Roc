@@ -10,7 +10,7 @@ void wroc_wp_viewporter_get_viewport(wl_client* client, wl_resource* resource, u
     auto surface = wroc_get_userdata<wroc_surface>(_surface);
     log_debug("wp_viewporter::get_viewporter(surface = {})", (void*)surface);
     auto new_resource = wroc_resource_create(client, &wp_viewport_interface, wl_resource_get_version(resource), id);
-    auto viewport = wrei_create_unsafe<wroc_viewport>();
+    auto viewport = core_create_unsafe<wroc_viewport>();
     viewport->resource = resource;
     wroc_surface_put_addon(surface, viewport);
     wroc_resource_set_implementation_refcounted(new_resource, &wroc_wp_viewport_impl, viewport);
@@ -36,7 +36,7 @@ void wroc_wp_viewport_set_source(wl_client* client, wl_resource* resource, wl_fi
 {
     auto* viewport = wroc_get_userdata<wroc_viewport>(resource);
     viewport->pending->committed |= wroc_viewport_committed_state::source;
-    viewport->pending->source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}, wrei_xywh};
+    viewport->pending->source = {{wl_fixed_to_double(x), wl_fixed_to_double(y)}, {wl_fixed_to_double(width), wl_fixed_to_double(height)}, core_xywh};
 }
 
 static
@@ -65,11 +65,11 @@ void apply_state(wroc_viewport* self, wroc_viewport_state& from, wroc_commit_id 
     auto& to = self->current;
 
     if (from.committed.contains(wroc_viewport_committed_state::source)) {
-        if (from.source == rect2f64{{-1, -1}, {-1, -1}, wrei_xywh}) {
+        if (from.source == rect2f64{{-1, -1}, {-1, -1}, core_xywh}) {
             log_debug("wp_viewport source unset");
             to.committed -= wroc_viewport_committed_state::source;
         } else {
-            log_debug("wp_viewport source = {}", wrei_to_string(from.source));
+            log_debug("wp_viewport source = {}", core_to_string(from.source));
             to.source = from.source;
             to.committed |= wroc_viewport_committed_state::source;
         }
@@ -80,7 +80,7 @@ void apply_state(wroc_viewport* self, wroc_viewport_state& from, wroc_commit_id 
             log_debug("wp_viewport destination unset");
             to.committed -= wroc_viewport_committed_state::destination;
         } else {
-            log_debug("wp_viewport destination = {}", wrei_to_string(from.destination));
+            log_debug("wp_viewport destination = {}", core_to_string(from.destination));
             to.destination = from.destination;
             to.committed |= wroc_viewport_committed_state::destination;
         }

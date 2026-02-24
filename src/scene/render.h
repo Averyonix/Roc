@@ -2,16 +2,16 @@
 
 #include "gpu/shaders/shared.h"
 
-struct wrui_vertex
+struct scene_vertex
 {
     vec2f32 pos;
     vec2f32 uv;
     vec4u8 color;
 };
 
-struct wrui_render_input
+struct scene_render_input
 {
-    wren_const_ptr<wrui_vertex> vertices;
+    gpu_const_ptr<scene_vertex> vertices;
     vec2f32 scale;
     vec2f32 offset;
     image4f32 texture;

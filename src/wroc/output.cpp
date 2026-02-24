@@ -15,9 +15,9 @@ static void wroc_output_send_configuration(wroc_wl_output*, wl_resource* client_
 
 void wroc_output_layout_init()
 {
-    auto* layout = (server->output_layout = wrei_create<wroc_output_layout>()).get();
+    auto* layout = (server->output_layout = core_create<wroc_output_layout>()).get();
 
-    auto* primary = (layout->primary = wrei_create<wroc_wl_output>()).get();
+    auto* primary = (layout->primary = core_create<wroc_wl_output>()).get();
 
     // TODO: Configuration
     static constexpr auto name = "DP-1";
@@ -54,12 +54,12 @@ vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 gl
     wroc_output* closest_output = nullptr;
 
     for (auto& output : layout->outputs) {
-        if (wrei_rect_contains(output->layout_rect, global_pos)) {
+        if (core_rect_contains(output->layout_rect, global_pos)) {
             closest = global_pos;
             closest_output = output.get();
             break;
         } else {
-            auto pos = wrei_rect_clamp_point(output->layout_rect, global_pos);
+            auto pos = core_rect_clamp_point(output->layout_rect, global_pos);
             auto dist = glm::distance(pos, global_pos);
             if (dist < closest_dist) {
                 closest = pos;
@@ -104,7 +104,7 @@ void wroc_output_update(wroc_output_layout* layout)
 
         log_info("  Output: {}", output->desc.name);
         log_info("   Scale: {}", scale);
-        log_info("    Rect: {}", wrei_to_string(output->layout_rect));
+        log_info("    Rect: {}", core_to_string(output->layout_rect));
     }
 
     for (auto* surface : server->surfaces) {
@@ -167,10 +167,10 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
     log_debug("  description = {}", desc.description);
     log_debug("  make = {}", desc.make);
     log_debug("  model = {}", desc.model);
-    log_debug("  position = {}", wrei_to_string(wl_output->position));
+    log_debug("  position = {}", core_to_string(wl_output->position));
     log_debug("  physical size = {}x{}mm", desc.physical_size_mm.x, desc.physical_size_mm.y);
-    log_debug("  transform = {}", wrei_enum_to_string(desc.transform));
-    log_debug("  subpixel_layout = {}", wrei_enum_to_string(desc.subpixel));
+    log_debug("  transform = {}", core_enum_to_string(desc.transform));
+    log_debug("  subpixel_layout = {}", core_enum_to_string(desc.subpixel));
     log_debug("  scale = {:.2f}", desc.scale);
 
     wroc_send(wl_output_send_geometry, client_resource,
@@ -241,7 +241,7 @@ void queue_try_dispatch_now(wroc_output* output)
 
     output->try_dispatch_queue.emplace_back(time);
 
-    wrei_event_loop_enqueue(server->event_loop.get(), [time, output = weak(output)] {
+    core_event_loop_enqueue(server->event_loop.get(), [time, output = weak(output)] {
         if (!output) return;
         std::erase(output->try_dispatch_queue, time);
         wroc_output_try_dispatch_frame(output.get());
@@ -261,7 +261,7 @@ void queue_try_dispatch_at(wroc_output* output, std::chrono::steady_clock::time_
 
     output->try_dispatch_queue.emplace_back(time);
 
-    wrei_event_loop_enqueue_timed(server->event_loop.get(), time, [time, output = weak(output)] {
+    core_event_loop_enqueue_timed(server->event_loop.get(), time, [time, output = weak(output)] {
         if (!output) return;
         std::erase(output->try_dispatch_queue, time);
         wroc_output_try_dispatch_frame(output.get());
@@ -292,7 +292,7 @@ bool wroc_output_try_dispatch_frame(wroc_output* output)
     if (!output->frame_available) return false;
     if (output->frames_in_flight >= server->renderer->max_frames_in_flight) return false;
     if (!output->size.x || !output->size.y) {
-        log_warn("Can't render new frame as output is empty {}", wrei_to_string(output->size));
+        log_warn("Can't render new frame as output is empty {}", core_to_string(output->size));
         return false;
     }
     if (server->renderer->fps_limit_enabled && get_next_frame_time(output) > now) return false;
@@ -324,7 +324,7 @@ void on_output_commit(const wroc_output_event& event)
         log_warn("output.commit[{:.2f}] id = {} | latency = {}",
             event.timestamp.time_since_epoch().count() / 1000000.0,
             event.commit.id,
-            wrei_duration_to_string(event.timestamp - event.commit.start));
+            core_duration_to_string(event.timestamp - event.commit.start));
     }
 }
 

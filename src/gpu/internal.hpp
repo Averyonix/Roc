@@ -4,25 +4,25 @@
 
 // -----------------------------------------------------------------------------
 
-const char* wren_result_to_string(VkResult res);
+const char* gpu_result_to_string(VkResult res);
 
-VkResult wren_check(VkResult res, auto... allowed)
+VkResult gpu_check(VkResult res, auto... allowed)
 {
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
-    log_error("VULKAN ERROR: {}, ({})", wren_result_to_string(res), int(res));
+    log_error("VULKAN ERROR: {}, ({})", gpu_result_to_string(res), int(res));
 
-    wrei_debugkill();
+    core_debugkill();
 }
 
 template<typename Container, typename Fn, typename... Args>
-void wren_vk_enumerate(Container& container, Fn&& fn, Args&&... args)
+void gpu_vk_enumerate(Container& container, Fn&& fn, Args&&... args)
 {
     u32 count = static_cast<u32>(container.size());
     for (;;) {
         u32 old_count = count;
         if constexpr (std::same_as<VkResult, decltype(fn(args..., &count, nullptr))>) {
-            wren_check(fn(args..., &count, container.data()), VK_INCOMPLETE);
+            gpu_check(fn(args..., &count, container.data()), VK_INCOMPLETE);
         } else {
             fn(args..., &count, container.data());
         }
@@ -33,7 +33,7 @@ void wren_vk_enumerate(Container& container, Fn&& fn, Args&&... args)
 }
 
 inline
-auto wren_vk_make_chain_in(std::span<void* const> structures)
+auto gpu_vk_make_chain_in(std::span<void* const> structures)
 {
     VkBaseInStructure* last = nullptr;
     for (auto* s : structures) {
@@ -47,24 +47,24 @@ auto wren_vk_make_chain_in(std::span<void* const> structures)
 
 // -----------------------------------------------------------------------------
 
-u32 wren_find_vk_memory_type_index(wren_context*, u32 type_filter, VkMemoryPropertyFlags properties);
+u32 gpu_find_vk_memory_type_index(gpu_context*, u32 type_filter, VkMemoryPropertyFlags properties);
 
-VkFormatFeatureFlags wren_get_required_format_features(wren_format, flags<wren_image_usage>);
-
-// -----------------------------------------------------------------------------
-
-void wren_image_init(wren_image*);
+VkFormatFeatureFlags gpu_get_required_format_features(gpu_format, flags<gpu_image_usage>);
 
 // -----------------------------------------------------------------------------
 
-void wren_init_descriptors(wren_context*);
-void wren_allocate_image_descriptor(wren_image*);
-void wren_allocate_sampler_descriptor(wren_sampler*);
+void gpu_image_init(gpu_image*);
 
 // -----------------------------------------------------------------------------
 
-ref<wren_queue> wren_queue_init(wren_context*, wren_queue_type, u32 family);
+void gpu_init_descriptors(gpu_context*);
+void gpu_allocate_image_descriptor(gpu_image*);
+void gpu_allocate_sampler_descriptor(gpu_sampler*);
 
 // -----------------------------------------------------------------------------
 
-VkSemaphoreSubmitInfo wren_syncpoint_to_submit_info(const wren_syncpoint& syncpoint);
+ref<gpu_queue> gpu_queue_init(gpu_context*, gpu_queue_type, u32 family);
+
+// -----------------------------------------------------------------------------
+
+VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoint);

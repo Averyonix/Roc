@@ -4,10 +4,10 @@
 
 #include "gpu/gpu.hpp"
 
-using image4f32 = wren_image_handle<vec4f32>;
+using image4f32 = gpu_image_handle<vec4f32>;
 
 template<typename T>
-using wren_const_ptr = const T*;
+using gpu_const_ptr = const T*;
 
 #else
 #include "shared.slang"

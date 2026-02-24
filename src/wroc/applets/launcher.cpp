@@ -1,7 +1,7 @@
 #include <wroc/wroc.hpp>
 #include <wroc/event.hpp>
 
-struct wroc_launcher : wrei_object
+struct wroc_launcher : core_object
 {
     std::vector<struct wroc_launcher_app> apps;
     std::string filter;
@@ -13,7 +13,7 @@ struct wroc_launcher : wrei_object
     ~wroc_launcher();
 };
 
-WREI_OBJECT_EXPLICIT_DEFINE(wroc_launcher);
+CORE_OBJECT_EXPLICIT_DEFINE(wroc_launcher);
 
 struct wroc_launcher_app
 {
@@ -72,7 +72,7 @@ void filter(wroc_launcher* launcher, bool up, bool down)
 
 void wroc_launcher_init()
 {
-    server->launcher = wrei_create<wroc_launcher>();
+    server->launcher = core_create<wroc_launcher>();
 
     auto* launcher = server->launcher.get();
 

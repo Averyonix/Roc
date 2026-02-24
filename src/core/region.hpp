@@ -3,25 +3,25 @@
 #include "util.hpp"
 
 template<typename T>
-struct wrei_region
+struct core_region
 {
-    std::vector<wrei_aabb<T>> aabbs;
+    std::vector<core_aabb<T>> aabbs;
 
 // -----------------------------------------------------------------------------
 
-    wrei_region() = default;
+    core_region() = default;
 
-    wrei_region(wrei_aabb<T> aabb)
+    core_region(core_aabb<T> aabb)
         : aabbs{aabb}
     {}
 
 // -----------------------------------------------------------------------------
 
-    wrei_region(const wrei_region& other)
+    core_region(const core_region& other)
         : aabbs(other.aabbs)
     {}
 
-    wrei_region& operator=(const wrei_region& other)
+    core_region& operator=(const core_region& other)
     {
         if (this != &other) {
             aabbs = other.aabbs;
@@ -31,11 +31,11 @@ struct wrei_region
 
 // -----------------------------------------------------------------------------
 
-    wrei_region(wrei_region&& other)
+    core_region(core_region&& other)
         : aabbs(std::move(other.aabbs))
     {}
 
-    wrei_region& operator=(wrei_region&& other)
+    core_region& operator=(core_region&& other)
     {
         if (this != &other) {
             aabbs = std::move(other.aabbs);
@@ -55,20 +55,20 @@ struct wrei_region
         return aabbs.empty();
     }
 
-    void add(wrei_aabb<T> aabb)
+    void add(core_aabb<T> aabb)
     {
         aabbs.emplace_back(aabb);
     }
 
-    void subtract(wrei_aabb<T> subtrahend)
+    void subtract(core_aabb<T> subtrahend)
     {
         usz prev_size = aabbs.size();
         usz inplace = 0;
 
         for (usz i = 0; i < prev_size; ++i) {
 
-            std::array<wrei_aabb<T>, 4> split;
-            u32 count = wrei_aabb_subtract(aabbs[i], subtrahend, split.data());
+            std::array<core_aabb<T>, 4> split;
+            u32 count = core_aabb_subtract(aabbs[i], subtrahend, split.data());
 
             // Update first aabb in-place
             if (count > 0) {
@@ -92,10 +92,10 @@ struct wrei_region
     }
 
     template<typename T2>
-    bool contains(wrei_vec<2, T2> point) const
+    bool contains(core_vec<2, T2> point) const
     {
         for (auto aabb : aabbs) {
-            if (wrei_aabb_contains<T2>(aabb, point)) {
+            if (core_aabb_contains<T2>(aabb, point)) {
                 return true;
             }
         }
@@ -103,24 +103,24 @@ struct wrei_region
     }
 
     template<typename T2>
-    bool contains(wrei_aabb<T2> needle) const
+    bool contains(core_aabb<T2> needle) const
     {
         for (auto aabb : aabbs) {
-            wrei_aabb<T2> overlap;
-            wrei_aabb_intersects<T2>(aabb, needle, &overlap);
+            core_aabb<T2> overlap;
+            core_aabb_intersects<T2>(aabb, needle, &overlap);
             if (overlap == needle) return true;
         }
         return false;
     }
 
     template<typename T2>
-    wrei_vec<2, T2> constrain(wrei_vec<2, T2> point) const
+    core_vec<2, T2> constrain(core_vec<2, T2> point) const
     {
         double closest_dist = INFINITY;
-        wrei_vec<2, T2> closest = {};
+        core_vec<2, T2> closest = {};
 
         for (auto aabb : aabbs) {
-            auto pos = wrei_aabb_clamp_point<T2>(aabb, point);
+            auto pos = core_aabb_clamp_point<T2>(aabb, point);
             if (pos == point) return point;
 
             auto dist = glm::distance(pos, point);
@@ -136,4 +136,4 @@ struct wrei_region
 
 // -----------------------------------------------------------------------------
 
-using region2i32 = wrei_region<i32>;
+using region2i32 = core_region<i32>;

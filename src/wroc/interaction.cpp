@@ -349,10 +349,10 @@ void zone_update_regions()
             aabb2f64 check_rect = {
                 rect.min - vec2f64(c.selection_leeway),
                 rect.max + vec2f64(c.selection_leeway),
-                wrei_minmax,
+                core_minmax,
             };
-            if (wrei_aabb_contains(check_rect, point)) {
-                pointer_zone = any_zones ? wrei_aabb_outer(pointer_zone, rect) : rect;
+            if (core_aabb_contains(check_rect, point)) {
+                pointer_zone = any_zones ? core_aabb_outer(pointer_zone, rect) : rect;
                 any_zones = true;
             }
         }
@@ -360,7 +360,7 @@ void zone_update_regions()
 
     if (any_zones) {
         if (server->zone.selecting) {
-            server->zone.final_zone = wrei_aabb_outer(server->zone.initial_zone, pointer_zone);
+            server->zone.final_zone = core_aabb_outer(server->zone.initial_zone, pointer_zone);
         } else {
             server->zone.final_zone = server->zone.initial_zone = pointer_zone;
         }

@@ -10,25 +10,25 @@ void imui_handle_key(imui_context* ctx, xkb_keysym_t sym, bool pressed, const ch
     imui_request_frame(ctx);
 }
 
-void imui_handle_mods(imui_context* ctx, flags<wrui_modifier> mods)
+void imui_handle_mods(imui_context* ctx, flags<scene_modifier> mods)
 {
     auto& io = ImGui::GetIO();
-    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(wrui_modifier::shift));
-    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(wrui_modifier::ctrl));
-    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(wrui_modifier::alt));
-    io.AddKeyEvent(ImGuiMod_Super, mods.contains(wrui_modifier::super));
+    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(scene_modifier::shift));
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(scene_modifier::ctrl));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(scene_modifier::alt));
+    io.AddKeyEvent(ImGuiMod_Super, mods.contains(scene_modifier::super));
     imui_request_frame(ctx);
 }
 
 void imui_handle_motion(imui_context* ctx)
 {
     auto& io = ImGui::GetIO();
-    auto pos = imui_transform_get_global(ctx->pointer->transform.get()).translation - ctx->imgui.region.origin;
+    auto pos = scene_pointer_get_position(ctx->scene) - ctx->region.origin;
     io.AddMousePosEvent(pos.x, pos.y);
     imui_request_frame(ctx);
 }
 
-void imui_handle_button(imui_context* ctx, wrui_scancode code, bool pressed)
+void imui_handle_button(imui_context* ctx, scene_scancode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
     switch (code) {
@@ -45,12 +45,12 @@ void imui_handle_wheel(imui_context* ctx, vec2f32 delta)
     imui_request_frame(ctx);
 }
 
-void imui_init(imui_context* ctx)
+void imui_init(gpu_context* gpu, imui_context* ctx)
 {
-    ctx->imgui.region = {{}, {1920, 1080}, wrei_xywh};
+    ctx->region = {{}, {1920, 1080}, core_xywh};
 
-    ctx->imgui.context = ImGui::CreateContext();
-    ImGui::SetCurrentContext(ctx->imgui.context);
+    ctx->context = ImGui::CreateContext();
+    ImGui::SetCurrentContext(ctx->context);
 
     auto& style = ImGui::GetStyle();
     style.FrameRounding     = 3;
@@ -65,10 +65,10 @@ void imui_init(imui_context* ctx)
         int width, height;
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-        ctx->font_image = wren_image_create(ctx->wren, {width, height},
-            wren_format_from_drm(DRM_FORMAT_ABGR8888),
-            wren_image_usage::texture | wren_image_usage::transfer);
-        wren_image_update_immed(ctx->font_image.get(), pixels);
+        ctx->font_image = gpu_image_create(ctx->gpu, {width, height},
+            gpu_format_from_drm(DRM_FORMAT_ABGR8888),
+            gpu_image_usage::texture | gpu_image_usage::transfer);
+        gpu_image_update_immed(ctx->font_image.get(), pixels);
     }
 }
 
@@ -76,9 +76,6 @@ static
 void request_frame(imui_context* ctx)
 {
     // TODO: Request frames for outputs covered by `imgui.region`
-    for (auto* output : wrio_list_outputs(ctx->wrio)) {
-        wrio_output_request_frame(output, ctx->render.usage);
-    }
 }
 
 void imui_request_frame(imui_context* ctx)
@@ -90,11 +87,6 @@ void imui_request_frame(imui_context* ctx)
     request_frame(ctx);
 }
 
-void imui_request_frame(imui_client* client)
-{
-    imui_request_frame(client->ctx);
-}
-
 static
 void reset_frame_textures(imui_context* ctx)
 {
@@ -104,7 +96,7 @@ void reset_frame_textures(imui_context* ctx)
     ctx->textures.emplace_back();
 }
 
-auto imui_get_texture(imui_context* ctx, wren_image* image, wren_sampler* sampler, wren_blend_mode blend) -> ImTextureID
+auto imui_get_texture(imui_context* ctx, gpu_image* image, gpu_sampler* sampler, gpu_blend_mode blend) -> ImTextureID
 {
     auto idx = ctx->textures.size();
     ctx->textures.emplace_back(image, sampler, blend);
@@ -124,31 +116,29 @@ void imui_frame(imui_context* ctx)
     io.DisplaySize = ImVec2(ctx->region.extent.x, ctx->region.extent.y);
 
     reset_frame_textures(ctx);
-    io.Fonts->SetTexID(imui_get_texture(ctx, ctx->font_image.get(), ctx->render.sampler.get(), wren_blend_mode::postmultiplied));
+    io.Fonts->SetTexID(imui_get_texture(ctx, ctx->font_image.get(), ctx->sampler.get(), gpu_blend_mode::postmultiplied));
 
     ImGui::NewFrame();
 
-    for (auto* client : ctx->clients) {
-        imui_client_post_event(client, wrei_ptr_to(imui_event {
-            .type = imui_event_type::imgui_frame,
-        }));
-    }
+    // TODO: Request imgui contents from registered clients
+    ImGui::ShowDemoWindow();
 
     ImGui::Render();
 
-    if (ctx->imgui.draws) {
-        imui_node_unparent(ctx->imgui.draws.get());
+    if (ctx->draws) {
+        scene_node_unparent(ctx->draws.get());
     }
 
     auto data = ImGui::GetDrawData();
 
-    auto scene = imui_get_scene(ctx);
+    auto* layer = scene_get_layer(ctx->scene, scene_layer::normal);
+    auto* root_transform = scene_get_root_transform(ctx->scene);
 
-    ctx->imgui.draws = imui_tree_create(ctx);
+    ctx->draws = scene_tree_create(ctx->scene);
 
     for (auto& list : std::span(data->CmdLists.Data, data->CmdLists.Size)) {
         for (auto& cmd : std::span(list->CmdBuffer.Data, list->CmdBuffer.Size)) {
-            auto mesh = imui_mesh_create(ctx);
+            auto mesh = scene_mesh_create(ctx->scene);
 
             auto indices = std::span(list->IdxBuffer.Data + cmd.IdxOffset, cmd.ElemCount);
 
@@ -157,23 +147,22 @@ void imui_frame(imui_context* ctx)
                 max_vtx = std::max(max_vtx, idx);
             }
 
-            auto[image, sampler, blend] = ctx->imgui.textures[cmd.GetTexID()];
+            auto[image, sampler, blend] = ctx->textures[cmd.GetTexID()];
 
-            wrei_assert(sizeof(imui_vertex) ==  sizeof(ImDrawVert) && alignof(imui_vertex) == alignof(ImDrawVert));
+            core_assert(sizeof(scene_vertex) ==  sizeof(ImDrawVert) && alignof(scene_vertex) == alignof(ImDrawVert));
 
-            imui_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
-                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, wrei_minmax},
-                std::span(reinterpret_cast<imui_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1),
+            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
+                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, core_minmax},
+                std::span(reinterpret_cast<scene_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1),
                 indices);
 
-            imui_node_set_transform(mesh.get(), scene.transform);
-            imui_tree_place_above(ctx->imgui.draws.get(), nullptr, mesh.get());
+            scene_node_set_transform(mesh.get(), root_transform);
+            scene_tree_place_above(ctx->draws.get(), nullptr, mesh.get());
         }
     }
 
-    // TODO|FIXME: Separate the scene into several subtrees for each relevant UI layer.
-    imui_tree_place_above(scene.tree, nullptr, ctx->imgui.draws.get());
-    imui_tree_place_above(scene.tree, nullptr, ctx->pointer->visual.get());
+    // TODO|FIXME: This should be implemented using a scene_window
+    scene_tree_place_above(layer, nullptr, ctx->draws.get());
 }
 
 // -----------------------------------------------------------------------------

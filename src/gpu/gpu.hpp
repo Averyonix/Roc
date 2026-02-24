@@ -10,91 +10,91 @@
 
 // -----------------------------------------------------------------------------
 
-struct wren_image;
-struct wren_semaphore;
-struct wren_commands;
-struct wren_queue;
+struct gpu_image;
+struct gpu_semaphore;
+struct gpu_commands;
+struct gpu_queue;
 
-enum class wren_image_usage : u32;
+enum class gpu_image_usage : u32;
 
 // -----------------------------------------------------------------------------
 
-enum class wren_descriptor_id : u32 { invalid = 0 };
+enum class gpu_descriptor_id : u32 { invalid = 0 };
 
-struct wren_descriptor_id_allocator
+struct gpu_descriptor_id_allocator
 {
-    std::vector<wren_descriptor_id> freelist;
+    std::vector<gpu_descriptor_id> freelist;
     u32 next_id;
     u32 capacity;
 
-    wren_descriptor_id_allocator() = default;
-    wren_descriptor_id_allocator(u32 count);
+    gpu_descriptor_id_allocator() = default;
+    gpu_descriptor_id_allocator(u32 count);
 
-    wren_descriptor_id allocate();
-    void free(wren_descriptor_id);
+    gpu_descriptor_id allocate();
+    void free(gpu_descriptor_id);
 };
 
 // -----------------------------------------------------------------------------
 
-using wren_drm_format   = u32;
-using wren_drm_modifier = u64;
+using gpu_drm_format   = u32;
+using gpu_drm_modifier = u64;
 
 // Additional flags required to uniquely identify a format when paired with a VkFormat
-enum class wren_vk_format_flag : u32
+enum class gpu_vk_format_flag : u32
 {
     // DRM FourCC codes have format variants to ignore alpha channels (E.g. XRGB|ARGB).
     // Vulkan handles these in image view channel swizzles, instead of formats.
     ignore_alpha = 1 << 0,
 };
 
-struct wren_format_info
+struct gpu_format_info
 {
     std::string name;
 
     bool is_ycbcr;
 
-    wren_drm_format drm;
+    gpu_drm_format drm;
 
     VkFormat vk;
     VkFormat vk_srgb;
-    flags<wren_vk_format_flag> vk_flags;
+    flags<gpu_vk_format_flag> vk_flags;
 
     VKU_FORMAT_INFO info;
 };
 
-std::span<const wren_format_info> wren_get_format_infos();
+std::span<const gpu_format_info> gpu_get_format_infos();
 
-struct wren_format
+struct gpu_format
 {
     // Formats are stored as indices into the static format_infos table.
     u8 index;
 
-    constexpr bool operator==(const wren_format&) const noexcept = default;
+    constexpr bool operator==(const gpu_format&) const noexcept = default;
 
     constexpr explicit operator bool() const noexcept { return index; }
 
-    constexpr const wren_format_info* operator->() const noexcept
+    constexpr const gpu_format_info* operator->() const noexcept
     {
-        return &wren_get_format_infos()[index];
+        return &gpu_get_format_infos()[index];
     }
 };
 
-WREI_MAKE_STRUCT_HASHABLE(wren_format, v.index);
+CORE_MAKE_STRUCT_HASHABLE(gpu_format, v.index);
 
 inline
-auto wren_get_formats()
+auto gpu_get_formats()
 {
     return std::views::iota(0)
-         | std::views::take(wren_get_format_infos().size())
-         | std::views::transform([](usz i) { return wren_format(i); });
+         | std::views::take(gpu_get_format_infos().size())
+         | std::views::transform([](usz i) { return gpu_format(i); });
 }
 
-wren_format wren_format_from_drm(wren_drm_format);
-wren_format wren_format_from_vk(VkFormat, flags<wren_vk_format_flag> = {});
+gpu_format gpu_format_from_drm(gpu_drm_format);
+gpu_format gpu_format_from_vk(VkFormat, flags<gpu_vk_format_flag> = {});
 
-struct wren_format_modifier_props
+struct gpu_format_modifier_props
 {
-    wren_drm_modifier modifier;
+    gpu_drm_modifier modifier;
     VkFormatFeatureFlags2 features;
     u32 plane_count;
 
@@ -104,16 +104,16 @@ struct wren_format_modifier_props
     bool has_mutable_srgb;
 };
 
-using wren_format_modifier_set = std::flat_set<wren_drm_modifier>;
-inline const wren_format_modifier_set wren_empty_modifier_set;
+using gpu_format_modifier_set = std::flat_set<gpu_drm_modifier>;
+inline const gpu_format_modifier_set gpu_empty_modifier_set;
 
-struct wren_format_props
+struct gpu_format_props
 {
-    std::unique_ptr<wren_format_modifier_props> opt_props;
-    std::vector<wren_format_modifier_props> mod_props;
-    wren_format_modifier_set mods;
+    std::unique_ptr<gpu_format_modifier_props> opt_props;
+    std::vector<gpu_format_modifier_props> mod_props;
+    gpu_format_modifier_set mods;
 
-    const wren_format_modifier_props* for_mod(wren_drm_modifier mod) const
+    const gpu_format_modifier_props* for_mod(gpu_drm_modifier mod) const
     {
         for (auto& p : mod_props) {
             if (p.modifier == mod) return &p;
@@ -122,31 +122,31 @@ struct wren_format_props
     }
 };
 
-struct wren_format_props_key
+struct gpu_format_props_key
 {
     VkFormat format;
     VkImageUsageFlags usage;
 
-    constexpr bool operator==(const wren_format_props_key&) const noexcept = default;
+    constexpr bool operator==(const gpu_format_props_key&) const noexcept = default;
 };
-WREI_MAKE_STRUCT_HASHABLE(wren_format_props_key, v.format, v.usage);
+CORE_MAKE_STRUCT_HASHABLE(gpu_format_props_key, v.format, v.usage);
 
 
-struct wren_format_set
+struct gpu_format_set
 {
-    ankerl::unordered_dense::map<wren_format, wren_format_modifier_set> entries;
+    ankerl::unordered_dense::map<gpu_format, gpu_format_modifier_set> entries;
 
-    void add(wren_format format, wren_drm_modifier modifier)
+    void add(gpu_format format, gpu_drm_modifier modifier)
     {
         entries[format].insert(modifier);
     }
 
     void clear() { entries.clear(); }
 
-    const wren_format_modifier_set& get(wren_format format) const noexcept
+    const gpu_format_modifier_set& get(gpu_format format) const noexcept
     {
         auto iter = entries.find(format);
-        return iter == entries.end() ? wren_empty_modifier_set : iter->second;
+        return iter == entries.end() ? gpu_empty_modifier_set : iter->second;
     }
 
     usz   size() const { return entries.size(); }
@@ -156,29 +156,29 @@ struct wren_format_set
     auto   end() const { return entries.end(); }
 };
 
-wren_format_modifier_set wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets);
-wren_format_set wren_intersect_format_sets(std::span<const wren_format_set* const> sets);
+gpu_format_modifier_set gpu_intersect_format_modifiers(std::span<const gpu_format_modifier_set* const> sets);
+gpu_format_set gpu_intersect_format_sets(std::span<const gpu_format_set* const> sets);
 
-const wren_format_props* wren_get_format_props(wren_context*, wren_format, flags<wren_image_usage>);
+const gpu_format_props* gpu_get_format_props(gpu_context*, gpu_format, flags<gpu_image_usage>);
 
-std::string wren_drm_modifier_get_name(wren_drm_modifier);
+std::string gpu_drm_modifier_get_name(gpu_drm_modifier);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_feature : u32
+enum class gpu_feature : u32
 {
     validation = 1 << 0,
 };
 
-struct wren_context : wrei_object
+struct gpu_context : core_object
 {
-    flags<wren_feature> features;
+    flags<gpu_feature> features;
 
     struct {
-        WREN_DECLARE_FUNCTION(GetInstanceProcAddr)
-        WREN_DECLARE_FUNCTION(CreateInstance)
-        WREN_INSTANCE_FUNCTIONS(WREN_DECLARE_FUNCTION)
-        WREN_DEVICE_FUNCTIONS(  WREN_DECLARE_FUNCTION)
+        GPU_DECLARE_FUNCTION(GetInstanceProcAddr)
+        GPU_DECLARE_FUNCTION(CreateInstance)
+        GPU_INSTANCE_FUNCTIONS(GPU_DECLARE_FUNCTION)
+        GPU_DEVICE_FUNCTIONS(  GPU_DECLARE_FUNCTION)
     } vk;
 
     void* loader;
@@ -208,9 +208,9 @@ struct wren_context : wrei_object
         u32 active_samplers;
     } stats;
 
-    ref<wren_queue> graphics_queue;
-    ref<wren_queue> transfer_queue;
-    ref<wrei_event_loop> event_loop;
+    ref<gpu_queue> graphics_queue;
+    ref<gpu_queue> transfer_queue;
+    ref<core_event_loop> event_loop;
 
     std::vector<VkSemaphore> free_binary_semaphores;
 
@@ -220,92 +220,92 @@ struct wren_context : wrei_object
     VkDescriptorPool pool;
     VkDescriptorSet set;
 
-    wren_descriptor_id_allocator image_descriptor_allocator;
-    wren_descriptor_id_allocator sampler_descriptor_allocator;
+    gpu_descriptor_id_allocator image_descriptor_allocator;
+    gpu_descriptor_id_allocator sampler_descriptor_allocator;
 
-    ankerl::unordered_dense::segmented_map<wren_format_props_key, wren_format_props> format_props;
+    ankerl::unordered_dense::segmented_map<gpu_format_props_key, gpu_format_props> format_props;
 
-    ~wren_context();
+    ~gpu_context();
 };
 
-ref<wren_context> wren_create(flags<wren_feature>, wrei_event_loop*);
+ref<gpu_context> gpu_create(flags<gpu_feature>, core_event_loop*);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_queue_type : u32
+enum class gpu_queue_type : u32
 {
     graphics,
     transfer,
 };
 
-struct wren_queue : wrei_object
+struct gpu_queue : core_object
 {
-    wren_context* ctx;
+    gpu_context* ctx;
 
-    wren_queue_type type;
+    gpu_queue_type type;
     u32 family;
     VkQueue queue;
 
     VkCommandPool cmd_pool;
     VkCommandBuffer cmd;
 
-    ref<wren_semaphore> queue_sema;
+    ref<gpu_semaphore> queue_sema;
 
     u64 submitted;
 
-    ~wren_queue();
+    ~gpu_queue();
 };
 
-wren_queue* wren_get_queue(wren_context*, wren_queue_type);
+gpu_queue* gpu_get_queue(gpu_context*, gpu_queue_type);
 
 // -----------------------------------------------------------------------------
 
-using wren_semaphore_wait_fn = void(u64);
+using gpu_semaphore_wait_fn = void(u64);
 
-struct wren_semaphore : wrei_object
+struct gpu_semaphore : core_object
 {
-    wren_context* ctx;
+    gpu_context* ctx;
 
     VkSemaphore semaphore;
     u32         syncobj;
 
-    ref<wrei_fd> wait_fd;
+    ref<core_fd> wait_fd;
     u64 wait_skips = 0;
-    struct wait_item : wrei_intrusive_list_base<wait_item>
+    struct wait_item : core_intrusive_list_base<wait_item>
     {
         u64 point;
         virtual void handle(u64) = 0;
         virtual ~wait_item() = default;
     };
-    wrei_intrusive_list<wait_item> waits;
+    core_intrusive_list<wait_item> waits;
 
-    ~wren_semaphore();
+    ~gpu_semaphore();
 };
 
-struct wren_syncpoint
+struct gpu_syncpoint
 {
-    wren_semaphore* semaphore;
+    gpu_semaphore* semaphore;
     u64 value = 0;
     VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 };
 
-ref<wren_semaphore> wren_semaphore_create(wren_context*);
-ref<wren_semaphore> wren_semaphore_import_syncobj(wren_context*, int syncobj_fd);
-int wren_semaphore_export_syncobj(wren_semaphore*);
+ref<gpu_semaphore> gpu_semaphore_create(gpu_context*);
+ref<gpu_semaphore> gpu_semaphore_import_syncobj(gpu_context*, int syncobj_fd);
+int gpu_semaphore_export_syncobj(gpu_semaphore*);
 
-void wren_semaphore_import_syncfile(wren_semaphore*, int sync_fd, u64 target_point);
-int  wren_semaphore_export_syncfile(wren_semaphore*, u64 source_point);
+void gpu_semaphore_import_syncfile(gpu_semaphore*, int sync_fd, u64 target_point);
+int  gpu_semaphore_export_syncfile(gpu_semaphore*, u64 source_point);
 
-u64  wren_semaphore_get_value(   wren_semaphore*);
-void wren_semaphore_signal_value(wren_semaphore*, u64 value);
-void wren_semaphore_wait_value(  wren_semaphore*, u64 value);
+u64  gpu_semaphore_get_value(   gpu_semaphore*);
+void gpu_semaphore_signal_value(gpu_semaphore*, u64 value);
+void gpu_semaphore_wait_value(  gpu_semaphore*, u64 value);
 
-void wren_semaphore_wait_value_impl(wren_semaphore*, wren_semaphore::wait_item*);
+void gpu_semaphore_wait_value_impl(gpu_semaphore*, gpu_semaphore::wait_item*);
 
 template<typename Fn>
-void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value, Fn&& fn)
+void gpu_semaphore_wait_value(gpu_semaphore* semaphore, u64 value, Fn&& fn)
 {
-    struct wait_item : wren_semaphore::wait_item
+    struct wait_item : gpu_semaphore::wait_item
     {
         Fn fn;
         wait_item(Fn&& fn): fn(std::move(fn)) {}
@@ -313,38 +313,38 @@ void wren_semaphore_wait_value(wren_semaphore* semaphore, u64 value, Fn&& fn)
     };
     auto wait = new wait_item(std::move(fn));
     wait->point = value;
-    wren_semaphore_wait_value_impl(semaphore, wait);
+    gpu_semaphore_wait_value_impl(semaphore, wait);
 }
 
 // -----------------------------------------------------------------------------
 
-struct wren_commands : wrei_object
+struct gpu_commands : core_object
 {
-    wren_queue* queue;
+    gpu_queue* queue;
 
     VkCommandBuffer buffer;
-    std::vector<ref<wrei_object>> objects;
+    std::vector<ref<core_object>> objects;
 
     u64 submitted_value;
 
-    ~wren_commands();
+    ~gpu_commands();
 };
 
-ref<wren_commands> wren_commands_begin(wren_queue*);
+ref<gpu_commands> gpu_commands_begin(gpu_queue*);
 
-void wren_commands_protect_object(  wren_commands*, wrei_object*);
-wren_syncpoint wren_commands_submit(wren_commands*, std::span<const wren_syncpoint> waits);
+void gpu_commands_protect_object(  gpu_commands*, core_object*);
+gpu_syncpoint gpu_commands_submit(gpu_commands*, std::span<const gpu_syncpoint> waits);
 
 // TODO: This is a blocking operation and a temporary solution
 //       Replace with an asynchronous callback
-void wren_wait_idle(wren_context*);
-void wren_wait_idle(wren_queue*);
+void gpu_wait_idle(gpu_context*);
+void gpu_wait_idle(gpu_queue*);
 
 // -----------------------------------------------------------------------------
 
-struct wren_buffer : wrei_object
+struct gpu_buffer : core_object
 {
-    wren_context* ctx;
+    gpu_context* ctx;
 
     VkBuffer buffer;
     VmaAllocation vma_allocation;
@@ -361,23 +361,23 @@ struct wren_buffer : wrei_object
     template<typename T>
     T* host(usz byte_offset = 0) const
     {
-        return wrei_byte_offset_pointer<T>(host_address, byte_offset);
+        return core_byte_offset_pointer<T>(host_address, byte_offset);
     }
 
-    ~wren_buffer();
+    ~gpu_buffer();
 };
 
-enum class wren_buffer_flag : u32
+enum class gpu_buffer_flag : u32
 {
     host = 1 << 0,
 };
 
-ref<wren_buffer> wren_buffer_create(wren_context*, usz size, flags<wren_buffer_flag>);
+ref<gpu_buffer> gpu_buffer_create(gpu_context*, usz size, flags<gpu_buffer_flag>);
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct wren_array_element_proxy
+struct gpu_array_element_proxy
 {
     T* host_value;
 
@@ -388,15 +388,15 @@ struct wren_array_element_proxy
 };
 
 template<typename T>
-struct wren_array
+struct gpu_array
 {
-    ref<wren_buffer> buffer;
+    ref<gpu_buffer> buffer;
     usz count = 0;
     usz byte_offset = 0;
 
-    wren_array() = default;
+    gpu_array() = default;
 
-    wren_array(const auto& buffer, usz count, usz byte_offset = {})
+    gpu_array(const auto& buffer, usz count, usz byte_offset = {})
         : buffer(buffer)
         , count(count)
         , byte_offset(byte_offset)
@@ -412,7 +412,7 @@ struct wren_array
         return buffer->host<T>(byte_offset);
     }
 
-    wren_array_element_proxy<T> operator[](usz index) const
+    gpu_array_element_proxy<T> operator[](usz index) const
     {
         return {buffer->host<T>(byte_offset) + index};
     }
@@ -420,7 +420,7 @@ struct wren_array
 
 // -----------------------------------------------------------------------------
 
-enum class wren_image_usage : u32
+enum class gpu_image_usage : u32
 {
     transfer_src = 1 << 0,
     transfer_dst = 1 << 1,
@@ -430,133 +430,133 @@ enum class wren_image_usage : u32
     storage      = 1 << 4,
 };
 
-VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage>);
+VkImageUsageFlags gpu_image_usage_to_vk(flags<gpu_image_usage>);
 
-struct wren_image : wrei_object
+struct gpu_image : core_object
 {
-    wren_context* ctx;
+    gpu_context* ctx;
 
-    wren_format format;
+    gpu_format format;
 
     VkImage image;
     VkImageView view;
     vec2u32 extent;
 
-    wren_descriptor_id id;
+    gpu_descriptor_id id;
 
-    flags<wren_image_usage> usage;
+    flags<gpu_image_usage> usage;
 
-    virtual ~wren_image() = 0;
+    virtual ~gpu_image() = 0;
 };
 
-ref<wren_image> wren_image_create(wren_context*, vec2u32 extent, wren_format, flags<wren_image_usage>);
+ref<gpu_image> gpu_image_create(gpu_context*, vec2u32 extent, gpu_format, flags<gpu_image_usage>);
 
-void wren_copy_image_to_buffer(wren_commands*, wren_buffer*, wren_image*);
-void wren_copy_buffer_to_image(wren_commands*, wren_image*, wren_buffer*);
+void gpu_copy_image_to_buffer(gpu_commands*, gpu_buffer*, gpu_image*);
+void gpu_copy_buffer_to_image(gpu_commands*, gpu_image*, gpu_buffer*);
 
-void wren_image_update(wren_commands*, wren_image*, const void* data);
-void wren_image_update_immed(wren_image*, const void* data);
+void gpu_image_update(gpu_commands*, gpu_image*, const void* data);
+void gpu_image_update_immed(gpu_image*, const void* data);
 
-void wren_transition(wren_context* vk, wren_commands*, wren_image*,
+void gpu_transition(gpu_context* vk, gpu_commands*, gpu_image*,
         VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
         VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
         VkImageLayout old_layout, VkImageLayout new_layout);
 
 // -----------------------------------------------------------------------------
 
-struct wren_sampler : wrei_object
+struct gpu_sampler : core_object
 {
-    wren_context* ctx;
+    gpu_context* ctx;
 
     VkSampler sampler;
 
-    wren_descriptor_id id;
+    gpu_descriptor_id id;
 
-    ~wren_sampler();
+    ~gpu_sampler();
 };
 
-ref<wren_sampler> wren_sampler_create(wren_context*, VkFilter mag, VkFilter min);
+ref<gpu_sampler> gpu_sampler_create(gpu_context*, VkFilter mag, VkFilter min);
 
 // -----------------------------------------------------------------------------
 
-enum class wren_blend_mode : u32
+enum class gpu_blend_mode : u32
 {
     none,
     premultiplied,
     postmultiplied,
 };
 
-struct wren_pipeline : wrei_object
+struct gpu_pipeline : core_object
 {
-    wren_context* ctx;
+    gpu_context* ctx;
 
     VkPipeline pipeline;
 
-    ~wren_pipeline();
+    ~gpu_pipeline();
 };
 
-ref<wren_pipeline> wren_pipeline_create_graphics(wren_context*,
-    wren_blend_mode,
-    wren_format,
+ref<gpu_pipeline> gpu_pipeline_create_graphics(gpu_context*,
+    gpu_blend_mode,
+    gpu_format,
     std::span<const u32> spirv,
     const char* vertex_entry,
     const char* fragment_entry);
 
-ref<wren_pipeline> wren_pipeline_create_compute(wren_context*,
+ref<gpu_pipeline> gpu_pipeline_create_compute(gpu_context*,
     std::span<const u32> spirv,
     const char* entry);
 
 // -----------------------------------------------------------------------------
 
-constexpr static u32 wren_dma_max_planes = 4;
+constexpr static u32 gpu_dma_max_planes = 4;
 
-struct wren_dma_plane
+struct gpu_dma_plane
 {
-    ref<wrei_fd> fd;
+    ref<core_fd> fd;
     u32 offset;
     u32 stride;
 };
 
-struct wren_dma_params
+struct gpu_dma_params
 {
-    wrei_fixed_array<wren_dma_plane, wren_dma_max_planes> planes;
+    core_fixed_array<gpu_dma_plane, gpu_dma_max_planes> planes;
     bool disjoint;
 
     vec2u32 extent;
-    wren_format format;
-    wren_drm_modifier modifier;
+    gpu_format format;
+    gpu_drm_modifier modifier;
 };
 
-struct wren_image_dmabuf : wren_image
+struct gpu_image_dmabuf : gpu_image
 {
-    wrei_fixed_array<VkDeviceMemory, wren_dma_max_planes> memory;
-    wren_drm_modifier modifier;
+    core_fixed_array<VkDeviceMemory, gpu_dma_max_planes> memory;
+    gpu_drm_modifier modifier;
 
     struct {
         usz allocation_size;
     } stats;
 
-    ~wren_image_dmabuf();
+    ~gpu_image_dmabuf();
 };
 
-VkImageAspectFlagBits wren_plane_to_aspect(u32 i);
+VkImageAspectFlagBits gpu_plane_to_aspect(u32 i);
 
-ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context*, vec2u32 extent, wren_format, flags<wren_image_usage>, std::span<const wren_drm_modifier>);
-ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context*, const wren_dma_params&, flags<wren_image_usage>);
+ref<gpu_image_dmabuf> gpu_image_create_dmabuf(gpu_context*, vec2u32 extent, gpu_format, flags<gpu_image_usage>, std::span<const gpu_drm_modifier>);
+ref<gpu_image_dmabuf> gpu_image_import_dmabuf(gpu_context*, const gpu_dma_params&, flags<gpu_image_usage>);
 
-wren_dma_params wren_image_export_dmabuf(wren_image*);
+gpu_dma_params gpu_image_export_dmabuf(gpu_image*);
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct wren_image_handle
+struct gpu_image_handle
 {
     u32 image   : 20 = {};
     u32 sampler : 12 = {};
 
-    wren_image_handle() = default;
+    gpu_image_handle() = default;
 
-    wren_image_handle(wren_image* image, wren_sampler* sampler)
+    gpu_image_handle(gpu_image* image, gpu_sampler* sampler)
         : image(std::to_underlying(image->id))
         , sampler(sampler ? std::to_underlying(sampler->id) : 0)
     {}

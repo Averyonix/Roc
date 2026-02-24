@@ -1,26 +1,24 @@
 #include "internal.hpp"
 
-WROC_NAMESPACE_BEGIN
-
 static
 void create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto surface = wrei_create<wroc_surface>();
-    surface->server = wroc_get_userdata<wroc_server>(resource);
+    auto surface = core_create<way_surface>();
+    surface->server = way_get_userdata<way_server>(resource);
 
     surface->pending = &surface->cached.emplace_back();
 
-    surface->wl_surface = wroc_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
+    surface->wl_surface = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
 }
 
-WROC_INTERFACE(wl_compositor) = {
+WAY_INTERFACE(wl_compositor) = {
     .create_surface = create_surface,
-    WROC_STUB(create_region),
+    WAY_STUB(create_region),
 };
 
-WROC_BIND_GLOBAL(wl_compositor)
+WAY_BIND_GLOBAL(wl_compositor)
 {
-    wroc_resource_create(wl_compositor, client, version, id, wroc_get_userdata<wroc_server>(data));
+    way_resource_create(wl_compositor, client, version, id, way_get_userdata<way_server>(data));
 }
 
 // -----------------------------------------------------------------------------
@@ -28,31 +26,31 @@ WROC_BIND_GLOBAL(wl_compositor)
 static
 void attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 x, i32 y)
 {
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    auto* surface = way_get_userdata<way_surface>(resource);
     auto* pending = surface->pending;
 
     pending->buffer.lock = nullptr;
-    pending->buffer.handle = wl_buffer ? wroc_get_userdata<wroc_buffer>(wl_buffer) : nullptr;
-    pending->committed.insert(wroc_surface_committed_state::buffer);
+    pending->buffer.handle = wl_buffer ? way_get_userdata<way_buffer>(wl_buffer) : nullptr;
+    pending->committed.insert(way_surface_committed_state::buffer);
 
     if (x || y) {
         if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
-            wroc_post_error(surface->server, resource, WL_SURFACE_ERROR_INVALID_OFFSET,
+            way_post_error(surface->server, resource, WL_SURFACE_ERROR_INVALID_OFFSET,
                 "Non-zero offset not allowed in wl_surface::attach since version {}", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
             pending->surface.delta = { x, y };
-            pending->committed.insert(wroc_surface_committed_state::offset);
+            pending->committed.insert(way_surface_committed_state::offset);
         }
     }
 }
 
-wroc_surface_state::~wroc_surface_state()
+way_surface_state::~way_surface_state()
 {
     // TODO: Empty callbacks
 }
 
 static
-void surface_set_mapped(wroc_surface* surface, bool mapped)
+void surface_set_mapped(way_surface* surface, bool mapped)
 {
     if (mapped == surface->mapped) return;
     surface->mapped = mapped;
@@ -61,21 +59,21 @@ void surface_set_mapped(wroc_surface* surface, bool mapped)
 
     if (mapped) {
         auto* server = surface->server;
-        auto* wrui = server->wrui;
+        auto* scene = server->scene;
         auto* buffer = surface->current.buffer.handle.get();
 
-        surface->window = wrui_window_create(server->client.get());
-        wrui_window_set_size(surface->window.get(), buffer->extent);
+        surface->window = scene_window_create(server->client.get());
+        scene_window_set_size(surface->window.get(), buffer->extent);
 
-        auto texture = wrui_texture_create(wrui);
+        auto texture = scene_texture_create(scene);
         surface->texture = texture;
-        wrui_texture_set_image(texture.get(), buffer->image.get(), server->sampler.get(), wren_blend_mode::premultiplied);
-        wrui_texture_set_dst(texture.get(), {{}, buffer->extent, wrei_xywh});
+        scene_texture_set_image(texture.get(), buffer->image.get(), server->sampler.get(), gpu_blend_mode::premultiplied);
+        scene_texture_set_dst(texture.get(), {{}, buffer->extent, core_xywh});
 
-        wrui_node_set_transform(texture.get(), wrui_window_get_transform(surface->window.get()));
-        wrui_tree_place_above(wrui_window_get_tree(surface->window.get()), nullptr, texture.get());
+        scene_node_set_transform(texture.get(), scene_window_get_transform(surface->window.get()));
+        scene_tree_place_above(scene_window_get_tree(surface->window.get()), nullptr, texture.get());
 
-        wrui_window_map(surface->window.get());
+        scene_window_map(surface->window.get());
     } else {
         surface->window = nullptr;
         surface->texture = nullptr;
@@ -95,7 +93,7 @@ void surface_set_mapped(wroc_surface* surface, bool mapped)
 
 
 static
-void update_map_state(wroc_surface* surface)
+void update_map_state(way_surface* surface)
 {
     bool can_be_mapped =
            surface->current.buffer.handle
@@ -106,14 +104,14 @@ void update_map_state(wroc_surface* surface)
 }
 
 static
-void apply(wroc_surface* surface, wroc_surface_state& from)
+void apply(way_surface* surface, way_surface_state& from)
 {
     surface->current.commit = from.commit;
 
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.transform, buffer_transform);
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.scale,     buffer_scale);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.transform, buffer_transform);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.scale,     buffer_scale);
 
-    if (from.committed.contains(wroc_surface_committed_state::buffer)) {
+    if (from.committed.contains(way_surface_committed_state::buffer)) {
         if (from.buffer.handle && from.buffer.handle->resource) {
             surface->current.buffer.handle = std::move(from.buffer.handle);
             surface->current.buffer.lock   = std::move(from.buffer.lock);
@@ -129,15 +127,15 @@ void apply(wroc_surface* surface, wroc_surface_state& from)
         from.buffer.lock = nullptr;
     }
 
-    wroc_xdg_surface_apply(surface, from);
-    wroc_toplevel_apply(   surface, from);
-    // wroc_subsurface_apply( surface, from);
+    way_xdg_surface_apply(surface, from);
+    way_toplevel_apply(   surface, from);
+    // way_subsurface_apply( surface, from);
 
     surface->current.committed.insert_range(from.committed);
 }
 
 static
-void flush(wroc_surface* surface)
+void flush(way_surface* surface)
 {
     // TODO: Queued applications
 
@@ -150,7 +148,7 @@ void flush(wroc_surface* surface)
 
         // Check for buffer ready
         if (packet.buffer.lock && !packet.buffer.lock->buffer->is_ready(surface)) {
-            wrei_debugkill();
+            core_debugkill();
         }
 
         apply(surface, packet);
@@ -171,7 +169,7 @@ void flush(wroc_surface* surface)
     }
 
     if (surface->current.buffer.handle && surface->texture) {
-        wrui_texture_set_image(surface->texture.get(), surface->current.buffer.handle->image.get(), surface->server->sampler.get(), wren_blend_mode::premultiplied);
+        scene_texture_set_image(surface->texture.get(), surface->current.buffer.handle->image.get(), surface->server->sampler.get(), gpu_blend_mode::premultiplied);
     }
 
     update_map_state(surface);
@@ -180,7 +178,7 @@ void flush(wroc_surface* surface)
 static
 void commit(wl_client* client, wl_resource* resource)
 {
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    auto* surface = way_get_userdata<way_surface>(resource);
 
     auto* pending = surface->pending;
     pending->commit = ++surface->last_commit_id;
@@ -188,7 +186,7 @@ void commit(wl_client* client, wl_resource* resource)
 
     // Begin acquisition process for buffers
 
-    if (pending->committed.contains(wroc_surface_committed_state::buffer)) {
+    if (pending->committed.contains(way_surface_committed_state::buffer)) {
         if (pending->buffer.handle) {
             pending->buffer.lock = pending->buffer.handle->commit(surface);
         }
@@ -199,24 +197,22 @@ void commit(wl_client* client, wl_resource* resource)
     flush(surface);
 }
 
-WROC_INTERFACE(wl_surface) = {
-    .destroy = wroc_simple_destroy,
+WAY_INTERFACE(wl_surface) = {
+    .destroy = way_simple_destroy,
     .attach = attach,
-    WROC_STUB(damage),
-    WROC_STUB(frame),
-    WROC_STUB(set_opaque_region),
-    WROC_STUB(set_input_region),
+    WAY_STUB(damage),
+    WAY_STUB(frame),
+    WAY_STUB(set_opaque_region),
+    WAY_STUB(set_input_region),
     .commit = commit,
-    .set_buffer_transform = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_surface, buffer.transform, buffer_transform, wl_output_transform(bt), i32 bt),
-    .set_buffer_scale     = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_surface, buffer.scale,     buffer_scale,     scale,                   i32 scale),
-    WROC_STUB(damage_buffer),
-    WROC_STUB(offset),
+    .set_buffer_transform = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.transform, buffer_transform, wl_output_transform(bt), i32 bt),
+    .set_buffer_scale     = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.scale,     buffer_scale,     scale,                   i32 scale),
+    WAY_STUB(damage_buffer),
+    WAY_STUB(offset),
 };
 
 // -----------------------------------------------------------------------------
 
-wroc_surface::~wroc_surface()
+way_surface::~way_surface()
 {
 }
-
-WROC_NAMESPACE_END

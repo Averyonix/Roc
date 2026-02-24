@@ -1,11 +1,11 @@
 #pragma once
 
-#define WREN_SHADER 1
+#define GPU_SHADER 1
 
 // -----------------------------------------------------------------------------
 
 __generic<T>
-typealias wren_const_ptr = Ptr<T, Access.Read>;
+typealias gpu_const_ptr = Ptr<T, Access.Read>;
 
 // -----------------------------------------------------------------------------
 
@@ -51,22 +51,22 @@ typedef matrix<f32, 4, 4> mat4x4f32;
 
 // -----------------------------------------------------------------------------
 
-struct wren_rect<T>
+struct gpu_rect<T>
 {
     vector<T, 2> origin;
     vector<T, 2> extent;
 };
 
-typedef wren_rect<i32> rect2i32;
-typedef wren_rect<f32> rect2f32;
+typedef gpu_rect<i32> rect2i32;
+typedef gpu_rect<f32> rect2f32;
 
 // -----------------------------------------------------------------------------
 
-[[vk::binding(0, 0)]] __DynamicResource<__DynamicResourceKind.General> wren_heap_texture[];
-[[vk::binding(1, 0)]] __DynamicResource<__DynamicResourceKind.General> wren_heap_storage[];
-[[vk::binding(2, 0)]] __DynamicResource<__DynamicResourceKind.Sampler> wren_heap_sampler[];
+[[vk::binding(0, 0)]] __DynamicResource<__DynamicResourceKind.General> gpu_heap_texture[];
+[[vk::binding(1, 0)]] __DynamicResource<__DynamicResourceKind.General> gpu_heap_storage[];
+[[vk::binding(2, 0)]] __DynamicResource<__DynamicResourceKind.Sampler> gpu_heap_sampler[];
 
-struct wren_image_handle<T : ITexelElement>
+struct gpu_image_handle<T : ITexelElement>
 {
     u32 image   : 20;
     u32 sampler : 12;
@@ -95,40 +95,40 @@ struct wren_image_handle<T : ITexelElement>
     vec2u32 get_dimensions()
     {
         u32 width, height;
-        wren_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>().GetDimensions(width, height);
+        gpu_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>().GetDimensions(width, height);
 
         return vec2u32(width, height);
     }
 
     T sample(vec2f32 uv)
     {
-        return wren_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()
-            .Sample(wren_heap_sampler[NonUniformResourceIndex(sampler)].as<SamplerState>(), uv);
+        return gpu_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()
+            .Sample(gpu_heap_sampler[NonUniformResourceIndex(sampler)].as<SamplerState>(), uv);
     }
 
     T sample_lod(vec2f32 uv, u32 lod)
     {
-        return wren_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()
-            .SampleLevel(wren_heap_sampler[NonUniformResourceIndex(sampler)].as<SamplerState>(), uv, lod);
+        return gpu_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()
+            .SampleLevel(gpu_heap_sampler[NonUniformResourceIndex(sampler)].as<SamplerState>(), uv, lod);
     }
 
     T load(vec2u32 idx)
     {
-        return wren_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()[idx];
+        return gpu_heap_texture[NonUniformResourceIndex(image)].as<Texture2D<T>>()[idx];
     }
 
     void store(vec2u32 idx, T value)
     {
-        wren_heap_storage[NonUniformResourceIndex(image)].as<RWTexture2D<T>>()
+        gpu_heap_storage[NonUniformResourceIndex(image)].as<RWTexture2D<T>>()
             .Store(idx, value);
     }
 };
 
-typedef wren_image_handle<vec4f32> image4f32;
+typedef gpu_image_handle<vec4f32> image4f32;
 
 // -----------------------------------------------------------------------------
 
-vec4f32 wrei_unpack_unorm4u8(vec4u8 in)
+vec4f32 core_unpack_unorm4u8(vec4u8 in)
 {
     return vec4f32(in.x, in.y, in.z, in.w) / 255;
 }

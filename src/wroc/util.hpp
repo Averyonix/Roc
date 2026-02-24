@@ -125,7 +125,7 @@ public:
         self->resource = nullptr;
         wl_list_init(&self->destroy_listener.link);
 
-        // log_debug("wrei_resource<{}>: resource destroyed, clearing..", (void*)self);
+        // log_debug("core_resource<{}>: resource destroyed, clearing..", (void*)self);
     }
 
     ~wroc_resource()
@@ -133,7 +133,7 @@ public:
         wl_list_remove(&destroy_listener.link);
     }
 
-    WREI_DELETE_COPY_MOVE(wroc_resource)
+    CORE_DELETE_COPY_MOVE(wroc_resource)
 
     operator wl_resource*() const { return resource; }
 };
@@ -180,7 +180,7 @@ class wroc_resource_list
             wl_list_remove(&destroy_listener.link);
         }
 
-        WREI_DELETE_COPY_MOVE(list_node)
+        CORE_DELETE_COPY_MOVE(list_node)
     };
 
     list_node root;
@@ -271,7 +271,7 @@ public:
         clear();
     }
 
-    WREI_DELETE_COPY_MOVE(wroc_resource_list)
+    CORE_DELETE_COPY_MOVE(wroc_resource_list)
 };
 
 // -----------------------------------------------------------------------------

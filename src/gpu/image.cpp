@@ -2,35 +2,35 @@
 
 #include "core/util.hpp"
 
-VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage> usage)
+VkImageUsageFlags gpu_image_usage_to_vk(flags<gpu_image_usage> usage)
 {
     VkImageUsageFlags vk_usage = {};
-    if (usage.contains(wren_image_usage::storage))      vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
-    if (usage.contains(wren_image_usage::render))       vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if (usage.contains(wren_image_usage::texture))      vk_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
-    if (usage.contains(wren_image_usage::transfer_src)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    if (usage.contains(wren_image_usage::transfer_dst)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (usage.contains(gpu_image_usage::storage))      vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+    if (usage.contains(gpu_image_usage::render))       vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    if (usage.contains(gpu_image_usage::texture))      vk_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    if (usage.contains(gpu_image_usage::transfer_src)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    if (usage.contains(gpu_image_usage::transfer_dst)) vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     return vk_usage;
 }
 
-VkFormatFeatureFlags wren_get_required_format_features(wren_format format, flags<wren_image_usage> usage)
+VkFormatFeatureFlags gpu_get_required_format_features(gpu_format format, flags<gpu_image_usage> usage)
 {
     VkFormatFeatureFlags features = {};
-    if (usage.contains(wren_image_usage::storage)) features |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
-    if (usage.contains(wren_image_usage::render))  features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+    if (usage.contains(gpu_image_usage::storage)) features |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+    if (usage.contains(gpu_image_usage::render))  features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
                                                             |  VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
-    if (usage.contains(wren_image_usage::texture)) {
+    if (usage.contains(gpu_image_usage::texture)) {
         features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
                  |  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
         if (format->is_ycbcr) features |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT
                                        |  VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT;
     }
-    if (usage.contains(wren_image_usage::transfer_dst)) features |= VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
-    if (usage.contains(wren_image_usage::transfer_src)) features |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
+    if (usage.contains(gpu_image_usage::transfer_dst)) features |= VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+    if (usage.contains(gpu_image_usage::transfer_src)) features |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
     return features;
 }
 
-VkImageAspectFlagBits wren_plane_to_aspect(u32 i)
+VkImageAspectFlagBits gpu_plane_to_aspect(u32 i)
 {
     return std::array {
         VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT,
@@ -42,15 +42,15 @@ VkImageAspectFlagBits wren_plane_to_aspect(u32 i)
 
 // -----------------------------------------------------------------------------
 
-void wren_transition(wren_context* ctx, wren_commands* commands, wren_image* image,
+void gpu_transition(gpu_context* ctx, gpu_commands* commands, gpu_image* image,
     VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
     VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
     VkImageLayout old_layout, VkImageLayout new_layout)
 {
-    ctx->vk.CmdPipelineBarrier2(commands->buffer, wrei_ptr_to(VkDependencyInfo {
+    ctx->vk.CmdPipelineBarrier2(commands->buffer, ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = wrei_ptr_to(VkImageMemoryBarrier2 {
+        .pImageMemoryBarriers = ptr_to(VkImageMemoryBarrier2 {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = src,
             .srcAccessMask = src_access,
@@ -68,14 +68,14 @@ void wren_transition(wren_context* ctx, wren_commands* commands, wren_image* ima
 
 // -----------------------------------------------------------------------------
 
-wren_image::~wren_image()
+gpu_image::~gpu_image()
 {
     ctx->image_descriptor_allocator.free(id);
 }
 
 // -----------------------------------------------------------------------------
 
-struct wren_image_vma : wren_image
+struct gpu_image_vma : gpu_image
 {
     VmaAllocation vma_allocation;
 
@@ -83,10 +83,10 @@ struct wren_image_vma : wren_image
         usz allocation_size;
     } stats;
 
-    ~wren_image_vma();
+    ~gpu_image_vma();
 };
 
-wren_image_vma::~wren_image_vma()
+gpu_image_vma::~gpu_image_vma()
 {
     ctx->stats.active_images--;
     ctx->stats.active_image_memory -= stats.allocation_size;
@@ -95,15 +95,15 @@ wren_image_vma::~wren_image_vma()
     vmaDestroyImage(ctx->vma, image, vma_allocation);
 }
 
-#define WREN_FORCE_DMABUF_IMAGES 0
+#define GPU_FORCE_DMABUF_IMAGES 0
 
-ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format format, flags<wren_image_usage> usage)
+ref<gpu_image> gpu_image_create(gpu_context* ctx, vec2u32 extent, gpu_format format, flags<gpu_image_usage> usage)
 {
-#if WREN_FORCE_DMABUF_IMAGES
-    auto* props = wren_get_format_props(ctx, format, wren_image_usage_to_vk(usage));
-    return wren_image_create_dmabuf(ctx, extent, format, usage, props->mods);
+#if GPU_FORCE_DMABUF_IMAGES
+    auto* props = gpu_get_format_props(ctx, format, gpu_image_usage_to_vk(usage));
+    return gpu_image_create_dmabuf(ctx, extent, format, usage, props->mods);
 #else
-    auto image = wrei_create<wren_image_vma>();
+    auto image = core_create<gpu_image_vma>();
     image->ctx = ctx;
 
     ctx->stats.active_images++;
@@ -113,7 +113,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
     image->usage =  usage;
 
     VmaAllocationInfo alloc_info;
-    wren_check(vmaCreateImage(ctx->vma, wrei_ptr_to(VkImageCreateInfo {
+    gpu_check(vmaCreateImage(ctx->vma, ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format->vk,
@@ -122,7 +122,7 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = wren_image_usage_to_vk(usage),
+        .usage = gpu_image_usage_to_vk(usage),
         .sharingMode = VK_SHARING_MODE_CONCURRENT,
         .queueFamilyIndexCount = 2,
         .pQueueFamilyIndices = std::array {
@@ -130,32 +130,32 @@ ref<wren_image> wren_image_create(wren_context* ctx, vec2u32 extent, wren_format
             ctx->transfer_queue->family,
         }.data(),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    }), wrei_ptr_to(VmaAllocationCreateInfo {
+    }), ptr_to(VmaAllocationCreateInfo {
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     }), &image->image, &image->vma_allocation, &alloc_info));
 
     image->stats.allocation_size += alloc_info.size;
     ctx->stats.active_image_memory += alloc_info.size;
 
-    wren_image_init(image.get());
+    gpu_image_init(image.get());
 
     return image;
 #endif
 }
 
-void wren_image_init(wren_image* image)
+void gpu_image_init(gpu_image* image)
 {
     auto* ctx = image->ctx;
 
-    auto vk_usage = wren_image_usage_to_vk(image->usage);
+    auto vk_usage = gpu_image_usage_to_vk(image->usage);
     if (vk_usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
-        wren_check(ctx->vk.CreateImageView(ctx->device, wrei_ptr_to(VkImageViewCreateInfo {
+        gpu_check(ctx->vk.CreateImageView(ctx->device, ptr_to(VkImageViewCreateInfo {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = image->image,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .format = image->format->vk,
             .components {
-                .a = image->format->vk_flags.contains(wren_vk_format_flag::ignore_alpha)
+                .a = image->format->vk_flags.contains(gpu_vk_format_flag::ignore_alpha)
                     ? VK_COMPONENT_SWIZZLE_ONE
                     : VK_COMPONENT_SWIZZLE_IDENTITY,
             },
@@ -163,31 +163,31 @@ void wren_image_init(wren_image* image)
         }), nullptr, &image->view));
 
         if (vk_usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT)) {
-            wren_allocate_image_descriptor(image);
+            gpu_allocate_image_descriptor(image);
         }
     }
 
-    auto queue = wren_get_queue(ctx, wren_queue_type::transfer);
-    auto cmd = wren_commands_begin(queue);
-    wren_commands_protect_object(cmd.get(), image);
-    wren_transition(ctx, cmd.get(), image,
+    auto queue = gpu_get_queue(ctx, gpu_queue_type::transfer);
+    auto cmd = gpu_commands_begin(queue);
+    gpu_commands_protect_object(cmd.get(), image);
+    gpu_transition(ctx, cmd.get(), image,
         0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
         0, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    auto done = wren_commands_submit(cmd.get(), {});
-    wren_semaphore_wait_value(done.semaphore, done.value);
+    auto done = gpu_commands_submit(cmd.get(), {});
+    gpu_semaphore_wait_value(done.semaphore, done.value);
 }
 
 
-void wren_copy_image_to_buffer(wren_commands* cmd, wren_buffer* buffer, wren_image* image)
+void gpu_copy_image_to_buffer(gpu_commands* cmd, gpu_buffer* buffer, gpu_image* image)
 {
     auto* ctx = image->ctx;
     auto extent = image->extent;
 
-    wren_commands_protect_object(cmd, image);
-    wren_commands_protect_object(cmd, buffer);
+    gpu_commands_protect_object(cmd, image);
+    gpu_commands_protect_object(cmd, buffer);
 
-    ctx->vk.CmdCopyImageToBuffer(cmd->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, wrei_ptr_to(VkBufferImageCopy {
+    ctx->vk.CmdCopyImageToBuffer(cmd->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
         .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
         .imageOffset = {},
@@ -195,15 +195,15 @@ void wren_copy_image_to_buffer(wren_commands* cmd, wren_buffer* buffer, wren_ima
     }));
 }
 
-void wren_copy_buffer_to_image(wren_commands* cmd, wren_image* image, wren_buffer* buffer)
+void gpu_copy_buffer_to_image(gpu_commands* cmd, gpu_image* image, gpu_buffer* buffer)
 {
     auto* ctx = image->ctx;
     auto extent = image->extent;
 
-    wren_commands_protect_object(cmd, image);
-    wren_commands_protect_object(cmd, buffer);
+    gpu_commands_protect_object(cmd, image);
+    gpu_commands_protect_object(cmd, buffer);
 
-    ctx->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, wrei_ptr_to(VkBufferImageCopy {
+    ctx->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
         .imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
         .imageOffset = {},
@@ -211,7 +211,7 @@ void wren_copy_buffer_to_image(wren_commands* cmd, wren_image* image, wren_buffe
     }));
 }
 
-void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
+void gpu_image_update(gpu_commands* cmd, gpu_image* image, const void* data)
 {
     auto* ctx = image->ctx;
 
@@ -221,32 +221,32 @@ void wren_image_update(wren_commands* cmd, wren_image* image, const void* data)
     usz image_size = block_w * block_h * info.texel_block_size;
 
     // TODO: This should be stored persistently for transfers
-    ref buffer = wren_buffer_create(ctx, image_size, wren_buffer_flag::host);
+    ref buffer = gpu_buffer_create(ctx, image_size, gpu_buffer_flag::host);
 
     std::memcpy(buffer->host_address, data, image_size);
 
-    wren_copy_buffer_to_image(cmd, image, buffer.get());
+    gpu_copy_buffer_to_image(cmd, image, buffer.get());
 }
 
-void wren_image_update_immed(wren_image* image, const void* data)
+void gpu_image_update_immed(gpu_image* image, const void* data)
 {
-    auto queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
-    auto commands = wren_commands_begin(queue);
-    wren_image_update(commands.get(), image, data);
-    auto done = wren_commands_submit(commands.get(), {});
-    wren_semaphore_wait_value(done.semaphore, done.value);
+    auto queue = gpu_get_queue(image->ctx, gpu_queue_type::transfer);
+    auto commands = gpu_commands_begin(queue);
+    gpu_image_update(commands.get(), image, data);
+    auto done = gpu_commands_submit(commands.get(), {});
+    gpu_semaphore_wait_value(done.semaphore, done.value);
 }
 
 // -----------------------------------------------------------------------------
 
-ref<wren_sampler> wren_sampler_create(wren_context* ctx, VkFilter mag, VkFilter min)
+ref<gpu_sampler> gpu_sampler_create(gpu_context* ctx, VkFilter mag, VkFilter min)
 {
-    ref sampler = wrei_create<wren_sampler>();
+    ref sampler = core_create<gpu_sampler>();
     sampler->ctx = ctx;
 
     ctx->stats.active_samplers++;
 
-    wren_check(ctx->vk.CreateSampler(ctx->device, wrei_ptr_to(VkSamplerCreateInfo {
+    gpu_check(ctx->vk.CreateSampler(ctx->device, ptr_to(VkSamplerCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = mag,
         .minFilter = min,
@@ -259,12 +259,12 @@ ref<wren_sampler> wren_sampler_create(wren_context* ctx, VkFilter mag, VkFilter 
         .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
     }), nullptr, &sampler->sampler));
 
-    wren_allocate_sampler_descriptor(sampler.get());
+    gpu_allocate_sampler_descriptor(sampler.get());
 
     return sampler;
 }
 
-wren_sampler::~wren_sampler()
+gpu_sampler::~gpu_sampler()
 {
     ctx->stats.active_samplers--;
 
@@ -275,7 +275,7 @@ wren_sampler::~wren_sampler()
 
 // -----------------------------------------------------------------------------
 
-u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryPropertyFlags properties)
+u32 gpu_find_vk_memory_type_index(gpu_context* ctx, u32 type_filter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties props;
     ctx->vk.GetPhysicalDeviceMemoryProperties(ctx->physical_device, &props);
@@ -293,7 +293,7 @@ u32 wren_find_vk_memory_type_index(wren_context* ctx, u32 type_filter, VkMemoryP
 
 // -----------------------------------------------------------------------------
 
-wren_image_dmabuf::~wren_image_dmabuf()
+gpu_image_dmabuf::~gpu_image_dmabuf()
 {
     ctx->stats.active_images--;
     ctx->stats.active_image_memory -= stats.allocation_size;
@@ -306,25 +306,25 @@ wren_image_dmabuf::~wren_image_dmabuf()
     }
 }
 
-ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 extent, wren_format format, flags<wren_image_usage> usage, std::span<const wren_drm_modifier> modifiers)
+ref<gpu_image_dmabuf> gpu_image_create_dmabuf(gpu_context* ctx, vec2u32 extent, gpu_format format, flags<gpu_image_usage> usage, std::span<const gpu_drm_modifier> modifiers)
 {
-    auto image = wrei_create<wren_image_dmabuf>();
+    auto image = core_create<gpu_image_dmabuf>();
     image->ctx = ctx;
 
     image->extent = extent;
     image->format = format;
     image->usage = usage;
 
-    auto vk_usage = wren_image_usage_to_vk(usage);
+    auto vk_usage = gpu_image_usage_to_vk(usage);
 
-    wren_check(ctx->vk.CreateImage(ctx->device, wrei_ptr_to(VkImageCreateInfo {
+    gpu_check(ctx->vk.CreateImage(ctx->device, ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = wren_vk_make_chain_in({
-            wrei_ptr_to(VkExternalMemoryImageCreateInfo {
+        .pNext = gpu_vk_make_chain_in({
+            ptr_to(VkExternalMemoryImageCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
             }),
-            wrei_ptr_to(VkImageDrmFormatModifierListCreateInfoEXT {
+            ptr_to(VkImageDrmFormatModifierListCreateInfoEXT {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
                 .drmFormatModifierCount = u32(modifiers.size()),
                 .pDrmFormatModifiers = modifiers.data(),
@@ -346,22 +346,22 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
         }.data(),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image->image));
-    wrei_assert(image->image);
+    core_assert(image->image);
 
     // Allocate memory
 
     VkMemoryRequirements mem_reqs;
     ctx->vk.GetImageMemoryRequirements(ctx->device, image->image, &mem_reqs);
 
-    auto index = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
+    auto index = gpu_find_vk_memory_type_index(ctx, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    gpu_check(ctx->vk.AllocateMemory(ctx->device, ptr_to(VkMemoryAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = wren_vk_make_chain_in({
-            wrei_ptr_to(VkExportMemoryAllocateInfo {
+        .pNext = gpu_vk_make_chain_in({
+            ptr_to(VkExportMemoryAllocateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
             }),
-            wrei_ptr_to(VkMemoryDedicatedAllocateInfo {
+            ptr_to(VkMemoryDedicatedAllocateInfo {
                 .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
                 .image = image->image,
             })
@@ -369,10 +369,10 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
         .allocationSize = mem_reqs.size,
         .memoryTypeIndex = index,
     }), nullptr, &image->memory[0]));
-    wrei_assert(image->memory[0]);
+    core_assert(image->memory[0]);
     image->memory.count = 1;
 
-    wren_check(ctx->vk.BindImageMemory(ctx->device, image->image, image->memory[0], 0));
+    gpu_check(ctx->vk.BindImageMemory(ctx->device, image->image, image->memory[0], 0));
 
     // Stats
 
@@ -391,19 +391,19 @@ ref<wren_image_dmabuf> wren_image_create_dmabuf(wren_context* ctx, vec2u32 exten
 
     // Initialize
 
-    wren_image_init(image.get());
+    gpu_image_init(image.get());
 
     return image;
 }
 
-wren_dma_params wren_image_export_dmabuf(wren_image* _image)
+gpu_dma_params gpu_image_export_dmabuf(gpu_image* _image)
 {
-    auto* image = dynamic_cast<wren_image_dmabuf*>(_image);
-    wrei_assert(image);
+    auto* image = dynamic_cast<gpu_image_dmabuf*>(_image);
+    core_assert(image);
 
     auto* ctx = image->ctx;
 
-    wren_dma_params params = {};
+    gpu_dma_params params = {};
 
     params.extent = image->extent;
     params.format = image->format;
@@ -411,12 +411,12 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
 
     // Query plane layouts
 
-    auto* mod_props = wren_get_format_props(ctx, image->format, image->usage)->for_mod(params.modifier);
+    auto* mod_props = gpu_get_format_props(ctx, image->format, image->usage)->for_mod(params.modifier);
     params.planes.count = mod_props->plane_count;
     for (u32 i = 0; i < mod_props->plane_count; ++i) {
         VkSubresourceLayout layout;
         ctx->vk.GetImageSubresourceLayout(ctx->device, image->image,
-            wrei_ptr_to(VkImageSubresource{wren_plane_to_aspect(i), 0, 0}),
+            ptr_to(VkImageSubresource{gpu_plane_to_aspect(i), 0, 0}),
             &layout);
 
         params.planes[i].offset = layout.offset;
@@ -427,12 +427,12 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
 
     auto export_fd = [&](VkDeviceMemory mem) {
         int _fd = -1;
-        wren_check(ctx->vk.GetMemoryFdKHR(ctx->device, wrei_ptr_to(VkMemoryGetFdInfoKHR {
+        gpu_check(ctx->vk.GetMemoryFdKHR(ctx->device, ptr_to(VkMemoryGetFdInfoKHR {
             .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
             .memory = image->memory[0],
             .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
         }), &_fd));
-        return wrei_fd_adopt(_fd);
+        return core_fd_adopt(_fd);
     };
 
     if (image->memory.count == 1) {
@@ -441,7 +441,7 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
             params.planes[i].fd = fd;
         }
     } else {
-        wrei_assert(image->memory.count == mod_props->plane_count);
+        core_assert(image->memory.count == mod_props->plane_count);
         for (u32 i = 0; i < mod_props->plane_count; ++i) {
             params.planes[i].fd = export_fd(image->memory[i]);
         }
@@ -450,22 +450,22 @@ wren_dma_params wren_image_export_dmabuf(wren_image* _image)
     return params;
 }
 
-ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dma_params& params, flags<wren_image_usage> usage)
+ref<gpu_image_dmabuf> gpu_image_import_dmabuf(gpu_context* ctx, const gpu_dma_params& params, flags<gpu_image_usage> usage)
 {
-    wrei_assert(!usage.empty());
+    core_assert(!usage.empty());
 
-    auto props = wren_get_format_props(ctx, params.format, usage)->for_mod(params.modifier);
+    auto props = gpu_get_format_props(ctx, params.format, usage)->for_mod(params.modifier);
     if (!props) {
-        log_error("Format {} cannot be used with modifier: {}", params.format->name, wren_drm_modifier_get_name(params.modifier));
+        log_error("Format {} cannot be used with modifier: {}", params.format->name, gpu_drm_modifier_get_name(params.modifier));
         return nullptr;
     }
 
     if (params.disjoint && !(props->features & VK_FORMAT_FEATURE_2_DISJOINT_BIT)) {
-        log_error("Format {} with modifier {} does not support disjoint images", params.format->name, wren_drm_modifier_get_name(params.modifier));
+        log_error("Format {} with modifier {} does not support disjoint images", params.format->name, gpu_drm_modifier_get_name(params.modifier));
         return nullptr;
     }
 
-    auto image = wrei_create<wren_image_dmabuf>();
+    auto image = core_create<gpu_image_dmabuf>();
     image->ctx = ctx;
 
     ctx->stats.active_images++;
@@ -477,7 +477,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
 
     static constexpr auto handle_type = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
-    VkSubresourceLayout plane_layouts[wren_dma_max_planes] = {};
+    VkSubresourceLayout plane_layouts[gpu_dma_max_planes] = {};
     for (u32 i = 0; i < params.planes.count; ++i) {
         plane_layouts[i].offset = params.planes[i].offset;
         plane_layouts[i].rowPitch = params.planes[i].stride;
@@ -485,14 +485,14 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
 
     VkImageCreateFlags img_create_flags = {};
     if (params.disjoint) img_create_flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
-    wren_check(ctx->vk.CreateImage(ctx->device, wrei_ptr_to(VkImageCreateInfo {
+    gpu_check(ctx->vk.CreateImage(ctx->device, ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = wren_vk_make_chain_in({
-            wrei_ptr_to(VkExternalMemoryImageCreateInfo {
+        .pNext = gpu_vk_make_chain_in({
+            ptr_to(VkExternalMemoryImageCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
             }),
-            wrei_ptr_to(VkImageDrmFormatModifierExplicitCreateInfoEXT {
+            ptr_to(VkImageDrmFormatModifierExplicitCreateInfoEXT {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
                 .drmFormatModifier = params.modifier,
                 .drmFormatModifierPlaneCount = u32(params.planes.count),
@@ -507,7 +507,7 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
-        .usage = wren_image_usage_to_vk(usage),
+        .usage = gpu_image_usage_to_vk(usage),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image->image));
@@ -515,55 +515,55 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
     auto mem_count = params.disjoint ? params.planes.count : 1;
     image->memory.count = mem_count;
 
-    VkBindImageMemoryInfo bind_info[wren_dma_max_planes] = {};
-    VkBindImagePlaneMemoryInfo plane_info[wren_dma_max_planes] = {};
+    VkBindImageMemoryInfo bind_info[gpu_dma_max_planes] = {};
+    VkBindImagePlaneMemoryInfo plane_info[gpu_dma_max_planes] = {};
     log_trace("  planes = {}{}", params.planes.count, params.disjoint ? " (disjoint)" : "");
-    log_trace("  modifier = {}", wren_drm_modifier_get_name(params.modifier));
+    log_trace("  modifier = {}", gpu_drm_modifier_get_name(params.modifier));
 
     for (u32 i = 0; i < mem_count; ++i) {
         auto fd = params.planes[i].fd;
         VkMemoryFdPropertiesKHR fd_props = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
         };
-        wren_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, handle_type, fd->get(), &fd_props));
+        gpu_check(ctx->vk.GetMemoryFdPropertiesKHR(ctx->device, handle_type, fd->get(), &fd_props));
 
         VkMemoryRequirements2 mem_reqs = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
         };
-        ctx->vk.GetImageMemoryRequirements2(ctx->device, wrei_ptr_to(VkImageMemoryRequirementsInfo2 {
+        ctx->vk.GetImageMemoryRequirements2(ctx->device, ptr_to(VkImageMemoryRequirementsInfo2 {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
             .pNext = params.disjoint
-                ? wrei_ptr_to(VkImagePlaneMemoryRequirementsInfo {
+                ? ptr_to(VkImagePlaneMemoryRequirementsInfo {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO,
-                    .planeAspect = wren_plane_to_aspect(i),
+                    .planeAspect = gpu_plane_to_aspect(i),
                 })
                 : nullptr,
             .image = image->image,
         }), &mem_reqs);
 
-        auto mem = wren_find_vk_memory_type_index(ctx, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
+        auto mem = gpu_find_vk_memory_type_index(ctx, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
 
         // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
-        int vk_fd = wrei_fd_dup_unsafe(fd->get());
+        int vk_fd = core_fd_dup_unsafe(fd->get());
 
         log_trace("  mem[{}].fd   = {}", i, vk_fd);
-        log_trace("  mem[{}].size = {}", i, wrei_byte_size_to_string(mem_reqs.memoryRequirements.size));
+        log_trace("  mem[{}].size = {}", i, core_byte_size_to_string(mem_reqs.memoryRequirements.size));
         image->stats.allocation_size   += mem_reqs.memoryRequirements.size;
         ctx->stats.active_image_memory += mem_reqs.memoryRequirements.size;
 
-        if (wren_check(ctx->vk.AllocateMemory(ctx->device, wrei_ptr_to(VkMemoryAllocateInfo {
+        if (gpu_check(ctx->vk.AllocateMemory(ctx->device, ptr_to(VkMemoryAllocateInfo {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .pNext = wren_vk_make_chain_in({
-                wrei_ptr_to(VkImportMemoryFdInfoKHR {
+            .pNext = gpu_vk_make_chain_in({
+                ptr_to(VkImportMemoryFdInfoKHR {
                     .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
                     .handleType = handle_type,
                     .fd = vk_fd,
                 }),
-                wrei_ptr_to(VkExportMemoryAllocateInfo {
+                ptr_to(VkExportMemoryAllocateInfo {
                     .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
                     .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
                 }),
-                wrei_ptr_to(VkMemoryDedicatedAllocateInfo {
+                ptr_to(VkMemoryDedicatedAllocateInfo {
                     .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
                     .image = image->image,
                 }),
@@ -582,14 +582,14 @@ ref<wren_image_dmabuf> wren_image_import_dmabuf(wren_context* ctx, const wren_dm
 
         if (params.disjoint) {
             plane_info[i].sType = VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO;
-            plane_info[i].planeAspect = wren_plane_to_aspect(i);
+            plane_info[i].planeAspect = gpu_plane_to_aspect(i);
             bind_info[i].pNext = &plane_info[i];
         }
     }
 
-    wren_check(ctx->vk.BindImageMemory2(ctx->device, params.planes.count, bind_info));
+    gpu_check(ctx->vk.BindImageMemory2(ctx->device, params.planes.count, bind_info));
 
-    wren_image_init(image.get());
+    gpu_image_init(image.get());
 
     return image;
 }

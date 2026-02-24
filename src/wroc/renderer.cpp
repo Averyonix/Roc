@@ -12,17 +12,17 @@
 wroc_renderer::~wroc_renderer() = default;
 
 static
-void register_format(wroc_renderer* renderer, wren_format format)
+void register_format(wroc_renderer* renderer, gpu_format format)
 {
-    auto wren = server->wren;
+    auto gpu = server->gpu;
 
     if (!format->is_ycbcr) {
-        if (wren_get_format_props(wren, format, wren_image_usage::texture | wren_image_usage::transfer)->opt_props.get()) {
+        if (gpu_get_format_props(gpu, format, gpu_image_usage::texture | gpu_image_usage::transfer)->opt_props.get()) {
             renderer->shm_formats.add(format, DRM_FORMAT_MOD_LINEAR);
         }
     }
 
-    for (auto& props : wren_get_format_props(wren, format, wren_image_usage::texture | wren_image_usage::transfer_src)->mod_props) {
+    for (auto& props : gpu_get_format_props(gpu, format, gpu_image_usage::texture | gpu_image_usage::transfer_src)->mod_props) {
         if (props.ext_mem_props.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT) {
             renderer->dmabuf_formats.add(format, props.modifier);
         }
@@ -31,20 +31,20 @@ void register_format(wroc_renderer* renderer, wren_format format)
 
 ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options)
 {
-    auto renderer = wrei_create<wroc_renderer>();
+    auto renderer = core_create<wroc_renderer>();
     renderer->options = render_options;
 
-    for (auto format : wren_get_formats()) {
+    for (auto format : gpu_get_formats()) {
         register_format(renderer.get(), format);
     }
 
     wroc_renderer_init_buffer_feedback(renderer.get());
 
-    auto* wren = server->wren;
+    auto* gpu = server->gpu;
 
-    renderer->output_format = wren_format_from_drm(DRM_FORMAT_ABGR8888);
+    renderer->output_format = gpu_format_from_drm(DRM_FORMAT_ABGR8888);
     renderer->output_format_modifiers = server->backend->get_output_format_set().get(renderer->output_format);
-    wrei_assert(!renderer->output_format_modifiers.empty());
+    core_assert(!renderer->output_format_modifiers.empty());
 
     std::filesystem::path path = getenv("WALLPAPER");
 
@@ -55,22 +55,22 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
 
     log_info("Loaded image ({}, width = {}, height = {})", path.c_str(), w, h);
 
-    renderer->background = wren_image_create(wren, {w, h}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
-        wren_image_usage::texture | wren_image_usage::transfer);
-    wren_image_update_immed(renderer->background.get(), data);
+    renderer->background = gpu_image_create(gpu, {w, h}, gpu_format_from_drm(DRM_FORMAT_ABGR8888),
+        gpu_image_usage::texture | gpu_image_usage::transfer);
+    gpu_image_update_immed(renderer->background.get(), data);
 
-    renderer->sampler = wren_sampler_create(wren, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    renderer->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    renderer->pipeline = wren_pipeline_create_graphics(wren,
-        wren_blend_mode::premultiplied, renderer->output_format,
+    renderer->pipeline = gpu_pipeline_create_graphics(gpu,
+        gpu_blend_mode::premultiplied, renderer->output_format,
         wroc_blit_shader, "vertex", "fragment");
 
     return renderer;
 }
 
-void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_frame_data* frame, wren_image* current, rect2f64 scene_rect)
+void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame_data* frame, gpu_image* current, rect2f64 scene_rect)
 {
-    auto* wren = commands->queue->ctx;
+    auto* gpu = commands->queue->ctx;
     auto cmd = commands->buffer;
 
     wroc_coord_space space {
@@ -81,12 +81,12 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
     VkExtent2D vk_extent = { current->extent.x, current->extent.y };
     vec2f32 current_extent = current->extent;
 
-    wren->vk.CmdBeginRendering(cmd, wrei_ptr_to(VkRenderingInfo {
+    gpu->vk.CmdBeginRendering(cmd, ptr_to(VkRenderingInfo {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .renderArea = { {}, vk_extent },
         .layerCount = 1,
         .colorAttachmentCount = 1,
-        .pColorAttachments = wrei_ptr_to(VkRenderingAttachmentInfo {
+        .pColorAttachments = ptr_to(VkRenderingAttachmentInfo {
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = current->view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -96,16 +96,16 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         }),
     }));
 
-    wren->vk.CmdSetViewport(cmd, 0, 1, wrei_ptr_to(VkViewport {
+    gpu->vk.CmdSetViewport(cmd, 0, 1, ptr_to(VkViewport {
         0, 0,
         current_extent.x, current_extent.y,
         0, 1,
     }));
-    wren->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wren->pipeline_layout, 0, 1, &wren->set, 0, nullptr);
+    gpu->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, gpu->pipeline_layout, 0, 1, &gpu->set, 0, nullptr);
 
     auto start_draws = [&] {
-        wren->vk.CmdSetScissor(cmd, 0, 1, wrei_ptr_to(VkRect2D { {}, vk_extent }));
-        wren->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline->pipeline);
+        gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D { {}, vk_extent }));
+        gpu->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline->pipeline);
     };
 
     u32 rect_id_start = 0;
@@ -113,13 +113,13 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
 
     renderer->rects_cpu.clear();
 
-    auto draw = [&](wren_image* image, rect2f64 dest, rect2f64 source, vec4f32 color = {1, 1, 1, 1}) {
+    auto draw = [&](gpu_image* image, rect2f64 dest, rect2f64 source, vec4f32 color = {1, 1, 1, 1}) {
 
-        // log_debug("draw(dest = {}, source = {})", wrei_to_string(dest), wrei_to_string(source));
+        // log_debug("draw(dest = {}, source = {})", core_to_string(dest), core_to_string(source));
 
-        wren_commands_protect_object(commands, image);
+        gpu_commands_protect_object(commands, image);
 
-        auto pixel_dst = wrei_round<i32, f64>(space.from_global(dest));
+        auto pixel_dst = core_round<i32, f64>(space.from_global(dest));
 
         rect_id++;
         renderer->rects_cpu.emplace_back(wroc_shader_rect {
@@ -135,14 +135,14 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         if (rect_id_start == rect_id) return;
 
         if (frame->rects.count < rect_id) {
-            auto new_size = wrei_compute_geometric_growth(frame->rects.count, rect_id);
+            auto new_size = core_compute_geometric_growth(frame->rects.count, rect_id);
             log_debug("Renderer - reallocating rect buffer, size: {}", new_size);
             if (frame->rects.buffer && rect_id_start) {
                 // Previous draws using this buffer, keep alive until all draws complete
                 log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
-                wren_commands_protect_object(commands, frame->rects.buffer.get());
+                gpu_commands_protect_object(commands, frame->rects.buffer.get());
             }
-            frame->rects = {wren_buffer_create(wren, new_size * sizeof(wroc_shader_rect), {}), new_size};
+            frame->rects = {gpu_buffer_create(gpu, new_size * sizeof(wroc_shader_rect), {}), new_size};
         }
 
         if (!renderer->rects_cpu.empty()) {
@@ -152,8 +152,8 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         wroc_shader_rect_input si = {};
         si.rects = frame->rects.device();
         si.output_size = current_extent;
-        wren->vk.CmdPushConstants(cmd, wren->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
-        wren->vk.CmdDraw(cmd, 6 * (rect_id - rect_id_start), 1, rect_id_start * 6, 0);
+        gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
+        gpu->vk.CmdDraw(cmd, 6 * (rect_id - rect_id_start), 1, rect_id_start * 6, 0);
         rect_id_start = rect_id;
     };
 
@@ -162,7 +162,7 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
     // Background
 
     for (auto& output : server->output_layout->outputs) {
-        auto src = wrei_rect_fit(server->renderer->background->extent, output->layout_rect.extent);
+        auto src = core_rect_fit(server->renderer->background->extent, output->layout_rect.extent);
         draw(server->renderer->background.get(), output->layout_rect, src);
     }
 
@@ -226,10 +226,10 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
                 color *= opacity;
 
                 aabb2f64 r = wroc_toplevel_get_layout_rect(toplevel);
-                draw(nullptr, /* left   */ { r.min - width,     {r.min.x, r.max.y + width}, wrei_minmax}, {}, color);
-                draw(nullptr, /* right  */ {{r.max.x, r.min.y - width},  r.max + width,     wrei_minmax}, {}, color);
-                draw(nullptr, /* top    */ {{r.min.x, r.min.y - width}, {r.max.x, r.min.y}, wrei_minmax}, {}, color);
-                draw(nullptr, /* bottom */ {{r.min.x, r.max.y}, {r.max.x, r.max.y + width}, wrei_minmax}, {}, color);
+                draw(nullptr, /* left   */ { r.min - width,     {r.min.x, r.max.y + width}, core_minmax}, {}, color);
+                draw(nullptr, /* right  */ {{r.max.x, r.min.y - width},  r.max + width,     core_minmax}, {}, color);
+                draw(nullptr, /* top    */ {{r.min.x, r.min.y - width}, {r.max.x, r.min.y}, core_minmax}, {}, color);
+                draw(nullptr, /* bottom */ {{r.min.x, r.max.y}, {r.max.x, r.max.y + width}, core_minmax}, {}, color);
             }
         }
     };
@@ -290,88 +290,88 @@ void render(wroc_renderer* renderer, wren_commands* commands, wroc_renderer_fram
         auto hlength = length / 2;
         auto hwidth = width / 2;
 
-        draw(nullptr, {pos - vec2f64{hwidth, hlength}, vec2f64{width, length}, wrei_xywh}, {}, color);
-        draw(nullptr, {pos - vec2f64{hlength, hwidth}, vec2f64{length, width}, wrei_xywh}, {}, color);
+        draw(nullptr, {pos - vec2f64{hwidth, hlength}, vec2f64{width, length}, core_xywh}, {}, color);
+        draw(nullptr, {pos - vec2f64{hlength, hwidth}, vec2f64{length, width}, core_xywh}, {}, color);
     }
 
     // Finish
 
     flush_draws();
 
-    wren->vk.CmdEndRendering(cmd);
+    gpu->vk.CmdEndRendering(cmd);
 }
 
 static
-void on_screenshot_ready(std::chrono::steady_clock::time_point start, wren_image* image, wren_buffer* buffer)
+void on_screenshot_ready(std::chrono::steady_clock::time_point start, gpu_image* image, gpu_buffer* buffer)
 {
     auto save_start = std::chrono::steady_clock::now();
-    log_info("Screenshot captured in {}, saving...", wrei_duration_to_string(save_start - start));
+    log_info("Screenshot captured in {}, saving...", core_duration_to_string(save_start - start));
 
     auto save_path = "screenshot.png";
 
     stbi_write_png(save_path, image->extent.x, image->extent.y, STBI_rgb_alpha, buffer->host_address, image->extent.x * 4);
     auto save_end = std::chrono::steady_clock::now();
-    log_info("Screenshot saved in {}", wrei_duration_to_string(save_end - save_start));
+    log_info("Screenshot saved in {}", core_duration_to_string(save_end - save_start));
 
-    wrei_event_loop_enqueue(server->event_loop.get(), [image, buffer] {
+    core_event_loop_enqueue(server->event_loop.get(), [image, buffer] {
         log_debug("Deleting screenshot resources");
         server->renderer->screenshot_queued = false;
-        wrei_remove_ref(image);
-        wrei_remove_ref(buffer);
+        core_remove_ref(image);
+        core_remove_ref(buffer);
     });
 }
 
 void wroc_screenshot(rect2f64 rect)
 {
     auto* renderer = server->renderer.get();
-    auto* wren = server->wren;
+    auto* gpu = server->gpu;
 
-    log_info("Taking screenshot of region {}", wrei_to_string(rect));
+    log_info("Taking screenshot of region {}", core_to_string(rect));
 
     auto start = std::chrono::steady_clock::now();
 
     vec2u32 extent = rect.extent;
-    auto image = wren_image_create(wren, extent,
-        wren_format_from_drm(DRM_FORMAT_ABGR8888),
-        wren_image_usage::render | wren_image_usage::transfer);
+    auto image = gpu_image_create(gpu, extent,
+        gpu_format_from_drm(DRM_FORMAT_ABGR8888),
+        gpu_image_usage::render | gpu_image_usage::transfer);
 
     auto byte_size = usz(4) * extent.x * extent.y;
-    auto buffer = wren_buffer_create(wren, byte_size, wren_buffer_flag::host);
+    auto buffer = gpu_buffer_create(gpu, byte_size, gpu_buffer_flag::host);
 
     // Completion handler
 
-    struct screenshot_guard : wrei_object
+    struct screenshot_guard : core_object
     {
         wroc_renderer_frame_data frame = {};
         std::chrono::steady_clock::time_point start;
-        ref<wren_image> image;
-        ref<wren_buffer> buffer;
+        ref<gpu_image> image;
+        ref<gpu_buffer> buffer;
 
         ~screenshot_guard()
         {
-            std::thread{on_screenshot_ready, start, wrei_add_ref(image.get()), wrei_add_ref(buffer.get())}.detach();
+            std::thread{on_screenshot_ready, start, core_add_ref(image.get()), core_add_ref(buffer.get())}.detach();
         }
     };
-    auto guard = wrei_create<screenshot_guard>();
+    auto guard = core_create<screenshot_guard>();
     guard->start = start;
     guard->image = image;
     guard->buffer = buffer;
 
     // Render
 
-    auto render_queue = wren_get_queue(wren, wren_queue_type::graphics);
-    auto render_commands = wren_commands_begin(render_queue);
+    auto render_queue = gpu_get_queue(gpu, gpu_queue_type::graphics);
+    auto render_commands = gpu_commands_begin(render_queue);
     render(renderer, render_commands.get(), &guard->frame, image.get(), rect);
-    wren_commands_protect_object(render_commands.get(), guard.get());
-    auto render_done = wren_commands_submit(render_commands.get(), {});
+    gpu_commands_protect_object(render_commands.get(), guard.get());
+    auto render_done = gpu_commands_submit(render_commands.get(), {});
 
     // Transfer
 
-    auto transfer_queue = wren_get_queue(image->ctx, wren_queue_type::transfer);
-    auto transfer_commands = wren_commands_begin(transfer_queue);
-    wren_copy_image_to_buffer(transfer_commands.get(), buffer.get(), image.get());
-    wren_commands_protect_object(transfer_commands.get(), guard.get());
-    wren_commands_submit(transfer_commands.get(), {render_done});
+    auto transfer_queue = gpu_get_queue(image->ctx, gpu_queue_type::transfer);
+    auto transfer_commands = gpu_commands_begin(transfer_queue);
+    gpu_copy_image_to_buffer(transfer_commands.get(), buffer.get(), image.get());
+    gpu_commands_protect_object(transfer_commands.get(), guard.get());
+    gpu_commands_submit(transfer_commands.get(), {render_done});
 }
 
 bool wroc_output_try_prepare_acquire(wroc_output* output)
@@ -393,7 +393,7 @@ bool wroc_output_try_prepare_acquire(wroc_output* output)
 }
 
 static
-ref<wren_image> acquire(wroc_renderer* renderer, wroc_output* output)
+ref<gpu_image> acquire(wroc_renderer* renderer, wroc_output* output)
 {
     auto& swapchain = output->swapchain;
 
@@ -405,13 +405,13 @@ ref<wren_image> acquire(wroc_renderer* renderer, wroc_output* output)
         return image;
     }
 
-    log_warn("Creating new swapchain image {}", wrei_to_string(output->size));
-    wrei_assert(swapchain.images_in_flight <= renderer->max_swapchain_images);
+    log_warn("Creating new swapchain image {}", core_to_string(output->size));
+    core_assert(swapchain.images_in_flight <= renderer->max_swapchain_images);
 
-    auto* wren = server->wren;
+    auto* gpu = server->gpu;
 
-    auto image = wren_image_create_dmabuf(wren, output->size, renderer->output_format,
-        wren_image_usage::render, renderer->output_format_modifiers);
+    auto image = gpu_image_create_dmabuf(gpu, output->size, renderer->output_format,
+        gpu_image_usage::render, renderer->output_format_modifiers);
 
     return image;
 }
@@ -421,7 +421,7 @@ void release(wroc_output* output, u32 slot_idx, u64 signalled)
 {
     auto& slot = output->swapchain.release_slots[slot_idx];
 
-    wrei_assert(signalled == slot.release_point);
+    core_assert(signalled == slot.release_point);
 
     output->swapchain.free_images.emplace_back(std::move(slot.image));
     output->swapchain.images_in_flight--;
@@ -430,14 +430,14 @@ void release(wroc_output* output, u32 slot_idx, u64 signalled)
 }
 
 static
-void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
+void present(wroc_output* output, gpu_image* image, gpu_syncpoint acquire)
 {
     auto& swapchain = output->swapchain;
 
     auto slot = std::ranges::find_if(swapchain.release_slots, [](auto& s) { return !s.image; });
     if (slot == swapchain.release_slots.end()) {
         slot = swapchain.release_slots.insert(swapchain.release_slots.end(), wroc_output::release_slot {
-            .semaphore = wren_semaphore_create(server->wren),
+            .semaphore = gpu_semaphore_create(server->gpu),
         });
     }
 
@@ -449,7 +449,7 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
     output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
 
     auto slot_idx = std::distance(swapchain.release_slots.begin(), slot);
-    wren_semaphore_wait_value(slot->semaphore.get(), slot->release_point,
+    gpu_semaphore_wait_value(slot->semaphore.get(), slot->release_point,
         [output = weak(output), slot_idx](u64 signalled) {
             if (output) release(output.get(), slot_idx,signalled);
         });
@@ -457,21 +457,21 @@ void present(wroc_output* output, wren_image* image, wren_syncpoint acquire)
 
 void wroc_render_frame(wroc_output* output)
 {
-    wrei_assert(output->frame_available);
-    wrei_assert(output->frames_in_flight < server->renderer->max_frames_in_flight);
-    wrei_assert(output->size.x && output->size.y);
+    core_assert(output->frame_available);
+    core_assert(output->frames_in_flight < server->renderer->max_frames_in_flight);
+    core_assert(output->size.x && output->size.y);
 
     auto* renderer = server->renderer.get();
-    auto* wren = server->wren;
+    auto* gpu = server->gpu;
 
     auto current = acquire(renderer, output);
 
     output->frames_in_flight++;
 
-    auto queue = wren_get_queue(wren, wren_queue_type::graphics);
-    auto commands = wren_commands_begin(queue);
+    auto queue = gpu_get_queue(gpu, gpu_queue_type::graphics);
+    auto commands = gpu_commands_begin(queue);
 
-    struct frame_guard : wrei_object
+    struct frame_guard : core_object
     {
         wroc_renderer_frame_data frame_data;
         weak<wroc_output> output;
@@ -486,9 +486,9 @@ void wroc_render_frame(wroc_output* output)
             }
         }
     };
-    auto guard = wrei_create<frame_guard>();
+    auto guard = core_create<frame_guard>();
     guard->output = output;
-    wren_commands_protect_object(commands.get(), guard.get());
+    gpu_commands_protect_object(commands.get(), guard.get());
 
     wroc_renderer_frame_data* frame = &guard->frame_data;
     if (!renderer->available_frames.empty()) {
@@ -511,7 +511,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Submit
 
-    auto render_done = wren_commands_submit(commands.get(), {});
+    auto render_done = gpu_commands_submit(commands.get(), {});
 
     // Present
 

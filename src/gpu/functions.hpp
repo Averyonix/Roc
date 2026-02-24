@@ -2,7 +2,7 @@
 
 #include "core/pch.hpp"
 
-#define WREN_INSTANCE_FUNCTIONS(DO) \
+#define GPU_INSTANCE_FUNCTIONS(DO) \
     DO(EnumeratePhysicalDevices) \
     DO(GetPhysicalDeviceProperties2) \
     DO(GetPhysicalDeviceQueueFamilyProperties) \
@@ -18,7 +18,7 @@
     DO(CreateDebugUtilsMessengerEXT) \
     DO(DestroyDebugUtilsMessengerEXT) \
 
-#define WREN_DEVICE_FUNCTIONS(DO) \
+#define GPU_DEVICE_FUNCTIONS(DO) \
     DO(GetDeviceQueue) \
     DO(CreateCommandPool) \
     DO(AllocateCommandBuffers) \
@@ -92,10 +92,10 @@
     DO(GetMemoryFdKHR) \
     DO(CmdDispatch) \
 
-#define WREN_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
+#define GPU_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 
-struct wren_context;
+struct gpu_context;
 
-void wren_init_functions(wren_context*, PFN_vkGetInstanceProcAddr);
-void wren_load_instance_functions(wren_context*);
-void wren_load_device_functions(wren_context*);
+void gpu_init_functions(gpu_context*, PFN_vkGetInstanceProcAddr);
+void gpu_load_instance_functions(gpu_context*);
+void gpu_load_device_functions(gpu_context*);

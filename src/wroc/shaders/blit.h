@@ -15,7 +15,7 @@ struct wroc_shader_rect
 
 struct wroc_shader_rect_input
 {
-    wren_const_ptr<wroc_shader_rect> rects;
+    gpu_const_ptr<wroc_shader_rect> rects;
 
     vec2f32 output_size;
 };

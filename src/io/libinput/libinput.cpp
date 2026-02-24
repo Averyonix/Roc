@@ -1,12 +1,12 @@
 #include "../internal.hpp"
 
-struct wrio_libinput
+struct io_libinput
 {
 };
 
-WREI_OBJECT_EXPLICIT_DEFINE(wrio_libinput);
+CORE_OBJECT_EXPLICIT_DEFINE(io_libinput);
 
-void wrio_libinput_init(wrio_context*)
+void io_libinput_init(io_context*)
 {
-    log_error("WRIO - libinput backend not implemented");
+    log_error("IO_ - libinput backend not implemented");
 }

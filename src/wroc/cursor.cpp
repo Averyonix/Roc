@@ -28,7 +28,7 @@ std::vector<std::string> wroc_cursor_list_themes()
 
 void wroc_cursor_create()
 {
-    server->cursor = wrei_create<wroc_cursor>();
+    server->cursor = core_create<wroc_cursor>();
     auto cursor = server->cursor.get();
 
     auto themes = wroc_cursor_list_themes();
@@ -88,7 +88,7 @@ void wroc_cursor_set(wroc_cursor* cursor, wl_client* client, wroc_surface* surfa
 // -----------------------------------------------------------------------------
 
 static constexpr auto shape_names = [] {
-    wrei_enum_map<wp_cursor_shape_device_v1_shape, const char*> shapes;
+    core_enum_map<wp_cursor_shape_device_v1_shape, const char*> shapes;
     shapes[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT]       = "default";
     shapes[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_CONTEXT_MENU]  = "context-menu";
     shapes[WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_HELP]          = "help";
@@ -128,7 +128,7 @@ static constexpr auto shape_names = [] {
     return shapes;
 }();
 
-WREI_DEFINE_ENUM_NAME_PROPS(wp_cursor_shape_device_v1_shape, "WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_", "");
+CORE_DEFINE_ENUM_NAME_PROPS(wp_cursor_shape_device_v1_shape, "WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_", "");
 
 wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_v1_shape shape)
 {
@@ -137,18 +137,18 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
     auto& surface = cursor->shapes[shape];
     if (surface) return surface.get();
 
-    log_info("Loading cursor shape {} \"{}\"", wrei_enum_to_string(shape), shape_names[shape]);
+    log_info("Loading cursor shape {} \"{}\"", core_enum_to_string(shape), shape_names[shape]);
 
     // TODO: This is a a hacky mess, we should implement a proper way to have locally managed surfaces
     //       We'll want something like this for integrating compositor UI with the surface stack properly later.
 
-    surface = wrei_create<wroc_surface>();
+    surface = core_create<wroc_surface>();
     surface->current.surface_stack.emplace_back(surface.get());
 
-    auto cursor_surface = wrei_create<wroc_cursor_surface>();
+    auto cursor_surface = core_create<wroc_cursor_surface>();
     wroc_surface_put_addon(surface.get(), cursor_surface.get());
 
-    auto cursor_buffer = wrei_create<wroc_shm_buffer>();
+    auto cursor_buffer = core_create<wroc_shm_buffer>();
     cursor_buffer->released = false;
     surface->current.buffer = cursor_buffer;
     surface->current.buffer_lock = cursor_buffer->lock();
@@ -156,7 +156,7 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
 
     XcursorImage* image = XcursorLibraryLoadImage(shape_names[shape], cursor->theme, cursor->size);
     if (!image) {
-        wrei_assert(shape != WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+        core_assert(shape != WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
 
         log_error("  failed to load Xcursor image, using fallback");
         auto default_surface = wroc_cursor_get_shape(cursor, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
@@ -168,12 +168,12 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
     };
     log_info("  size ({}, {}) hotspot ({}, {})", image->width, image->height, image->xhot, image->yhot);
 
-    cursor_buffer->image = wren_image_create(server->wren, {image->width, image->height}, wren_format_from_drm(DRM_FORMAT_ABGR8888),
-        wren_image_usage::texture | wren_image_usage::transfer);
-    wren_image_update_immed(cursor_buffer->image.get(), image->pixels);
+    cursor_buffer->image = gpu_image_create(server->gpu, {image->width, image->height}, gpu_format_from_drm(DRM_FORMAT_ABGR8888),
+        gpu_image_usage::texture | gpu_image_usage::transfer);
+    gpu_image_update_immed(cursor_buffer->image.get(), image->pixels);
 
-    surface->buffer_dst = {{-image->xhot, -image->yhot}, {image->width, image->height}, wrei_xywh};
-    surface->buffer_src = {{}, {image->width, image->height}, wrei_xywh};
+    surface->buffer_dst = {{-image->xhot, -image->yhot}, {image->width, image->height}, core_xywh};
+    surface->buffer_src = {{}, {image->width, image->height}, core_xywh};
 
     return surface.get();
 }

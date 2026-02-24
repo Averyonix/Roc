@@ -23,11 +23,11 @@ void dma_feedback_format_table(void* data, struct zwp_linux_dmabuf_feedback_v1* 
         u64 modifier;
     };
 
-    wrei_assert(size % sizeof(entry) == 0);
+    core_assert(size % sizeof(entry) == 0);
 
     defer { close(fd); };
     auto mapped = static_cast<entry*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
-    wrei_assert(mapped);
+    core_assert(mapped);
     defer { munmap(mapped, size); };
 
     auto count = size / sizeof(entry);
@@ -36,7 +36,7 @@ void dma_feedback_format_table(void* data, struct zwp_linux_dmabuf_feedback_v1* 
     backend->format_table.clear();
     backend->format_set.clear();
     for (auto& entry : formats) {
-        if (auto format = wren_format_from_drm(entry.format)) {
+        if (auto format = gpu_format_from_drm(entry.format)) {
             backend->format_table.emplace_back(format, entry.modifier);
         }
     }
@@ -63,7 +63,7 @@ const zwp_linux_dmabuf_feedback_v1_listener wroc_zwp_linux_dmabuf_feedback_v1_li
     WROC_STUB_QUIET(tranche_flags),
 };
 
-const wren_format_set& wroc_wayland_backend::get_output_format_set()
+const gpu_format_set& wroc_wayland_backend::get_output_format_set()
 {
     return format_set;
 }
@@ -130,7 +130,7 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
     };
 
     for (auto[i, state] : wroc_to_span<xdg_toplevel_state>(states) | std::views::enumerate) {
-        log_debug("  states[{}] = {}", i, wrei_enum_to_string(state));
+        log_debug("  states[{}] = {}", i, core_enum_to_string(state));
     }
 
     wroc_post_event(wroc_output_event {
@@ -168,7 +168,7 @@ void wroc_listen_toplevel_wm_capabilities(void* data, xdg_toplevel*, wl_array* c
     log_debug("xdg_toplevel::wm_capabilities");
 
     for (auto[i, capability] : wroc_to_span<xdg_toplevel_state>(capabilities) | std::views::enumerate) {
-        log_debug("  capabilities[] = {}", i, wrei_enum_to_string(capability));
+        log_debug("  capabilities[] = {}", i, core_enum_to_string(capability));
     }
 }
 
@@ -247,7 +247,7 @@ void wroc_wayland_backend::create_output()
         return;
     }
 
-    auto output = wrei_create<wroc_wayland_output>();
+    auto output = core_create<wroc_wayland_output>();
 
     auto id = next_window_id++;
 
@@ -292,14 +292,14 @@ void wroc_wayland_backend::create_output()
 }
 
 static
-wl_buffer* get_image_proxy(wroc_wayland_backend* backend, wren_image* image)
+wl_buffer* get_image_proxy(wroc_wayland_backend* backend, gpu_image* image)
 {
     if (auto* found = backend->buffer_cache.find(image)) return found;
 
     auto size = image->extent;
     auto format = image->format;
 
-    auto dma_params = wren_image_export_dmabuf(image);
+    auto dma_params = gpu_image_export_dmabuf(image);
     u32 mod_hi = dma_params.modifier >> 32;
     u32 mod_lo = dma_params.modifier & ~0u;
 
@@ -315,11 +315,11 @@ wl_buffer* get_image_proxy(wroc_wayland_backend* backend, wren_image* image)
 }
 
 static
-wp_linux_drm_syncobj_timeline_v1* get_semaphore_proxy(wroc_wayland_backend* backend, wren_semaphore* semaphore)
+wp_linux_drm_syncobj_timeline_v1* get_semaphore_proxy(wroc_wayland_backend* backend, gpu_semaphore* semaphore)
 {
     if (auto* found = backend->syncobj_cache.find(semaphore)) return found;
 
-    auto fd = wren_semaphore_export_syncobj(semaphore);
+    auto fd = gpu_semaphore_export_syncobj(semaphore);
     auto syncobj = wp_linux_drm_syncobj_manager_v1_import_timeline(backend->wp_linux_drm_syncobj_manager_v1, fd);
     close(fd);
 
@@ -362,12 +362,12 @@ void on_present_frame(void* data, wl_callback*, u32 time)
 }
 
 wroc_output_commit_id wroc_wayland_output::commit(
-    wren_image* image,
-    wren_syncpoint acquire,
-    wren_syncpoint release,
+    gpu_image* image,
+    gpu_syncpoint acquire,
+    gpu_syncpoint release,
     flags<wroc_output_commit_flag> flags)
 {
-    wrei_assert(frame_available);
+    core_assert(frame_available);
 
     auto* backend = static_cast<wroc_wayland_backend*>(server->backend.get());
 
@@ -394,7 +394,7 @@ wroc_output_commit_id wroc_wayland_output::commit(
     if (flags.contains(wroc_output_commit_flag::vsync)) {
         frame_available = false;
     } else {
-        wrei_event_loop_enqueue(server->event_loop.get(), [output = weak(this)] {
+        core_event_loop_enqueue(server->event_loop.get(), [output = weak(this)] {
             if (!output) return;
             wroc_post_event(wroc_output_event{
                 .type = wroc_event_type::output_frame,

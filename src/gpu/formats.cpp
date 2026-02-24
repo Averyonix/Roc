@@ -2,19 +2,19 @@
 
 #include "core/util.hpp"
 
-std::vector<wren_format_info> generate_formats()
+std::vector<gpu_format_info> generate_formats()
 {
 #include "formats.inl"
 
-    std::vector<wren_format_info> formats;
+    std::vector<gpu_format_info> formats;
 
-    formats.emplace_back(wren_format_info { .name = "UNDEFINED" });
+    formats.emplace_back(gpu_format_info { .name = "UNDEFINED" });
 
     for (auto[drm, vk, vk_flags] : drm_to_vk) {
         auto fourcc = drmGetFormatName(drm);
         defer { free(fourcc); };
 
-        auto& info = formats.emplace_back(wren_format_info {
+        auto& info = formats.emplace_back(gpu_format_info {
             .name = fourcc,
             .is_ycbcr = vkuFormatRequiresYcbcrConversion(vk),
             .drm = drm,
@@ -26,45 +26,45 @@ std::vector<wren_format_info> generate_formats()
         // Find matching _SRGB VkFormat if present
         if (auto vk_name = std::string_view(string_VkFormat(vk)); vk_name.ends_with("_UNORM")) {
             auto vk_formats = magic_enum::enum_values<VkFormat>();
-            auto srgb = std::ranges::find(vk_formats, wrei_replace_suffix(vk_name, "_UNORM", "_SRGB"), string_VkFormat);
+            auto srgb = std::ranges::find(vk_formats, core_replace_suffix(vk_name, "_UNORM", "_SRGB"), string_VkFormat);
             if (srgb != vk_formats.end()) info.vk_srgb = *srgb;
         }
     }
 
-    wrei_assert(formats.size() < std::numeric_limits<decltype(wren_format::index)>::max());
+    core_assert(formats.size() < std::numeric_limits<decltype(gpu_format::index)>::max());
 
     return formats;
 }
 
 static
-std::vector<wren_format_info> wren_format_infos = generate_formats();
+std::vector<gpu_format_info> gpu_format_infos = generate_formats();
 
-std::span<const wren_format_info> wren_get_format_infos()
+std::span<const gpu_format_info> gpu_get_format_infos()
 {
-    return wren_format_infos;
+    return gpu_format_infos;
 }
 
 // -----------------------------------------------------------------------------
 
-wren_format wren_format_from_drm(wren_drm_format drm_format)
+gpu_format gpu_format_from_drm(gpu_drm_format drm_format)
 {
-    for (auto[i, f] : wren_format_infos | std::views::enumerate) {
-        if (f.drm == drm_format) return wren_format(i);
+    for (auto[i, f] : gpu_format_infos | std::views::enumerate) {
+        if (f.drm == drm_format) return gpu_format(i);
     }
     return {};
 }
 
-wren_format wren_format_from_vk(VkFormat vk_format, flags<wren_vk_format_flag> vk_flags)
+gpu_format gpu_format_from_vk(VkFormat vk_format, flags<gpu_vk_format_flag> vk_flags)
 {
-    for (auto[i, f] : wren_format_infos | std::views::enumerate) {
-        if (f.vk == vk_format && f.vk_flags == vk_flags) return wren_format(i);
+    for (auto[i, f] : gpu_format_infos | std::views::enumerate) {
+        if (f.vk == vk_format && f.vk_flags == vk_flags) return gpu_format(i);
     }
     return {};
 }
 
 static
-bool wren_query_image_format_support(
-    wren_context* ctx,
+bool gpu_query_image_format_support(
+    gpu_context* ctx,
     VkFormat format, VkFormat srgb_format,
     VkImageUsageFlags usage,
     const VkDrmFormatModifierProperties2EXT* drm_props,
@@ -127,7 +127,7 @@ bool wren_query_image_format_support(
     };
 
     auto check = [&] {
-        auto res = wren_check(ctx->vk.GetPhysicalDeviceImageFormatProperties2(ctx->physical_device, &format_info, &format_props), VK_ERROR_FORMAT_NOT_SUPPORTED);
+        auto res = gpu_check(ctx->vk.GetPhysicalDeviceImageFormatProperties2(ctx->physical_device, &format_info, &format_props), VK_ERROR_FORMAT_NOT_SUPPORTED);
         if (res != VK_SUCCESS) {
             // Unsupported
             return false;
@@ -157,7 +157,7 @@ bool wren_query_image_format_support(
 }
 
 static
-std::vector<VkDrmFormatModifierProperties2EXT> get_drm_modifiers(wren_context* ctx, wren_format format)
+std::vector<VkDrmFormatModifierProperties2EXT> get_drm_modifiers(gpu_context* ctx, gpu_format format)
 {
     VkDrmFormatModifierPropertiesList2EXT mod_list = {
         .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
@@ -177,10 +177,10 @@ std::vector<VkDrmFormatModifierProperties2EXT> get_drm_modifiers(wren_context* c
 }
 
 static
-const wren_format_props* load_format_props(wren_context* ctx, wren_format_props& props, wren_format format, flags<wren_image_usage> usage)
+const gpu_format_props* load_format_props(gpu_context* ctx, gpu_format_props& props, gpu_format format, flags<gpu_image_usage> usage)
 {
-    auto vk_usage = wren_image_usage_to_vk(usage);
-    auto required_features = wren_get_required_format_features(format, usage);
+    auto vk_usage = gpu_image_usage_to_vk(usage);
+    auto required_features = gpu_get_required_format_features(format, usage);
     auto has_all_features = [&](VkFormatFeatureFlags features) {
         return (features & required_features) == required_features;
     };
@@ -193,9 +193,9 @@ const wren_format_props* load_format_props(wren_context* ctx, wren_format_props&
 
         VkImageFormatProperties image_props;
         bool has_mutable_srgb = false;
-        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, vk_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)
+        if (gpu_query_image_format_support(ctx, format->vk, format->vk_srgb, vk_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)
                 && has_all_features(vk_props.formatProperties.optimalTilingFeatures)) {
-            props.opt_props = std::unique_ptr<wren_format_modifier_props>(new wren_format_modifier_props {
+            props.opt_props = std::unique_ptr<gpu_format_modifier_props>(new gpu_format_modifier_props {
                 .modifier = DRM_FORMAT_MOD_INVALID,
                 .features = vk_props.formatProperties.optimalTilingFeatures,
                 .max_extent = {image_props.maxExtent.width, image_props.maxExtent.height},
@@ -208,9 +208,9 @@ const wren_format_props* load_format_props(wren_context* ctx, wren_format_props&
         VkImageFormatProperties image_props;
         bool has_mutable_srgb = false;
         VkExternalMemoryProperties ext_mem_props;
-        if (wren_query_image_format_support(ctx, format->vk, format->vk_srgb, vk_usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)
+        if (gpu_query_image_format_support(ctx, format->vk, format->vk_srgb, vk_usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)
                 && has_all_features(mod.drmFormatModifierTilingFeatures)) {
-            props.mod_props.emplace_back(wren_format_modifier_props {
+            props.mod_props.emplace_back(gpu_format_modifier_props {
                 .modifier = mod.drmFormatModifier,
                 .features = mod.drmFormatModifierTilingFeatures,
                 .plane_count = mod.drmFormatModifierPlaneCount,
@@ -225,11 +225,11 @@ const wren_format_props* load_format_props(wren_context* ctx, wren_format_props&
     return &props;
 }
 
-const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format format, flags<wren_image_usage> usage)
+const gpu_format_props* gpu_get_format_props(gpu_context* ctx, gpu_format format, flags<gpu_image_usage> usage)
 {
-    wrei_assert(!usage.empty());
+    core_assert(!usage.empty());
 
-    wren_format_props_key key { format->vk, wren_image_usage_to_vk(usage) };
+    gpu_format_props_key key { format->vk, gpu_image_usage_to_vk(usage) };
 
     auto iter = ctx->format_props.find(key);
     if (iter != ctx->format_props.end()) return &iter->second;
@@ -239,7 +239,7 @@ const wren_format_props* wren_get_format_props(wren_context* ctx, wren_format fo
         : &iter->second;
 }
 
-std::string wren_drm_modifier_get_name(wren_drm_modifier mod)
+std::string gpu_drm_modifier_get_name(gpu_drm_modifier mod)
 {
     auto name = drmGetFormatModifierName(mod);
     std::string str = name ?: "UNKNOWN";
@@ -247,18 +247,18 @@ std::string wren_drm_modifier_get_name(wren_drm_modifier mod)
     return str;
 }
 
-wren_format_set wren_intersect_format_sets(std::span<const wren_format_set* const> sets)
+gpu_format_set gpu_intersect_format_sets(std::span<const gpu_format_set* const> sets)
 {
     if (sets.empty()) return {};
 
-    wren_format_set out;
+    gpu_format_set out;
 
     auto first = sets.front();
     auto rest = sets.subspan(1);
     for (auto[format, mods] : *first) {
-        std::vector<const wren_format_modifier_set*> modifier_sets{&mods};
+        std::vector<const gpu_format_modifier_set*> modifier_sets{&mods};
         for (auto& r : rest) modifier_sets.emplace_back(&r->get(format));
-        auto modifier_set = wren_intersect_format_modifiers(modifier_sets);
+        auto modifier_set = gpu_intersect_format_modifiers(modifier_sets);
         if (!modifier_set.empty()) {
             out.entries[format] = std::move(modifier_set);
         }
@@ -267,11 +267,11 @@ wren_format_set wren_intersect_format_sets(std::span<const wren_format_set* cons
     return out;
 }
 
-wren_format_modifier_set wren_intersect_format_modifiers(std::span<const wren_format_modifier_set* const> sets)
+gpu_format_modifier_set gpu_intersect_format_modifiers(std::span<const gpu_format_modifier_set* const> sets)
 {
     if (sets.empty()) return {};
 
-    wren_format_modifier_set out;
+    gpu_format_modifier_set out;
     auto first = sets.front();
     auto rest = sets.subspan(1);
     for (auto mod : *first) {

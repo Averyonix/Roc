@@ -39,14 +39,14 @@ enum struct wroc_backend_type
     direct,
 };
 
-struct wroc_backend : wrei_object
+struct wroc_backend : core_object
 {
     wroc_backend_type type;
 
     virtual void init() = 0;
     virtual void start() = 0;
 
-    virtual const wren_format_set& get_output_format_set() = 0;
+    virtual const gpu_format_set& get_output_format_set() = 0;
 
     virtual void create_output() = 0;
     virtual void destroy_output(wroc_output*) = 0;
@@ -73,12 +73,12 @@ struct wroc_coord_space
 
     constexpr rect2f64 from_global(rect2f64 global_rect) const
     {
-        return { from_global(global_rect.origin), global_rect.extent / scale, wrei_xywh };
+        return { from_global(global_rect.origin), global_rect.extent / scale, core_xywh };
     }
 
     constexpr rect2f64 to_global(rect2f64 global_rect) const
     {
-        return { to_global(global_rect.origin), global_rect.extent * scale, wrei_xywh };
+        return { to_global(global_rect.origin), global_rect.extent * scale, core_xywh };
     }
 };
 
@@ -110,7 +110,7 @@ struct wroc_output_desc
  * Represents a wl_output protocol object
  * This may or may not correspond to any actual output made available by the backend.
  */
-struct wroc_wl_output : wrei_object
+struct wroc_wl_output : core_object
 {
     wl_global* global;
     wroc_resource_list resources;
@@ -132,7 +132,7 @@ using wroc_output_commit_id = u64;
 /*
  * A backend output that can be displayed to
  */
-struct wroc_output : wrei_object
+struct wroc_output : core_object
 {
     vec2u32 size;
     rect2f64 layout_rect;
@@ -145,12 +145,12 @@ struct wroc_output : wrei_object
 
     struct release_slot
     {
-        ref<wren_semaphore> semaphore;
-        ref<wren_image> image;
+        ref<gpu_semaphore> semaphore;
+        ref<gpu_image> image;
         u64 release_point;
     };
     struct {
-        std::vector<ref<wren_image>> free_images;
+        std::vector<ref<gpu_image>> free_images;
         std::vector<release_slot> release_slots;
         u32 images_in_flight;
     } swapchain;
@@ -163,7 +163,7 @@ struct wroc_output : wrei_object
 
     bool frame_requested = true;
 
-    virtual wroc_output_commit_id commit(wren_image* image, wren_syncpoint acquire, wren_syncpoint release, flags<wroc_output_commit_flag>) = 0;
+    virtual wroc_output_commit_id commit(gpu_image* image, gpu_syncpoint acquire, gpu_syncpoint release, flags<wroc_output_commit_flag>) = 0;
 };
 
 wroc_coord_space wroc_output_get_coord_space(wroc_output*);
@@ -174,7 +174,7 @@ void wroc_output_try_dispatch_frame_later(wroc_output*);
 
 void wroc_output_request_frame(wroc_output*);
 
-struct wroc_output_layout : wrei_object
+struct wroc_output_layout : core_object
 {
     // TODO: Support multi output description for clients
     ref<wroc_wl_output> primary;
@@ -187,7 +187,7 @@ wroc_output* wroc_output_layout_output_for_surface(wroc_output_layout*, wroc_sur
 
 // -----------------------------------------------------------------------------
 
-struct wroc_region : wrei_object
+struct wroc_region : core_object
 {
     wroc_resource resource;
 
@@ -257,7 +257,7 @@ enum class wroc_surface_role : u32
     xdg_popup,
 };
 
-struct wroc_surface_addon : wrei_object
+struct wroc_surface_addon : core_object
 {
     weak<wroc_surface> surface;
 
@@ -311,7 +311,7 @@ struct wroc_surface_state
     ~wroc_surface_state();
 };
 
-struct wroc_surface : wrei_object, wroc_surface_state_queue_base<wroc_surface_state>
+struct wroc_surface : core_object, wroc_surface_state_queue_base<wroc_surface_state>
 {
     wroc_resource resource;
 
@@ -378,7 +378,7 @@ T* wroc_surface_get_or_create_addon(wroc_surface* surface, bool* created = nullp
     if (created) *created = false;
     auto* existing = wroc_surface_get_addon<T>(surface);
     if (existing) return existing;
-    auto addon = wrei_create<T>();
+    auto addon = core_create<T>();
     if (!wroc_surface_put_addon(surface, addon.get())) return nullptr;
     if (created) *created = true;
     return addon.get();
@@ -583,7 +583,7 @@ struct wroc_positioner_rules
     u32 parent_configure;
 };
 
-struct wroc_positioner : wrei_object
+struct wroc_positioner : core_object
 {
     wroc_resource resource;
 
@@ -620,7 +620,7 @@ enum class wroc_buffer_type : u32
     dma,
 };
 
-struct wroc_buffer : wrei_object
+struct wroc_buffer : core_object
 {
     friend wroc_buffer_lock;
 
@@ -630,7 +630,7 @@ struct wroc_buffer : wrei_object
 
     vec2u32 extent;
 
-    ref<wren_image> image;
+    ref<gpu_image> image;
 
     weak<wroc_buffer_lock> lock_guard;
     [[nodiscard]] ref<wroc_buffer_lock> lock();
@@ -647,7 +647,7 @@ protected:
     virtual void on_unlock() = 0;
 };
 
-struct wroc_buffer_lock : wrei_object
+struct wroc_buffer_lock : core_object
 {
     ref<wroc_buffer> buffer;
 
@@ -666,7 +666,7 @@ struct wroc_shm_mapping
     ~wroc_shm_mapping();
 };
 
-struct wroc_shm_pool : wrei_object
+struct wroc_shm_pool : core_object
 {
     wroc_resource resource;
 
@@ -682,7 +682,7 @@ struct wroc_shm_buffer : wroc_buffer
 
     i32 offset;
     i32 stride;
-    wren_format format;
+    gpu_format format;
 
     bool pending_transfer;
 
@@ -694,24 +694,24 @@ struct wroc_shm_buffer : wroc_buffer
 
 // -----------------------------------------------------------------------------
 
-struct wroc_dma_buffer_params : wrei_object
+struct wroc_dma_buffer_params : core_object
 {
     wroc_resource resource;
 
-    wren_dma_params params;
+    gpu_dma_params params;
     u32 planes_set;
 };
 
 struct wroc_dma_buffer : wroc_buffer
 {
-    std::optional<wren_dma_params> params;
+    std::optional<gpu_dma_params> params;
 
     bool needs_wait = false;
 
-    ref<wren_semaphore> acquire_timeline;
+    ref<gpu_semaphore> acquire_timeline;
     u64 acquire_point;
 
-    ref<wren_semaphore> release_timeline;
+    ref<gpu_semaphore> release_timeline;
     u64 release_point;
 
     virtual bool is_ready(wroc_surface*) final override;
@@ -722,9 +722,9 @@ struct wroc_dma_buffer : wroc_buffer
 
 // -----------------------------------------------------------------------------
 
-struct wroc_syncobj_timeline : wrei_object
+struct wroc_syncobj_timeline : core_object
 {
-    ref<wren_semaphore> syncobj;
+    ref<gpu_semaphore> syncobj;
 
     wroc_resource resource;
 };
@@ -735,10 +735,10 @@ struct wroc_syncobj_surface : wroc_surface_addon
 
     wroc_resource resource;
 
-    ref<wren_semaphore> release_timeline;
+    ref<gpu_semaphore> release_timeline;
     u64 release_point;
 
-    ref<wren_semaphore> acquire_timeline;
+    ref<gpu_semaphore> acquire_timeline;
     u64 acquire_point;
 
     virtual void commit(wroc_commit_id) final override {};
@@ -747,7 +747,7 @@ struct wroc_syncobj_surface : wroc_surface_addon
 
 // -----------------------------------------------------------------------------
 
-struct wroc_seat : wrei_object
+struct wroc_seat : core_object
 {
     ref<wroc_seat_keyboard> keyboard;
     ref<wroc_seat_pointer>  pointer;
@@ -788,7 +788,7 @@ enum class wroc_key_action : u32
  * Source keyboards are "dumb" evdev (KEY_*) key code buckets.
  * We ignore pre-existing state (e.g. modifiers/keymaps) from sources (E.g. nested wayland environments)
  */
-struct wroc_keyboard : wrei_object
+struct wroc_keyboard : core_object
 {
     std::flat_set<u32> pressed = {};
 
@@ -811,14 +811,14 @@ struct wroc_keyboard : wrei_object
  * XKB keymaps are selected here, modifier states are derived based on source states/events
  * LED event states are sent back to source keyboards.
  */
-struct wroc_seat_keyboard : wrei_object
+struct wroc_seat_keyboard : core_object
 {
     wroc_seat* seat;
 
     std::vector<wroc_keyboard*> sources;
 
     // Aggregate of sources[...]->pressed
-    wrei_counting_set<u32> pressed;
+    core_counting_set<u32> pressed;
 
     wroc_resource_list resources;
     weak<wroc_surface> focused_surface;
@@ -827,7 +827,7 @@ struct wroc_seat_keyboard : wrei_object
     struct xkb_state*   state;
     struct xkb_keymap*  keymap;
 
-    wrei_enum_map<wroc_modifier, xkb_mod_mask_t> mod_masks;
+    core_enum_map<wroc_modifier, xkb_mod_mask_t> mod_masks;
 
     int keymap_fd = -1;
     i32 keymap_size;
@@ -852,7 +852,7 @@ void wroc_keyboard_enter(wroc_seat_keyboard*, wroc_surface*);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_pointer : wrei_object
+struct wroc_pointer : core_object
 {
     std::flat_set<u32> pressed = {};
 
@@ -873,7 +873,7 @@ struct wroc_pointer : wrei_object
     ~wroc_pointer();
 };
 
-struct wroc_seat_pointer : wrei_object
+struct wroc_seat_pointer : core_object
 {
     wroc_seat* seat;
 
@@ -883,7 +883,7 @@ struct wroc_seat_pointer : wrei_object
     std::vector<wroc_pointer*> sources;
 
     // Aggregate of sources[...]->pressed
-    wrei_counting_set<u32> pressed;
+    core_counting_set<u32> pressed;
 
     wroc_resource_list resources;
     wroc_resource_list relative_pointers;
@@ -943,9 +943,9 @@ void wroc_update_pointer_constraint_state();
 
 // -----------------------------------------------------------------------------
 
-WREI_DEFINE_ENUM_NAME_PROPS(wl_data_device_manager_dnd_action, "WL_DATA_DEVICE_MANAGER_DND_ACTION_", "");
+CORE_DEFINE_ENUM_NAME_PROPS(wl_data_device_manager_dnd_action, "WL_DATA_DEVICE_MANAGER_DND_ACTION_", "");
 
-struct wroc_data_source : wrei_object
+struct wroc_data_source : core_object
 {
     std::vector<std::string> mime_types;
     flags<wl_data_device_manager_dnd_action> dnd_actions;
@@ -959,7 +959,7 @@ struct wroc_data_source : wrei_object
     ~wroc_data_source();
 };
 
-struct wroc_data_offer : wrei_object
+struct wroc_data_offer : core_object
 {
     wroc_resource resource;
 
@@ -972,7 +972,7 @@ struct wroc_data_offer : wrei_object
     ~wroc_data_offer();
 };
 
-struct wroc_data_device : wrei_object
+struct wroc_data_device : core_object
 {
     wroc_seat* seat;
 
@@ -1007,22 +1007,22 @@ struct wroc_cursor_surface : wroc_surface_addon
 
 struct wroc_cursor_shape
 {
-    ref<wren_image> image;
+    ref<gpu_image> image;
     vec2i32         hotspot;
 };
 
 struct wroc_cursor_texture
 {
-    wren_image* image;
+    gpu_image* image;
     vec2i32     hotspot;
 };
 
-struct wroc_cursor : wrei_object
+struct wroc_cursor : core_object
 {
     const char* theme;
     int size;
 
-    wrei_enum_map<wp_cursor_shape_device_v1_shape, ref<wroc_surface>> shapes;
+    core_enum_map<wp_cursor_shape_device_v1_shape, ref<wroc_surface>> shapes;
 };
 
 void wroc_cursor_create();
@@ -1037,10 +1037,10 @@ enum class wroc_render_option : u32 { };
 
 struct wroc_renderer_frame_data
 {
-    wren_array<struct wroc_shader_rect> rects;
+    gpu_array<struct wroc_shader_rect> rects;
 };
 
-struct wroc_renderer : wrei_object
+struct wroc_renderer : core_object
 {
     struct {
         int format_table;
@@ -1050,19 +1050,19 @@ struct wroc_renderer : wrei_object
 
     flags<wroc_render_option> options;
 
-    wren_format output_format;
-    wren_format_modifier_set output_format_modifiers;
+    gpu_format output_format;
+    gpu_format_modifier_set output_format_modifiers;
 
-    ref<wren_pipeline> pipeline;
+    ref<gpu_pipeline> pipeline;
 
     std::vector<wroc_renderer_frame_data> available_frames;
     std::vector<struct wroc_shader_rect> rects_cpu;
 
-    ref<wren_image> background;
-    ref<wren_sampler> sampler;
+    ref<gpu_image> background;
+    ref<gpu_sampler> sampler;
 
-    wren_format_set shm_formats;
-    wren_format_set dmabuf_formats;
+    gpu_format_set shm_formats;
+    gpu_format_set dmabuf_formats;
 
     bool vsync = true;
 
@@ -1090,11 +1090,11 @@ void wroc_screenshot(rect2f64 rect);
 
 struct wroc_imgui_frame_data
 {
-    wren_array<ImDrawIdx> indices;
-    wren_array<ImDrawVert> vertices;
+    gpu_array<ImDrawIdx> indices;
+    gpu_array<ImDrawVert> vertices;
 };
 
-struct wroc_imgui : wrei_object
+struct wroc_imgui : core_object
 {
     std::chrono::steady_clock::time_point last_frame = {};
 
@@ -1102,13 +1102,13 @@ struct wroc_imgui : wrei_object
 
     rect2f64 layout_rect;
 
-    ref<wren_pipeline> pipeline;
+    ref<gpu_pipeline> pipeline;
 
-    wren_array<ImDrawIdx> indices;
-    wren_array<ImDrawVert> vertices;
+    gpu_array<ImDrawIdx> indices;
+    gpu_array<ImDrawVert> vertices;
     std::vector<wroc_imgui_frame_data> available_frames;
 
-    ref<wren_image> font_image;
+    ref<gpu_image> font_image;
 
     bool wants_mouse;
     bool wants_keyboard;
@@ -1120,9 +1120,9 @@ struct wroc_imgui : wrei_object
 
 struct alignas(ImTextureID) wroc_imgui_texture
 {
-    wren_image_handle<vec4f32> handle;
+    gpu_image_handle<vec4f32> handle;
 
-    wroc_imgui_texture(wren_image* image, wren_sampler* sampler)
+    wroc_imgui_texture(gpu_image* image, gpu_sampler* sampler)
         : handle(image, sampler)
     {}
 
@@ -1137,13 +1137,13 @@ void ImGui_Text(std::format_string<Args...> fmt, Args&&... args)
 
 void wroc_imgui_init();
 void wroc_imgui_frame(wroc_imgui*, rect2f64 layout_rect);
-void wroc_imgui_render(wroc_imgui*, wren_commands*, rect2f64 viewport, vec2u32 framebuffer_extent);
+void wroc_imgui_render(wroc_imgui*, gpu_commands*, rect2f64 viewport, vec2u32 framebuffer_extent);
 bool wroc_imgui_handle_event(wroc_imgui*, const struct wroc_event&);
 
 // -----------------------------------------------------------------------------
 
 struct wroc_launcher;
-WREI_OBJECT_EXPLICIT_DECLARE(wroc_launcher);
+CORE_OBJECT_EXPLICIT_DECLARE(wroc_launcher);
 
 void wroc_launcher_init();
 void wroc_launcher_frame(wroc_launcher*, vec2f64 open_pos);
@@ -1152,7 +1152,7 @@ bool wroc_launcher_handle_event(wroc_launcher*, const struct wroc_event&);
 // -----------------------------------------------------------------------------
 
 struct wroc_debug_gui;
-WREI_OBJECT_EXPLICIT_DECLARE(wroc_debug_gui);
+CORE_OBJECT_EXPLICIT_DECLARE(wroc_debug_gui);
 void wroc_debug_gui_init(bool show_on_startup);
 void wroc_debug_gui_frame(wroc_debug_gui*);
 bool wroc_debug_gui_handle_event(wroc_debug_gui*, const struct wroc_event&);
@@ -1204,10 +1204,10 @@ enum class wroc_direction : u32
     vertical   = 1 << 1,
 };
 
-struct wroc_server : wrei_object
+struct wroc_server : core_object
 {
     ref<wroc_backend>  backend;
-    wren_context*      wren;
+    gpu_context*      gpu;
     ref<wroc_renderer> renderer;
     ref<wroc_seat>     seat;
 
@@ -1220,7 +1220,7 @@ struct wroc_server : wrei_object
 
     std::chrono::steady_clock::time_point epoch;
 
-    ref<wrei_event_loop> event_loop;
+    ref<core_event_loop> event_loop;
 
     u32 client_flushes_pending = 0;
 

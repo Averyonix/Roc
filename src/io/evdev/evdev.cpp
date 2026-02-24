@@ -1,12 +1,12 @@
 #include "../internal.hpp"
 
-struct wrio_evdev
+struct io_evdev
 {
 };
 
-WREI_OBJECT_EXPLICIT_DEFINE(wrio_evdev);
+CORE_OBJECT_EXPLICIT_DEFINE(io_evdev);
 
-void wrio_evdev_init(wrio_context*)
+void io_evdev_init(io_context*)
 {
-    log_error("WRIO - evdev backend not implemented");
+    log_error("IO_ - evdev backend not implemented");
 }

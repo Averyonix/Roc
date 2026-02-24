@@ -23,7 +23,7 @@ vertex_output vertex(u32 id : SV_VulkanVertexID)
     vertex_output out;
     out.pos = vec4f32((v.pos * si.scale) + si.offset, 0, 1);
     out.uv = v.uv;
-    out.color = wrei_unpack_unorm4u8(v.color);
+    out.color = core_unpack_unorm4u8(v.color);
     return out;
 }
 

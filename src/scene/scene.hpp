@@ -7,42 +7,42 @@
 
 // -----------------------------------------------------------------------------
 
-struct wrui_node;
-struct wrui_tree;
-struct wrui_transform;
-struct wrui_texture;
-struct wrui_input_plane;
+struct scene_node;
+struct scene_tree;
+struct scene_transform;
+struct scene_texture;
+struct scene_input_plane;
 
-struct wrui_context;
-WREI_OBJECT_EXPLICIT_DECLARE(wrui_context);
+struct scene_context;
+CORE_OBJECT_EXPLICIT_DECLARE(scene_context);
 
-auto wrui_create(wren_context*, struct wrio_context*) -> ref<wrui_context>;
+auto scene_create(gpu_context*, struct io_context*) -> ref<scene_context>;
 
-struct wrui_scene
+struct scene_scene
 {
-    wrui_tree*      tree;
-    wrui_transform* transform;
+    scene_tree*      tree;
+    scene_transform* transform;
 };
 
-enum class wrui_layer
+enum class scene_layer
 {
     background,
     normal,
     overlay,
 };
 
-auto wrui_get_layer(wrui_context*, wrui_layer) -> wrui_tree*;
-auto wrui_get_root_transform(wrui_context*) -> wrui_transform*;
+auto scene_get_layer(scene_context*, scene_layer) -> scene_tree*;
+auto scene_get_root_transform(scene_context*) -> scene_transform*;
 
 // -----------------------------------------------------------------------------
 
-struct wrui_client;
-WREI_OBJECT_EXPLICIT_DECLARE(wrui_client);
-auto wrui_client_create(wrui_context*) -> ref<wrui_client>;
+struct scene_client;
+CORE_OBJECT_EXPLICIT_DECLARE(scene_client);
+auto scene_client_create(scene_context*) -> ref<scene_client>;
 
 // -----------------------------------------------------------------------------
 
-enum class wrui_modifier : u32
+enum class scene_modifier : u32
 {
     super = 1 << 0,
     shift = 1 << 1,
@@ -52,23 +52,23 @@ enum class wrui_modifier : u32
     caps  = 1 << 5,
 };
 
-using wrui_scancode = u32;
+using scene_scancode = u32;
 
-struct wrui_keyboard;
-struct wrui_pointer;
+struct scene_keyboard;
+struct scene_pointer;
 
-auto wrui_pointer_get_position(wrui_context*) -> vec2f32;
+auto scene_pointer_get_position(scene_context*) -> vec2f32;
 
-auto wrui_keyboard_get_modifiers(wrui_context*) -> flags<wrui_modifier>;
-void wrui_keyboard_grab(wrui_client*);
+auto scene_keyboard_get_modifiers(scene_context*) -> flags<scene_modifier>;
+void scene_keyboard_grab(scene_client*);
 // Clear client keyboard grab, defers to next most recent keyboard grab
-void wrui_keyboard_ungrab(wrui_client*);
+void scene_keyboard_ungrab(scene_client*);
 // Clear all keyboard grabs
-void wrui_keyboard_clear_focus(wrui_context*);
+void scene_keyboard_clear_focus(scene_context*);
 
 // -----------------------------------------------------------------------------
 
-enum class wrui_node_type
+enum class scene_node_type
 {
     transform,
     tree,
@@ -77,118 +77,118 @@ enum class wrui_node_type
     input_plane,
 };
 
-struct wrui_node : wrei_object
+struct scene_node : core_object
 {
-    wrui_node_type      type;      // Node type
-    wrui_tree*          parent;    // Parent in the layer hierarchy, controls z-order and visibility
-    ref<wrui_transform> transform; // Parent in the transform hierarhcy, controls xy positioning
+    scene_node_type      type;      // Node type
+    scene_tree*          parent;    // Parent in the layer hierarchy, controls z-order and visibility
+    ref<scene_transform> transform; // Parent in the transform hierarhcy, controls xy positioning
 
-    ~wrui_node();
+    ~scene_node();
 };
 
-void wrui_node_unparent(     wrui_node*);
-void wrui_node_set_transform(wrui_node*, wrui_transform*);
+void scene_node_unparent(     scene_node*);
+void scene_node_set_transform(scene_node*, scene_transform*);
 
-struct wrui_transform_state
+struct scene_transform_state
 {
     vec2f32 translation;
     f32     scale;
 };
 
-struct wrui_transform : wrui_node
+struct scene_transform : scene_node
 {
-    wrui_transform_state local;
-    wrui_transform_state global;
+    scene_transform_state local;
+    scene_transform_state global;
 
-    std::vector<wrui_node*> children;
+    std::vector<scene_node*> children;
 
-    ~wrui_transform();
+    ~scene_transform();
 };
 
-auto wrui_transform_create(wrui_context*) -> ref<wrui_transform>;
-void wrui_transform_update(wrui_transform*, vec2f32 translation, f32 scale);
-auto wrui_transform_get_local( wrui_transform*) -> wrui_transform_state;
-auto wrui_transform_get_global(wrui_transform*) -> wrui_transform_state;
+auto scene_transform_create(scene_context*) -> ref<scene_transform>;
+void scene_transform_update(scene_transform*, vec2f32 translation, f32 scale);
+auto scene_transform_get_local( scene_transform*) -> scene_transform_state;
+auto scene_transform_get_global(scene_transform*) -> scene_transform_state;
 
-struct wrui_tree : wrui_node
+struct scene_tree : scene_node
 {
-    wrui_context* ctx;
+    scene_context* ctx;
 
-    std::vector<ref<wrui_node>> children;
+    std::vector<ref<scene_node>> children;
 
-    ~wrui_tree();
+    ~scene_tree();
 };
 
-auto wrui_tree_create(wrui_context*) -> ref<wrui_tree>;
-void wrui_tree_place_below(wrui_tree*, wrui_node* reference, wrui_node* to_place);
-void wrui_tree_place_above(wrui_tree*, wrui_node* reference, wrui_node* to_place);
+auto scene_tree_create(scene_context*) -> ref<scene_tree>;
+void scene_tree_place_below(scene_tree*, scene_node* reference, scene_node* to_place);
+void scene_tree_place_above(scene_tree*, scene_node* reference, scene_node* to_place);
 
-struct wrui_texture : wrui_node
+struct scene_texture : scene_node
 {
-    ref<wren_image>   image;
-    ref<wren_sampler> sampler;
-    wren_blend_mode   blend;
+    ref<gpu_image>   image;
+    ref<gpu_sampler> sampler;
+    gpu_blend_mode   blend;
 
     vec4u8   tint;
     aabb2f32 src;
     rect2f32 dst;
 };
 
-auto wrui_texture_create(wrui_context*) -> ref<wrui_texture>;
-void wrui_texture_set_image(wrui_texture*, wren_image*, wren_sampler*, wren_blend_mode);
-void wrui_texture_set_tint( wrui_texture*, vec4u8   tint);
-void wrui_texture_set_src(  wrui_texture*, aabb2f32 src);
-void wrui_texture_set_dst(  wrui_texture*, aabb2f32 dst);
-void wrui_texture_damage(   wrui_texture*, aabb2f32 damage);
+auto scene_texture_create(scene_context*) -> ref<scene_texture>;
+void scene_texture_set_image(scene_texture*, gpu_image*, gpu_sampler*, gpu_blend_mode);
+void scene_texture_set_tint( scene_texture*, vec4u8   tint);
+void scene_texture_set_src(  scene_texture*, aabb2f32 src);
+void scene_texture_set_dst(  scene_texture*, aabb2f32 dst);
+void scene_texture_damage(   scene_texture*, aabb2f32 damage);
 
-struct wrui_mesh : wrui_node
+struct scene_mesh : scene_node
 {
-    ref<wren_image>   image;
-    ref<wren_sampler> sampler;
-    wren_blend_mode   blend;
+    ref<gpu_image>   image;
+    ref<gpu_sampler> sampler;
+    gpu_blend_mode   blend;
 
     aabb2f32 clip;
 
-    std::vector<wrui_vertex> vertices;
+    std::vector<scene_vertex> vertices;
     std::vector<u16>         indices;
 };
 
-auto wrui_mesh_create(wrui_context*) -> ref<wrui_mesh>;
-void wrui_mesh_update(wrui_mesh*, wren_image*, wren_sampler*, wren_blend_mode, aabb2f32 clip, std::span<const wrui_vertex> vertices, std::span<const u16> indices);
+auto scene_mesh_create(scene_context*) -> ref<scene_mesh>;
+void scene_mesh_update(scene_mesh*, gpu_image*, gpu_sampler*, gpu_blend_mode, aabb2f32 clip, std::span<const scene_vertex> vertices, std::span<const u16> indices);
 
-struct wrui_input_plane : wrui_node
+struct scene_input_plane : scene_node
 {
-    wrui_client* client;
+    scene_client* client;
     aabb2f32     rect;   // input region in transform-local space
 
-    ~wrui_input_plane();
+    ~scene_input_plane();
 };
 
-auto wrui_input_plane_create(wrui_client*) -> ref<wrui_input_plane>;
-void wrui_input_plane_set_rect(wrui_input_plane*, aabb2f32);
+auto scene_input_plane_create(scene_client*) -> ref<scene_input_plane>;
+void scene_input_plane_set_rect(scene_input_plane*, aabb2f32);
 
 // -----------------------------------------------------------------------------
 
 // Represents a normal interactable "toplevel" window.
-struct wrui_window;
-WREI_OBJECT_EXPLICIT_DECLARE(wrui_window);
+struct scene_window;
+CORE_OBJECT_EXPLICIT_DECLARE(scene_window);
 
-auto wrui_window_create(wrui_client*) -> ref<wrui_window>;
+auto scene_window_create(scene_client*) -> ref<scene_window>;
 // Adds the window to the UI scene. In response to this event
 // the window may be repositioned and/or resized to fit in layout.
-void wrui_window_map(wrui_window*);
+void scene_window_map(scene_window*);
 // Removes the window from the scene.
-void wrui_window_unmap(wrui_window*);
+void scene_window_unmap(scene_window*);
 // Sets the window frame size for decorations and layout placement.
-void wrui_window_set_size(wrui_window*, vec2u32);
+void scene_window_set_size(scene_window*, vec2u32);
 // Get the window tree, this is used to attach window contents to
-auto wrui_window_get_tree(wrui_window*) -> wrui_tree*;
+auto scene_window_get_tree(scene_window*) -> scene_tree*;
 // Get the window transform, this is used to anchor window contents to
-auto wrui_window_get_transform(wrui_window*) -> wrui_transform*;
+auto scene_window_get_transform(scene_window*) -> scene_transform*;
 
 // -----------------------------------------------------------------------------
 
-enum class wrui_event_type
+enum class scene_event_type
 {
     keyboard_key,
     keyboard_modifier,
@@ -203,55 +203,55 @@ enum class wrui_event_type
     window_resize,
 };
 
-struct wrui_keyboard_event
+struct scene_keyboard_event
 {
-    wrui_scancode code;
+    scene_scancode code;
     xkb_keysym_t sym;
     const char* utf8;
     bool pressed;
     bool quiet;
 };
 
-struct wrui_pointer_event
+struct scene_pointer_event
 {
     vec2f32 delta;
-    wrui_scancode button;
+    scene_scancode button;
     bool pressed;
     bool quiet;
 };
 
-struct wrui_focus
+struct scene_focus
 {
-    wrui_client*      client;
-    wrui_input_plane* plane;
+    scene_client*      client;
+    scene_input_plane* plane;
 };
 
-struct wrui_focus_event
+struct scene_focus_event
 {
-    wrui_focus lost;
-    wrui_focus gained;
+    scene_focus lost;
+    scene_focus gained;
 };
 
-struct wrui_window_event
+struct scene_window_event
 {
-    wrui_window* window;
+    scene_window* window;
     union {
         vec2u32 resize;
     };
 };
 
-struct wrui_event
+struct scene_event
 {
-    wrui_event_type type;
+    scene_event_type type;
 
     union {
-        wrui_window_event   window;
-        wrui_keyboard_event key;
-        wrui_pointer_event  pointer;
-        wrui_focus_event    focus;
+        scene_window_event   window;
+        scene_keyboard_event key;
+        scene_pointer_event  pointer;
+        scene_focus_event    focus;
     };
 };
 
-using wrui_event_handler_fn = void(wrui_event*);
+using scene_event_handler_fn = void(scene_event*);
 
-void wrui_client_set_event_handler(wrui_client*, std::move_only_function<wrui_event_handler_fn>&&);
+void scene_client_set_event_handler(scene_client*, std::move_only_function<scene_event_handler_fn>&&);

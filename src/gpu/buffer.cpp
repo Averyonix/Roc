@@ -1,8 +1,8 @@
 #include "internal.hpp"
 
-ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, flags<wren_buffer_flag> flags)
+ref<gpu_buffer> gpu_buffer_create(gpu_context* ctx, usz size, flags<gpu_buffer_flag> flags)
 {
-    auto buffer = wrei_create<wren_buffer>();
+    auto buffer = core_create<gpu_buffer>();
     buffer->ctx = ctx;
 
     buffer->size = size;
@@ -10,8 +10,8 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, flags<wren_buff
     ctx->stats.active_buffers++;
 
     VmaAllocationInfo alloc_info;
-    wren_check(vmaCreateBuffer(ctx->vma,
-        wrei_ptr_to(VkBufferCreateInfo {
+    gpu_check(vmaCreateBuffer(ctx->vma,
+        ptr_to(VkBufferCreateInfo {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .size = size,
             .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
@@ -26,13 +26,13 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, flags<wren_buff
                 ctx->transfer_queue->family,
             }.data(),
         }),
-        flags.contains(wren_buffer_flag::host)
-            ? wrei_ptr_to(VmaAllocationCreateInfo {
+        flags.contains(gpu_buffer_flag::host)
+            ? ptr_to(VmaAllocationCreateInfo {
                 .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
                 .usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                 .requiredFlags = VK_MEMORY_PROPERTY_HOST_CACHED_BIT
             })
-            : wrei_ptr_to(VmaAllocationCreateInfo {
+            : ptr_to(VmaAllocationCreateInfo {
                 .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
                 .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
             }),
@@ -42,7 +42,7 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, flags<wren_buff
 
     buffer->host_address = alloc_info.pMappedData;
 
-    buffer->device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, wrei_ptr_to(VkBufferDeviceAddressInfo {
+    buffer->device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, ptr_to(VkBufferDeviceAddressInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = buffer->buffer,
     }));
@@ -50,7 +50,7 @@ ref<wren_buffer> wren_buffer_create(wren_context* ctx, usz size, flags<wren_buff
     return buffer;
 }
 
-wren_buffer::~wren_buffer()
+gpu_buffer::~gpu_buffer()
 {
     ctx->stats.active_buffers--;
 

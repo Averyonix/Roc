@@ -8,14 +8,14 @@
 // -----------------------------------------------------------------------------
 
 template<typename T>
-std::span<T> wroc_to_span(wl_array* array)
+std::span<T> way_to_span(wl_array* array)
 {
     usz count = array->size / sizeof(T);
     return std::span<T>(static_cast<T*>(array->data), count);
 }
 
 template<typename T>
-wl_array wroc_to_wl_array(std::span<T> span)
+wl_array way_to_wl_array(std::span<T> span)
 {
     return wl_array {
         .size = span.size_bytes(),
@@ -27,32 +27,32 @@ wl_array wroc_to_wl_array(std::span<T> span)
 // -----------------------------------------------------------------------------
 
 template<typename T>
-T* wroc_try_get_userdata(void* data)
+T* way_try_get_userdata(void* data)
 {
-    return dynamic_cast<T*>(static_cast<wrei_object*>(data));
+    return dynamic_cast<T*>(static_cast<core_object*>(data));
 }
 
 template<typename T>
-T* wroc_get_userdata(void* data)
+T* way_get_userdata(void* data)
 {
-    return wrei_object_cast<T>(static_cast<wrei_object*>(data));
+    return core_object_cast<T>(static_cast<core_object*>(data));
 }
 
 template<typename T>
-T* wroc_try_get_userdata(wl_resource* resource)
+T* way_try_get_userdata(wl_resource* resource)
 {
-    return resource ? wroc_try_get_userdata<T>(wl_resource_get_user_data(resource)) : nullptr;
+    return resource ? way_try_get_userdata<T>(wl_resource_get_user_data(resource)) : nullptr;
 }
 
 template<typename T>
-T* wroc_get_userdata(wl_resource* resource)
+T* way_get_userdata(wl_resource* resource)
 {
-    return resource ? wroc_get_userdata<T>(wl_resource_get_user_data(resource)) : nullptr;
+    return resource ? way_get_userdata<T>(wl_resource_get_user_data(resource)) : nullptr;
 }
 
 // -----------------------------------------------------------------------------
 
-class wroc_resource
+class way_resource
 {
     wl_resource* resource = {};
     wl_listener destroy_listener {
@@ -60,12 +60,12 @@ class wroc_resource
     };
 
 public:
-    wroc_resource()
+    way_resource()
     {
         wl_list_init(&destroy_listener.link);
     }
 
-    wroc_resource(wl_resource* resource)
+    way_resource(wl_resource* resource)
         : resource(resource)
     {
         wl_resource_add_destroy_listener(resource, &destroy_listener);
@@ -84,7 +84,7 @@ public:
         }
     }
 
-    wroc_resource& operator=(wl_resource* other)
+    way_resource& operator=(wl_resource* other)
     {
         reset(other);
         return *this;
@@ -92,26 +92,26 @@ public:
 
     static void on_destroy(wl_listener* listener, void* data)
     {
-        wroc_resource* self = wl_container_of(listener, self, destroy_listener);
+        way_resource* self = wl_container_of(listener, self, destroy_listener);
         self->resource = nullptr;
         wl_list_init(&self->destroy_listener.link);
 
-        // log_debug("wrei_resource<{}>: resource destroyed, clearing..", (void*)self);
+        // log_debug("core_resource<{}>: resource destroyed, clearing..", (void*)self);
     }
 
-    ~wroc_resource()
+    ~way_resource()
     {
         wl_list_remove(&destroy_listener.link);
     }
 
-    WREI_DELETE_COPY_MOVE(wroc_resource)
+    CORE_DELETE_COPY_MOVE(way_resource)
 
     operator wl_resource*() const { return resource; }
 };
 
 // -----------------------------------------------------------------------------
 
-class wroc_resource_list
+class way_resource_list
 {
     struct list_node
     {
@@ -153,7 +153,7 @@ class wroc_resource_list
             wl_list_remove(&destroy_listener.link);
         }
 
-        WREI_DELETE_COPY_MOVE(list_node)
+        CORE_DELETE_COPY_MOVE(list_node)
     };
 
     list_node root;
@@ -180,7 +180,7 @@ class wroc_resource_list
     };
 
 public:
-    wroc_resource_list()
+    way_resource_list()
     {
         root.next = &root;
         root.prev = &root;
@@ -210,7 +210,7 @@ public:
         root.prev = &root;
     }
 
-    void take_and_append_all(wroc_resource_list&& other)
+    void take_and_append_all(way_resource_list&& other)
     {
         if (other.root.next == &other.root) return;
 
@@ -239,10 +239,10 @@ public:
         return iterator{&root};
     }
 
-    ~wroc_resource_list()
+    ~way_resource_list()
     {
         clear();
     }
 
-    WREI_DELETE_COPY_MOVE(wroc_resource_list)
+    CORE_DELETE_COPY_MOVE(way_resource_list)
 };

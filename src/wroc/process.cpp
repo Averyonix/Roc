@@ -55,7 +55,7 @@ pid_t wroc_spawn(
         unsetenv("DISPLAY");
 
         for (const wroc_spawn_action& action : actions) {
-            std::visit(wrei_overload_set {
+            std::visit(core_overload_set {
                 [&](const wroc_spawn_env_action& env_action) {
                     if (!env_action.name) return;
                     if (env_action.value) {
@@ -107,7 +107,7 @@ void wroc_spawn(GAppInfo* app, std::span<const wroc_spawn_action> actions)
     g_app_launch_context_unsetenv(ctx, "DISPLAY");
 
     for (auto& action : actions) {
-        std::visit(wrei_overload_set {
+        std::visit(core_overload_set {
             [&](const wroc_spawn_env_action& env_action) {
                 if (!env_action.name) return;
                 if (env_action.value) {

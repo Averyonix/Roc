@@ -1,58 +1,58 @@
 #include "internal.hpp"
 
-wrui_window::~wrui_window()
+scene_window::~scene_window()
 {
-    wrui_window_unmap(this);
+    scene_window_unmap(this);
     std::erase(client->ctx->windows, this);
 }
 
-auto wrui_window_create(wrui_client* client) -> ref<wrui_window>
+auto scene_window_create(scene_client* client) -> ref<scene_window>
 {
-    auto window = wrei_create<wrui_window>();
+    auto window = core_create<scene_window>();
     window->client = client;
 
     auto* ctx = client->ctx;
 
     ctx->windows.emplace_back(window.get());
 
-    window->transform = wrui_transform_create(ctx);
-    wrui_node_set_transform(window->transform.get(), ctx->root_transform.get());
+    window->transform = scene_transform_create(ctx);
+    scene_node_set_transform(window->transform.get(), ctx->root_transform.get());
 
-    window->tree = wrui_tree_create(ctx);
-    wrui_tree_place_above(wrui_get_layer(ctx, wrui_layer::normal), nullptr, window->tree.get());
+    window->tree = scene_tree_create(ctx);
+    scene_tree_place_above(scene_get_layer(ctx, scene_layer::normal), nullptr, window->tree.get());
 
     return window;
 }
 
-auto wrui_window_get_tree(wrui_window* window) -> wrui_tree*
+auto scene_window_get_tree(scene_window* window) -> scene_tree*
 {
     return window->tree.get();
 }
 
-auto wrui_window_get_transform(wrui_window* window) -> wrui_transform*
+auto scene_window_get_transform(scene_window* window) -> scene_transform*
 {
     return window->transform.get();
 }
 
-void wrui_window_set_size(wrui_window* window, vec2u32 size)
+void scene_window_set_size(scene_window* window, vec2u32 size)
 {
     window->size = size;
 }
 
-void wrui_window_map(wrui_window* window)
+void scene_window_map(scene_window* window)
 {
     if (window->mapped) return;
 
-    wrui_tree_place_above(wrui_get_layer(window->client->ctx, wrui_layer::normal), nullptr, window->tree.get());
+    scene_tree_place_above(scene_get_layer(window->client->ctx, scene_layer::normal), nullptr, window->tree.get());
 
     window->mapped = true;
 }
 
-void wrui_window_unmap(wrui_window* window)
+void scene_window_unmap(scene_window* window)
 {
     if (!window->mapped) return;
 
-    wrui_node_unparent(window->tree.get());
+    scene_node_unparent(window->tree.get());
 
     window->mapped = false;
 }

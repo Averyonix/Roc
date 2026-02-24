@@ -127,14 +127,14 @@ struct drm_property_map
                 return props->prop_values[i];
             }
         }
-        wrei_assert_fail("Failed to find property");
+        core_assert_fail("Failed to find property");
     }
 
     int get_enum_value(std::string_view prop_name, std::string_view enum_name)
     {
         auto* prop = properties.at(prop_name);
 
-        wrei_assert(prop->flags & DRM_MODE_PROP_ENUM);
+        core_assert(prop->flags & DRM_MODE_PROP_ENUM);
         for (int e = 0; e < prop->count_enums; ++e) {
             if (enum_name == prop->enums[e].name) {
                 return prop->enums[e].value;
@@ -142,14 +142,14 @@ struct drm_property_map
         }
 
         log_error("Failed to find enum value: {}.{}", prop_name, enum_name);
-        wrei_debugkill();
+        core_debugkill();
     }
 };
 
 // -----------------------------------------------------------------------------
 
 static
-wren_format_set parse_plane_formats(wroc_direct_backend* backend, drm_resources* resources, drmModePlane* plane)
+gpu_format_set parse_plane_formats(wroc_direct_backend* backend, drm_resources* resources, drmModePlane* plane)
 {
     drm_property_map props{backend, plane->plane_id, DRM_MODE_OBJECT_PLANE};
     auto blob_id = props.get_prop_value("IN_FORMATS");
@@ -163,17 +163,17 @@ wren_format_set parse_plane_formats(wroc_direct_backend* backend, drm_resources*
 
     auto* header = static_cast<drm_format_modifier_blob*>(blob->data);
 
-    auto formats = wrei_byte_offset_pointer<wren_drm_format>(blob->data, header->formats_offset);
-    auto modifiers = wrei_byte_offset_pointer<drm_format_modifier>(blob->data, header->modifiers_offset);
+    auto formats = core_byte_offset_pointer<gpu_drm_format>(blob->data, header->formats_offset);
+    auto modifiers = core_byte_offset_pointer<drm_format_modifier>(blob->data, header->modifiers_offset);
 
-    wren_format_set set;
+    gpu_format_set set;
     for (auto mod : std::span(modifiers, header->count_modifiers)) {
         u32 index = mod.offset;
         while (mod.formats) {
             auto bit_idx = std::countr_zero(mod.formats);
             index += bit_idx;
 
-            auto format = wren_format_from_drm(formats[index]);
+            auto format = gpu_format_from_drm(formats[index]);
             if (format) set.add(format, mod.modifier);
 
             mod.formats >>= bit_idx + 1;
@@ -197,13 +197,13 @@ struct wroc_drm_output_state
     drm_property_map plane_prop;
     drm_property_map crtc_prop;
 
-    ref<wren_semaphore> last_release_semaphore = {};
+    ref<gpu_semaphore> last_release_semaphore = {};
     u64 last_release_point;
 
-    wren_format_set format_set;
+    gpu_format_set format_set;
 
 #if WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT
-    ref<wren_semaphore> pending_release_semaphore = {};
+    ref<gpu_semaphore> pending_release_semaphore = {};
     u64 pending_release_point;
 #endif
 
@@ -233,7 +233,7 @@ void add_output(wroc_direct_backend* backend, drm_resources* resources, drmModeC
         return;
     }
     auto encoder = resources->find_encoder(connector->encoder_id);
-    wrei_assert(encoder);
+    core_assert(encoder);
 
     // Find CRTC currently used by this connector
 
@@ -242,7 +242,7 @@ void add_output(wroc_direct_backend* backend, drm_resources* resources, drmModeC
         return;
     }
     auto* crtc = resources->find_crtc(encoder->crtc_id);
-    wrei_assert(crtc);
+    core_assert(crtc);
 
     // Ensure the CRTC is active
 
@@ -259,7 +259,7 @@ void add_output(wroc_direct_backend* backend, drm_resources* resources, drmModeC
             plane = p;
         }
     }
-    wrei_assert(plane);
+    core_assert(plane);
 
     // Compute refresh rate
 
@@ -272,7 +272,7 @@ void add_output(wroc_direct_backend* backend, drm_resources* resources, drmModeC
     log_warn("  refresh: {} mHz", refresh);
     log_warn("  extent: ({}, {})", crtc->width, crtc->height);
 
-    auto output = wrei_create<wroc_drm_output>();
+    auto output = core_create<wroc_drm_output>();
     output->state = new wroc_drm_output_state {
         .primary_plane_id = plane->plane_id,
         .crtc_id = crtc->crtc_id,
@@ -322,7 +322,7 @@ static
 void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data);
 
 static
-void drm_handle_event(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_bits events)
+void drm_handle_event(wroc_direct_backend* backend, core_fd* fd, core_fd_event_bits events)
 {
     drmEventContext handlers {
         .version = 3,
@@ -334,22 +334,22 @@ void drm_handle_event(wroc_direct_backend* backend, wrei_fd* fd, wrei_fd_event_b
 void wroc_backend_init_drm(wroc_direct_backend* backend)
 {
     int drm_fd = [&] {
-        auto* device = server->wren->drm.device;
+        auto* device = server->gpu->drm.device;
         if (!(device->available_nodes & (1 << DRM_NODE_PRIMARY))) return -1;
-        auto* opened = wroc_open_restricted(backend, server->wren->drm.device->nodes[DRM_NODE_PRIMARY]);
+        auto* opened = wroc_open_restricted(backend, server->gpu->drm.device->nodes[DRM_NODE_PRIMARY]);
         if (!opened) return -1;
         return opened->fd;
     }();
 
     if (drm_fd < 0) {
         log_error("Failed to open DRM primary node for render device!");
-        wrei_debugkill();
+        core_debugkill();
     }
 
-    backend->drm_fd = wrei_fd_adopt(drm_fd);
+    backend->drm_fd = core_fd_adopt(drm_fd);
 
-    wrei_fd_set_listener(backend->drm_fd.get(), server->event_loop.get(), wrei_fd_event_bit::readable,
-        [backend](wrei_fd* fd, wrei_fd_event_bits events) {
+    core_fd_set_listener(backend->drm_fd.get(), server->event_loop.get(), core_fd_event_bit::readable,
+        [backend](core_fd* fd, core_fd_event_bits events) {
             drm_handle_event(backend, fd, events);
         });
 
@@ -367,10 +367,10 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
     u64 cap = 0;
 
     log_debug("Checking for framebuffer modifier support");
-    wrei_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_ADDFB2_MODIFIERS, &cap)).ok() && cap);
+    core_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_ADDFB2_MODIFIERS, &cap)).ok() && cap);
 
     log_debug("Checking for monotonic timestamp support");
-    wrei_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap)).ok() && cap);
+    core_assert(unix_check(drmGetCap(drm_fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap)).ok() && cap);
 
     drm_resources res(drm_fd);
 
@@ -380,11 +380,11 @@ void wroc_backend_init_drm(wroc_direct_backend* backend)
 
     // Intersect format sets for all outputs
 
-    std::vector<const wren_format_set*> format_sets;
+    std::vector<const gpu_format_set*> format_sets;
     for (auto& output : backend->outputs) {
         format_sets.emplace_back(&output->state->format_set);
     }
-    backend->format_set = wren_intersect_format_sets(format_sets);
+    backend->format_set = gpu_intersect_format_sets(format_sets);
 }
 
 // -----------------------------------------------------------------------------
@@ -394,14 +394,14 @@ void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, vo
 {
     auto* output = static_cast<wroc_drm_output*>(data);
 
-    auto time = wrei_steady_clock_from_timespec<CLOCK_MONOTONIC>(timespec {
+    auto time = core_steady_clock_from_timespec<CLOCK_MONOTONIC>(timespec {
         .tv_sec = tv_sec,
         .tv_nsec = tv_usec * 1000,
     });
 
 #if WROC_DRM_EXPERIMENTAL_BROKEN_TEARING_SUPPORT
     if (output->state->pending_release_semaphore) {
-        wren_semaphore_signal_value(output->state->pending_release_semaphore.get(), output->state->pending_release_point);
+        gpu_semaphore_signal_value(output->state->pending_release_semaphore.get(), output->state->pending_release_point);
         output->state->pending_release_semaphore = nullptr;
     }
 #endif
@@ -425,7 +425,7 @@ void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, vo
 }
 
 static
-u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
+u32 get_image_fb2(wroc_direct_backend* backend, gpu_image* image)
 {
     std::optional<u32> found = std::nullopt;
     std::erase_if(backend->buffer_cache, [&](const auto& entry) {
@@ -440,7 +440,7 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
 
     log_warn("Importing new FB2 buffer");
 
-    auto dma_params = wren_image_export_dmabuf(image);
+    auto dma_params = gpu_image_export_dmabuf(image);
     auto size = image->extent;
     auto format = image->format;
 
@@ -478,12 +478,12 @@ u32 get_image_fb2(wroc_direct_backend* backend, wren_image* image)
 }
 
 wroc_output_commit_id wroc_drm_output::commit(
-    wren_image* image,
-    wren_syncpoint acquire,
-    wren_syncpoint release,
+    gpu_image* image,
+    gpu_syncpoint acquire,
+    gpu_syncpoint release,
     flags<wroc_output_commit_flag> in_flags)
 {
-    wrei_assert(frame_available);
+    core_assert(frame_available);
     frame_available = false;
 
     auto backend = wroc_get_direct_backend();
@@ -497,7 +497,7 @@ wroc_output_commit_id wroc_drm_output::commit(
         drmModeAtomicAddProperty(req, state->primary_plane_id, state->plane_prop.get_prop_id(name), value);
     };
 
-    auto in_fence = wren_semaphore_export_syncfile(acquire.semaphore, acquire.value);
+    auto in_fence = gpu_semaphore_export_syncfile(acquire.semaphore, acquire.value);
     defer { close(in_fence); };
 
     plane_set("FB_ID", fb2_handle);
@@ -533,13 +533,13 @@ wroc_output_commit_id wroc_drm_output::commit(
 
     if (unix_check(drmModeAtomicCommit(backend->drm_fd->get(), req, flags, this)).err()) {
         // TODO: Configuration rollback
-        wren_semaphore_import_syncfile(release.semaphore, in_fence, release.value);
+        gpu_semaphore_import_syncfile(release.semaphore, in_fence, release.value);
         frame_available = true;
         return {};
     }
 
     if (state->last_release_semaphore) {
-        wren_semaphore_import_syncfile(state->last_release_semaphore.get(), out_fence, state->last_release_point);
+        gpu_semaphore_import_syncfile(state->last_release_semaphore.get(), out_fence, state->last_release_point);
     }
 
     state->last_commit_time = std::chrono::steady_clock::now();

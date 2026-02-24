@@ -13,15 +13,15 @@
 
 // -----------------------------------------------------------------------------
 
-struct wrio_wayland;
-struct wrio_output_wayland;
-struct wrio_input_device_wayland_keyboard;
-struct wrio_input_device_wayland_pointer;
+struct io_wayland;
+struct io_output_wayland;
+struct io_input_device_wayland_keyboard;
+struct io_input_device_wayland_pointer;
 
 // -----------------------------------------------------------------------------
 
 template<typename K, typename V, void(*Destroy)(V*)>
-struct wrio_wl_proxy_cache
+struct io_wl_proxy_cache
 {
     using Vptr = std::unique_ptr<V, decltype([](V* v) { Destroy(v); })>;
     struct entry { weak<K> key; Vptr value; };
@@ -46,7 +46,7 @@ struct wrio_wl_proxy_cache
 };
 
 template<typename T>
-std::span<T> wrio_to_span(wl_array* array)
+std::span<T> io_to_span(wl_array* array)
 {
     usz count = array->size / sizeof(T);
     return std::span<T>(static_cast<T*>(array->data), count);
@@ -54,51 +54,51 @@ std::span<T> wrio_to_span(wl_array* array)
 
 // -----------------------------------------------------------------------------
 
-#define WRIO_WL_INTERFACE(Name) struct Name* Name = {}
-#define WRIO_WL_LISTENER(Name) const Name##_listener wrio_##Name##_listener
-#define WRIO_WL_STUB(Type, Name) \
+#define IO__WL_INTERFACE(Name) struct Name* Name = {}
+#define IO__WL_LISTENER(Name) const Name##_listener io_##Name##_listener
+#define IO__WL_STUB(Type, Name) \
     .Name = [](void*, Type* t, auto...) { log_error("TODO - " #Type "{{{}}}::" #Name, (void*) t); }
-#define WRIO_WL_STUB_QUIET(Name) \
+#define IO__WL_STUB_QUIET(Name) \
     .Name = [](auto...) {}
 
-struct wrio_wayland
+struct io_wayland
 {
-    WRIO_WL_INTERFACE(wl_display);
-    WRIO_WL_INTERFACE(wl_registry);
-    WRIO_WL_INTERFACE(wl_compositor);
-    WRIO_WL_INTERFACE(xdg_wm_base);
-    WRIO_WL_INTERFACE(wl_seat);
-    WRIO_WL_INTERFACE(zxdg_decoration_manager_v1);
-    WRIO_WL_INTERFACE(zwp_relative_pointer_manager_v1);
-    WRIO_WL_INTERFACE(zwp_pointer_constraints_v1);
-    WRIO_WL_INTERFACE(zwp_linux_dmabuf_v1);
-    WRIO_WL_INTERFACE(wp_linux_drm_syncobj_manager_v1);
+    IO__WL_INTERFACE(wl_display);
+    IO__WL_INTERFACE(wl_registry);
+    IO__WL_INTERFACE(wl_compositor);
+    IO__WL_INTERFACE(xdg_wm_base);
+    IO__WL_INTERFACE(wl_seat);
+    IO__WL_INTERFACE(zxdg_decoration_manager_v1);
+    IO__WL_INTERFACE(zwp_relative_pointer_manager_v1);
+    IO__WL_INTERFACE(zwp_pointer_constraints_v1);
+    IO__WL_INTERFACE(zwp_linux_dmabuf_v1);
+    IO__WL_INTERFACE(wp_linux_drm_syncobj_manager_v1);
 
-    ref<wrei_fd> wl_display_fd = {};
+    ref<core_fd> wl_display_fd = {};
 
-    std::vector<ref<wrio_output_wayland>> outputs;
+    std::vector<ref<io_output_wayland>> outputs;
 
     std::chrono::steady_clock::time_point current_dispatch_time;
 
-    ref<wrio_input_device_wayland_keyboard> keyboard;
-    ref<wrio_input_device_wayland_pointer>  pointer;
+    ref<io_input_device_wayland_keyboard> keyboard;
+    ref<io_input_device_wayland_pointer>  pointer;
 
-    wrio_wl_proxy_cache<wren_semaphore, wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
-    wrio_wl_proxy_cache<wren_image,     wl_buffer,                        wl_buffer_destroy>                        buffer_cache;
+    io_wl_proxy_cache<gpu_semaphore, wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
+    io_wl_proxy_cache<gpu_image,     wl_buffer,                        wl_buffer_destroy>                        buffer_cache;
 
-    ~wrio_wayland();
+    ~io_wayland();
 };
 
 // -----------------------------------------------------------------------------
 
-struct wrio_output_wayland : wrio_output
+struct io_output_wayland : io_output
 {
-    WRIO_WL_INTERFACE(wl_surface);
-    WRIO_WL_INTERFACE(xdg_surface);
-    WRIO_WL_INTERFACE(xdg_toplevel);
-    WRIO_WL_INTERFACE(zxdg_toplevel_decoration_v1);
-    WRIO_WL_INTERFACE(zwp_locked_pointer_v1);
-    WRIO_WL_INTERFACE(wp_linux_drm_syncobj_surface_v1);
+    IO__WL_INTERFACE(wl_surface);
+    IO__WL_INTERFACE(xdg_surface);
+    IO__WL_INTERFACE(xdg_toplevel);
+    IO__WL_INTERFACE(zxdg_toplevel_decoration_v1);
+    IO__WL_INTERFACE(zwp_locked_pointer_v1);
+    IO__WL_INTERFACE(wp_linux_drm_syncobj_surface_v1);
 
     wl_callback* frame_callback = {};
     bool pointer_locked = false;
@@ -107,47 +107,47 @@ struct wrio_output_wayland : wrio_output
         vec2u32 size;
     } configure;
 
-    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag>) final override;
+    virtual void commit(gpu_image*, gpu_syncpoint acquire, gpu_syncpoint release, flags<io_output_commit_flag>) final override;
 
-    ~wrio_output_wayland();
+    ~io_output_wayland();
 };
 
 inline
-auto get_impl(wrio_output* output) -> wrio_output_wayland*
+auto get_impl(io_output* output) -> io_output_wayland*
 {
-    return dynamic_cast<wrio_output_wayland*>(output);
+    return dynamic_cast<io_output_wayland*>(output);
 }
 
 // -----------------------------------------------------------------------------
 
-struct wrio_input_device_wayland_keyboard : wrio_input_device
+struct io_input_device_wayland_keyboard : io_input_device
 {
-    WRIO_WL_INTERFACE(wl_keyboard);
+    IO__WL_INTERFACE(wl_keyboard);
 
-    ~wrio_input_device_wayland_keyboard();
+    ~io_input_device_wayland_keyboard();
 };
 
-struct wrio_input_device_wayland_pointer : wrio_input_device
+struct io_input_device_wayland_pointer : io_input_device
 {
-    WRIO_WL_INTERFACE(wl_pointer);
-    WRIO_WL_INTERFACE(zwp_relative_pointer_v1);
+    IO__WL_INTERFACE(wl_pointer);
+    IO__WL_INTERFACE(zwp_relative_pointer_v1);
 
-    weak<wrio_output> current_output;
+    weak<io_output> current_output;
     u32 last_serial;
 
-    ~wrio_input_device_wayland_pointer();
+    ~io_input_device_wayland_pointer();
 };
 
 // -----------------------------------------------------------------------------
 
-extern WRIO_WL_LISTENER(xdg_surface);
-extern WRIO_WL_LISTENER(xdg_wm_base);
-extern WRIO_WL_LISTENER(wl_pointer);
-extern WRIO_WL_LISTENER(wl_keyboard);
-extern WRIO_WL_LISTENER(wl_seat);
-extern WRIO_WL_LISTENER(wl_registry);
-extern WRIO_WL_LISTENER(zxdg_toplevel_decoration_v1);
-extern WRIO_WL_LISTENER(xdg_toplevel);
-extern WRIO_WL_LISTENER(zwp_relative_pointer_v1);
-extern WRIO_WL_LISTENER(zwp_locked_pointer_v1);
-extern WRIO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1);
+extern IO__WL_LISTENER(xdg_surface);
+extern IO__WL_LISTENER(xdg_wm_base);
+extern IO__WL_LISTENER(wl_pointer);
+extern IO__WL_LISTENER(wl_keyboard);
+extern IO__WL_LISTENER(wl_seat);
+extern IO__WL_LISTENER(wl_registry);
+extern IO__WL_LISTENER(zxdg_toplevel_decoration_v1);
+extern IO__WL_LISTENER(xdg_toplevel);
+extern IO__WL_LISTENER(zwp_relative_pointer_v1);
+extern IO__WL_LISTENER(zwp_locked_pointer_v1);
+extern IO__WL_LISTENER(zwp_linux_dmabuf_feedback_v1);

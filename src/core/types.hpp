@@ -29,99 +29,99 @@ using f64 = double;
 // -----------------------------------------------------------------------------
 
 template<glm::length_t L, typename T>
-using wrei_vec = glm::vec<L, T>;
+using core_vec = glm::vec<L, T>;
 
-using vec2u32 = wrei_vec<2, u32>;
-using vec2i32 = wrei_vec<2, i32>;
-using vec2f32 = wrei_vec<2, f32>;
-using vec2f64 = wrei_vec<2, f64>;
+using vec2u32 = core_vec<2, u32>;
+using vec2i32 = core_vec<2, i32>;
+using vec2f32 = core_vec<2, f32>;
+using vec2f64 = core_vec<2, f64>;
 
-using vec3f32 = wrei_vec<3, f32>;
+using vec3f32 = core_vec<3, f32>;
 
-using vec4f32 = wrei_vec<4, f32>;
-using vec4u8  = wrei_vec<4,  u8>;
+using vec4f32 = core_vec<4, f32>;
+using vec4u8  = core_vec<4,  u8>;
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct wrei_aabb;
+struct core_aabb;
 
 // -----------------------------------------------------------------------------
 
-struct wrei_xywh_tag{};
-static constexpr wrei_xywh_tag wrei_xywh;
+struct core_xywh_tag{};
+static constexpr core_xywh_tag core_xywh;
 
-struct wrei_minmax_tag{};
-static constexpr wrei_minmax_tag wrei_minmax;
+struct core_minmax_tag{};
+static constexpr core_minmax_tag core_minmax;
 
 template<typename T>
-struct wrei_rect
+struct core_rect
 {
-    wrei_vec<2, T> origin, extent;
+    core_vec<2, T> origin, extent;
 
-    wrei_rect() = default;
+    core_rect() = default;
 
-    wrei_rect(wrei_vec<2, T> origin, wrei_vec<2, T> extent, wrei_xywh_tag)
+    core_rect(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
         : origin(origin)
         , extent(extent)
     {}
 
-    wrei_rect(wrei_vec<2, T> min, wrei_vec<2, T> max, wrei_minmax_tag)
+    core_rect(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
         : origin(min)
         , extent(max - min)
     {}
 
     template<typename T2>
         requires (!std::same_as<T2, T>)
-    wrei_rect(const wrei_rect<T2>& other)
-        : wrei_rect(other.origin, other.extent, wrei_xywh)
+    core_rect(const core_rect<T2>& other)
+        : core_rect(other.origin, other.extent, core_xywh)
     {}
 
     template<typename T2>
-    wrei_rect(const wrei_aabb<T2>& other)
-        : wrei_rect(other.min, other.max, wrei_minmax)
+    core_rect(const core_aabb<T2>& other)
+        : core_rect(other.min, other.max, core_minmax)
     {}
 
-    constexpr bool operator==(const wrei_rect<T>& other) const = default;
+    constexpr bool operator==(const core_rect<T>& other) const = default;
 };
 
-using rect2i32 = wrei_rect<i32>;
-using rect2f32 = wrei_rect<f32>;
-using rect2f64 = wrei_rect<f64>;
+using rect2i32 = core_rect<i32>;
+using rect2f32 = core_rect<f32>;
+using rect2f64 = core_rect<f64>;
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct wrei_aabb
+struct core_aabb
 {
-    wrei_vec<2, T> min, max;
+    core_vec<2, T> min, max;
 
-    wrei_aabb() = default;
+    core_aabb() = default;
 
-    wrei_aabb(wrei_vec<2, T> origin, wrei_vec<2, T> extent, wrei_xywh_tag)
+    core_aabb(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
         : min(origin)
         , max(origin + extent)
     {}
 
-    wrei_aabb(wrei_vec<2, T> min, wrei_vec<2, T> max, wrei_minmax_tag)
+    core_aabb(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
         : min(min)
         , max(max)
     {}
 
     template<typename T2>
         requires (!std::same_as<T2, T>)
-    wrei_aabb(const wrei_aabb<T2>& other)
-        : wrei_aabb(other.min, other.max, wrei_minmax)
+    core_aabb(const core_aabb<T2>& other)
+        : core_aabb(other.min, other.max, core_minmax)
     {}
 
     template<typename T2>
-    wrei_aabb(const wrei_rect<T2>& other)
-        : wrei_aabb(other.origin, other.extent, wrei_xywh)
+    core_aabb(const core_rect<T2>& other)
+        : core_aabb(other.origin, other.extent, core_xywh)
     {}
 
-    constexpr bool operator==(const wrei_aabb<T>& other) const = default;
+    constexpr bool operator==(const core_aabb<T>& other) const = default;
 };
 
-using aabb2i32 = wrei_aabb<i32>;
-using aabb2f32 = wrei_aabb<f32>;
-using aabb2f64 = wrei_aabb<f64>;
+using aabb2i32 = core_aabb<i32>;
+using aabb2f32 = core_aabb<f32>;
+using aabb2f64 = core_aabb<f64>;

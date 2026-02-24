@@ -7,91 +7,91 @@
 // -----------------------------------------------------------------------------
 
 [[clang::noinline]] inline
-void wrei_debugbreak()
+void core_debugbreak()
 {
     std::cerr << std::stacktrace::current() << std::endl;
     raise(SIGTRAP);
 }
 
 [[noreturn]] [[clang::noinline]] inline
-void wrei_debugkill()
+void core_debugkill()
 {
     std::cerr << std::stacktrace::current() << std::endl;
     std::terminate();
 }
 
 [[noreturn]] inline
-void wrei_unreachable()
+void core_unreachable()
 {
 #ifdef NDEBUG
     std::unreachable();
 #else
-    wrei_debugkill();
+    core_debugkill();
 #endif
 }
 
 [[noreturn]] [[clang::noinline]] inline
-void wrei_assert_fail(std::string_view expr, std::string_view reason = {})
+void core_assert_fail(std::string_view expr, std::string_view reason = {})
 {
     log_error("assert({}) failed{}{}", expr, reason.empty() ? "" : ": ", reason);
-    wrei_debugkill();
+    core_debugkill();
 }
 
-#define wrei_assert(Expr, ...) \
-    (static_cast<bool>(Expr) ? void() : wrei_assert_fail(#Expr __VA_OPT__(, std::format(__VA_ARGS__))))
+#define core_assert(Expr, ...) \
+    (static_cast<bool>(Expr) ? void() : core_assert_fail(#Expr __VA_OPT__(, std::format(__VA_ARGS__))))
 
 // -----------------------------------------------------------------------------
 
 template<typename Enum>
-struct wrei_enum_name_props
+struct core_enum_name_props
 {
     static constexpr usz prefix = 0;
     static constexpr usz suffix = 0;
 };
 
-#define WREI_DEFINE_ENUM_NAME_PROPS(Enum, Prefix, Suffix) \
+#define CORE_DEFINE_ENUM_NAME_PROPS(Enum, Prefix, Suffix) \
     template<> \
-    struct wrei_enum_name_props<Enum> \
+    struct core_enum_name_props<Enum> \
     { \
         static constexpr usz prefix = std::string_view(Prefix).size(); \
         static constexpr usz suffix = std::string_view(Suffix).size(); \
     }
 
 template<typename Enum>
-std::string_view wrei_enum_to_string(Enum value)
+std::string_view core_enum_to_string(Enum value)
 {
     std::string_view name = magic_enum::enum_name(value);
-    name.remove_prefix(wrei_enum_name_props<Enum>::prefix);
-    name.remove_suffix(wrei_enum_name_props<Enum>::suffix);
+    name.remove_prefix(core_enum_name_props<Enum>::prefix);
+    name.remove_suffix(core_enum_name_props<Enum>::suffix);
     return name;
 }
 
 // -----------------------------------------------------------------------------
 
 template<typename Fn>
-struct wrei_defer_guard
+struct core_defer_guard
 {
     Fn fn;
 
-    wrei_defer_guard(Fn&& fn): fn(std::move(fn)) {}
-    ~wrei_defer_guard() { fn(); };
+    core_defer_guard(Fn&& fn): fn(std::move(fn)) {}
+    ~core_defer_guard() { fn(); };
 };
 
-#define defer wrei_defer_guard _ = [&]
+#define defer core_defer_guard _ = [&]
 
 // -----------------------------------------------------------------------------
 
 template<typename... Ts>
-struct wrei_overload_set : Ts... {
+struct core_overload_set : Ts... {
     using Ts::operator()...;
 };
 
-template<typename... Ts> wrei_overload_set(Ts...) -> wrei_overload_set<Ts...>;
+template<typename... Ts> core_overload_set(Ts...) -> core_overload_set<Ts...>;
 
 // -----------------------------------------------------------------------------
 
 constexpr
-std::string wrei_ascii_to_upper(std::string_view in)
+std::string core_ascii_to_upper(std::string_view in)
 {
     std::string out(in);
     for (char& c : out) c = std::toupper(c);
@@ -100,27 +100,27 @@ std::string wrei_ascii_to_upper(std::string_view in)
 
 // -----------------------------------------------------------------------------
 
-constexpr auto wrei_ptr_to(auto&& value) { return &value; }
+constexpr auto ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
-#define WREI_FUNC_REF(func) [](void* d, auto... args) { return (*static_cast<decltype(func)*>(d))(std::forward<decltype(args)>(args)...); }, &func
+#define CORE_FUNC_REF(func) [](void* d, auto... args) { return (*static_cast<decltype(func)*>(d))(std::forward<decltype(args)>(args)...); }, &func
 
 // -----------------------------------------------------------------------------
 
-#define WREI_DELETE_COPY(Type) \
+#define CORE_DELETE_COPY(Type) \
                Type(const Type& ) = delete; \
     Type& operator=(const Type& ) = delete; \
 
-#define WREI_DELETE_COPY_MOVE(Type)         \
-    WREI_DELETE_COPY(Type)                  \
+#define CORE_DELETE_COPY_MOVE(Type)         \
+    CORE_DELETE_COPY(Type)                  \
                Type(      Type&&) = delete; \
     Type& operator=(      Type&&) = delete;
 
 // -----------------------------------------------------------------------------
 
 template<typename E, typename T>
-struct wrei_enum_map
+struct core_enum_map
 {
     T _data[magic_enum::enum_count<E>()];
 
@@ -133,7 +133,7 @@ struct wrei_enum_map
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct wrei_counting_set
+struct core_counting_set
 {
     using value_type = T;
 
@@ -147,7 +147,7 @@ struct wrei_counting_set
     bool dec(auto&& t)
     {
         auto iter = counts.find(t);
-        wrei_assert(iter != counts.end());
+        core_assert(iter != counts.end());
         if (!--iter->second) {
             counts.erase(iter);
             return true;
@@ -165,13 +165,13 @@ struct wrei_counting_set
 
 // -----------------------------------------------------------------------------
 
-constexpr vec2f64 wrei_copysign(     vec2f64 v, vec2f64 s) { return vec2f64(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
-constexpr vec2f64 wrei_round_to_zero(vec2f64 v)            { return wrei_copysign(glm::floor(glm::abs(v)), v);                 }
+constexpr vec2f64 core_copysign(     vec2f64 v, vec2f64 s) { return vec2f64(std::copysign(v.x, s.x), std::copysign(v.y, s.y)); }
+constexpr vec2f64 core_round_to_zero(vec2f64 v)            { return core_copysign(glm::floor(glm::abs(v)), v);                 }
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-auto wrei_iterate(std::span<T> view, bool reverse = false)
+auto core_iterate(std::span<T> view, bool reverse = false)
 {
     struct iterator
     {
@@ -202,7 +202,7 @@ auto wrei_iterate(std::span<T> view, bool reverse = false)
 
 // -----------------------------------------------------------------------------
 
-struct wrei_command_parser
+struct core_command_parser
 {
     std::span<const std::string_view> args;
     u32 index;
@@ -244,18 +244,18 @@ struct wrei_command_parser
 // -----------------------------------------------------------------------------
 
 inline
-std::chrono::system_clock::time_point wrei_time_current()
+std::chrono::system_clock::time_point core_time_current()
 {
     return std::chrono::system_clock::now();
 }
 
 // Assume steady_clock is implemented as CLOCK_MONOTONIC.
-static constexpr int wrei_steady_clock_id = CLOCK_MONOTONIC;
+static constexpr int core_steady_clock_id = CLOCK_MONOTONIC;
 
 template<int ClockID>
-std::chrono::steady_clock::time_point wrei_steady_clock_from_timespec(const timespec& ts)
+std::chrono::steady_clock::time_point core_steady_clock_from_timespec(const timespec& ts)
 {
-    static_assert(wrei_steady_clock_id == ClockID);
+    static_assert(core_steady_clock_id == ClockID);
 
     auto ns = ts.tv_sec * 1'000'000'000 + ts.tv_nsec;
     auto dur = std::chrono::nanoseconds(ns);
@@ -263,9 +263,9 @@ std::chrono::steady_clock::time_point wrei_steady_clock_from_timespec(const time
 }
 
 template<int ClockID>
-timespec wrei_steady_clock_to_timespec(std::chrono::steady_clock::time_point tp)
+timespec core_steady_clock_to_timespec(std::chrono::steady_clock::time_point tp)
 {
-    static_assert(wrei_steady_clock_id == ClockID);
+    static_assert(core_steady_clock_id == ClockID);
 
     auto ns = tp.time_since_epoch().count();
 
@@ -275,7 +275,7 @@ timespec wrei_steady_clock_to_timespec(std::chrono::steady_clock::time_point tp)
     return ts;
 }
 
-enum class wrei_time_format : u32
+enum class core_time_format : u32
 {
     iso8601,
     date_pretty,
@@ -285,15 +285,15 @@ enum class wrei_time_format : u32
     time_ms,
 };
 
-std::string wrei_time_to_string(std::chrono::system_clock::time_point, wrei_time_format);
+std::string core_time_to_string(std::chrono::system_clock::time_point, core_time_format);
 
-std::string wrei_duration_to_string(std::chrono::duration<f64, std::nano> dur);
-std::string wrei_byte_size_to_string(u64 bytes);
+std::string core_duration_to_string(std::chrono::duration<f64, std::nano> dur);
+std::string core_byte_size_to_string(u64 bytes);
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-T* wrei_byte_offset_pointer(void* source, isz offset)
+T* core_byte_offset_pointer(void* source, isz offset)
 {
     return reinterpret_cast<T*>(reinterpret_cast<byte*>(source) + offset);
 }
@@ -301,7 +301,7 @@ T* wrei_byte_offset_pointer(void* source, isz offset)
 // -----------------------------------------------------------------------------
 
 inline
-usz wrei_compute_geometric_growth(usz current_size, usz new_min_size)
+usz core_compute_geometric_growth(usz current_size, usz new_min_size)
 {
     usz geometric = current_size + (current_size >> 1);
     return std::max(geometric, new_min_size);
@@ -310,13 +310,13 @@ usz wrei_compute_geometric_growth(usz current_size, usz new_min_size)
 // -----------------------------------------------------------------------------
 
 inline
-std::string wrei_replace_suffix(std::string_view in, std::string_view old_suffix, std::string_view new_suffix)
+std::string core_replace_suffix(std::string_view in, std::string_view old_suffix, std::string_view new_suffix)
 {
     return std::format("{}{}", in.substr(0, in.size() - old_suffix.size()), new_suffix);
 }
 
 inline
-std::string wrei_escape_utf8(std::string_view in)
+std::string core_escape_utf8(std::string_view in)
 {
     std::string out;
     for (char c : in) {
@@ -340,7 +340,7 @@ std::string wrei_escape_utf8(std::string_view in)
 // -----------------------------------------------------------------------------
 
 inline
-void wrei_log_unix_error(std::string_view message, int err = 0)
+void core_log_unix_error(std::string_view message, int err = 0)
 {
     err = err ?: errno;
 
@@ -349,7 +349,7 @@ void wrei_log_unix_error(std::string_view message, int err = 0)
 }
 
 template<typename T>
-struct wrei_unix_result
+struct core_unix_result
 {
     T   value;
     int error;
@@ -360,7 +360,7 @@ struct wrei_unix_result
 
 template<typename T>
     requires std::is_integral_v<T> || std::is_pointer_v<T>
-wrei_unix_result<T> wrei_unix_check(T value, auto... quiet)
+core_unix_result<T> core_unix_check(T value, auto... quiet)
 {
     static constexpr int fallback_error_code = INT_MAX;
     int error_code = 0;
@@ -382,43 +382,43 @@ wrei_unix_result<T> wrei_unix_check(T value, auto... quiet)
         return { value, error_code };
     }
 
-    wrei_log_unix_error("wrei_unix_check", error_code);
+    core_log_unix_error("core_unix_check", error_code);
 
     return { value, error_code };
 }
 
 #define unix_check(Expr, ...) \
-    wrei_unix_check((errno = 0, (Expr)) __VA_OPT__(,) __VA_ARGS__)
+    core_unix_check((errno = 0, (Expr)) __VA_OPT__(,) __VA_ARGS__)
 
 // -----------------------------------------------------------------------------
 
 inline
-u64 wrei_eventfd_read(int fd)
+u64 core_eventfd_read(int fd)
 {
     u64 count = 0;
     return (unix_check(read(fd, &count, sizeof(count)), EAGAIN, EINTR).value == sizeof(count)) ? count : 0;
 }
 
 inline
-void wrei_eventfd_signal(int fd, u64 inc)
+void core_eventfd_signal(int fd, u64 inc)
 {
     unix_check(write(fd, &inc, sizeof(inc)));
 }
 
 // -----------------------------------------------------------------------------
 
-template<typename T> std::string wrei_to_string(const wrei_vec<2, T>& vec) { return std::format("({}, {})",         vec.x, vec.y);               }
-template<typename T> std::string wrei_to_string(const wrei_vec<3, T>& vec) { return std::format("({}, {}, {})",     vec.x, vec.y, vec.z);        }
-template<typename T> std::string wrei_to_string(const wrei_vec<4, T>& vec) { return std::format("({}, {}, {}, {})", vec.x, vec.y, vec.z, vec.w); }
+template<typename T> std::string core_to_string(const core_vec<2, T>& vec) { return std::format("({}, {})",         vec.x, vec.y);               }
+template<typename T> std::string core_to_string(const core_vec<3, T>& vec) { return std::format("({}, {}, {})",     vec.x, vec.y, vec.z);        }
+template<typename T> std::string core_to_string(const core_vec<4, T>& vec) { return std::format("({}, {}, {}, {})", vec.x, vec.y, vec.z, vec.w); }
 
 template<typename T>
-std::string wrei_to_string(const wrei_rect<T>& rect)
+std::string core_to_string(const core_rect<T>& rect)
 {
     return std::format("(({}, {}) : ({}, {}))", rect.origin.x, rect.origin.y, rect.extent.x, rect.extent.y);
 }
 
 template<typename T>
-std::string wrei_to_string(const wrei_aabb<T>& aabb)
+std::string core_to_string(const core_aabb<T>& aabb)
 {
     return std::format("(({}, {}) < ({}, {}))", aabb.min.x, aabb.min.y, aabb.max.x, aabb.max.y);
 }
@@ -426,34 +426,34 @@ std::string wrei_to_string(const wrei_aabb<T>& aabb)
 // -----------------------------------------------------------------------------
 
 template<typename T>
-wrei_vec<2, T> wrei_aabb_clamp_point(const wrei_aabb<T>& rect, wrei_vec<2, T> point)
+core_vec<2, T> core_aabb_clamp_point(const core_aabb<T>& rect, core_vec<2, T> point)
 {
     return glm::clamp(point, rect.min, rect.max);
 }
 
 template<typename T>
-bool wrei_aabb_contains(const wrei_aabb<T>& rect, wrei_vec<2, T> point)
+bool core_aabb_contains(const core_aabb<T>& rect, core_vec<2, T> point)
 {
     return point.x >= rect.min.x && point.x < rect.max.x
         && point.y >= rect.min.y && point.y < rect.max.y;
 }
 
 template<typename T>
-wrei_aabb<T> wrei_aabb_outer(const wrei_aabb<T>& a, const wrei_aabb<T>& b)
+core_aabb<T> core_aabb_outer(const core_aabb<T>& a, const core_aabb<T>& b)
 {
-    return {glm::min(a.min, b.min), glm::max(a.max, b.max), wrei_minmax};
+    return {glm::min(a.min, b.min), glm::max(a.max, b.max), core_minmax};
 }
 
 template<typename T>
-wrei_aabb<T> wrei_aabb_inner(const wrei_aabb<T>& a, const wrei_aabb<T>& b)
+core_aabb<T> core_aabb_inner(const core_aabb<T>& a, const core_aabb<T>& b)
 {
-    return {glm::max(a.min, b.min), glm::min(a.max, b.max), wrei_minmax};
+    return {glm::max(a.min, b.min), glm::min(a.max, b.max), core_minmax};
 }
 
 template<typename T>
-bool wrei_aabb_intersects(const wrei_aabb<T>& a, const wrei_aabb<T>& b, wrei_aabb<T>* intersection = nullptr)
+bool core_aabb_intersects(const core_aabb<T>& a, const core_aabb<T>& b, core_aabb<T>* intersection = nullptr)
 {
-    wrei_aabb<T> i = {glm::max(a.min, b.min), glm::min(a.max, b.max), wrei_minmax};
+    core_aabb<T> i = {glm::max(a.min, b.min), glm::min(a.max, b.max), core_minmax};
 
     if (i.max.x <= i.min.x || i.max.y <= i.min.y) {
         if (intersection) *intersection = {};
@@ -466,15 +466,15 @@ bool wrei_aabb_intersects(const wrei_aabb<T>& a, const wrei_aabb<T>& b, wrei_aab
 
 template<typename T>
 static
-u32 wrei_aabb_subtract(const wrei_aabb<T>& minuend, const wrei_aabb<T>& subtrahend, wrei_aabb<T>* out)
+u32 core_aabb_subtract(const core_aabb<T>& minuend, const core_aabb<T>& subtrahend, core_aabb<T>* out)
 {
-    wrei_aabb<T> intersection;
-    if (wrei_aabb_intersects(minuend, subtrahend, &intersection)) {
+    core_aabb<T> intersection;
+    if (core_aabb_intersects(minuend, subtrahend, &intersection)) {
         u32 count = 0;
-        if (minuend.min.x != intersection.min.x) /* left   */ out[count++] = {{     minuend.min.x, intersection.min.y}, {intersection.min.x, intersection.max.y}, wrei_minmax};
-        if (minuend.max.x != intersection.max.x) /* right  */ out[count++] = {{intersection.max.x, intersection.min.y}, {     minuend.max.x, intersection.max.y}, wrei_minmax};
-        if (minuend.min.y != intersection.min.y) /* top    */ out[count++] = {{     minuend.min},                       {     minuend.max.x, intersection.min.y}, wrei_minmax};
-        if (minuend.max.y != intersection.max.y) /* bottom */ out[count++] = {{     minuend.min.x, intersection.max.y}, {     minuend.max                      }, wrei_minmax};
+        if (minuend.min.x != intersection.min.x) /* left   */ out[count++] = {{     minuend.min.x, intersection.min.y}, {intersection.min.x, intersection.max.y}, core_minmax};
+        if (minuend.max.x != intersection.max.x) /* right  */ out[count++] = {{intersection.max.x, intersection.min.y}, {     minuend.max.x, intersection.max.y}, core_minmax};
+        if (minuend.min.y != intersection.min.y) /* top    */ out[count++] = {{     minuend.min},                       {     minuend.max.x, intersection.min.y}, core_minmax};
+        if (minuend.max.y != intersection.max.y) /* bottom */ out[count++] = {{     minuend.min.x, intersection.max.y}, {     minuend.max                      }, core_minmax};
         return count;
     } else {
         *out = minuend;
@@ -485,28 +485,28 @@ u32 wrei_aabb_subtract(const wrei_aabb<T>& minuend, const wrei_aabb<T>& subtrahe
 // -----------------------------------------------------------------------------
 
 template<typename T>
-wrei_vec<2, T> wrei_rect_clamp_point(const wrei_rect<T>& rect, wrei_vec<2, T> point)
+core_vec<2, T> core_rect_clamp_point(const core_rect<T>& rect, core_vec<2, T> point)
 {
-    return wrei_aabb_clamp_point<T>(rect, point);
+    return core_aabb_clamp_point<T>(rect, point);
 }
 
 template<typename T>
-bool wrei_rect_contains(const wrei_rect<T>& rect, wrei_vec<2, T> point)
+bool core_rect_contains(const core_rect<T>& rect, core_vec<2, T> point)
 {
-    return wrei_aabb_contains<T>(rect, point);
+    return core_aabb_contains<T>(rect, point);
 }
 
 template<typename T>
-bool wrei_rect_intersects(const wrei_rect<T>& a, const wrei_rect<T>& b, wrei_rect<T>* intersection = nullptr)
+bool core_rect_intersects(const core_rect<T>& a, const core_rect<T>& b, core_rect<T>* intersection = nullptr)
 {
-    wrei_aabb<T> i;
-    bool intersects = wrei_aabb_intersects<T>(a, b, &i);
+    core_aabb<T> i;
+    bool intersects = core_aabb_intersects<T>(a, b, &i);
     if (intersection) *intersection = i;
     return intersects;
 }
 
 template<typename T>
-wrei_rect<T> wrei_rect_constrain(wrei_rect<T> rect, const wrei_rect<T>& bounds)
+core_rect<T> core_rect_constrain(core_rect<T> rect, const core_rect<T>& bounds)
 {
     static constexpr auto constrain_axis = [](T start, T length, T& origin, T& extent) {
         if (extent > length) {
@@ -524,18 +524,18 @@ wrei_rect<T> wrei_rect_constrain(wrei_rect<T> rect, const wrei_rect<T>& bounds)
 // -----------------------------------------------------------------------------
 
 inline
-rect2f64 wrei_rect_fit(vec2f64 outer, vec2f64 inner)
+rect2f64 core_rect_fit(vec2f64 outer, vec2f64 inner)
 {
     f64 scale = glm::min(outer.x / inner.x, outer.y / inner.y);
     auto extent = inner * scale;
     auto offset = (outer - extent) / 2.0;
-    return {offset, extent, wrei_xywh};
+    return {offset, extent, core_xywh};
 }
 
 // -----------------------------------------------------------------------------
 
 template<typename Out, typename In>
-wrei_vec<2, Out> wrei_round(wrei_vec<2, In> pos, wrei_vec<2, In>* remainder = nullptr)
+core_vec<2, Out> core_round(core_vec<2, In> pos, core_vec<2, In>* remainder = nullptr)
 {
     // For points, we floor to treat the position as any point within a given integer region
     auto rounded = glm::floor(pos);
@@ -544,9 +544,9 @@ wrei_vec<2, Out> wrei_round(wrei_vec<2, In> pos, wrei_vec<2, In>* remainder = nu
 }
 
 template<typename Out, typename In>
-wrei_rect<Out> wrei_round(wrei_rect<In> rect, wrei_rect<In>* remainder = nullptr)
+core_rect<Out> core_round(core_rect<In> rect, core_rect<In>* remainder = nullptr)
 {
-    wrei_aabb<In> bounds = rect;
+    core_aabb<In> bounds = rect;
     auto min = bounds.min;
     auto max = bounds.max;
     // For rects, we round as the min and max are treated as integer boundaries
@@ -556,15 +556,15 @@ wrei_rect<Out> wrei_round(wrei_rect<In> rect, wrei_rect<In>* remainder = nullptr
         *remainder = {
             min - origin,
             max - min - (extent),
-            wrei_xywh,
+            core_xywh,
         };
     }
-    return { origin, extent, wrei_xywh };
+    return { origin, extent, core_xywh };
 }
 
 // -----------------------------------------------------------------------------
 
-constexpr usz wrei_round_up_power2(usz v) noexcept
+constexpr usz core_round_up_power2(usz v) noexcept
 {
     v--;
     v |= v >> 1;
@@ -581,28 +581,28 @@ constexpr usz wrei_round_up_power2(usz v) noexcept
 // -----------------------------------------------------------------------------
 
 constexpr
-u8 wrei_hex_to_value(char digit)
+u8 core_hex_to_value(char digit)
 {
     switch (digit) {
         break;case 'a' ... 'f': return 10 + digit - 'a';
         break;case 'A' ... 'F': return 10 + digit - 'A';
         break;case '0' ... '9': return digit - '0';
         break;default:
-            wrei_unreachable();
+            core_unreachable();
     }
 }
 
 constexpr
-vec4u8 wrei_color_from_hex(std::string_view str)
+vec4u8 core_color_from_hex(std::string_view str)
 {
     vec4u8 color;
     if (str.starts_with("#")) str.remove_prefix(1);
 
     auto hex_to_value = [&](u32 i) -> u8 {
-        return wrei_hex_to_value(str[i]) * 16 + wrei_hex_to_value(str[i + 1]);
+        return core_hex_to_value(str[i]) * 16 + core_hex_to_value(str[i + 1]);
     };
 
-    wrei_assert(str.size() >= 6);
+    core_assert(str.size() >= 6);
 
     color.x = hex_to_value(0);
     color.y = hex_to_value(2);
@@ -615,7 +615,7 @@ vec4u8 wrei_color_from_hex(std::string_view str)
 // -----------------------------------------------------------------------------
 
 inline
-u64 wrei_hash_mix(u64 x)
+u64 core_hash_mix(u64 x)
 {
     // From boost
     // https://github.com/boostorg/container_hash/blob/060d4aea6b5b59d2c9146b7d8e994735b2c0a582/include/boost/container_hash/detail/hash_mix.hpp#L67-L81
@@ -632,57 +632,57 @@ u64 wrei_hash_mix(u64 x)
 }
 
 template<typename T>
-usz wrei_hash_single(const T& v)
+usz core_hash_single(const T& v)
 {
     return std::hash<T>{}(v);
 }
 
 template<typename T>
-void wrei_hash_combine(usz& seed, const T& v)
+void core_hash_combine(usz& seed, const T& v)
 {
     // From boost
     // https://github.com/boostorg/container_hash/blob/060d4aea6b5b59d2c9146b7d8e994735b2c0a582/include/boost/container_hash/hash.hpp#L469-L473
 
-    seed = wrei_hash_mix(seed + 0x9e3779b9 + wrei_hash_single(v));
+    seed = core_hash_mix(seed + 0x9e3779b9 + core_hash_single(v));
 }
 
 inline
-void wrei_hash_range(usz& seed, auto start, auto end)
+void core_hash_range(usz& seed, auto start, auto end)
 {
     for (; start != end; ++start) {
-        wrei_hash_combine(seed, *start);
+        core_hash_combine(seed, *start);
     }
 }
 
 inline
-usz wrei_hash_range(auto start, auto end)
+usz core_hash_range(auto start, auto end)
 {
     usz seed = 0;
-    wrei_hash_range(seed, start, end);
+    core_hash_range(seed, start, end);
     return seed;
 }
 
-#define WREI_MAKE_RANGE_HASHABLE(Type) \
+#define CORE_MAKE_RANGE_HASHABLE(Type) \
     template<> struct std::hash<Type> { \
-        usz operator()(const Type& v) { return wrei_hash_range(v.begin(), v.end()); } \
+        usz operator()(const Type& v) { return core_hash_range(v.begin(), v.end()); } \
     };
 
 inline
-usz wrei_hash_variadic(const auto& first, const auto&... rest)
+usz core_hash_variadic(const auto& first, const auto&... rest)
 {
-    usz seed = wrei_hash_single(first);
-    (wrei_hash_combine(seed, rest), ...);
+    usz seed = core_hash_single(first);
+    (core_hash_combine(seed, rest), ...);
     return seed;
 }
 
-#define WREI_MAKE_STRUCT_HASHABLE(Type, ...) \
+#define CORE_MAKE_STRUCT_HASHABLE(Type, ...) \
     template<> struct std::hash<Type> { \
-        usz operator()(const Type& v) { return wrei_hash_variadic(__VA_ARGS__); } \
+        usz operator()(const Type& v) { return core_hash_variadic(__VA_ARGS__); } \
     };
 
 // -----------------------------------------------------------------------------
 
-struct wrei_stacktrace_entry_data
+struct core_stacktrace_entry_data
 {
     bool populated = false;
     std::string description;
@@ -690,44 +690,44 @@ struct wrei_stacktrace_entry_data
     u32 source_line;
 };
 
-struct wrei_stacktrace_entry
+struct core_stacktrace_entry
 {
-    const wrei_stacktrace_entry_data* data;
+    const core_stacktrace_entry_data* data;
 
     const std::string& description() const noexcept { return data->description; }
     const std::filesystem::path& source_file() const noexcept { return data->source_file; }
     u32 source_line() const noexcept { return data->source_line; }
 };
 
-struct wrei_stacktrace
+struct core_stacktrace
 {
-    std::vector<wrei_stacktrace_entry> entries;
+    std::vector<core_stacktrace_entry> entries;
 
-    wrei_stacktrace() = default;
+    core_stacktrace() = default;
 
-    void populate(struct wrei_stacktrace_cache& cache, const std::stacktrace& stacktrace);
+    void populate(struct core_stacktrace_cache& cache, const std::stacktrace& stacktrace);
 
     usz size() const noexcept { return entries.size(); }
-    wrei_stacktrace_entry at(usz i) const { return entries.at(i); }
+    core_stacktrace_entry at(usz i) const { return entries.at(i); }
 
     auto begin() const noexcept { return entries.begin(); }
     auto end() const noexcept { return entries.end(); }
 };
 
-std::string wrei_to_string(const wrei_stacktrace& st);
+std::string core_to_string(const core_stacktrace& st);
 
-struct wrei_stacktrace_cache
+struct core_stacktrace_cache
 {
-    ankerl::unordered_dense::segmented_map<std::stacktrace_entry, wrei_stacktrace_entry_data> entries;
-    ankerl::unordered_dense::segmented_map<std::stacktrace, wrei_stacktrace> traces;
+    ankerl::unordered_dense::segmented_map<std::stacktrace_entry, core_stacktrace_entry_data> entries;
+    ankerl::unordered_dense::segmented_map<std::stacktrace, core_stacktrace> traces;
 
-    std::pair<const wrei_stacktrace*, bool> insert(const std::stacktrace& st);
+    std::pair<const core_stacktrace*, bool> insert(const std::stacktrace& st);
 };
 
 // -----------------------------------------------------------------------------
 
 template<typename T, u32 Max>
-struct wrei_fixed_array {
+struct core_fixed_array {
     T data[Max];
     u32 count;
 
@@ -739,24 +739,24 @@ struct wrei_fixed_array {
 
 // -----------------------------------------------------------------------------
 
-bool wrei_capability_has( cap_value_t cap);
-void wrei_capability_drop(cap_value_t cap);
+bool core_capability_has( cap_value_t cap);
+void core_capability_drop(cap_value_t cap);
 
 // -----------------------------------------------------------------------------
 
 template<typename Base>
-struct wrei_intrusive_list_base
+struct core_intrusive_list_base
 {
-    wrei_intrusive_list_base* next = this;
-    wrei_intrusive_list_base* prev = this;
+    core_intrusive_list_base* next = this;
+    core_intrusive_list_base* prev = this;
 };
 
 template<typename Base>
-struct wrei_intrusive_list_iterator
+struct core_intrusive_list_iterator
 {
-    wrei_intrusive_list_base<Base>* cur;
+    core_intrusive_list_base<Base>* cur;
 
-    void insert_after(wrei_intrusive_list_base<Base>* base)
+    void insert_after(core_intrusive_list_base<Base>* base)
     {
         base->prev = cur;
         base->next = cur->next;
@@ -765,7 +765,7 @@ struct wrei_intrusive_list_iterator
         cur->next = base;
     }
 
-    wrei_intrusive_list_iterator remove()
+    core_intrusive_list_iterator remove()
     {
         cur->next->prev = cur->prev;
         cur->prev->next = cur->next;
@@ -779,18 +779,18 @@ struct wrei_intrusive_list_iterator
     Base* operator->() { return get(); }
     Base* get() { return static_cast<Base*>(cur); }
 
-    bool operator==(const wrei_intrusive_list_iterator&) const noexcept = default;
+    bool operator==(const core_intrusive_list_iterator&) const noexcept = default;
 
-    wrei_intrusive_list_iterator next() { return {cur->next}; }
-    wrei_intrusive_list_iterator prev() { return {cur->prev}; }
+    core_intrusive_list_iterator next() { return {cur->next}; }
+    core_intrusive_list_iterator prev() { return {cur->prev}; }
 };
 
 template<typename Base>
-struct wrei_intrusive_list
+struct core_intrusive_list
 {
-    using iterator = wrei_intrusive_list_iterator<Base>;
+    using iterator = core_intrusive_list_iterator<Base>;
 
-    wrei_intrusive_list_base<Base> root;
+    core_intrusive_list_base<Base> root;
 
     iterator first() { return {root.next}; }
     iterator last()  { return {root.prev}; }

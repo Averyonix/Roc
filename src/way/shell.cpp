@@ -1,37 +1,35 @@
 #include "internal.hpp"
 
-WROC_NAMESPACE_BEGIN
-
 static
 void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
 {
-    auto* surface = wroc_get_userdata<wroc_surface>(wl_surface);
-    surface->xdg_surface = wroc_resource_create_refcounted(xdg_surface, client, resource, id, surface);
+    auto* surface = way_get_userdata<way_surface>(wl_surface);
+    surface->xdg_surface = way_resource_create_refcounted(xdg_surface, client, resource, id, surface);
 }
 
-WROC_INTERFACE(xdg_wm_base) = {
-    WROC_STUB(destroy),
-    WROC_STUB(create_positioner),
+WAY_INTERFACE(xdg_wm_base) = {
+    WAY_STUB(destroy),
+    WAY_STUB(create_positioner),
     .get_xdg_surface = get_xdg_surface,
-    WROC_STUB(pong),
+    WAY_STUB(pong),
 };
 
-WROC_BIND_GLOBAL(xdg_wm_base)
+WAY_BIND_GLOBAL(xdg_wm_base)
 {
-    wroc_resource_create(xdg_wm_base, client, version, id, wroc_get_userdata<wroc_server>(data));
+    way_resource_create(xdg_wm_base, client, version, id, way_get_userdata<way_server>(data));
 }
 
-void wroc_xdg_surface_apply(wroc_surface* surface, wroc_surface_state& from)
+void way_xdg_surface_apply(way_surface* surface, way_surface_state& from)
 {
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.geometry,     geometry);
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.acked_serial, acked_serial);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.geometry,     geometry);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.acked_serial, acked_serial);
 }
 
 static
-void configure(wroc_surface* surface)
+void configure(way_surface* surface)
 {
-    surface->sent_serial = wroc_next_serial(surface->server);
-    wroc_send(surface->server, xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial);
+    surface->sent_serial = way_next_serial(surface->server);
+    way_send(surface->server, xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial);
 }
 
 // -----------------------------------------------------------------------------
@@ -39,19 +37,19 @@ void configure(wroc_surface* surface)
 static
 void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
-    surface->role = wroc_surface_role::xdg_toplevel;
-    surface->xdg_toplevel = wroc_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
+    auto* surface = way_get_userdata<way_surface>(resource);
+    surface->role = way_surface_role::xdg_toplevel;
+    surface->xdg_toplevel = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
 }
 
 static
 void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
 {
-    auto* surface = wroc_get_userdata<wroc_surface>(resource);
+    auto* surface = way_get_userdata<way_surface>(resource);
     auto* server = surface->server;
 
     if (serial > surface->sent_serial) {
-        wroc_post_error(server, surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
+        way_post_error(server, surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
             "Client acked configure {} which is higher than latest sent configure serial {}",
             serial, surface->sent_serial);
         return;
@@ -63,33 +61,33 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
     }
 
     surface->pending->xdg.acked_serial = serial;
-    surface->pending->committed.insert(wroc_surface_committed_state::acked_serial);
+    surface->pending->committed.insert(way_surface_committed_state::acked_serial);
 
     surface->acked_serial = serial;
 }
 
-WROC_INTERFACE(xdg_surface) = {
-    WROC_STUB(destroy),
+WAY_INTERFACE(xdg_surface) = {
+    WAY_STUB(destroy),
     .get_toplevel = get_toplevel,
-    WROC_STUB(get_popup),
-    .set_window_geometry = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, wrei_xywh), i32 x, i32 y, i32 w, i32 h),
+    WAY_STUB(get_popup),
+    .set_window_geometry = WAY_ADDON_SIMPLE_STATE_REQUEST(way_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, core_xywh), i32 x, i32 y, i32 w, i32 h),
     .ack_configure = ack_configure,
 };
 
 static
-void send_premap_configure(wroc_surface* surface)
+void send_premap_configure(way_surface* surface)
 {
     auto* server = surface->server;
 
     if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        wroc_send(server, xdg_toplevel_send_wm_capabilities, surface->xdg_toplevel, wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_wm_capabilities>({
+        way_send(server, xdg_toplevel_send_wm_capabilities, surface->xdg_toplevel, ptr_to(way_to_wl_array<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
         })));
     }
 
-    wroc_send(server, xdg_toplevel_send_configure, surface->xdg_toplevel,
+    way_send(server, xdg_toplevel_send_configure, surface->xdg_toplevel,
         0, 0,
-        wrei_ptr_to(wroc_to_wl_array<const xdg_toplevel_state>({
+        ptr_to(way_to_wl_array<const xdg_toplevel_state>({
             XDG_TOPLEVEL_STATE_ACTIVATED,
         }))
     );
@@ -97,12 +95,12 @@ void send_premap_configure(wroc_surface* surface)
     configure(surface);
 }
 
-void wroc_toplevel_apply(wroc_surface* surface, wroc_surface_state& from)
+void way_toplevel_apply(way_surface* surface, way_surface_state& from)
 {
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.title, title);
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.app_id, app_id);
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.max_size, max_size);
-    WROC_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.min_size, min_size);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.title, title);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.app_id, app_id);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.max_size, max_size);
+    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.min_size, min_size);
 
     if (!surface->mapped) {
         log_info("toplevel surface committed but not mapped, sending configure");
@@ -112,21 +110,19 @@ void wroc_toplevel_apply(wroc_surface* surface, wroc_surface_state& from)
 
 // -----------------------------------------------------------------------------
 
-WROC_INTERFACE(xdg_toplevel) = {
-    WROC_STUB(destroy),
-    WROC_STUB(set_parent),
-    .set_title  = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_toplevel, toplevel.title,  title,  title,  const char* title),
-    .set_app_id = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_toplevel, toplevel.app_id, app_id, app_id, const char* app_id),
-    WROC_STUB(show_window_menu),
-    WROC_STUB(move),
-    WROC_STUB(resize),
-    .set_max_size = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_toplevel, toplevel.max_size, max_size, vec2i32(w, h), i32 w, i32 h),
-    .set_min_size = WROC_ADDON_SIMPLE_STATE_REQUEST(wroc_toplevel, toplevel.min_size, min_size, vec2i32(w, h), i32 w, i32 h),
-    WROC_STUB(set_maximized),
-    WROC_STUB(unset_maximized),
-    WROC_STUB(set_fullscreen),
-    WROC_STUB(unset_fullscreen),
-    WROC_STUB(set_minimized),
+WAY_INTERFACE(xdg_toplevel) = {
+    WAY_STUB(destroy),
+    WAY_STUB(set_parent),
+    .set_title  = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.title,  title,  title,  const char* title),
+    .set_app_id = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.app_id, app_id, app_id, const char* app_id),
+    WAY_STUB(show_window_menu),
+    WAY_STUB(move),
+    WAY_STUB(resize),
+    .set_max_size = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.max_size, max_size, vec2i32(w, h), i32 w, i32 h),
+    .set_min_size = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.min_size, min_size, vec2i32(w, h), i32 w, i32 h),
+    WAY_STUB(set_maximized),
+    WAY_STUB(unset_maximized),
+    WAY_STUB(set_fullscreen),
+    WAY_STUB(unset_fullscreen),
+    WAY_STUB(set_minimized),
 };
-
-WROC_NAMESPACE_END

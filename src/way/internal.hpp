@@ -19,40 +19,38 @@
 #include <wayland/server/cursor-shape-v1.h>
 #include <wayland/server/linux-drm-syncobj-v1.h>
 
-WROC_NAMESPACE_BEGIN
-
 // -----------------------------------------------------------------------------
 
-struct wroc_server : wrei_object
+struct way_server : core_object
 {
-    wrei_event_loop* event_loop;
+    core_event_loop* event_loop;
 
-    wren_context* wren;
-    wrui_context* wrui;
+    gpu_context* gpu;
+    scene_context* scene;
 
     wl_display*  wl_display;
-    ref<wrei_fd> wl_event_loop_fd;
+    ref<core_fd> wl_event_loop_fd;
     std::string socket_name;
 
-    ref<wren_sampler> sampler;
+    ref<gpu_sampler> sampler;
 
     // TODO: Per Wayland client
-    ref<wrui_client> client;
+    ref<scene_client> client;
 
-    ~wroc_server();
+    ~way_server();
 };
 
 // -----------------------------------------------------------------------------
 
-struct wroc_surface;
-struct wroc_buffer;
-struct wroc_buffer_lock;
+struct way_surface;
+struct way_buffer;
+struct way_buffer_lock;
 
 // -----------------------------------------------------------------------------
 
-using wroc_commit_id = u32;
+using way_commit_id = u32;
 
-enum class wroc_surface_role : u32
+enum class way_surface_role : u32
 {
     none,
     cursor,
@@ -64,7 +62,7 @@ enum class wroc_surface_role : u32
 
 // -----------------------------------------------------------------------------
 
-enum class wroc_surface_committed_state : u32
+enum class way_surface_committed_state : u32
 {
     // wl_surface
     buffer,
@@ -93,34 +91,34 @@ enum class wroc_surface_committed_state : u32
     parent_commit,
 };
 
-struct wroc_subsurface_place
+struct way_subsurface_place
 {
-    ref<wroc_surface> reference;
-    ref<wroc_surface> subsurface;
+    ref<way_surface> reference;
+    ref<way_surface> subsurface;
     bool above;
 };
 
-struct wroc_subsurface_move
+struct way_subsurface_move
 {
-    ref<wroc_surface> subsurface;
+    ref<way_surface> subsurface;
     vec2i32 position;
 };
 
-struct wroc_surface_state
+struct way_surface_state
 {
-    wroc_commit_id commit;
-    std::flat_set<wroc_surface_committed_state> committed;
+    way_commit_id commit;
+    std::flat_set<way_surface_committed_state> committed;
 
     struct {
-        wroc_resource_list frame_callbacks;
+        way_resource_list frame_callbacks;
         vec2i32 delta;
         region2i32 opaque_region;
         region2i32 input_region;
     } surface;
 
     struct {
-        ref<wroc_buffer> handle;
-        ref<wroc_buffer_lock> lock;
+        ref<way_buffer> handle;
+        ref<way_buffer_lock> lock;
         wl_output_transform transform;
         i32 scale;
     } buffer;
@@ -131,9 +129,9 @@ struct wroc_surface_state
     } xdg;
 
     struct {
-        wroc_commit_id parent_commit;
-        std::vector<wroc_subsurface_place> places;
-        std::vector<wroc_subsurface_move> moves;
+        way_commit_id parent_commit;
+        std::vector<way_subsurface_place> places;
+        std::vector<way_subsurface_move> moves;
     } subsurface;
 
     struct {
@@ -143,243 +141,239 @@ struct wroc_surface_state
         std::string app_id;
     } toplevel;
 
-    ~wroc_surface_state();
+    ~way_surface_state();
 };
 
-struct wroc_surface : wrei_object
+struct way_surface : core_object
 {
-    wroc_server* server;
+    way_server* server;
 
     // core
-    wroc_resource wl_surface;
-    wroc_surface_role role = wroc_surface_role::none;
+    way_resource wl_surface;
+    way_surface_role role = way_surface_role::none;
 
     // state tracking
-    wroc_commit_id last_commit_id;
-    wroc_surface_state* pending;
-    std::deque<wroc_surface_state> cached;
-    wroc_surface_state current;
+    way_commit_id last_commit_id;
+    way_surface_state* pending;
+    std::deque<way_surface_state> cached;
+    way_surface_state current;
 
     // subsurface stacks
-    std::vector<wroc_surface*> stack;
+    std::vector<way_surface*> stack;
 
     // xdg_surface
-    wroc_resource xdg_surface;
+    way_resource xdg_surface;
     u32 sent_serial;
     u32 acked_serial;
 
     // xdg_toplevel
-    wroc_resource xdg_toplevel;
+    way_resource xdg_toplevel;
 
     // ui representation
-    ref<wrui_window> window;
-    ref<wrui_texture> texture;
+    ref<scene_window> window;
+    ref<scene_texture> texture;
     bool mapped;
 
-    ~wroc_surface();
+    ~way_surface();
 };
 
-void wroc_subsurface_apply( wroc_surface*, wroc_surface_state&);
-void wroc_xdg_surface_apply(wroc_surface*, wroc_surface_state&);
-void wroc_toplevel_apply(   wroc_surface*, wroc_surface_state&);
+void way_subsurface_apply( way_surface*, way_surface_state&);
+void way_xdg_surface_apply(way_surface*, way_surface_state&);
+void way_toplevel_apply(   way_surface*, way_surface_state&);
 
 // -----------------------------------------------------------------------------
 
-struct wroc_buffer : wrei_object
+struct way_buffer : core_object
 {
-    friend wroc_buffer_lock;
+    friend way_buffer_lock;
 
-    wroc_server* server;
+    way_server* server;
 
-    wroc_resource resource;
+    way_resource resource;
 
     vec2u32 extent;
-    ref<wren_image> image;
+    ref<gpu_image> image;
 
-    weak<wroc_buffer_lock> lock_guard;
-    [[nodiscard]] ref<wroc_buffer_lock> lock();
+    weak<way_buffer_lock> lock_guard;
+    [[nodiscard]] ref<way_buffer_lock> lock();
 
-    [[nodiscard]] ref<wroc_buffer_lock> commit(wroc_surface*);
+    [[nodiscard]] ref<way_buffer_lock> commit(way_surface*);
 
     bool released = true;
     void release();
 
-    virtual bool is_ready(wroc_surface*) = 0;
+    virtual bool is_ready(way_surface*) = 0;
 
 protected:
-    virtual void on_commit(wroc_surface*) = 0;
+    virtual void on_commit(way_surface*) = 0;
     virtual void on_unlock() = 0;
 };
 
-struct wroc_buffer_lock : wrei_object
+struct way_buffer_lock : core_object
 {
-    ref<wroc_buffer> buffer;
+    ref<way_buffer> buffer;
 
-    ~wroc_buffer_lock();
+    ~way_buffer_lock();
 };
 
 // -----------------------------------------------------------------------------
 
-struct wroc_shm_pool;
+struct way_shm_pool;
 
-struct wroc_shm_mapping
+struct way_shm_mapping
 {
     void* data;
     i32 size;
 
-    ~wroc_shm_mapping();
+    ~way_shm_mapping();
 };
 
-struct wroc_shm_pool : wrei_object
+struct way_shm_pool : core_object
 {
-    wroc_server* server;
+    way_server* server;
 
-    wroc_resource resource;
+    way_resource resource;
 
-    ref<wrei_fd> fd;
-    ref<wroc_shm_mapping> mapping;
+    ref<core_fd> fd;
+    ref<way_shm_mapping> mapping;
 
-    ~wroc_shm_pool();
+    ~way_shm_pool();
 };
 
 // -----------------------------------------------------------------------------
 
-struct wroc_shm_buffer : wroc_buffer
+struct way_shm_buffer : way_buffer
 {
-    ref<wroc_shm_pool> pool;
+    ref<way_shm_pool> pool;
 
     i32 offset;
     i32 stride;
-    wren_format format;
+    gpu_format format;
 
     bool pending_transfer;
 
-    virtual bool is_ready(wroc_surface*) final override;
+    virtual bool is_ready(way_surface*) final override;
 
-    virtual void on_commit(wroc_surface*) final override;
+    virtual void on_commit(way_surface*) final override;
     virtual void on_unlock() final override;
 };
 
 // -----------------------------------------------------------------------------
 
-#define WROC_ADDON_SIMPLE_STATE_REQUEST(Type, Field, Name, Expr, ...) \
+#define WAY_ADDON_SIMPLE_STATE_REQUEST(Type, Field, Name, Expr, ...) \
     [](wl_client* client, wl_resource* resource, __VA_ARGS__) \
     { \
-        auto* surface = wroc_get_userdata<wroc_surface>(resource); \
+        auto* surface = way_get_userdata<way_surface>(resource); \
         surface->pending->Field = Expr; \
-        surface->pending->committed.insert(wroc_surface_committed_state::Name); \
+        surface->pending->committed.insert(way_surface_committed_state::Name); \
     }
 
 /**
  * Convenience macro for applying trivial state elements.
  */
-#define WROC_ADDON_SIMPLE_STATE_APPLY(From, To, Field, Name) \
+#define WAY_ADDON_SIMPLE_STATE_APPLY(From, To, Field, Name) \
     do { \
-        if ((From).committed.contains(wroc_surface_committed_state::Name)) { \
+        if ((From).committed.contains(way_surface_committed_state::Name)) { \
             (To).Field = std::move((From).Field); \
         } \
     } while (false)
 
 // -----------------------------------------------------------------------------
 
-u32 wroc_next_serial(wroc_server* server);
+u32 way_next_serial(way_server* server);
 
-void wroc_queue_client_flush(wroc_server* server);
+void way_queue_client_flush(way_server* server);
 
-void wroc_send_(wroc_server* server, const char* fn_name, auto fn, auto&& resource, auto&&... args)
+void way_send_(way_server* server, const char* fn_name, auto fn, auto&& resource, auto&&... args)
 {
     if (resource) {
         fn(resource, args...);
-        wroc_queue_client_flush(server);
+        way_queue_client_flush(server);
     } else {
         log_error("Failed to dispatch {}, resource is null", fn_name);
     }
 }
 
-#define wroc_send(Server, Fn, Resource, ...) \
-    wroc_send_(Server, #Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
+#define way_send(Server, Fn, Resource, ...) \
+    way_send_(Server, #Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
 
 
 template<typename ...Args>
-void wroc_post_error(wroc_server* server, wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
+void way_post_error(way_server* server, wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
 {
     if (!resource) return;
     auto message = std::vformat(fmt.get(), std::make_format_args(args...));
     log_error("{}", message);
     wl_resource_post_error(resource, code, "%s", message.c_str());
-    wroc_queue_client_flush(server);
+    way_queue_client_flush(server);
 }
 
 // -----------------------------------------------------------------------------
 
-void wroc_simple_destroy(wl_client* client, wl_resource* resource);
+void way_simple_destroy(wl_client* client, wl_resource* resource);
 
 // -----------------------------------------------------------------------------
 
-wl_global* wroc_global_(wroc_server*, const wl_interface*, i32 version, wl_global_bind_func_t, void* data = nullptr);
-#define wroc_global(Server, Interface, ...) \
-    wroc_global_(Server, &Interface##_interface, wroc_##Interface##_version, wroc_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
+wl_global* way_global_(way_server*, const wl_interface*, i32 version, wl_global_bind_func_t, void* data = nullptr);
+#define way_global(Server, Interface, ...) \
+    way_global_(Server, &Interface##_interface, way_##Interface##_version, way_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
 
 // -----------------------------------------------------------------------------
 
-#define WROC_STUB(Name) \
+#define WAY_STUB(Name) \
     .Name = [](wl_client*, wl_resource* resource, auto...) { \
         log_error("TODO - {}{{{}}}::" #Name, wl_resource_get_interface(resource)->name, (void*)resource); \
     }
-#define WROC_STUB_QUIET(Name) \
+#define WAY_STUB_QUIET(Name) \
     .Name = [](auto...) {}
 
-#define WROC_INTERFACE(Name) \
-    const struct Name##_interface wroc_##Name##_impl
+#define WAY_INTERFACE(Name) \
+    const struct Name##_interface way_##Name##_impl
 
-#define WROC_BIND_GLOBAL(Name) void wroc_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id)
+#define WAY_BIND_GLOBAL(Name) void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id)
 
-#define WROC_INTERFACE_DECLARE(Name, ...) \
-    extern WROC_INTERFACE(Name) \
+#define WAY_INTERFACE_DECLARE(Name, ...) \
+    extern WAY_INTERFACE(Name) \
     __VA_OPT__(; \
         static_assert(std::same_as<decltype(__VA_ARGS__), int>); \
-        constexpr u32 wroc_##Name##_version = __VA_ARGS__; \
-        WROC_BIND_GLOBAL(Name) \
+        constexpr u32 way_##Name##_version = __VA_ARGS__; \
+        WAY_BIND_GLOBAL(Name) \
     )
 
 // -----------------------------------------------------------------------------
 
-wl_resource* wroc_resource_create_(wl_client*, const wl_interface*, int version, int id, const void* impl, wrei_object*, bool refcount);
+wl_resource* way_resource_create_(wl_client*, const wl_interface*, int version, int id, const void* impl, core_object*, bool refcount);
 
 inline
-wl_resource* wroc_resource_create_(wl_client* client, const wl_interface* interface, wl_resource* parent, int id, const void* impl, wrei_object* object, bool refcount)
+wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, wl_resource* parent, int id, const void* impl, core_object* object, bool refcount)
 {
-    return wroc_resource_create_(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
+    return way_resource_create_(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
 }
 
-#define wroc_resource_create(Name, Client, Version, IdOrResource, Object) \
-    wroc_resource_create_(Client, &Name##_interface, Version, IdOrResource, &wroc_##Name##_impl, Object, false)
+#define way_resource_create(Name, Client, Version, IdOrResource, Object) \
+    way_resource_create_(Client, &Name##_interface, Version, IdOrResource, &way_##Name##_impl, Object, false)
 
-#define wroc_resource_create_refcounted(Name, Client, Version, IdOrResource, Object) \
-    wroc_resource_create_(Client, &Name##_interface, Version, IdOrResource, &wroc_##Name##_impl, Object, true)
-
-// -----------------------------------------------------------------------------
-
-WROC_INTERFACE_DECLARE(wl_compositor, 6);
-WROC_INTERFACE_DECLARE(wl_region);
-WROC_INTERFACE_DECLARE(wl_surface);
-
-// WROC_INTERFACE_DECLARE(wl_subcompositor, true);
-// WROC_INTERFACE_DECLARE(wl_subsurface);
-
-// WROC_INTERFACE_DECLARE(wl_output, 4);
-
-WROC_INTERFACE_DECLARE(xdg_wm_base, 7);
-WROC_INTERFACE_DECLARE(xdg_surface);
-WROC_INTERFACE_DECLARE(xdg_toplevel);
-// WROC_INTERFACE_DECLARE(xdg_positioner);
-// WROC_INTERFACE_DECLARE(xdg_popup);
-
-WROC_INTERFACE_DECLARE(wl_buffer);
-
-WROC_INTERFACE_DECLARE(wl_shm, 2);
-WROC_INTERFACE_DECLARE(wl_shm_pool);
+#define way_resource_create_refcounted(Name, Client, Version, IdOrResource, Object) \
+    way_resource_create_(Client, &Name##_interface, Version, IdOrResource, &way_##Name##_impl, Object, true)
 
 // -----------------------------------------------------------------------------
 
-WROC_NAMESPACE_END
+WAY_INTERFACE_DECLARE(wl_compositor, 6);
+WAY_INTERFACE_DECLARE(wl_region);
+WAY_INTERFACE_DECLARE(wl_surface);
+
+// WAY_INTERFACE_DECLARE(wl_subcompositor, true);
+// WAY_INTERFACE_DECLARE(wl_subsurface);
+
+// WAY_INTERFACE_DECLARE(wl_output, 4);
+
+WAY_INTERFACE_DECLARE(xdg_wm_base, 7);
+WAY_INTERFACE_DECLARE(xdg_surface);
+WAY_INTERFACE_DECLARE(xdg_toplevel);
+// WAY_INTERFACE_DECLARE(xdg_positioner);
+// WAY_INTERFACE_DECLARE(xdg_popup);
+
+WAY_INTERFACE_DECLARE(wl_buffer);
+
+WAY_INTERFACE_DECLARE(wl_shm, 2);
+WAY_INTERFACE_DECLARE(wl_shm_pool);

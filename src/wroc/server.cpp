@@ -11,7 +11,7 @@ u32 wroc_get_elapsed_milliseconds()
 
 wl_global* wroc_global(const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)
 {
-    wrei_assert(version <= interface->version);
+    core_assert(version <= interface->version);
     return wl_global_create(server->display, interface, version, data, bind);
 }
 
@@ -19,7 +19,7 @@ void wroc_queue_client_flush()
 {
     if (server->client_flushes_pending) return;
     server->client_flushes_pending++;
-    wrei_event_loop_enqueue(server->event_loop.get(), [] {
+    core_event_loop_enqueue(server->event_loop.get(), [] {
         if (server->client_flushes_pending) {
             wl_display_flush_clients(server->display);
             server->client_flushes_pending = 0;
@@ -36,7 +36,7 @@ void signal_handler(int sig)
     }
 
     // TODO: Dedicated stop eventfd for signal safe handling
-    wrei_event_loop_enqueue(server->event_loop.get(), [sig] {
+    core_event_loop_enqueue(server->event_loop.get(), [sig] {
         const char* name = "Unknown";
         switch (sig) {
             break;case SIGTERM: name = "Terminate";
@@ -55,16 +55,16 @@ void wroc_terminate()
 {
     // TODO: Proper termination will require further event handling (e.g. waiting for GPU jobs to complete)
     //       Send event to start termination, then close event loop only after all subsystems have closed.
-    wrei_event_loop_stop(server->event_loop.get());
+    core_event_loop_stop(server->event_loop.get());
 }
 
 wroc_server* server;
 
 void wroc_run(int argc, char* argv[])
 {
-    wrei_log_set_history_enabled(true);
+    core_log_set_history_enabled(true);
 
-    flags<wren_feature> wren_features = {};
+    flags<gpu_feature> gpu_features = {};
 
     flags<wroc_render_option> render_options = {};
     wroc_backend_type backend_type = getenv("WAYLAND_DISPLAY")
@@ -97,18 +97,18 @@ void wroc_run(int argc, char* argv[])
         } else if (arg == "--csd") {
             show_csd = true;
         } else if (arg == "--validation") {
-            wren_features |= wren_feature::validation;
+            gpu_features |= gpu_feature::validation;
         } else {
             log_error("Unrecognized flag: {}", arg);
             return;
         }
     }
 
-    wrei_init_log(wrei_log_level::trace, log_file ? log_file->c_str() : nullptr);
+    core_init_log(core_log_level::trace, log_file ? log_file->c_str() : nullptr);
 
-    auto server_ref = wrei_create<wroc_server>();
+    auto server_ref = core_create<wroc_server>();
     server = server_ref.get();
-    auto event_loop = wrei_event_loop_create();
+    auto event_loop = core_event_loop_create();
     server->event_loop = event_loop;
     log_info("Server = {}", (void*)server);
 
@@ -141,9 +141,9 @@ void wroc_run(int argc, char* argv[])
     server->socket = wl_display_add_socket_auto(server->display);
 
     auto wl_event_loop = wl_display_get_event_loop(server->display);
-    auto wl_event_loop_fd = wrei_fd_reference(wl_event_loop_get_fd(wl_event_loop));
-    wrei_fd_set_listener(wl_event_loop_fd.get(), event_loop.get(), wrei_fd_event_bit::readable,
-        [&](wrei_fd* fd, wrei_fd_event_bits events) {
+    auto wl_event_loop_fd = core_fd_reference(wl_event_loop_get_fd(wl_event_loop));
+    core_fd_set_listener(wl_event_loop_fd.get(), event_loop.get(), core_fd_event_bit::readable,
+        [&](core_fd* fd, core_fd_event_bits events) {
             server->client_flushes_pending++;
             unix_check(wl_event_loop_dispatch(wl_event_loop, 0));
             wl_display_flush_clients(server->display);
@@ -154,11 +154,11 @@ void wroc_run(int argc, char* argv[])
 
     wroc_output_layout_init();
 
-    // Wren
+    // GPU
 
-    log_info("Initializing wren");
-    auto wren = wren_create(wren_features, event_loop.get());
-    server->wren = wren.get();
+    log_info("Initializing gpu");
+    auto gpu = gpu_create(gpu_features, event_loop.get());
+    server->gpu = gpu.get();
 
     // Backend
 
@@ -234,7 +234,7 @@ void wroc_run(int argc, char* argv[])
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    wrei_event_loop_run(event_loop.get());
+    core_event_loop_run(event_loop.get());
 
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_IGN);
@@ -243,8 +243,8 @@ void wroc_run(int argc, char* argv[])
 
     log_info("Compositor shutting down");
 
-    log_info("Flushing wren submissions");
-    wren_wait_idle(wren.get());
+    log_info("Flushing gpu submissions");
+    gpu_wait_idle(gpu.get());
 
     log_info("Destroying: backend");
     server->backend = nullptr;
@@ -262,8 +262,8 @@ void wroc_run(int argc, char* argv[])
     log_info("Destroying: server");
     server_ref = nullptr;
 
-    log_info("Destroying: wren");
-    wren = nullptr;
+    log_info("Destroying: gpu");
+    gpu = nullptr;
 
     log_info("Destroying: event loop");
     event_loop = nullptr;

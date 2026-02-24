@@ -2,89 +2,89 @@
 
 #include "io.hpp"
 
-#define WRIO_BACKEND(Name) \
+#define IO__BACKEND(Name) \
     struct Name; \
-    WREI_OBJECT_EXPLICIT_DECLARE(Name); \
-    void Name##_init(wrio_context*)
+    CORE_OBJECT_EXPLICIT_DECLARE(Name); \
+    void Name##_init(io_context*)
 
-WRIO_BACKEND(wrio_udev);
-WRIO_BACKEND(wrio_session);
-WRIO_BACKEND(wrio_libinput);
-WRIO_BACKEND(wrio_evdev);
-WRIO_BACKEND(wrio_drm);
-WRIO_BACKEND(wrio_wayland);
+IO__BACKEND(io_udev);
+IO__BACKEND(io_session);
+IO__BACKEND(io_libinput);
+IO__BACKEND(io_evdev);
+IO__BACKEND(io_drm);
+IO__BACKEND(io_wayland);
 
-void wrio_wayland_start(wrio_context*);
+void io_wayland_start(io_context*);
 
-struct wrio_context : wrei_object
+struct io_context : core_object
 {
-    std::move_only_function<wrio_event_handler> event_handler;
+    std::move_only_function<io_event_handler> event_handler;
 
-    wrei_event_loop* event_loop;
-    wren_context*    wren;
+    core_event_loop* event_loop;
+    gpu_context*    gpu;
 
-    std::vector<wrio_input_device*> input_devices;
-    std::vector<wrio_output*>       outputs;
+    std::vector<io_input_device*> input_devices;
+    std::vector<io_output*>       outputs;
 
-    ref<wrio_udev>     udev;
-    ref<wrio_session>  session;
-    ref<wrio_libinput> libinput; // input_device
-    ref<wrio_evdev>    evdev;    // input_device
-    ref<wrio_drm>      drm;      // output
-    ref<wrio_wayland>  wayland;  // output | input_device
+    ref<io_udev>     udev;
+    ref<io_session>  session;
+    ref<io_libinput> libinput; // input_device
+    ref<io_evdev>    evdev;    // input_device
+    ref<io_drm>      drm;      // output
+    ref<io_wayland>  wayland;  // output | input_device
 
-    ~wrio_context();
+    ~io_context();
 };
 
-void wrio_request_shutdown(wrio_context* ctx, wrio_shutdown_reason reason);
+void io_request_shutdown(io_context* ctx, io_shutdown_reason reason);
 
 // -----------------------------------------------------------------------------
 
-enum class wrio_output_commit_flag : u32
+enum class io_output_commit_flag : u32
 {
     vsync = 1 << 0,
 };
 
-struct wrio_swapchain
+struct io_swapchain
 {
     struct release_slot
     {
-        ref<wren_semaphore> semaphore;
-        ref<wren_image> image;
+        ref<gpu_semaphore> semaphore;
+        ref<gpu_image> image;
         u64 release_point;
     };
 
-    std::vector<ref<wren_image>> free_images;
+    std::vector<ref<gpu_image>> free_images;
     std::vector<release_slot> release_slots;
 
     u32 max_images = 2;
     u32 images_in_flight;
 };
 
-struct wrio_output : wrei_object
+struct io_output : core_object
 {
-    wrio_context* ctx;
+    io_context* ctx;
 
     bool frame_requested;
-    flags<wren_image_usage> requested_usage;
+    flags<gpu_image_usage> requested_usage;
 
     vec2u32 size;
 
-    wrio_swapchain swapchain;
+    io_swapchain swapchain;
 
     // True if commit will accept a new frame
     bool commit_available = true;
-    virtual void commit(wren_image*, wren_syncpoint acquire, wren_syncpoint release, flags<wrio_output_commit_flag>) = 0;
+    virtual void commit(gpu_image*, gpu_syncpoint acquire, gpu_syncpoint release, flags<io_output_commit_flag>) = 0;
 
-    ~wrio_output();
+    ~io_output();
 };
 
-void wrio_output_try_redraw(wrio_output*);
-void wrio_output_try_redraw_later(wrio_output*);
-void wrio_output_post_configure(wrio_output*);
+void io_output_try_redraw(io_output*);
+void io_output_try_redraw_later(io_output*);
+void io_output_post_configure(io_output*);
 
-void wrio_output_add(   wrio_output*);
-void wrio_output_remove(wrio_output*);
+void io_output_add(   io_output*);
+void io_output_remove(io_output*);
 
 // -----------------------------------------------------------------------------
 
@@ -94,22 +94,22 @@ void wrio_output_remove(wrio_output*);
  * 2. wayland  - Handles the above devices when running in a nested Wayland session.
  * 3. evdev    - Handles all remaining input devices (gamepad/joystick/etc...) that do not require privileged seat access.
  */
-struct wrio_input_device : wrei_object
+struct io_input_device : core_object
 {
-    wrio_context* ctx;
+    io_context* ctx;
 
-    flags<wrio_input_device_capability> capabilities;
+    flags<io_input_device_capability> capabilities;
 
     std::flat_set<u32> pressed;
 };
 
-void wrio_post_event(wrio_event*);
+void io_post_event(io_event*);
 
-void wrio_input_device_add(           wrio_input_device*);
-void wrio_input_device_remove(        wrio_input_device*);
-void wrio_input_device_leave(         wrio_input_device*);
-void wrio_input_device_key_enter(     wrio_input_device*, std::span<const u32> keys);
-void wrio_input_device_key_press(     wrio_input_device*, u32 key);
-void wrio_input_device_key_release(   wrio_input_device*, u32 key);
-void wrio_input_device_pointer_motion(wrio_input_device*, vec2f32 delta);
-void wrio_input_device_pointer_scroll(wrio_input_device*, vec2f32 delta);
+void io_input_device_add(           io_input_device*);
+void io_input_device_remove(        io_input_device*);
+void io_input_device_leave(         io_input_device*);
+void io_input_device_key_enter(     io_input_device*, std::span<const u32> keys);
+void io_input_device_key_press(     io_input_device*, u32 key);
+void io_input_device_key_release(   io_input_device*, u32 key);
+void io_input_device_pointer_motion(io_input_device*, vec2f32 delta);
+void io_input_device_pointer_scroll(io_input_device*, vec2f32 delta);
