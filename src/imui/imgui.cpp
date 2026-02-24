@@ -290,9 +290,9 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
             break;case scene_event_type::pointer_motion:
                 imui_handle_motion(ctx);
             break;case scene_event_type::pointer_button:
-                imui_handle_button(ctx, event->pointer.button, event->pointer.pressed);
+                imui_handle_button(ctx, event->pointer.button.code, event->pointer.button.pressed);
             break;case scene_event_type::pointer_scroll:
-                imui_handle_wheel(ctx, event->pointer.delta);
+                imui_handle_wheel(ctx, event->pointer.scroll.delta);
             break;case scene_event_type::focus_pointer:
                 imui_handle_focus_pointer(ctx, event->focus.gained);
             break;case scene_event_type::focus_keyboard:

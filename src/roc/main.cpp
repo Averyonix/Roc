@@ -12,6 +12,53 @@ int main()
     auto io = io_create(event_loop.get(), gpu.get());
     auto scene = scene_create(gpu.get(), io.get());
 
+    // Pointer driver
+
+    scene_pointer_set_driver(scene.get(), [scene = scene.get()](scene_pointer_driver_in in) -> scene_pointer_driver_out {
+
+        // Apply a linear mouse acceleration curve
+        //
+        // Offset     - speed before acceleration is applied.
+        // Accel      - rate that sensitivity increases with motion.
+        // Multiplier - total multplier for sensitivity.
+        //
+        //      /
+        //     / <- Accel
+        // ___/
+        //  ^-- Offset
+
+        static constexpr f32 offset     = 2.f;
+        static constexpr f32 rate       = 0.05f;
+        static constexpr f32 multiplier = 0.3f;
+
+        f32 speed = glm::length(in.delta);
+        vec2f32 sens = vec2f32(multiplier * (1 + (std::max(speed, offset) - offset) * rate));
+        vec2f32 delta = in.delta * sens;
+
+        vec2f32 new_pos = in.position + delta;
+
+        // Clamp new position to output layout
+
+        vec2f32 best_position = new_pos;
+        f32 best_distance = INFINITY;
+        for (auto* output : scene_list_outputs(scene)) {
+            auto clamped = core_rect_clamp_point(scene_output_get_viewport(output), new_pos);
+            if (new_pos == clamped) {
+                best_position = new_pos;
+                break;
+            } else if (f32 dist = glm::distance(clamped, new_pos); dist < best_distance) {
+                best_position = clamped;
+                best_distance = dist;
+            }
+        }
+
+        return {
+            .position = best_position,
+            .accel    = delta,
+            .unaccel  = in.delta
+        };
+    });
+
     // Background
 
     auto sampler = gpu_sampler_create(gpu.get(), VK_FILTER_NEAREST, VK_FILTER_LINEAR);
@@ -65,7 +112,7 @@ int main()
     scene_client_set_event_handler(background_client.get(), [scene = scene.get(), &update_backgrounds](scene_event* event) {
         switch (event->type) {
             break;case scene_event_type::pointer_button:
-                if (event->pointer.pressed) {
+                if (event->pointer.button.pressed) {
                     log_warn("Background clicked, dropping keyboard grabs");
                     scene_keyboard_clear_focus(scene);
                 }
@@ -112,25 +159,33 @@ int main()
     scene_node_set_transform(square.get(), transform.get());
     scene_tree_place_above(scene_window_get_tree(window.get()), nullptr, square.get());
 
-    scene_client_set_event_handler(client.get(), [client = client.get(), canvas = canvas.get(), scene = scene.get()](scene_event* event) {
+    scene_client_set_event_handler(client.get(), [&](scene_event* event) {
         switch (event->type) {
             break;case scene_event_type::keyboard_key:
-                log_trace("keyboard_key({}, {})", libevdev_event_code_get_name(EV_KEY, event->key.code), event->pointer.pressed ? "pressed" : "released");
+                log_trace("keyboard_key({}, {})",
+                    libevdev_event_code_get_name(EV_KEY, event->key.code),
+                    event->key.pressed ? "pressed" : "released");
             break;case scene_event_type::keyboard_modifier:
-                log_trace("keyboard_modifier({})", core_to_string(scene_keyboard_get_modifiers(scene)));
+                log_trace("keyboard_modifier({})", core_to_string(scene_keyboard_get_modifiers(scene.get())));
             break;case scene_event_type::pointer_motion:
-                log_trace("pointer_motion(delta: {}, pos: {})", core_to_string(event->pointer.delta), core_to_string(scene_pointer_get_position(scene)));
+                log_trace("pointer_motion(accel: {}, unaccel: {}, pos: {})",
+                    core_to_string(event->pointer.motion.rel_accel),
+                    core_to_string(event->pointer.motion.rel_unaccel),
+                    core_to_string(scene_pointer_get_position(scene.get())));
             break;case scene_event_type::pointer_button:
-                log_trace("pointer_button({}, {})", libevdev_event_code_get_name(EV_KEY, event->pointer.button), event->pointer.pressed ? "pressed" : "released");
-                scene_keyboard_grab(client);
+                log_trace("pointer_button({}, {})",
+                    libevdev_event_code_get_name(EV_KEY, event->pointer.button.code),
+                    event->pointer.button.pressed ? "pressed" : "released");
+                scene_keyboard_grab(client.get());
+                scene_window_raise(window.get());
             break;case scene_event_type::pointer_scroll:
-                log_trace("pointer_scroll(delta: {})", core_to_string(event->pointer.delta));
+                log_trace("pointer_scroll(delta: {})", core_to_string(event->pointer.scroll.delta));
             break;case scene_event_type::focus_pointer:
                 log_trace("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::focus_keyboard:
                 log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::window_resize:
-                scene_texture_set_dst(canvas, {{}, event->window.resize, core_xywh});
+                scene_texture_set_dst(canvas.get(), {{}, event->window.resize, core_xywh});
                 scene_window_set_size(event->window.window, event->window.resize);
             break;case scene_event_type::redraw:
                   case scene_event_type::output_layout:

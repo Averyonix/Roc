@@ -263,9 +263,11 @@ void handle_button(scene_context* ctx, scene_pointer* ptr, scene_scancode code, 
             scene_client_post_event(focus, ptr_to(scene_event {
                 .type = scene_event_type::pointer_button,
                 .pointer = {
-                    .button = code,
-                    .pressed = pressed,
-                    .quiet = quiet,
+                    .button = {
+                        .code    = code,
+                        .pressed = pressed,
+                        .quiet   = quiet,
+                    }
                 },
             }));
         }
@@ -273,20 +275,28 @@ void handle_button(scene_context* ctx, scene_pointer* ptr, scene_scancode code, 
 }
 
 static
-void handle_motion(scene_context* ctx, vec2f32 motion)
+void handle_motion(scene_context* ctx, vec2f32 delta)
 {
     auto ptr = ctx->pointer.get();
-    auto cur = scene_transform_get_local(ptr->transform.get());
-    auto pos = cur.translation + motion;
-    scene_transform_update(ptr->transform.get(), pos, cur.scale);
+    auto cur = scene_transform_get_global(ptr->transform.get());
 
-    update_pointer_focus(ctx, pos);
+    auto res = ctx->pointer->driver({
+        .position = cur.translation,
+        .delta    = delta,
+    });
+
+    scene_transform_update(ptr->transform.get(), res.position, scene_transform_get_local(ptr->transform.get()).scale);
+
+    update_pointer_focus(ctx, res.position);
 
     if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
         scene_client_post_event(focus, ptr_to(scene_event {
             .type = scene_event_type::pointer_motion,
             .pointer = {
-                .delta = motion,
+                .motion = {
+                    .rel_accel   = res.accel,
+                    .rel_unaccel = res.unaccel,
+                },
             },
         }));
     }
@@ -299,7 +309,9 @@ void handle_scroll(scene_context* ctx, vec2f32 delta)
         scene_client_post_event(focus, ptr_to(scene_event {
             .type = scene_event_type::pointer_scroll,
             .pointer = {
-                .delta = delta,
+                .scroll = {
+                    .delta = delta,
+                }
             },
         }));
     }
@@ -319,6 +331,12 @@ void scene_pointer_ungrab(scene_client* client)
         ctx->pointer->grab = nullptr;
         update_pointer_focus(ctx, scene_pointer_get_position(ctx));
     }
+}
+
+void scene_pointer_set_driver(scene_context* ctx, std::move_only_function<scene_pointer_driver_fn>&& driver)
+{
+    ctx->pointer->driver = std::move(driver);
+    handle_motion(ctx, {});
 }
 
 // -----------------------------------------------------------------------------

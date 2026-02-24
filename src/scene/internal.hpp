@@ -108,6 +108,8 @@ struct scene_pointer
     ref<scene_transform> transform;
     ref<scene_texture>   visual;
 
+    std::move_only_function<scene_pointer_driver_fn> driver;
+
     scene_client* grab;
     scene_focus   focus;
 };

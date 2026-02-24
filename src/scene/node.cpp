@@ -134,8 +134,6 @@ void reparent_unsafe(scene_node* node, scene_tree* tree)
         scene_node_unparent(node);
     }
     node->parent = tree;
-    // TODO: We only need to damage regions that were visually affected by the rotate
-    damage_node(node);
 }
 
 static
@@ -160,6 +158,9 @@ void tree_place(scene_tree* tree, scene_node* reference, scene_node* node, bool 
         if (cur > ref) std::rotate(ref + i32(above), cur, cur + 1);
         else           std::rotate(cur, cur + 1, ref + i32(above));
     }
+
+    // TODO: We only need to damage regions that were visually affected by the rotate
+    damage_node(node);
 }
 
 void scene_tree_place_below(scene_tree* tree, scene_node* reference, scene_node* to_place)

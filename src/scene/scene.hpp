@@ -79,6 +79,25 @@ void scene_keyboard_clear_focus(scene_context*);
 
 // -----------------------------------------------------------------------------
 
+struct scene_pointer_driver_in
+{
+    vec2f32 position;
+    vec2f32 delta;
+};
+
+struct scene_pointer_driver_out
+{
+    vec2f32 position;
+    vec2f32 accel;
+    vec2f32 unaccel;
+};
+
+using scene_pointer_driver_fn = auto(scene_pointer_driver_in) -> scene_pointer_driver_out;
+
+void scene_pointer_set_driver(scene_context*, std::move_only_function<scene_pointer_driver_fn>&&);
+
+// -----------------------------------------------------------------------------
+
 enum class scene_node_type
 {
     transform,
@@ -235,10 +254,20 @@ struct scene_keyboard_event
 
 struct scene_pointer_event
 {
-    vec2f32 delta;
-    scene_scancode button;
-    bool pressed;
-    bool quiet;
+    union {
+        struct {
+            vec2f32 rel_accel;
+            vec2f32 rel_unaccel;
+        } motion;
+        struct {
+            scene_scancode code;
+            bool pressed;
+            bool quiet;
+        } button;
+        struct {
+            vec2f32 delta;
+        } scroll;
+    };
 };
 
 struct scene_focus
