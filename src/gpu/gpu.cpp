@@ -1,7 +1,7 @@
 #include "internal.hpp"
 
-#include "wrei/types.hpp"
-#include "wrei/util.hpp"
+#include "core/types.hpp"
+#include "core/util.hpp"
 
 #include <sys/sysmacros.h>
 

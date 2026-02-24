@@ -1,7 +1,7 @@
 #include "wroc.hpp"
 #include "util.hpp"
 
-#include "wrei/shm.hpp"
+#include "core/shm.hpp"
 
 #include "wroc/event.hpp"
 

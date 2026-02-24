@@ -1,9 +1,9 @@
 #pragma once
 
-#include "wrei/object.hpp"
-#include "wrei/event.hpp"
+#include "core/object.hpp"
+#include "core/event.hpp"
 
-#include "wren/wren.hpp"
+#include "gpu/gpu.hpp"
 
 // -----------------------------------------------------------------------------
 

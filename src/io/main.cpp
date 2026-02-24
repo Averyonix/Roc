@@ -1,4 +1,4 @@
-#include "wrio.hpp"
+#include "io.hpp"
 
 static
 void render(wren_context* wren, wrio_output* output, wren_image* image)

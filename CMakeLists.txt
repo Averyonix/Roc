@@ -132,23 +132,23 @@ endfunction()
 
 # ------------------------------------------------------------------------------
 
-init_library(wrei)
-target_precompile_headers(wrei PUBLIC src/wrei/pch.hpp)
-target_compile_definitions(wrei PUBLIC PROGRAM_NAME="wroc" PROJECT_NAME="Roc")
-target_sources(wrei PUBLIC
-    src/wrei/log.cpp
-    src/wrei/shm.cpp
-    src/wrei/format.cpp
-    src/wrei/object.cpp
-    src/wrei/event.cpp
-    src/wrei/stacktrace.cpp
-    src/wrei/process.cpp
+init_library(core)
+target_precompile_headers(core PUBLIC src/core/pch.hpp)
+target_compile_definitions(core PUBLIC PROGRAM_NAME="wroc" PROJECT_NAME="Roc")
+target_sources(core PUBLIC
+    src/core/log.cpp
+    src/core/shm.cpp
+    src/core/format.cpp
+    src/core/object.cpp
+    src/core/event.cpp
+    src/core/stacktrace.cpp
+    src/core/process.cpp
     )
-target_include_directories(wrei PUBLIC
+target_include_directories(core PUBLIC
     src
     /usr/include/drm
     )
-target_link_libraries(wrei PUBLIC
+target_link_libraries(core PUBLIC
     wayland-server
     wayland-client
     wayland-header
@@ -178,76 +178,76 @@ target_link_libraries(wrei PUBLIC
 
 add_subdirectory(.build/shaders)
 
-init_library(wren)
-target_sources(wren PUBLIC
-    src/wren/wren.cpp
-    src/wren/functions.cpp
-    src/wren/buffer.cpp
-    src/wren/image.cpp
-    src/wren/descriptors.cpp
-    src/wren/formats.cpp
-    src/wren/pipeline.cpp
-    src/wren/commands.cpp
-    src/wren/semaphore.cpp
+init_library(gpu)
+target_sources(gpu PUBLIC
+    src/gpu/gpu.cpp
+    src/gpu/functions.cpp
+    src/gpu/buffer.cpp
+    src/gpu/image.cpp
+    src/gpu/descriptors.cpp
+    src/gpu/formats.cpp
+    src/gpu/pipeline.cpp
+    src/gpu/commands.cpp
+    src/gpu/semaphore.cpp
     )
-target_link_libraries(wren PUBLIC wrei shaders)
+target_link_libraries(gpu PUBLIC core shaders)
 
 # ------------------------------------------------------------------------------
 
-init_library(wrio)
-target_sources(wrio PUBLIC
-    src/wrio/wrio.cpp
-    src/wrio/output.cpp
-    src/wrio/input.cpp
+init_library(io)
+target_sources(io PUBLIC
+    src/io/io.cpp
+    src/io/output.cpp
+    src/io/input.cpp
 
-    src/wrio/drm/drm.cpp
-    src/wrio/evdev/evdev.cpp
-    src/wrio/libinput/libinput.cpp
-    src/wrio/session/session.cpp
-    src/wrio/udev/udev.cpp
-    src/wrio/wayland/wayland.cpp
-    src/wrio/wayland/output.cpp
-    src/wrio/wayland/seat.cpp
+    src/io/drm/drm.cpp
+    src/io/evdev/evdev.cpp
+    src/io/libinput/libinput.cpp
+    src/io/session/session.cpp
+    src/io/udev/udev.cpp
+    src/io/wayland/wayland.cpp
+    src/io/wayland/output.cpp
+    src/io/wayland/seat.cpp
     )
-target_link_libraries(wrio PUBLIC wrei wren)
+target_link_libraries(io PUBLIC core gpu)
 
-init_executable(wrio-test)
-target_sources(wrio-test PUBLIC src/wrio/main.cpp)
-target_link_libraries(wrio-test PUBLIC wrio)
+init_executable(io-test)
+target_sources(io-test PUBLIC src/io/main.cpp)
+target_link_libraries(io-test PUBLIC io)
 
 # ------------------------------------------------------------------------------
 
-init_library(wrui)
-target_sources(wrui PUBLIC
-    src/wrui/wrui.cpp
-    src/wrui/render.cpp
-    src/wrui/scene.cpp
-    src/wrui/window.cpp
-    src/wrui/input.cpp
-    src/wrui/client.cpp
+init_library(scene)
+target_sources(scene PUBLIC
+    src/scene/scene.cpp
+    src/scene/render.cpp
+    src/scene/node.cpp
+    src/scene/window.cpp
+    src/scene/input.cpp
+    src/scene/client.cpp
     )
-target_link_libraries(wrui PUBLIC wrio)
+target_link_libraries(scene PUBLIC io)
 
-init_executable(wrui-test)
-target_sources(wrui-test PUBLIC src/wrui/main.cpp)
-target_link_libraries(wrui-test PUBLIC wrui)
+init_executable(scene-test)
+target_sources(scene-test PUBLIC src/scene/main.cpp)
+target_link_libraries(scene-test PUBLIC scene)
 
 # ------------------------------------------------------------------------------
 
-# init_library(wrocx)
-# target_sources(wrocx PUBLIC
-#     src/wrocx/wroc.cpp
+init_library(way)
+target_sources(way PUBLIC
+    src/way/way.cpp
 
-#     src/wrocx/buffer.cpp
-#     src/wrocx/surface.cpp
-#     src/wrocx/shell.cpp
-#     src/wrocx/shm.cpp
-#     )
-# target_link_libraries(wrocx PUBLIC wrui)
+    src/way/buffer.cpp
+    src/way/surface.cpp
+    src/way/shell.cpp
+    src/way/shm.cpp
+    )
+target_link_libraries(way PUBLIC scene)
 
-# init_executable(wrocx-test)
-# target_sources(wrocx-test PUBLIC src/wrocx/main.cpp)
-# target_link_libraries(wrocx-test PUBLIC wrocx)
+init_executable(way-test)
+target_sources(way-test PUBLIC src/way/main.cpp)
+target_link_libraries(way-test PUBLIC way)
 
 # ------------------------------------------------------------------------------
 
@@ -295,4 +295,4 @@ target_sources(wroc PUBLIC
     src/wroc/backend/direct/events.cpp
     src/wroc/backend/direct/drm.cpp
     )
-target_link_libraries(wroc PUBLIC wren wrei)
+target_link_libraries(wroc PUBLIC gpu core)

@@ -218,9 +218,9 @@ generate_wayland_protocols()
 
 def build_shaders():
     shaders = [
-        ("src/wroc/shaders/blit.slang", "wroc_blit_shader"),
+        ("src/wroc/shaders/blit.slang",  "wroc_blit_shader"),
         ("src/wroc/shaders/imgui.slang", "wroc_imgui_shader"),
-        ("src/wrui/render.slang", "wrui_render_shader"),
+        ("src/scene/render.slang",        "wrui_render_shader"),
     ]
 
     shader_include_dirs = [

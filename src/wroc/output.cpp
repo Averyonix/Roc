@@ -1,7 +1,7 @@
 #include "protocol.hpp"
 
-#include "wren/wren.hpp"
-#include "wren/internal.hpp"
+#include "gpu/gpu.hpp"
+#include "gpu/internal.hpp"
 
 #include "wroc/event.hpp"
 

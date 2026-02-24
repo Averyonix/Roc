@@ -2,8 +2,8 @@
 
 #include <wayland-server-core.h>
 
-#include "wrei/util.hpp"
-#include "wrei/object.hpp"
+#include "core/util.hpp"
+#include "core/object.hpp"
 
 // -----------------------------------------------------------------------------
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "wrei/types.hpp"
-#include "wrei/log.hpp"
-#include "wrei/util.hpp"
+#include "core/types.hpp"
+#include "core/log.hpp"
+#include "core/util.hpp"
 
 // -----------------------------------------------------------------------------
 

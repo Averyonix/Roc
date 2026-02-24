@@ -1,9 +1,9 @@
 #pragma once
 
-#include "wroc.hpp"
+#include "way.hpp"
 #include "util.hpp"
 
-#include "wrei/region.hpp"
+#include "core/region.hpp"
 
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>

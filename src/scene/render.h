@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wren/shaders/shared.h"
+#include "gpu/shaders/shared.h"
 
 struct wrui_vertex
 {

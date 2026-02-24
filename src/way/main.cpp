@@ -1,6 +1,6 @@
-#include "wrio/wrio.hpp"
+#include "io/io.hpp"
 
-#include "wroc.hpp"
+#include "way.hpp"
 
 WROC_NAMESPACE_USE
 
@@ -14,8 +14,8 @@ int main()
     auto sampler = wren_sampler_create(wren.get(), VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
     auto texture = wrui_texture_create(wrui.get());
-    wrui_node_set_transform(texture.get(), wrui_get_scene(wrui.get()).transform);
-    wrui_tree_place_below(wrui_get_scene(wrui.get()).tree, nullptr, texture.get());
+    wrui_node_set_transform(texture.get(), wrui_get_root_transform(wrui.get()));
+    wrui_tree_place_below(wrui_get_layer(wrui.get(), wrui_layer::background), nullptr, texture.get());
     {
         std::filesystem::path path = getenv("WALLPAPER");
 

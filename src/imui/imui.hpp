@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wrui/wrui.hpp"
+#include "wrui/scene.hpp"
 
 struct imui_context;
 WREI_OBJECT_EXPLICIT_DECLARE(imui_context);

@@ -50,13 +50,12 @@ auto wroc_create(wrei_event_loop* event_loop, wren_context* wren, wrui_context* 
             break;case wrui_event_type::pointer_motion:
             break;case wrui_event_type::pointer_button:
             break;case wrui_event_type::pointer_scroll:
-            break;case wrui_event_type::pointer_enter:
-            break;case wrui_event_type::pointer_leave:
+            break;case wrui_event_type::focus_pointer:
+            break;case wrui_event_type::focus_keyboard:
             break;case wrui_event_type::window_resize:
                 log_error("TODO: window resize");
                 // wrui_texture_set_dst(canvas, {{}, event->window.resize, wrei_xywh});
                 // wrui_window_set_size(event->window.window, event->window.resize);
-            break;case wrui_event_type::window_focus_keyboard:
         }
     });
 

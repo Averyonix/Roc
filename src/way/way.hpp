@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wrui/wrui.hpp"
+#include "scene/scene.hpp"
 
 // This is a temporary hack while both versions of wroc exist in the codebase
 // simultaneously to prevent clangd from applying refactors across both versions.

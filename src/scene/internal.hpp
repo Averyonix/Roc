@@ -1,8 +1,8 @@
 #pragma once
 
-#include "wrui.hpp"
+#include "scene.hpp"
 
-#include "wrio/wrio.hpp"
+#include "io/io.hpp"
 
 // -----------------------------------------------------------------------------
 

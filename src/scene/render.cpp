@@ -3,7 +3,7 @@
 #include "render.h"
 #include "wrui_render_shader.hpp"
 
-#include "wren/internal.hpp"
+#include "gpu/internal.hpp"
 
 void wrui_render_init(wrui_context* ctx)
 {

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "wrei/object.hpp"
-#include "wrei/types.hpp"
-#include "wrei/event.hpp"
-#include "wrei/fd.hpp"
-#include "wrei/flags.hpp"
+#include "core/object.hpp"
+#include "core/types.hpp"
+#include "core/event.hpp"
+#include "core/fd.hpp"
+#include "core/flags.hpp"
 
 #include "functions.hpp"
 

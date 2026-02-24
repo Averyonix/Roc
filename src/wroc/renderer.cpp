@@ -1,8 +1,8 @@
 #include "wroc.hpp"
 
-#include "wrei/object.hpp"
+#include "core/object.hpp"
 
-#include "wren/wren.hpp"
+#include "gpu/gpu.hpp"
 
 #include "wroc_blit_shader.hpp"
 #include "shaders/blit.h"

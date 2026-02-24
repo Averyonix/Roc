@@ -1,6 +1,6 @@
-#include "wren/internal.hpp"
+#include "gpu/internal.hpp"
 
-#include "wrei/util.hpp"
+#include "core/util.hpp"
 
 std::vector<wren_format_info> generate_formats()
 {

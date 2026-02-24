@@ -2,7 +2,7 @@
 
 #include "wroc/util.hpp"
 
-#include "wren/wren.hpp"
+#include "gpu/gpu.hpp"
 
 #include "wroc/event.hpp"
 

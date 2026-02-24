@@ -1,7 +1,7 @@
 #pragma once
 
-#include "wrei/object.hpp"
-#include "wren/wren.hpp"
+#include "core/object.hpp"
+#include "gpu/gpu.hpp"
 
 #include "render.h"
 

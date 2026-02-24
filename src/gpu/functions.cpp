@@ -1,7 +1,7 @@
 #include "functions.hpp"
-#include "wren.hpp"
+#include "gpu.hpp"
 
-#include "wrei/log.hpp"
+#include "core/log.hpp"
 
 #define VULKAN_LOAD_INSTANCE_FUNCTION(FuncName, ...) \
     ctx->vk.FuncName = (PFN_vk##FuncName)ctx->vk.GetInstanceProcAddr(ctx->instance, "vk"#FuncName); \

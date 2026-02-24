@@ -1,7 +1,7 @@
 #pragma once
 
-#include "wrei/log.hpp"
-#include "wrei/object.hpp"
+#include "core/log.hpp"
+#include "core/object.hpp"
 
 #include "util.hpp"
 #include "wroc.hpp"

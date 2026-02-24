@@ -1,5 +1,5 @@
 #include "backend.hpp"
-#include <wren/internal.hpp>
+#include <gpu/internal.hpp>
 #include <wroc/event.hpp>
 
 void wroc_direct_backend::create_output()

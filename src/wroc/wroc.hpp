@@ -2,14 +2,14 @@
 
 #include "util.hpp"
 
-#include "wrei/pch.hpp"
-#include "wrei/types.hpp"
-#include "wrei/util.hpp"
-#include "wrei/log.hpp"
-#include "wrei/region.hpp"
-#include "wrei/event.hpp"
+#include "core/pch.hpp"
+#include "core/types.hpp"
+#include "core/util.hpp"
+#include "core/log.hpp"
+#include "core/region.hpp"
+#include "core/event.hpp"
 
-#include "wren/wren.hpp"
+#include "gpu/gpu.hpp"
 
 struct wroc_server;
 struct wroc_renderer;

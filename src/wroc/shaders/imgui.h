@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wren/shaders/shared.h"
+#include "gpu/shaders/shared.h"
 
 #ifndef WREN_SHADER
 struct ImDrawVert;

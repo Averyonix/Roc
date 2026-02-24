@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-#include "wrei/util.hpp"
+#include "core/util.hpp"
 
 VkImageUsageFlags wren_image_usage_to_vk(flags<wren_image_usage> usage)
 {
