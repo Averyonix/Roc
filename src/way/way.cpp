@@ -40,21 +40,7 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
 
     server->client = scene_client_create(scene);
     scene_client_set_event_handler(server->client.get(), [client = server->client.get()](scene_event* event) {
-        switch (event->type) {
-            break;case scene_event_type::keyboard_key:
-            break;case scene_event_type::keyboard_modifier:
-            break;case scene_event_type::pointer_motion:
-            break;case scene_event_type::pointer_button:
-            break;case scene_event_type::pointer_scroll:
-            break;case scene_event_type::focus_pointer:
-            break;case scene_event_type::focus_keyboard:
-            break;case scene_event_type::window_resize:
-                log_error("TODO: window resize");
-                // scene_texture_set_dst(canvas, {{}, event->window.resize, core_xywh});
-                // scene_window_set_size(event->window.window, event->window.resize);
-            break;case scene_event_type::redraw:
-                ;
-        }
+        // TODO
     });
 
     return server;

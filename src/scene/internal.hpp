@@ -6,6 +6,14 @@
 
 // -----------------------------------------------------------------------------
 
+struct scene_output {
+    scene_context* ctx;
+    io_output*     io;
+    rect2f32       viewport;
+};
+
+// -----------------------------------------------------------------------------
+
 struct scene_context
 {
     gpu_context* gpu;
@@ -23,6 +31,8 @@ struct scene_context
     ref<scene_tree>      root_tree;
     core_enum_map<scene_layer, ref<scene_tree>> layers;
 
+    core_ref_vector<scene_output> outputs;
+
     std::vector<scene_client*> clients;
     std::vector<scene_window*> windows;
 
@@ -33,7 +43,9 @@ struct scene_context
 void scene_broadcast_event(scene_context*, scene_event*);
 
 void scene_render_init(scene_context*);
-void scene_render(scene_context*, io_output*, gpu_image*);
+void scene_render(scene_context*, scene_output*, gpu_image*);
+
+// -----------------------------------------------------------------------------
 
 struct scene_client
 {
@@ -45,6 +57,8 @@ struct scene_client
 };
 
 void scene_client_post_event(scene_client*, scene_event*);
+
+// -----------------------------------------------------------------------------
 
 struct scene_window
 {
@@ -60,6 +74,8 @@ struct scene_window
 
     ~scene_window();
 };
+
+// -----------------------------------------------------------------------------
 
 struct scene_keyboard
 {
@@ -83,6 +99,8 @@ struct scene_keyboard
 
 auto scene_keyboard_create(scene_context*) -> ref<scene_keyboard>;
 
+// -----------------------------------------------------------------------------
+
 struct scene_pointer
 {
     core_counting_set<u32> pressed;
@@ -97,6 +115,8 @@ struct scene_pointer
 void scene_update_pointer_focus(scene_context*);
 
 auto scene_pointer_create(scene_context*) -> ref<scene_pointer>;
+
+// -----------------------------------------------------------------------------
 
 void scene_handle_input_added(scene_context*, io_input_device*);
 void scene_handle_input_removed(scene_context*, io_input_device*);

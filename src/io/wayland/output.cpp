@@ -26,7 +26,7 @@ IO__WL_LISTENER(xdg_surface) = {
 IO__WL_LISTENER(zxdg_toplevel_decoration_v1) = {
     .configure = [](void*, zxdg_toplevel_decoration_v1*, u32 mode) {
         if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE) {
-            log_warn("IO_ - <zxdg_toplevel_decoration_v1> requested client-side decorations, outputs will remain undecorated");
+            log_warn("IO - <zxdg_toplevel_decoration_v1> requested client-side decorations, outputs will remain undecorated");
         }
     }
 };
@@ -105,7 +105,7 @@ void io_add_output(io_context* ctx)
         zxdg_toplevel_decoration_v1_add_listener(output->zxdg_toplevel_decoration_v1, &io_zxdg_toplevel_decoration_v1_listener, output.get());
         zxdg_toplevel_decoration_v1_set_mode(output->zxdg_toplevel_decoration_v1, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
     } else {
-        log_warn("IO_ - <zxdg_decoration_manager_v1> protocol not available, outputs will remain undecorated");
+        log_warn("IO - <zxdg_decoration_manager_v1> protocol not available, outputs will remain undecorated");
     }
 
     output->zwp_locked_pointer_v1 = zwp_pointer_constraints_v1_lock_pointer(

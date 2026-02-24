@@ -162,7 +162,7 @@ void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame
     // Background
 
     for (auto& output : server->output_layout->outputs) {
-        auto src = core_rect_fit(server->renderer->background->extent, output->layout_rect.extent);
+        auto src = core_rect_fit<f64>(server->renderer->background->extent, output->layout_rect.extent);
         draw(server->renderer->background.get(), output->layout_rect, src);
     }
 

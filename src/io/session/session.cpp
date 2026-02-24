@@ -8,5 +8,5 @@ CORE_OBJECT_EXPLICIT_DEFINE(io_session);
 
 void io_session_init(io_context*)
 {
-    log_error("IO_ - session backend not implemented");
+    log_error("IO - session backend not implemented");
 }

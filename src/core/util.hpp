@@ -523,12 +523,12 @@ core_rect<T> core_rect_constrain(core_rect<T> rect, const core_rect<T>& bounds)
 
 // -----------------------------------------------------------------------------
 
-inline
-rect2f64 core_rect_fit(vec2f64 outer, vec2f64 inner)
+template<typename T>
+core_rect<T> core_rect_fit(core_vec<2, T> outer, core_vec<2, T> inner)
 {
-    f64 scale = glm::min(outer.x / inner.x, outer.y / inner.y);
+    T scale = glm::min(outer.x / inner.x, outer.y / inner.y);
     auto extent = inner * scale;
-    auto offset = (outer - extent) / 2.0;
+    auto offset = (outer - extent) / T(2);
     return {offset, extent, core_xywh};
 }
 

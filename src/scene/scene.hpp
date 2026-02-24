@@ -37,8 +37,16 @@ void scene_request_redraw(scene_context*);
 
 // -----------------------------------------------------------------------------
 
+struct scene_output;
+
+auto scene_list_outputs(scene_context*) -> std::span<scene_output* const>;
+auto scene_output_get_viewport(scene_output*) -> rect2f32;
+
+// -----------------------------------------------------------------------------
+
 struct scene_client;
 CORE_OBJECT_EXPLICIT_DECLARE(scene_client);
+
 auto scene_client_create(scene_context*) -> ref<scene_client>;
 
 // -----------------------------------------------------------------------------
@@ -96,12 +104,14 @@ struct scene_transform_state
 {
     vec2f32 translation;
     f32     scale;
+
+    // TODO: apply(T) helpers
 };
 
 struct scene_transform : scene_node
 {
     scene_transform_state local;
-    scene_transform_state global;
+    scene_transform_state global; // TODO: Move this to `scene_node` and drop root transform?
 
     std::vector<scene_node*> children;
 
@@ -117,7 +127,7 @@ struct scene_tree : scene_node
 {
     scene_context* ctx;
 
-    std::vector<ref<scene_node>> children;
+    core_ref_vector<scene_node> children;
 
     ~scene_tree();
 };
@@ -153,7 +163,7 @@ struct scene_mesh : scene_node
     aabb2f32 clip;
 
     std::vector<scene_vertex> vertices;
-    std::vector<u16>         indices;
+    std::vector<u16>          indices;
 };
 
 auto scene_mesh_create(scene_context*) -> ref<scene_mesh>;
@@ -162,7 +172,7 @@ void scene_mesh_update(scene_mesh*, gpu_image*, gpu_sampler*, gpu_blend_mode, aa
 struct scene_input_plane : scene_node
 {
     scene_client* client;
-    aabb2f32     rect;   // input region in transform-local space
+    aabb2f32      rect;
 
     ~scene_input_plane();
 };
@@ -210,6 +220,8 @@ enum class scene_event_type
     window_resize,
 
     redraw,
+
+    output_layout,
 };
 
 struct scene_keyboard_event
@@ -249,6 +261,11 @@ struct scene_window_event
     };
 };
 
+struct scene_redraw_event
+{
+    scene_output* output;
+};
+
 struct scene_event
 {
     scene_event_type type;
@@ -258,6 +275,7 @@ struct scene_event
         scene_keyboard_event key;
         scene_pointer_event  pointer;
         scene_focus_event    focus;
+        scene_redraw_event   redraw;
     };
 };
 

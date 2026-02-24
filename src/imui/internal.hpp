@@ -39,3 +39,4 @@ void imui_handle_motion(imui_context*);
 void imui_handle_button(imui_context*, scene_scancode, bool pressed);
 void imui_handle_wheel(imui_context*, vec2f32 delta);
 void imui_handle_focus_pointer(imui_context*, scene_focus gained);
+void imui_handle_output_layout(imui_context*);

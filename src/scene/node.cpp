@@ -17,8 +17,8 @@ void damage_node(scene_node* node)
                 damage_node(child);
             }
         break;case scene_node_type::tree:
-            for (auto& child : static_cast<scene_tree*>(node)->children) {
-                damage_node(child.get());
+            for (auto* child : static_cast<scene_tree*>(node)->children) {
+                damage_node(child);
             }
         break;case scene_node_type::texture:
               case scene_node_type::mesh:
@@ -123,7 +123,7 @@ void scene_node_unparent(scene_node* node)
 {
     damage_node(node);
     auto parent = std::exchange(node->parent, nullptr);
-    std::erase_if(parent->children, core_object_equals<scene_node>{node});
+    parent->children.erase(node);
 }
 
 static
@@ -142,12 +142,12 @@ static
 void tree_place(scene_tree* tree, scene_node* reference, scene_node* node, bool above)
 {
     auto end = tree->children.end();
-    auto cur =             std::ranges::find_if(tree->children, core_object_equals{node});
-    auto ref = reference ? std::ranges::find_if(tree->children, core_object_equals{reference}) : end;
+    auto cur =             std::ranges::find(tree->children, node);
+    auto ref = reference ? std::ranges::find(tree->children, reference) : end;
 
     if (ref == end) {
         if (tree->children.empty()) {
-            tree->children.emplace_back(node);
+            tree->children.push_back(node);
             return;
         }
         ref = above ? end - 1 : tree->children.begin();

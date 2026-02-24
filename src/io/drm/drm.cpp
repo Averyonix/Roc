@@ -8,5 +8,5 @@ CORE_OBJECT_EXPLICIT_DEFINE(io_drm);
 
 void io_drm_init(io_context*)
 {
-    log_error("IO_ - drm backend not implemented");
+    log_error("IO - drm backend not implemented");
 }

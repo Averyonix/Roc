@@ -507,7 +507,7 @@ wroc_coord_space wroc_surface_get_coord_space(wroc_surface* surface)
             if (auto* toplevel = wroc_surface_get_addon<wroc_toplevel>(surface)) {
                 rect2i32 geom;
                 auto layout = wroc_toplevel_get_layout_rect(toplevel, &geom);
-                auto fit = core_rect_fit(layout.extent, geom.extent);
+                auto fit = core_rect_fit<f64>(layout.extent, geom.extent);
                 auto scale = fit.extent / vec2f64(geom.extent);
                 auto pos = layout.origin + fit.origin - vec2f64(geom.origin) * scale;
                 return {pos, scale};

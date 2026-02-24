@@ -295,3 +295,58 @@ T* core_object_cast(core_object* base)
     core_assert(derived, "Fatal error casting void to object: expected {} got {}", typeid(T).name(), typeid(*base).name());
     return derived;
 }
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+class core_ref_vector
+{
+    std::vector<T*> values;
+
+    using iterator = decltype(values)::iterator;
+
+public:
+    auto* push_back(T* value)
+    {
+        return values.emplace_back(core_add_ref(value));
+    }
+
+    template<typename Fn>
+    usz erase_if(Fn&& fn)
+    {
+        return std::erase_if(values, [&](auto* c) {
+            if (fn(c)) {
+                core_remove_ref(c);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    usz erase(T* v)
+    {
+        return erase_if([v](T* c) { return c == v; });
+    }
+
+    bool empty()
+    {
+        return values.empty();
+    }
+
+    auto insert(iterator i, T* v)
+    {
+        core_add_ref(v);
+        return values.insert(i, v);
+    }
+
+    auto begin(this auto&& self) { return self.values.begin(); }
+    auto   end(this auto&& self) { return self.values.end();   }
+
+    ~core_ref_vector()
+    {
+        for (auto* v : values) core_remove_ref(v);
+    }
+};
+
+// TODO: Add `core_weak_vector`.
+//       Will require destructor callback list to erase destroyed elements

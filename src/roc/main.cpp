@@ -12,45 +12,78 @@ int main()
     auto io = io_create(event_loop.get(), gpu.get());
     auto scene = scene_create(gpu.get(), io.get());
 
+    // Background
+
     auto sampler = gpu_sampler_create(gpu.get(), VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    auto root = scene_get_root_transform(scene.get());
-    auto background_layer = scene_get_layer(scene.get(), scene_layer::background);
-
-    auto texture = scene_texture_create(scene.get());
-    scene_node_set_transform(texture.get(), root);
-    scene_tree_place_above(background_layer, nullptr, texture.get());
-    {
+    auto background_image = [&] {
         std::filesystem::path path = getenv("WALLPAPER");
-
         int w, h;
         int num_channels;
         stbi_uc* data = stbi_load(path.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
         defer { stbi_image_free(data); };
-
         log_info("Loaded background ({}, width = {}, height = {})", path.c_str(), w, h);
 
+        // Create background texture node
         auto image = gpu_image_create(gpu.get(), {w, h}, gpu_format_from_drm(DRM_FORMAT_XBGR8888),
             gpu_image_usage::texture | gpu_image_usage::transfer);
         gpu_image_update_immed(image.get(), data);
-
-        scene_texture_set_image(texture.get(), image.get(), sampler.get(), gpu_blend_mode::premultiplied);
-        scene_texture_set_dst(texture.get(), {{}, {w, h}, core_xywh});
-    }
+        return image;
+    }();
 
     auto background_client = scene_client_create(scene.get());
-    {
-        auto background_input_sink = scene_input_plane_create(background_client.get());
-        scene_input_plane_set_rect(background_input_sink.get(), {{}, {1920, 1080}, core_xywh});
-        scene_node_set_transform(background_input_sink.get(), scene_get_root_transform(scene.get()));
-        scene_tree_place_above(background_layer, nullptr, background_input_sink.get());
-    }
-    scene_client_set_event_handler(background_client.get(), [scene = scene.get()](scene_event* event) {
-        if (event->type == scene_event_type::pointer_button && event->pointer.pressed) {
-            log_warn("Background clicked, dropping keyboard grabs");
-            scene_keyboard_clear_focus(scene);
+
+    ref<scene_tree> background_layer;
+    auto update_backgrounds = [&] {
+        auto root = scene_get_root_transform(scene.get());
+
+        if (background_layer) scene_node_unparent(background_layer.get());
+        background_layer = scene_tree_create(scene.get());
+        scene_tree_place_above(scene_get_layer(scene.get(), scene_layer::background), nullptr, background_layer.get());
+
+        for (auto* output : scene_list_outputs(scene.get())) {
+            vec2f32 image_size = background_image->extent;
+            auto viewport = scene_output_get_viewport(output);
+
+            // Create input sink
+            auto input = scene_input_plane_create(background_client.get());
+            scene_input_plane_set_rect(input.get(), viewport);
+            scene_node_set_transform(input.get(), scene_get_root_transform(scene.get()));
+            scene_tree_place_above(background_layer.get(), nullptr, input.get());
+
+            // Create texture node
+            auto texture = scene_texture_create(scene.get());
+            scene_texture_set_image(texture.get(), background_image.get(), sampler.get(), gpu_blend_mode::premultiplied);
+            auto src = core_rect_fit<f32>(image_size, viewport.extent);
+            scene_texture_set_src(texture.get(), {src.origin / image_size, src.extent / image_size, core_xywh});
+            scene_texture_set_dst(texture.get(), viewport);
+            scene_node_set_transform(texture.get(), root);
+            scene_tree_place_above(background_layer.get(), nullptr, texture.get());
+        }
+    };
+
+    scene_client_set_event_handler(background_client.get(), [scene = scene.get(), &update_backgrounds](scene_event* event) {
+        switch (event->type) {
+            break;case scene_event_type::pointer_button:
+                if (event->pointer.pressed) {
+                    log_warn("Background clicked, dropping keyboard grabs");
+                    scene_keyboard_clear_focus(scene);
+                }
+            break;case scene_event_type::output_layout:
+                update_backgrounds();
+            break;case scene_event_type::keyboard_key:
+                  case scene_event_type::keyboard_modifier:
+                  case scene_event_type::pointer_motion:
+                  case scene_event_type::pointer_scroll:
+                  case scene_event_type::focus_keyboard:
+                  case scene_event_type::focus_pointer:
+                  case scene_event_type::window_resize:
+                  case scene_event_type::redraw:
+                ;
         }
     });
+
+    // Test client
 
     auto client = scene_client_create(scene.get());
 
@@ -82,35 +115,51 @@ int main()
     scene_client_set_event_handler(client.get(), [client = client.get(), canvas = canvas.get(), scene = scene.get()](scene_event* event) {
         switch (event->type) {
             break;case scene_event_type::keyboard_key:
-                log_warn("keyboard_key({}, {})", libevdev_event_code_get_name(EV_KEY, event->key.code), event->pointer.pressed ? "pressed" : "released");
+                log_trace("keyboard_key({}, {})", libevdev_event_code_get_name(EV_KEY, event->key.code), event->pointer.pressed ? "pressed" : "released");
             break;case scene_event_type::keyboard_modifier:
-                log_warn("keyboard_modifier({})", core_to_string(scene_keyboard_get_modifiers(scene)));
+                log_trace("keyboard_modifier({})", core_to_string(scene_keyboard_get_modifiers(scene)));
             break;case scene_event_type::pointer_motion:
-                log_warn("pointer_motion(delta: {}, pos: {})", core_to_string(event->pointer.delta), core_to_string(scene_pointer_get_position(scene)));
+                log_trace("pointer_motion(delta: {}, pos: {})", core_to_string(event->pointer.delta), core_to_string(scene_pointer_get_position(scene)));
             break;case scene_event_type::pointer_button:
-                log_warn("pointer_button({}, {})", libevdev_event_code_get_name(EV_KEY, event->pointer.button), event->pointer.pressed ? "pressed" : "released");
+                log_trace("pointer_button({}, {})", libevdev_event_code_get_name(EV_KEY, event->pointer.button), event->pointer.pressed ? "pressed" : "released");
                 scene_keyboard_grab(client);
             break;case scene_event_type::pointer_scroll:
-                log_warn("pointer_scroll(delta: {})", core_to_string(event->pointer.delta));
+                log_trace("pointer_scroll(delta: {})", core_to_string(event->pointer.delta));
             break;case scene_event_type::focus_pointer:
-                log_warn("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
+                log_trace("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::focus_keyboard:
-                log_warn("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
+                log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::window_resize:
                 scene_texture_set_dst(canvas, {{}, event->window.resize, core_xywh});
                 scene_window_set_size(event->window.window, event->window.resize);
             break;case scene_event_type::redraw:
+                  case scene_event_type::output_layout:
                 ;
         }
     });
 
     scene_window_map(window.get());
 
+    // Wayland
+
     auto way = way_create(event_loop.get(), gpu.get(), scene.get());
 
+    // ImGui
+
     auto imui = imui_create(gpu.get(), scene.get());
-    imui_add_frame_handler(imui.get(), [] { ImGui::ShowDemoWindow(); });
+    imui_add_frame_handler(imui.get(), [&] {
+        ImGui::ShowDemoWindow();
+
+        defer { ImGui::End(); };
+        if (ImGui::Begin("Roc")) {
+            if (ImGui::Button("New Output")) {
+                io_add_output(io.get());
+            }
+        }
+    });
     imui_request_frame(imui.get());
+
+    // Run
 
     io_run(io.get());
 }

@@ -118,47 +118,6 @@ void Platform_SetWindowTitle(ImGuiViewport* vp, const char* title)
 
 // -----------------------------------------------------------------------------
 
-static
-void render_viewport(imui_context* ctx, ImGuiViewport* vp)
-{
-    auto* data = get_data(vp);
-    if (!data || !vp->DrawData) return;
-
-    if (data->draws) scene_node_unparent(data->draws.get());
-    data->draws = scene_tree_create(ctx->scene);
-
-    auto* root_transform = scene_get_root_transform(ctx->scene);
-
-    for (auto* list : to_span(vp->DrawData->CmdLists)) {
-        for (auto& cmd : to_span(list->CmdBuffer)) {
-            auto indices = std::span(list->IdxBuffer.Data + cmd.IdxOffset, cmd.ElemCount);
-            auto max_vtx = std::ranges::max(indices);
-
-            core_assert(sizeof(scene_vertex) == sizeof(ImDrawVert) && alignof(scene_vertex) == alignof(ImDrawVert));
-            auto vertices = std::span(reinterpret_cast<scene_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1);
-
-            auto [image, sampler, blend] = ctx->textures[cmd.GetTexID()];
-            auto mesh = scene_mesh_create(ctx->scene);
-            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
-                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, core_minmax},
-                vertices, indices);
-            scene_node_set_transform(mesh.get(), root_transform);
-            scene_tree_place_above(data->draws.get(), nullptr, mesh.get());
-        }
-    }
-
-    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->draws.get());
-}
-
-static
-void Renderer_RenderWindow(ImGuiViewport* vp, void*)
-{
-    auto* ctx = get_context();
-    render_viewport(ctx, vp);
-}
-
-// -----------------------------------------------------------------------------
-
 CORE_OBJECT_EXPLICIT_DEFINE(imui_context);
 
 imui_context::~imui_context()
@@ -204,8 +163,8 @@ void imui_init(imui_context* ctx)
     io.BackendFlags        |= ImGuiBackendFlags_PlatformHasViewports
                            |  ImGuiBackendFlags_RendererHasViewports
                            |  ImGuiBackendFlags_HasMouseHoveredViewport;
-    io.BackendPlatformName  = "scene";
-    io.BackendRendererName  = "scene";
+    io.BackendPlatformName  = PROJECT_NAME;
+    io.BackendRendererName  = PROJECT_NAME;
     io.BackendPlatformUserData = ctx;
 
     {
@@ -228,15 +187,9 @@ void imui_init(imui_context* ctx)
     platform_io.Platform_GetWindowSize  = Platform_GetWindowSize;
     platform_io.Platform_SetWindowSize  = Platform_SetWindowSize;
     platform_io.Platform_SetWindowTitle = Platform_SetWindowTitle;
-    platform_io.Renderer_RenderWindow   = Renderer_RenderWindow;
-
-    // TODO: Manage and expose output layout in scene
-    ImGuiPlatformMonitor monitor = {};
-    monitor.WorkSize = monitor.MainSize = {1920, 1080};
-    platform_io.Monitors.push_back(monitor);
 
     // Create dummy main viewport.
-    // This will never be used to draw anything as it will be zero sized but
+    // This will never be used to draw anything as it will be zero sized, but
     // it needs to exist until ImGui removes the requirement for a main viewport.
     ImGui::GetMainViewport()->PlatformUserData = new imui_viewport_data();
 }
@@ -249,6 +202,38 @@ void imui_request_frame(imui_context* ctx)
     // so input needs a second frame to react against the updated state.
     ctx->frames_requested = 2;
     scene_request_redraw(ctx->scene);
+}
+
+static
+void render_viewport(imui_context* ctx, ImGuiViewport* vp)
+{
+    auto* data = get_data(vp);
+    if (!data || !vp->DrawData) return;
+
+    if (data->draws) scene_node_unparent(data->draws.get());
+    data->draws = scene_tree_create(ctx->scene);
+
+    auto* root_transform = scene_get_root_transform(ctx->scene);
+
+    for (auto* list : to_span(vp->DrawData->CmdLists)) {
+        for (auto& cmd : to_span(list->CmdBuffer)) {
+            auto indices = std::span(list->IdxBuffer.Data + cmd.IdxOffset, cmd.ElemCount);
+            auto max_vtx = std::ranges::max(indices);
+
+            core_assert(sizeof(scene_vertex) == sizeof(ImDrawVert) && alignof(scene_vertex) == alignof(ImDrawVert));
+            auto vertices = std::span(reinterpret_cast<scene_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1);
+
+            auto [image, sampler, blend] = ctx->textures[cmd.GetTexID()];
+            auto mesh = scene_mesh_create(ctx->scene);
+            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend,
+                {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, core_minmax},
+                vertices, indices);
+            scene_node_set_transform(mesh.get(), root_transform);
+            scene_tree_place_above(data->draws.get(), nullptr, mesh.get());
+        }
+    }
+
+    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->draws.get());
 }
 
 void imui_frame(imui_context* ctx)
@@ -271,11 +256,16 @@ void imui_frame(imui_context* ctx)
 
     // Zero-sized main viewport should never contain draw data
     if (auto* main_draw_data = ImGui::GetDrawData()) {
-        core_assert(!main_draw_data->TotalIdxCount, "Unexpected geometry in main viewport");
+        if (main_draw_data->TotalIdxCount) {
+            log_error("Unexpected geometry ({}, {}) in main viewport", main_draw_data->TotalIdxCount, main_draw_data->TotalVtxCount);
+        }
     }
 
     ImGui::UpdatePlatformWindows();
-    ImGui::RenderPlatformWindowsDefault();
+    for (auto* vp : to_span(ImGui::GetPlatformIO().Viewports).subspan(1)) {
+        if (vp->Flags & ImGuiViewportFlags_IsMinimized) continue;
+        render_viewport(ctx, vp);
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -311,6 +301,8 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
                 ;
             break;case scene_event_type::redraw:
                 imui_frame(ctx);
+            break;case scene_event_type::output_layout:
+                imui_handle_output_layout(ctx);
         }
     });
 
@@ -398,6 +390,24 @@ void imui_handle_focus_pointer(imui_context* ctx, scene_focus gained)
         io.AddMouseViewportEvent(0);
     } else if (gained.plane) {
         io.AddMouseViewportEvent(find_viewport_for_input_plane(ctx, gained.plane)->ID);
+    }
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_output_layout(imui_context* ctx)
+{
+    auto& platform_io = ImGui::GetPlatformIO();
+
+    platform_io.Monitors.clear();
+    for (auto* output : scene_list_outputs(ctx->scene)) {
+        rect2f32 rect = scene_output_get_viewport(output);
+        if (rect.extent.x == 0 || rect.extent.y == 0) continue;
+
+        ImGuiPlatformMonitor monitor = {};
+        monitor.WorkPos  = monitor.MainPos  = {rect.origin.x, rect.origin.y};
+        monitor.WorkSize = monitor.MainSize = {rect.extent.x, rect.extent.y};
+        platform_io.Monitors.push_back(monitor);
     }
 
     imui_request_frame(ctx);

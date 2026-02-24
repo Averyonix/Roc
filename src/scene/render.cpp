@@ -27,7 +27,7 @@ void scene_render_init(scene_context* ctx)
     ctx->render.sampler = gpu_sampler_create(ctx->gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 }
 
-void scene_render(scene_context* ctx, io_output* output, gpu_image* target)
+void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
 {
     auto& render = ctx->render;
 
@@ -55,7 +55,7 @@ void scene_render(scene_context* ctx, io_output* output, gpu_image* target)
     std::vector<u32> indices;
     std::vector<scene_draw> draws;
 
-    aabb2f32 default_clip = {{}, target->extent, core_xywh};
+    aabb2f32 default_clip = output->viewport;
 
     auto walk_node = [&](this auto&& walk_node, scene_node* node) -> void
     {
@@ -63,8 +63,8 @@ void scene_render(scene_context* ctx, io_output* output, gpu_image* target)
             break;case scene_node_type::transform:
                 core_assert_fail("", "Unexpected transform node in layer stack");
             break;case scene_node_type::tree: {
-                for (auto& child : static_cast<scene_tree*>(node)->children) {
-                    walk_node(child.get());
+                for (auto* child : static_cast<scene_tree*>(node)->children) {
+                    walk_node(child);
                 }
             }
             break;case scene_node_type::mesh: {
@@ -181,8 +181,6 @@ void scene_render(scene_context* ctx, io_output* output, gpu_image* target)
         0, 1,
     }));
 
-    rect2f32 viewport{{}, target_extent, core_xywh};
-
     for (auto& draw : draws) {
         switch (draw.blend) {
             break;case gpu_blend_mode::premultiplied:
@@ -193,16 +191,17 @@ void scene_render(scene_context* ctx, io_output* output, gpu_image* target)
                 core_assert_fail("", "Must select blend mode");
         }
         rect2f32 scissor = draw.clip;
+        scissor.origin -= output->viewport.origin;
         gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D {
             .offset = {i32(scissor.origin.x), i32(scissor.origin.y)},
             .extent = {u32(scissor.extent.x), u32(scissor.extent.y)},
         }));
-        auto draw_scale = 2.f / viewport.extent;
+        auto draw_scale = 2.f / output->viewport.extent;
         gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(scene_render_input),
             ptr_to(scene_render_input {
                 .vertices = gpu_vertices.device(),
                 .scale = draw_scale * draw.transform.scale,
-                .offset = (draw.transform.translation - viewport.origin) * draw_scale - 1.f,
+                .offset = (draw.transform.translation - output->viewport.origin) * draw_scale - 1.f,
                 .texture = {draw.image, render.sampler.get()},
             }));
         gpu->vk.CmdDrawIndexed(cmd, draw.num_indices, 1, draw.first_index, draw.first_vertex, 0);
@@ -216,5 +215,5 @@ void scene_render(scene_context* ctx, io_output* output, gpu_image* target)
         ctx->gpu->renderdoc->EndFrameCapture(nullptr, nullptr);
     }
 
-    io_output_present(output, target, done);
+    io_output_present(output->io, target, done);
 }

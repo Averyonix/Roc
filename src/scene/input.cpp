@@ -28,7 +28,7 @@ auto scene_keyboard_create(scene_context*) -> ref<scene_keyboard>
     kb->mod_masks[scene_modifier::caps]  = xkb_keymap_mod_get_mask(kb->keymap, XKB_MOD_NAME_CAPS);
     kb->mod_masks[scene_modifier::super] = xkb_keymap_mod_get_mask(kb->keymap, XKB_VMOD_NAME_SUPER);
     kb->mod_masks[scene_modifier::alt]   = xkb_keymap_mod_get_mask(kb->keymap, XKB_VMOD_NAME_ALT)
-                                        | xkb_keymap_mod_get_mask(kb->keymap, XKB_VMOD_NAME_LEVEL3);
+                                         | xkb_keymap_mod_get_mask(kb->keymap, XKB_VMOD_NAME_LEVEL3);
     kb->mod_masks[scene_modifier::num]   = xkb_keymap_mod_get_mask(kb->keymap, XKB_VMOD_NAME_NUM);
 
     return kb;
@@ -160,11 +160,11 @@ scene_input_plane* find_input_plane_at(scene_tree* tree, vec2f32 pos)
     for (auto& node : tree->children | std::views::reverse) {
         switch (node->type) {
             break;case scene_node_type::tree:
-                if (auto* result = find_input_plane_at(static_cast<scene_tree*>(node.get()), pos)) {
+                if (auto* result = find_input_plane_at(static_cast<scene_tree*>(node), pos)) {
                     return result;
                 }
             break;case scene_node_type::input_plane: {
-                auto* plane = static_cast<scene_input_plane*>(node.get());
+                auto* plane = static_cast<scene_input_plane*>(node);
                 auto& global = plane->transform->global;
                 aabb2f32 bounds {
                     global.translation + plane->rect.min * global.scale,
