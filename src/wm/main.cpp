@@ -1,3 +1,5 @@
+#include "wm.hpp"
+
 #include "scene/scene.hpp"
 
 #include "io/io.hpp"
@@ -11,6 +13,7 @@ int main()
     auto gpu = gpu_create({}, event_loop.get());
     auto io = io_create(event_loop.get(), gpu.get());
     auto scene = scene_create(gpu.get(), io.get());
+    auto wm = wm_create(scene.get());
 
     // Pointer driver
 
@@ -177,9 +180,12 @@ int main()
                 log_trace("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::focus_keyboard:
                 log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
-            break;case scene_event_type::window_reframe:
-                scene_texture_set_dst(canvas.get(), {{}, event->window.reframe.extent, core_xywh});
-                scene_window_set_frame(event->window.window, event->window.reframe);
+            break;case scene_event_type::window_reframe: {
+                auto frame = event->window.reframe;
+                scene_texture_set_dst(     canvas.get(), {{}, frame.extent, core_xywh});
+                scene_input_plane_set_rect(input.get(),  {{}, frame.extent, core_xywh});
+                scene_window_set_frame(event->window.window, frame);
+            }
             break;case scene_event_type::redraw:
                   case scene_event_type::output_layout:
                   case scene_event_type::hotkey:
@@ -207,7 +213,7 @@ int main()
 
             if (ImGui::Button("Reposition")) {
                 if (auto* window = imui_get_window(ImGui::GetCurrentWindow())) {
-                    scene_window_request_frame(window, {{}, {512, 512}, core_xywh});
+                    scene_window_request_reframe(window, {{}, {512, 512}, core_xywh});
                 }
             }
         }
@@ -222,9 +228,6 @@ int main()
     hotkeys[{ main_mod,                         KEY_SPACE  }] = "launcher";
     hotkeys[{ main_mod,                         KEY_Q      }] = "close-focused";
     hotkeys[{ main_mod,                         KEY_S      }] = "clear-focus";
-    hotkeys[{ main_mod | scene_modifier::shift, BTN_LEFT   }] = "move";
-    hotkeys[{ main_mod,                         BTN_LEFT   }] = "zone";
-    hotkeys[{ main_mod,                         BTN_RIGHT  }] = "resize";
     hotkeys[{ main_mod,                         BTN_MIDDLE }] = "close-under-cursor";
     for (auto[hotkey, _] : hotkeys) {
         core_assert(scene_client_hotkey_register(hotkey_client.get(), hotkey));

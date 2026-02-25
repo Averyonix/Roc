@@ -251,7 +251,9 @@ target_link_libraries(way PUBLIC scene)
 
 init_executable(roc)
 target_sources(roc PUBLIC
-    src/roc/main.cpp
+    src/wm/main.cpp
+    src/wm/wm.cpp
+    src/wm/movesize.cpp
     )
 target_link_libraries(roc PUBLIC scene way imui)
 

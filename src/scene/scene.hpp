@@ -216,9 +216,11 @@ void scene_window_raise(scene_window*);
 auto scene_window_get_tree(     scene_window*) -> scene_tree*;
 auto scene_window_get_transform(scene_window*) -> scene_transform*;
 
-void scene_window_request_frame(scene_window*, rect2f32);
-void scene_window_set_frame(    scene_window*, rect2f32);
-auto scene_window_get_frame(    scene_window*) -> rect2f32;
+void scene_window_request_reframe(scene_window*, rect2f32);
+void scene_window_set_frame(      scene_window*, rect2f32);
+auto scene_window_get_frame(      scene_window*) -> rect2f32;
+
+auto scene_find_window_at(scene_context*, vec2f32 point) -> scene_window*;
 
 // -----------------------------------------------------------------------------
 
@@ -232,8 +234,8 @@ struct scene_hotkey
 
 CORE_MAKE_STRUCT_HASHABLE(scene_hotkey, v.mod, v.code)
 
-auto scene_client_hotkey_register(  scene_client*, scene_hotkey) -> bool;
-void scene_client_hotkey_unregister(scene_client*, scene_hotkey);
+auto scene_client_hotkey_register(      scene_client*, scene_hotkey) -> bool;
+void scene_client_hotkey_unregister(    scene_client*, scene_hotkey);
 void scene_client_hotkey_unregister_all(scene_client*);
 
 // -----------------------------------------------------------------------------

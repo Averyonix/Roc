@@ -449,8 +449,13 @@ void imui_handle_focus_pointer(imui_context* ctx, scene_focus gained)
 
     if (gained.client != ctx->client.get()) {
         io.AddMouseViewportEvent(0);
+        io.AddMousePosEvent(INFINITY, INFINITY);
+
     } else if (gained.plane) {
         io.AddMouseViewportEvent(find_viewport_for_input_plane(ctx, gained.plane)->ID);
+
+        auto pos = scene_pointer_get_position(ctx->scene);
+        io.AddMousePosEvent(pos.x, pos.y);
     }
 
     imui_request_frame(ctx);
