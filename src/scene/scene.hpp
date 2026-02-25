@@ -224,8 +224,26 @@ auto scene_window_get_size(scene_window*) -> vec2u32;
 
 // -----------------------------------------------------------------------------
 
+struct scene_hotkey
+{
+    flags<scene_modifier> mod;
+    scene_scancode        code;
+
+    constexpr bool operator==(const scene_hotkey&) const noexcept = default;
+};
+
+CORE_MAKE_STRUCT_HASHABLE(scene_hotkey, v.mod, v.code)
+
+auto scene_client_hotkey_register(  scene_client*, scene_hotkey) -> bool;
+void scene_client_hotkey_unregister(scene_client*, scene_hotkey);
+void scene_client_hotkey_unregister_all(scene_client*);
+
+// -----------------------------------------------------------------------------
+
 enum class scene_event_type
 {
+    hotkey,
+
     keyboard_key,
     keyboard_modifier,
 
@@ -241,6 +259,12 @@ enum class scene_event_type
     redraw,
 
     output_layout,
+};
+
+struct scene_hotkey_event
+{
+    scene_hotkey hotkey;
+    bool         pressed;
 };
 
 struct scene_keyboard_event
@@ -300,6 +324,7 @@ struct scene_event
     scene_event_type type;
 
     union {
+        scene_hotkey_event   hotkey;
         scene_window_event   window;
         scene_keyboard_event key;
         scene_pointer_event  pointer;

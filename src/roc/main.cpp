@@ -126,6 +126,7 @@ int main()
                   case scene_event_type::focus_pointer:
                   case scene_event_type::window_resize:
                   case scene_event_type::redraw:
+                  case scene_event_type::hotkey:
                 ;
         }
     });
@@ -189,6 +190,7 @@ int main()
                 scene_window_set_size(event->window.window, event->window.resize);
             break;case scene_event_type::redraw:
                   case scene_event_type::output_layout:
+                  case scene_event_type::hotkey:
                 ;
         }
     });
@@ -213,6 +215,27 @@ int main()
         }
     });
     imui_request_frame(imui.get());
+
+    // Hotkey
+
+    auto main_mod = scene_modifier::alt;
+    auto hotkey_client = scene_client_create(scene.get());
+    ankerl::unordered_dense::map<scene_hotkey, std::string> hotkeys;
+    hotkeys[{ main_mod,                         KEY_SPACE  }] = "launcher";
+    hotkeys[{ main_mod,                         KEY_Q      }] = "close-focused";
+    hotkeys[{ main_mod,                         KEY_S      }] = "clear-focus";
+    hotkeys[{ main_mod | scene_modifier::shift, BTN_LEFT   }] = "move";
+    hotkeys[{ main_mod,                         BTN_LEFT   }] = "zone";
+    hotkeys[{ main_mod,                         BTN_RIGHT  }] = "resize";
+    hotkeys[{ main_mod,                         BTN_MIDDLE }] = "close-under-cursor";
+    for (auto[hotkey, _] : hotkeys) {
+        core_assert(scene_client_hotkey_register(hotkey_client.get(), hotkey));
+    }
+    scene_client_set_event_handler(hotkey_client.get(), [&](scene_event* event) {
+        if (event->type == scene_event_type::hotkey) {
+            log_debug("hotkey({} - {})", hotkeys.at(event->hotkey.hotkey), event->hotkey.pressed ? "pressed" : "released");
+        }
+    });
 
     // Run
 

@@ -38,6 +38,11 @@ struct scene_context
 
     ref<scene_keyboard> keyboard;
     ref<scene_pointer>  pointer;
+
+    struct {
+        ankerl::unordered_dense::map<scene_hotkey, scene_client*> registered;
+        ankerl::unordered_dense::map<scene_scancode, std::pair<flags<scene_modifier>, scene_client*>> pressed;
+    } hotkey;
 };
 
 void scene_broadcast_event(scene_context*, scene_event*);
@@ -86,6 +91,10 @@ struct scene_keyboard
     struct xkb_context* context;
     struct xkb_state*   state;
     struct xkb_keymap*  keymap;
+
+    flags<scene_modifier> depressed;
+    flags<scene_modifier> latched;
+    flags<scene_modifier> locked;
 
     core_enum_map<scene_modifier, xkb_mod_mask_t> mod_masks;
 

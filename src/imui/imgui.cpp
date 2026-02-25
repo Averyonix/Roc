@@ -303,6 +303,8 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
                 imui_frame(ctx);
             break;case scene_event_type::output_layout:
                 imui_handle_output_layout(ctx);
+            break;case scene_event_type::hotkey:
+                ;
         }
     });
 

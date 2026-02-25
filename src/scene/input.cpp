@@ -35,6 +35,60 @@ auto scene_keyboard_create(scene_context*) -> ref<scene_keyboard>
 }
 
 static
+auto get_modifiers(scene_keyboard* kb, flags<xkb_state_component> component) -> flags<scene_modifier>
+{
+    flags<scene_modifier> down = {};
+    auto xkb_mods = xkb_state_serialize_mods(kb->state, component.get());
+    for (auto mod : kb->mod_masks.enum_values) {
+        if (xkb_mods & kb->mod_masks[mod]) down |= mod;
+    }
+    return down;
+}
+
+auto scene_keyboard_get_modifiers(scene_context* ctx) -> flags<scene_modifier>
+{
+    auto* kb = ctx->keyboard.get();
+    return kb->depressed | kb->latched | kb->locked;
+}
+
+static
+bool try_send_hotkey(scene_context* ctx, scene_scancode code, bool pressed)
+{
+    if (pressed) {
+        // Ignore LOCKED modifier state like CAPS and NUMLOCK, as hotkyes require an exact match.
+        scene_hotkey hotkey {ctx->keyboard->depressed | ctx->keyboard->latched, code};
+        auto iter = ctx->hotkey.registered.find(hotkey);
+        if (iter != ctx->hotkey.registered.end()) {
+            ctx->hotkey.pressed.insert({code, {hotkey.mod, iter->second}});
+            scene_client_post_event(iter->second, ptr_to(scene_event {
+                .type = scene_event_type::hotkey,
+                .hotkey = {
+                    .hotkey  = hotkey,
+                    .pressed = true,
+                }
+            }));
+            return true;
+        }
+    } else {
+        auto iter = ctx->hotkey.pressed.find(code);
+        if (iter != ctx->hotkey.pressed.end()) {
+            auto[mods, client] = iter->second;
+            ctx->hotkey.pressed.erase(code);
+            scene_client_post_event(client, ptr_to(scene_event {
+                .type = scene_event_type::hotkey,
+                .hotkey = {
+                    .hotkey  = {mods, code},
+                    .pressed = false,
+                }
+            }));
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static
 xkb_keycode_t evdev_to_xkb(scene_scancode code)
 {
     return code + 8;
@@ -44,25 +98,27 @@ static
 flags<xkb_state_component> handle_key(scene_context* ctx, scene_keyboard* kb, scene_scancode code, bool pressed, bool quiet)
 {
     if (pressed ? kb->pressed.inc(code) : kb->pressed.dec(code)) {
+        auto changed_components = xkb_state_update_key(kb->state, evdev_to_xkb(code), pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
 
-        char utf8[128] = {};
-        if (pressed) xkb_state_key_get_utf8(kb->state, evdev_to_xkb(code), utf8, sizeof(utf8));
-        auto sym = xkb_state_key_get_one_sym(kb->state, evdev_to_xkb(code));
-
-        if (ctx->keyboard->focus.client) {
-            scene_client_post_event(ctx->keyboard->focus.client, ptr_to(scene_event {
-                .type = scene_event_type::keyboard_key,
-                .key = {
-                    .code = code,
-                    .sym = sym,
-                    .utf8 = utf8,
-                    .pressed = pressed,
-                    .quiet = quiet,
-                },
-            }));
+        if (!try_send_hotkey(ctx, code, pressed)) {
+            if (auto* client = ctx->keyboard->focus.client) {
+                char utf8[128] = {};
+                if (pressed) xkb_state_key_get_utf8(kb->state, evdev_to_xkb(code), utf8, sizeof(utf8));
+                auto sym = xkb_state_key_get_one_sym(kb->state, evdev_to_xkb(code));
+                scene_client_post_event(client, ptr_to(scene_event {
+                    .type = scene_event_type::keyboard_key,
+                    .key = {
+                        .code = code,
+                        .sym = sym,
+                        .utf8 = utf8,
+                        .pressed = pressed,
+                        .quiet = quiet,
+                    },
+                }));
+            }
         }
 
-        return xkb_state_update_key(kb->state, evdev_to_xkb(code), pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
+        return changed_components;
     }
     return {};
 }
@@ -83,24 +139,12 @@ void update_leds(scene_keyboard* kb)
 }
 
 static
-auto get_modifiers(scene_keyboard* kb, xkb_state_component component) -> flags<scene_modifier>
-{
-    flags<scene_modifier> down = {};
-    auto xkb_mods = xkb_state_serialize_mods(kb->state, component);
-    for (auto mod : kb->mod_masks.enum_values) {
-        if (xkb_mods & kb->mod_masks[mod]) down |= mod;
-    }
-    return down;
-}
-
-auto scene_keyboard_get_modifiers(scene_context* ctx) -> flags<scene_modifier>
-{
-    return get_modifiers(ctx->keyboard.get(), XKB_STATE_MODS_EFFECTIVE);
-}
-
-static
 void handle_xkb_component_updates(scene_context* ctx, scene_keyboard* kb, flags<xkb_state_component> changed)
 {
+    if (changed & XKB_STATE_MODS_DEPRESSED) kb->depressed = get_modifiers(kb, XKB_STATE_MODS_DEPRESSED);
+    if (changed & XKB_STATE_MODS_LATCHED)   kb->depressed = get_modifiers(kb, XKB_STATE_MODS_LATCHED);
+    if (changed & XKB_STATE_MODS_LOCKED)    kb->depressed = get_modifiers(kb, XKB_STATE_MODS_LOCKED);
+
     if (changed & XKB_STATE_MODS_EFFECTIVE) {
         if (ctx->keyboard->focus.client) {
             scene_client_post_event(ctx->keyboard->focus.client, ptr_to(scene_event {
@@ -259,17 +303,19 @@ static
 void handle_button(scene_context* ctx, scene_pointer* ptr, scene_scancode code, bool pressed, bool quiet)
 {
     if (pressed ? ptr->pressed.inc(code) : ptr->pressed.dec(code)) {
-        if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
-            scene_client_post_event(focus, ptr_to(scene_event {
-                .type = scene_event_type::pointer_button,
-                .pointer = {
-                    .button = {
-                        .code    = code,
-                        .pressed = pressed,
-                        .quiet   = quiet,
-                    }
-                },
-            }));
+        if (!try_send_hotkey(ctx, code, pressed)) {
+            if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
+                scene_client_post_event(focus, ptr_to(scene_event {
+                    .type = scene_event_type::pointer_button,
+                    .pointer = {
+                        .button = {
+                            .code    = code,
+                            .pressed = pressed,
+                            .quiet   = quiet,
+                        }
+                    },
+                }));
+            }
         }
     }
 }
@@ -388,4 +434,33 @@ void scene_handle_input(scene_context* ctx, const io_input_event& event)
     if (scroll.x || scroll.y) handle_scroll(ctx, scroll);
 
     if (xkb_updates) handle_xkb_component_updates(ctx, ctx->keyboard.get(), xkb_updates);
+}
+
+// -----------------------------------------------------------------------------
+
+auto scene_client_hotkey_register(scene_client* client, scene_hotkey hotkey) -> bool
+{
+    auto& slot = client->ctx->hotkey.registered[hotkey];
+    return !slot && (slot = client);
+}
+
+void scene_client_hotkey_unregister(scene_client* client, scene_hotkey hotkey)
+{
+    auto* ctx = client->ctx;
+    auto iter = ctx->hotkey.registered.find(hotkey);
+    if (iter == ctx->hotkey.registered.end()) return;
+    if (iter->second != client) return;
+    ctx->hotkey.registered.erase(hotkey);
+    ctx->hotkey.pressed.erase(hotkey.code);
+}
+
+void scene_client_hotkey_unregister_all(scene_client* client)
+{
+    std::erase_if(client->ctx->hotkey.registered, [&](auto& e) {
+        if (e.second == client) {
+            client->ctx->hotkey.pressed.erase(e.first.code);
+            return true;
+        }
+        return false;
+    });
 }
