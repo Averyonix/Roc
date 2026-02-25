@@ -2,7 +2,7 @@
     "dependencies": {
         "concurrent-queue": {
             "branch": "master",
-            "commit": "00dd7ba09164fcd25b590818747e3d9a32dddc9c",
+            "commit": "593df78ec309be7a7b456b3334025ccade1d2d66",
             "repo": "https://github.com/cameron314/concurrentqueue.git"
         },
         "glm": {
@@ -12,7 +12,7 @@
         },
         "imgui": {
             "branch": "docking",
-            "commit": "943fcc4f104582a0c219d5f6e50288b9ee859106",
+            "commit": "934c6a5f5ef2355d6df25395d555cb71f790c4e9",
             "repo": "https://github.com/ocornut/imgui.git"
         },
         "kde-protocols": {
@@ -27,12 +27,12 @@
         },
         "renderdoc": {
             "branch": "v1.x",
-            "commit": "2815523744035ffd54589f1fbe5f93c4bc28ae77",
+            "commit": "f42b33479bc2ae50621f1f47c5f5f01c5c7d5128",
             "repo": "https://github.com/baldurk/renderdoc.git"
         },
         "slang": {
             "branch": "master",
-            "commit": "75e0c71197f11009739d614d2b9d607a9dcb1ee9",
+            "commit": "ed97591062fd87f048d5fe3df5b4bafa51c257ed",
             "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
@@ -47,7 +47,7 @@
         },
         "vulkan-headers": {
             "branch": "main",
-            "commit": "49f1a381e2aec33ef32adf4a377b5a39ec016ec4",
+            "commit": "ad9ce1235e88dc09287e19171dfac384db8ec32c",
             "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git"
         },
         "vulkan-memory-allocator": {
@@ -57,12 +57,12 @@
         },
         "vulkan-utility-libraries": {
             "branch": "main",
-            "commit": "50af38b6cd43afb1462f9ad26b8d015382d11a3d",
+            "commit": "738ec97a3f659dd6469bff3c4078ef981b0a343f",
             "repo": "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git"
         },
         "xwayland-satellite": {
             "branch": "main",
-            "commit": "86f5bd5d867ad6e120935dfe825f6b903ebbeddd",
+            "commit": "33c344fee50504089a447a8fef5878cf4f6215fc",
             "repo": "https://github.com/Supreeeme/xwayland-satellite.git"
         }
     }
