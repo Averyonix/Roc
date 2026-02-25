@@ -118,15 +118,7 @@ int main()
                 }
             break;case scene_event_type::output_layout:
                 update_backgrounds();
-            break;case scene_event_type::keyboard_key:
-                  case scene_event_type::keyboard_modifier:
-                  case scene_event_type::pointer_motion:
-                  case scene_event_type::pointer_scroll:
-                  case scene_event_type::focus_keyboard:
-                  case scene_event_type::focus_pointer:
-                  case scene_event_type::window_resize:
-                  case scene_event_type::redraw:
-                  case scene_event_type::hotkey:
+            break;default:
                 ;
         }
     });
@@ -137,7 +129,7 @@ int main()
 
     auto window = scene_window_create(client.get());
     auto initial_size = vec2f32{256, 256};
-    scene_window_set_size(window.get(), initial_size);
+    scene_window_set_frame(window.get(), {{64, 64}, initial_size, core_xywh});
 
     auto canvas = scene_texture_create(scene.get());
     scene_texture_set_tint(canvas.get(), {255, 0, 255, 255});
@@ -185,9 +177,9 @@ int main()
                 log_trace("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::focus_keyboard:
                 log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
-            break;case scene_event_type::window_resize:
-                scene_texture_set_dst(canvas.get(), {{}, event->window.resize, core_xywh});
-                scene_window_set_size(event->window.window, event->window.resize);
+            break;case scene_event_type::window_reframe:
+                scene_texture_set_dst(canvas.get(), {{}, event->window.reframe.extent, core_xywh});
+                scene_window_set_frame(event->window.window, event->window.reframe);
             break;case scene_event_type::redraw:
                   case scene_event_type::output_layout:
                   case scene_event_type::hotkey:
@@ -211,6 +203,12 @@ int main()
         if (ImGui::Begin("Roc")) {
             if (ImGui::Button("New Output")) {
                 io_add_output(io.get());
+            }
+
+            if (ImGui::Button("Reposition")) {
+                if (auto* window = imui_get_window(ImGui::GetCurrentWindow())) {
+                    scene_window_request_frame(window, {{}, {512, 512}, core_xywh});
+                }
             }
         }
     });

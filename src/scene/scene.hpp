@@ -206,21 +206,19 @@ struct scene_window;
 CORE_OBJECT_EXPLICIT_DECLARE(scene_window);
 
 auto scene_window_create(scene_client*) -> ref<scene_window>;
+
 void scene_window_set_title(scene_window*, std::string_view title);
-// Adds the window to the UI scene. In response to this event
-// the window may be repositioned and/or resized to fit in layout.
-void scene_window_map(scene_window*);
-// Removes the window from the scene.
+
+void scene_window_map(  scene_window*);
 void scene_window_unmap(scene_window*);
 void scene_window_raise(scene_window*);
-// Sets the window frame size for decorations and layout placement.
-void scene_window_set_size(scene_window*, vec2u32);
-// Get the window tree, this is used to attach window contents to
-auto scene_window_get_tree(scene_window*) -> scene_tree*;
-// Get the window transform, this is used to anchor window contents to
+
+auto scene_window_get_tree(     scene_window*) -> scene_tree*;
 auto scene_window_get_transform(scene_window*) -> scene_transform*;
-// Get the current window frame size
-auto scene_window_get_size(scene_window*) -> vec2u32;
+
+void scene_window_request_frame(scene_window*, rect2f32);
+void scene_window_set_frame(    scene_window*, rect2f32);
+auto scene_window_get_frame(    scene_window*) -> rect2f32;
 
 // -----------------------------------------------------------------------------
 
@@ -254,10 +252,19 @@ enum class scene_event_type
     focus_keyboard,
     focus_pointer,
 
-    window_resize,
+    // Requests that a client adjust its position/size as requested.
+    // This request does not need to be honoured, clients may update
+    // their window frames at any time for any reason.
+    window_reframe,
 
+    // Sent before a frame may be composited to an output.
+    // This may be sent even if there is no new scene graph changes
+    // to commit, in response to a scene frame request.
+    // Scene graph changes made directly in response to this event
+    // will be applied immediately.
     redraw,
 
+    // Sent when an output is added/removed/moved in the scene output layout.
     output_layout,
 };
 
@@ -310,7 +317,7 @@ struct scene_window_event
 {
     scene_window* window;
     union {
-        vec2u32 resize;
+        rect2f32 reframe;
     };
 };
 

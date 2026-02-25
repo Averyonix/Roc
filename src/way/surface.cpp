@@ -63,7 +63,7 @@ void surface_set_mapped(way_surface* surface, bool mapped)
         auto* buffer = surface->current.buffer.handle.get();
 
         surface->window = scene_window_create(server->client.get());
-        scene_window_set_size(surface->window.get(), buffer->extent);
+        scene_window_set_frame(surface->window.get(), {{}, buffer->extent, core_xywh});
 
         auto texture = scene_texture_create(scene);
         surface->texture = texture;

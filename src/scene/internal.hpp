@@ -69,7 +69,7 @@ struct scene_window
 {
     scene_client* client;
 
-    vec2u32 size;
+    vec2f32 extent;
     bool mapped;
 
     std::string title;

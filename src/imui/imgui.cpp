@@ -4,6 +4,18 @@ static ImGuiKey imgui_key_from_xkb_sym(xkb_keysym_t);
 
 // -----------------------------------------------------------------------------
 
+static
+auto to_imvec(vec2f32 v) -> ImVec2
+{
+    return {v.x, v.y};
+}
+
+static
+auto from_imvec(ImVec2 v) -> vec2f32
+{
+    return {v.x, v.y};
+}
+
 template<typename T>
 auto to_span(ImVector<T>& v) -> std::span<T>
 {
@@ -17,6 +29,12 @@ auto get_context() -> imui_context*
 }
 
 static
+auto get_viewports() -> std::span<ImGuiViewport* const>
+{
+    return to_span(ImGui::GetPlatformIO().Viewports).subspan(1);
+}
+
+static
 auto get_data(ImGuiViewport* vp) -> imui_viewport_data*
 {
     return static_cast<imui_viewport_data*>(vp->PlatformUserData);
@@ -27,7 +45,7 @@ auto get_data(ImGuiViewport* vp) -> imui_viewport_data*
 static
 auto find_viewport_for_input_plane(imui_context* ctx, scene_input_plane* plane) -> ImGuiViewport*
 {
-    for (auto* vp : to_span(ImGui::GetPlatformIO().Viewports)) {
+    for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->input_plane.get() == plane) {
             return vp;
         }
@@ -39,10 +57,29 @@ auto find_viewport_for_input_plane(imui_context* ctx, scene_input_plane* plane) 
 static
 auto find_viewport_for_id(imui_context* ctx, ImGuiID id) -> ImGuiViewport*
 {
-    for (auto* vp : to_span(ImGui::GetPlatformIO().Viewports)) {
+    for (auto* vp : get_viewports()) {
         if (vp->ID == id) return vp;
     }
 
+    return nullptr;
+}
+
+static
+auto find_viewport_for_window(scene_window* window) -> ImGuiViewport*
+{
+    for (auto* vp : get_viewports()) {
+        if (auto* data = get_data(vp); data && data->window.get() == window) {
+            return vp;
+        }
+    }
+
+    return nullptr;
+}
+
+auto imui_get_window(ImGuiWindow* window) -> scene_window*
+{
+    if (!window->Viewport) return nullptr;
+    if (auto* data = get_data(window->Viewport)) return data->window.get();
     return nullptr;
 }
 
@@ -55,10 +92,8 @@ void Platform_CreateWindow(ImGuiViewport* vp)
     auto* data = new imui_viewport_data();
 
     data->window = scene_window_create(ctx->client.get());
-    scene_window_set_size(data->window.get(), {u32(vp->Size.x), u32(vp->Size.y)});
 
     data->input_plane = scene_input_plane_create(ctx->client.get());
-    scene_input_plane_set_rect(data->input_plane.get(), {{}, {vp->Size.x, vp->Size.y}, core_xywh});
     scene_node_set_transform(data->input_plane.get(), scene_window_get_transform(data->window.get()));
     scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->input_plane.get());
 
@@ -81,33 +116,25 @@ void Platform_ShowWindow(ImGuiViewport* vp)
 static
 auto Platform_GetWindowPos(ImGuiViewport* vp) -> ImVec2
 {
-    auto* data = get_data(vp);
-    auto global = scene_transform_get_global(data->window
-        ? scene_window_get_transform(data->window.get())
-        : scene_get_root_transform(get_context()->scene));
-    return {global.translation.x, global.translation.y};
+    return vp->Pos;
 }
 
 static
 void Platform_SetWindowPos(ImGuiViewport* vp, ImVec2 pos)
 {
-    auto* transform = scene_window_get_transform(get_data(vp)->window.get());
-    scene_transform_update(transform, {pos.x, pos.y}, scene_transform_get_local(transform).scale);
+    vp->Pos = pos;
 }
 
 static
 auto Platform_GetWindowSize(ImGuiViewport* vp) -> ImVec2
 {
-    auto size = scene_window_get_size(get_data(vp)->window.get());
-    return {f32(size.x), f32(size.y)};
+    return vp->Size;
 }
 
 static
 void Platform_SetWindowSize(ImGuiViewport* vp, ImVec2 size)
 {
-    auto* data = get_data(vp);
-    scene_window_set_size(data->window.get(), {u32(size.x), u32(size.y)});
-    scene_input_plane_set_rect(data->input_plane.get(), {{}, {size.x, size.y}, core_xywh});
+    vp->Size = size;
 }
 
 static
@@ -212,15 +239,20 @@ void render_viewport(imui_context* ctx, ImGuiViewport* vp)
 
     if (data->draws) scene_node_unparent(data->draws.get());
     data->draws = scene_tree_create(ctx->scene);
+    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->draws.get());
 
     auto* root_transform = scene_get_root_transform(ctx->scene);
 
     for (auto* list : to_span(vp->DrawData->CmdLists)) {
         for (auto& cmd : to_span(list->CmdBuffer)) {
-            auto indices = std::span(list->IdxBuffer.Data + cmd.IdxOffset, cmd.ElemCount);
+            auto indices = to_span(list->IdxBuffer).subspan(cmd.IdxOffset, cmd.ElemCount);
             auto max_vtx = std::ranges::max(indices);
 
-            core_assert(sizeof(scene_vertex) == sizeof(ImDrawVert) && alignof(scene_vertex) == alignof(ImDrawVert));
+            static_assert(  sizeof(scene_vertex)        ==   sizeof(ImDrawVert));
+            static_assert( alignof(scene_vertex)        ==  alignof(ImDrawVert));
+            static_assert(offsetof(scene_vertex, pos  ) == offsetof(ImDrawVert, pos));
+            static_assert(offsetof(scene_vertex, uv   ) == offsetof(ImDrawVert, uv ));
+            static_assert(offsetof(scene_vertex, color) == offsetof(ImDrawVert, col));
             auto vertices = std::span(reinterpret_cast<scene_vertex*>(list->VtxBuffer.Data) + cmd.VtxOffset, max_vtx + 1);
 
             auto [image, sampler, blend] = ctx->textures[cmd.GetTexID()];
@@ -233,7 +265,25 @@ void render_viewport(imui_context* ctx, ImGuiViewport* vp)
         }
     }
 
-    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->draws.get());
+    // Update visual frame
+
+    {
+        rect2f32 rect {from_imvec(vp->Pos), from_imvec(vp->Size), core_xywh};
+        if (rect != scene_window_get_frame(data->window.get())) {
+            scene_input_plane_set_rect(data->input_plane.get(), {{}, rect.extent, core_xywh});
+            scene_window_set_frame(data->window.get(), rect);
+        }
+    }
+
+    // Apply any pending resizes for next frame
+
+    if (auto reframe = std::exchange(data->reframe, std::nullopt)) {
+        vp->WorkPos  = vp->Pos  = to_imvec(reframe->origin);
+        vp->WorkSize = vp->Size = to_imvec(reframe->extent);
+        vp->PlatformRequestMove = true;
+        vp->PlatformRequestResize = true;
+        imui_request_frame(ctx);
+    }
 }
 
 void imui_frame(imui_context* ctx)
@@ -262,13 +312,22 @@ void imui_frame(imui_context* ctx)
     }
 
     ImGui::UpdatePlatformWindows();
-    for (auto* vp : to_span(ImGui::GetPlatformIO().Viewports).subspan(1)) {
+    for (auto* vp : get_viewports()) {
         if (vp->Flags & ImGuiViewportFlags_IsMinimized) continue;
         render_viewport(ctx, vp);
     }
 }
 
 // -----------------------------------------------------------------------------
+
+static
+void handle_reframe(imui_context* ctx, scene_window* window, rect2f32 reframe)
+{
+    if (auto* vp = find_viewport_for_window(window)) {
+        get_data(vp)->reframe = reframe;
+        imui_request_frame(ctx);
+    }
+}
 
 auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
 {
@@ -297,8 +356,8 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
                 imui_handle_focus_pointer(ctx, event->focus.gained);
             break;case scene_event_type::focus_keyboard:
                 ;
-            break;case scene_event_type::window_resize:
-                ;
+            break;case scene_event_type::window_reframe:
+                handle_reframe(ctx, event->window.window, event->window.reframe);
             break;case scene_event_type::redraw:
                 imui_frame(ctx);
             break;case scene_event_type::output_layout:
@@ -407,8 +466,8 @@ void imui_handle_output_layout(imui_context* ctx)
         if (rect.extent.x == 0 || rect.extent.y == 0) continue;
 
         ImGuiPlatformMonitor monitor = {};
-        monitor.WorkPos  = monitor.MainPos  = {rect.origin.x, rect.origin.y};
-        monitor.WorkSize = monitor.MainSize = {rect.extent.x, rect.extent.y};
+        monitor.WorkPos  = monitor.MainPos  = to_imvec(rect.origin);
+        monitor.WorkSize = monitor.MainSize = to_imvec(rect.extent);
         platform_io.Monitors.push_back(monitor);
     }
 

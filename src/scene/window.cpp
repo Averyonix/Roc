@@ -39,14 +39,30 @@ void scene_window_set_title(scene_window* window, std::string_view title)
     window->title = title;
 }
 
-void scene_window_set_size(scene_window* window, vec2u32 size)
+void scene_window_request_frame(scene_window* window, rect2f32 frame)
 {
-    window->size = size;
+    scene_client_post_event(window->client, ptr_to(scene_event {
+        .type = scene_event_type::window_reframe,
+        .window = {
+            .window = window,
+            .reframe = frame,
+        }
+    }));
 }
 
-auto scene_window_get_size(scene_window* window) -> vec2u32
+void scene_window_set_frame(scene_window* window, rect2f32 frame)
 {
-    return window->size;
+    window->extent = frame.extent;
+    scene_transform_update(window->transform.get(), frame.origin, 1.f);
+}
+
+auto scene_window_get_frame(scene_window* window) -> rect2f32
+{
+    return {
+        scene_transform_get_global(window->transform.get()).translation,
+        window->extent,
+        core_xywh
+    };
 }
 
 void scene_window_map(scene_window* window)
