@@ -343,13 +343,13 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
         ImGui::SetCurrentContext(ctx->context);
         switch (event->type) {
             break;case scene_event_type::keyboard_key:
-                imui_handle_key(ctx, event->key.sym, event->key.pressed, event->key.utf8);
+                imui_handle_key(ctx, event->key.code, event->key.pressed);
             break;case scene_event_type::keyboard_modifier:
                 imui_handle_mods(ctx, scene_keyboard_get_modifiers(ctx->scene));
             break;case scene_event_type::pointer_motion:
                 imui_handle_motion(ctx);
             break;case scene_event_type::pointer_button:
-                imui_handle_button(ctx, event->pointer.button.code, event->pointer.button.pressed);
+                imui_handle_button(ctx, event->key.code, event->key.pressed);
             break;case scene_event_type::pointer_scroll:
                 imui_handle_wheel(ctx, event->pointer.scroll.delta);
             break;case scene_event_type::focus_pointer:
@@ -377,12 +377,12 @@ void imui_add_frame_handler(imui_context* ctx, std::move_only_function<imui_fram
 
 // -----------------------------------------------------------------------------
 
-void imui_handle_key(imui_context* ctx, xkb_keysym_t sym, bool pressed, const char* utf8)
+void imui_handle_key(imui_context* ctx, scene_scancode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
-    io.AddKeyEvent(imgui_key_from_xkb_sym(sym), pressed);
-    if (pressed) io.AddInputCharactersUTF8(utf8);
+    io.AddKeyEvent(imgui_key_from_xkb_sym(scene_keyboard_get_sym(ctx->scene, code)), pressed);
+    if (pressed) io.AddInputCharactersUTF8(scene_keyboard_get_utf8(ctx->scene, code).c_str());
 
     imui_request_frame(ctx);
 }

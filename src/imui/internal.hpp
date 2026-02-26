@@ -37,7 +37,7 @@ struct imui_context : core_object
 
 void imui_init(imui_context*);
 void imui_frame(imui_context*);
-void imui_handle_key(imui_context*, xkb_keysym_t, bool pressed, const char* utf8);
+void imui_handle_key(imui_context*, scene_scancode, bool pressed);
 void imui_handle_mods(imui_context*, flags<scene_modifier>);
 void imui_handle_motion(imui_context*);
 void imui_handle_button(imui_context*, scene_scancode, bool pressed);

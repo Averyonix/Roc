@@ -115,7 +115,7 @@ int main()
     scene_client_set_event_handler(background_client.get(), [scene = scene.get(), &update_backgrounds](scene_event* event) {
         switch (event->type) {
             break;case scene_event_type::pointer_button:
-                if (event->pointer.button.pressed) {
+                if (event->key.pressed) {
                     log_warn("Background clicked, dropping keyboard grabs");
                     scene_keyboard_clear_focus(scene);
                 }
@@ -170,8 +170,8 @@ int main()
                     core_to_string(scene_pointer_get_position(scene.get())));
             break;case scene_event_type::pointer_button:
                 log_trace("pointer_button({}, {})",
-                    libevdev_event_code_get_name(EV_KEY, event->pointer.button.code),
-                    event->pointer.button.pressed ? "pressed" : "released");
+                    libevdev_event_code_get_name(EV_KEY, event->key.code),
+                    event->key.pressed ? "pressed" : "released");
                 scene_keyboard_grab(client.get());
                 scene_window_raise(window.get());
             break;case scene_event_type::pointer_scroll:

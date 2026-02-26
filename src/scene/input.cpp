@@ -102,15 +102,10 @@ flags<xkb_state_component> handle_key(scene_context* ctx, scene_keyboard* kb, sc
 
         if (!try_send_hotkey(ctx, code, pressed)) {
             if (auto* client = ctx->keyboard->focus.client) {
-                char utf8[128] = {};
-                if (pressed) xkb_state_key_get_utf8(kb->state, evdev_to_xkb(code), utf8, sizeof(utf8));
-                auto sym = xkb_state_key_get_one_sym(kb->state, evdev_to_xkb(code));
                 scene_client_post_event(client, ptr_to(scene_event {
                     .type = scene_event_type::keyboard_key,
                     .key = {
                         .code = code,
-                        .sym = sym,
-                        .utf8 = utf8,
                         .pressed = pressed,
                         .quiet = quiet,
                     },
@@ -197,6 +192,24 @@ void scene_keyboard_clear_focus(scene_context* ctx)
     update_keyboard_focus(ctx->keyboard.get(), nullptr);
 }
 
+auto scene_keyboard_get_pressed(scene_context* ctx) -> std::span<const scene_scancode>
+{
+    return ctx->keyboard->pressed;
+}
+
+auto scene_keyboard_get_sym(scene_context* ctx, scene_scancode code) -> xkb_keysym_t
+{
+    return xkb_state_key_get_one_sym(ctx->keyboard->state, evdev_to_xkb(code));
+}
+
+auto scene_keyboard_get_utf8(scene_context* ctx, scene_scancode code) -> std::string
+{
+    std::string utf8;
+    utf8.resize(xkb_state_key_get_utf8(ctx->keyboard->state, evdev_to_xkb(code), nullptr, 0));
+    xkb_state_key_get_utf8(ctx->keyboard->state, evdev_to_xkb(code), utf8.data(), utf8.size() + 1);
+    return utf8;
+}
+
 // -----------------------------------------------------------------------------
 
 static
@@ -275,6 +288,11 @@ auto scene_pointer_get_position(scene_context* ctx) -> vec2f32
     return ctx->pointer->transform->global.translation;
 }
 
+auto scene_pointer_get_pressed(scene_context* ctx) -> std::span<const scene_scancode>
+{
+    return ctx->pointer->pressed;
+}
+
 // -----------------------------------------------------------------------------
 
 auto scene_pointer_create(scene_context* ctx) -> ref<scene_pointer>
@@ -308,12 +326,10 @@ void handle_button(scene_context* ctx, scene_pointer* ptr, scene_scancode code, 
             if (auto* focus = get_pointer_focus_client(ctx->pointer.get())) {
                 scene_client_post_event(focus, ptr_to(scene_event {
                     .type = scene_event_type::pointer_button,
-                    .pointer = {
-                        .button = {
-                            .code    = code,
-                            .pressed = pressed,
-                            .quiet   = quiet,
-                        }
+                    .key = {
+                        .code    = code,
+                        .pressed = pressed,
+                        .quiet   = quiet,
                     },
                 }));
             }

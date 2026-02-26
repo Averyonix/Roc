@@ -70,12 +70,19 @@ auto scene_pointer_get_position(scene_context*) -> vec2f32;
 void scene_pointer_grab(scene_client*);
 void scene_pointer_ungrab(scene_client*);
 
+auto scene_pointer_get_pressed(scene_context*) -> std::span<const scene_scancode>;
+
 auto scene_keyboard_get_modifiers(scene_context*) -> flags<scene_modifier>;
 void scene_keyboard_grab(scene_client*);
 // Clear client keyboard grab, defers to next most recent keyboard grab
 void scene_keyboard_ungrab(scene_client*);
 // Clear all keyboard grabs
 void scene_keyboard_clear_focus(scene_context*);
+
+auto scene_keyboard_get_pressed(scene_context*) -> std::span<const scene_scancode>;
+
+auto scene_keyboard_get_sym( scene_context*, scene_scancode) -> xkb_keysym_t;
+auto scene_keyboard_get_utf8(scene_context*, scene_scancode) -> std::string;
 
 // -----------------------------------------------------------------------------
 
@@ -276,13 +283,11 @@ struct scene_hotkey_event
     bool         pressed;
 };
 
-struct scene_keyboard_event
+struct scene_key_event
 {
     scene_scancode code;
-    xkb_keysym_t sym;
-    const char* utf8;
-    bool pressed;
-    bool quiet;
+    bool           pressed;
+    bool           quiet;
 };
 
 struct scene_pointer_event
@@ -292,11 +297,6 @@ struct scene_pointer_event
             vec2f32 rel_accel;
             vec2f32 rel_unaccel;
         } motion;
-        struct {
-            scene_scancode code;
-            bool pressed;
-            bool quiet;
-        } button;
         struct {
             vec2f32 delta;
         } scroll;
@@ -336,12 +336,12 @@ struct scene_event
     scene_event_type type;
 
     union {
-        scene_hotkey_event   hotkey;
-        scene_window_event   window;
-        scene_keyboard_event key;
-        scene_pointer_event  pointer;
-        scene_focus_event    focus;
-        scene_redraw_event   redraw;
+        scene_hotkey_event  hotkey;
+        scene_window_event  window;
+        scene_key_event     key;
+        scene_pointer_event pointer;
+        scene_focus_event   focus;
+        scene_redraw_event  redraw;
     };
 };
 
