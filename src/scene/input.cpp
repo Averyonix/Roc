@@ -120,6 +120,7 @@ flags<xkb_state_component> handle_key(scene_context* ctx, scene_keyboard* kb, sc
 
         return changed_components;
     }
+
     return {};
 }
 

@@ -53,14 +53,14 @@ void registry_global(void* data, wl_registry*, u32 name, const char* interface, 
 #undef BIND_END
 }
 
-IO__WL_LISTENER(wl_registry) = {
+IO_WL_LISTENER(wl_registry) = {
     .global = registry_global,
-    IO__WL_STUB(wl_registry, global_remove),
+    IO_WL_STUB(wl_registry, global_remove),
 };
 
 // -----------------------------------------------------------------------------
 
-IO__WL_LISTENER(xdg_wm_base) = {
+IO_WL_LISTENER(xdg_wm_base) = {
     .ping = [](void*, xdg_wm_base* base, u32 serial) {
         xdg_wm_base_pong(base, serial);
     }

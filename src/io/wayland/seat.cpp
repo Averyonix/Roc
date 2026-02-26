@@ -32,13 +32,13 @@ void keyboard_key(void* udata, wl_keyboard*, u32 serial, u32 time, u32 keycode, 
     }
 }
 
-IO__WL_LISTENER(wl_keyboard) = {
+IO_WL_LISTENER(wl_keyboard) = {
     .keymap = [](void*, wl_keyboard*, u32, int fd, u32 size) { close(fd); },
     .enter = keyboard_enter,
     .leave = keyboard_leave,
     .key   = keyboard_key,
-    IO__WL_STUB_QUIET(modifiers),
-    IO__WL_STUB_QUIET(repeat_info),
+    IO_WL_STUB_QUIET(modifiers),
+    IO_WL_STUB_QUIET(repeat_info),
 };
 
 static
@@ -114,18 +114,18 @@ void pointer_axis_value120(void* udata, wl_pointer*, u32 axis, i32 value120)
     }
 }
 
-IO__WL_LISTENER(wl_pointer) = {
+IO_WL_LISTENER(wl_pointer) = {
     .enter = pointer_enter,
     .leave = pointer_leave,
-    IO__WL_STUB_QUIET(motion),
+    IO_WL_STUB_QUIET(motion),
     .button = pointer_button,
-    IO__WL_STUB_QUIET(axis),
-    IO__WL_STUB_QUIET(frame),
-    IO__WL_STUB_QUIET(axis_source),
-    IO__WL_STUB_QUIET(axis_stop),
-    IO__WL_STUB_QUIET(axis_discrete),
+    IO_WL_STUB_QUIET(axis),
+    IO_WL_STUB_QUIET(frame),
+    IO_WL_STUB_QUIET(axis_source),
+    IO_WL_STUB_QUIET(axis_stop),
+    IO_WL_STUB_QUIET(axis_discrete),
     .axis_value120 = pointer_axis_value120,
-    IO__WL_STUB_QUIET(axis_relative_direction),
+    IO_WL_STUB_QUIET(axis_relative_direction),
 };
 
 static
@@ -142,7 +142,7 @@ void pointer_relative(
     io_input_device_pointer_motion(ptr, {wl_fixed_to_double(dx_unaccel), wl_fixed_to_double(dy_unaccel)});
 }
 
-IO__WL_LISTENER(zwp_relative_pointer_v1) = {
+IO_WL_LISTENER(zwp_relative_pointer_v1) = {
     .relative_motion = pointer_relative,
 };
 
@@ -177,7 +177,7 @@ void seat_capabilities(void* udata, wl_seat*, u32 capabilities)
     else if (!(capabilities & WL_SEAT_CAPABILITY_POINTER))    ctx->wayland->pointer = nullptr;
 }
 
-IO__WL_LISTENER(wl_seat) = {
+IO_WL_LISTENER(wl_seat) = {
     .capabilities = seat_capabilities,
-    IO__WL_STUB(wl_seat, name),
+    IO_WL_STUB(wl_seat, name),
 };

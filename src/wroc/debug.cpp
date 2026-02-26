@@ -79,8 +79,8 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     defer { ImGui::End(); };
     ImGui::Begin(PROJECT_NAME, &debug->show_debug_menu);
 
-    static constexpr float second_column_offset = 113.f;
-    static constexpr float third_column_offset = 226.f;
+    static constexpr f32 second_column_offset = 113.f;
+    static constexpr f32 third_column_offset  = 226.f;
 
     // Window toggles
 

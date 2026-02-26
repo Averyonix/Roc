@@ -116,14 +116,14 @@ struct core_region
     template<typename T2>
     core_vec<2, T2> constrain(core_vec<2, T2> point) const
     {
-        double closest_dist = INFINITY;
+        f64 closest_dist = INFINITY;
         core_vec<2, T2> closest = {};
 
         for (auto aabb : aabbs) {
             auto pos = core_aabb_clamp_point<T2>(aabb, point);
             if (pos == point) return point;
 
-            auto dist = glm::distance(pos, point);
+            f64 dist = glm::distance(vec2f64(pos), vec2f64(point));
             if (dist < closest_dist) {
                 closest = pos;
                 closest_dist = dist;

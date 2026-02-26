@@ -2,17 +2,17 @@
 
 #include "io.hpp"
 
-#define IO__BACKEND(Name) \
+#define IO_BACKEND(Name) \
     struct Name; \
     CORE_OBJECT_EXPLICIT_DECLARE(Name); \
     void Name##_init(io_context*)
 
-IO__BACKEND(io_udev);
-IO__BACKEND(io_session);
-IO__BACKEND(io_libinput);
-IO__BACKEND(io_evdev);
-IO__BACKEND(io_drm);
-IO__BACKEND(io_wayland);
+IO_BACKEND(io_udev);
+IO_BACKEND(io_session);
+IO_BACKEND(io_libinput);
+IO_BACKEND(io_evdev);
+IO_BACKEND(io_drm);
+IO_BACKEND(io_wayland);
 
 void io_wayland_start(io_context*);
 
@@ -21,7 +21,7 @@ struct io_context : core_object
     std::move_only_function<io_event_handler> event_handler;
 
     core_event_loop* event_loop;
-    gpu_context*    gpu;
+    gpu_context*     gpu;
 
     std::vector<io_input_device*> input_devices;
     std::vector<io_output*>       outputs;

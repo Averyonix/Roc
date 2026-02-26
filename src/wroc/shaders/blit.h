@@ -9,7 +9,7 @@ struct wroc_shader_rect
 
     rect2f32 rect;
 
-    float opacity;
+    f32 opacity;
     vec4f32 color;
 };
 

@@ -19,11 +19,11 @@ void configure(void* udata, xdg_surface* xdg_surface, u32 serial)
     io_output_try_redraw_later(output);
 }
 
-IO__WL_LISTENER(xdg_surface) = {
+IO_WL_LISTENER(xdg_surface) = {
     .configure = configure,
 };
 
-IO__WL_LISTENER(zxdg_toplevel_decoration_v1) = {
+IO_WL_LISTENER(zxdg_toplevel_decoration_v1) = {
     .configure = [](void*, zxdg_toplevel_decoration_v1*, u32 mode) {
         if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE) {
             log_warn("IO - <zxdg_toplevel_decoration_v1> requested client-side decorations, outputs will remain undecorated");
@@ -50,26 +50,26 @@ void toplevel_close(void* udata, xdg_toplevel*)
     }
 }
 
-IO__WL_LISTENER(xdg_toplevel) = {
+IO_WL_LISTENER(xdg_toplevel) = {
     .configure = toplevel_configure,
     .close = toplevel_close,
-    IO__WL_STUB(xdg_toplevel, configure_bounds),
-    IO__WL_STUB(xdg_toplevel, wm_capabilities),
+    IO_WL_STUB(xdg_toplevel, configure_bounds),
+    IO_WL_STUB(xdg_toplevel, wm_capabilities),
 };
 
-IO__WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
+IO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
     .done = [](void*, zwp_linux_dmabuf_feedback_v1 *feedback) {
         zwp_linux_dmabuf_feedback_v1_destroy(feedback);
     },
-    IO__WL_STUB(zwp_linux_dmabuf_feedback_v1, format_table),
-    IO__WL_STUB(zwp_linux_dmabuf_feedback_v1, main_device),
-    IO__WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_done),
-    IO__WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_target_device),
-    IO__WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_formats),
-    IO__WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_flags),
+    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, format_table),
+    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, main_device),
+    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_done),
+    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_target_device),
+    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_formats),
+    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_flags),
 };
 
-IO__WL_LISTENER(zwp_locked_pointer_v1) = {
+IO_WL_LISTENER(zwp_locked_pointer_v1) = {
     .locked   = [](void* udata, zwp_locked_pointer_v1*) {
         static_cast<io_output_wayland*>(udata)->pointer_locked = true;
     },

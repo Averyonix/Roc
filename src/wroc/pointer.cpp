@@ -274,7 +274,7 @@ vec2f64 apply_constraint(wroc_pointer_constraint* constraint, vec2f64 old_pos, v
 
     // Constrain to initial surface rectangle
     auto surface_rect = rect2f64(surface->buffer_dst);
-    static constexpr double epsilon = 0.0001;
+    static constexpr f64 epsilon = 0.0001;
     surface_rect.origin += epsilon;
     surface_rect.extent -= epsilon * 2;
     constrained = core_rect_clamp_point(surface_rect, constrained);
@@ -646,7 +646,7 @@ void wroc_pointer_axis(wroc_seat_pointer* pointer, vec2f64 rel)
         }
 
         // TODO: We shouldn't have to send this for higher version clients
-        constexpr double discrete_to_pixels = 15;
+        constexpr f64 discrete_to_pixels = 15;
         if (rel.x) wroc_send(wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(rel.x * discrete_to_pixels));
         if (rel.y) wroc_send(wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(rel.y * discrete_to_pixels));
 

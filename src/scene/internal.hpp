@@ -17,7 +17,7 @@ struct scene_output {
 struct scene_context
 {
     gpu_context* gpu;
-    io_context* io;
+    io_context*  io;
 
     struct {
         ref<gpu_pipeline> premult;

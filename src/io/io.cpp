@@ -41,10 +41,8 @@ void signal_handler(int sig)
     if (!signal_context) return;
 
     switch (sig) {
-        break;case SIGTERM:
-            io_request_shutdown(signal_context.get(), io_shutdown_reason::terminate_receieved);
-        break;case SIGINT:
-            io_request_shutdown(signal_context.get(), io_shutdown_reason::interrupt_receieved);
+        break;case SIGTERM: io_request_shutdown(signal_context.get(), io_shutdown_reason::terminate_receieved);
+        break;case SIGINT:  io_request_shutdown(signal_context.get(), io_shutdown_reason::interrupt_receieved);
     }
 }
 

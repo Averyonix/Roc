@@ -93,8 +93,8 @@ void handle_pointer_scroll_wheel(wroc_input_device* device, libinput_event_point
             : 0.0;
     };
 
-    double dx = get(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
-    double dy = get(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+    f64 dx = get(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
+    f64 dy = get(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
 
     device->pointer->scroll({ dx, dy });
 }

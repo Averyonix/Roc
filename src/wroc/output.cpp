@@ -49,7 +49,7 @@ void wroc_output_layout_init()
 
 vec2f64 wroc_output_layout_clamp_position(wroc_output_layout* layout, vec2f64 global_pos, wroc_output** p_output)
 {
-    double closest_dist = INFINITY;
+    f64 closest_dist = INFINITY;
     vec2f64 closest = {};
     wroc_output* closest_output = nullptr;
 
