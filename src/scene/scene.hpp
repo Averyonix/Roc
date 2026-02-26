@@ -216,9 +216,9 @@ void scene_window_raise(scene_window*);
 auto scene_window_get_tree(     scene_window*) -> scene_tree*;
 auto scene_window_get_transform(scene_window*) -> scene_transform*;
 
-void scene_window_request_reframe(scene_window*, rect2f32);
-void scene_window_set_frame(      scene_window*, rect2f32);
-auto scene_window_get_frame(      scene_window*) -> rect2f32;
+void scene_window_request_reposition(scene_window*, rect2f32 frame, vec2f32 gravity);
+void scene_window_set_frame(scene_window*, rect2f32 frame);
+auto scene_window_get_frame(scene_window*) -> rect2f32;
 
 auto scene_find_window_at(scene_context*, vec2f32 point) -> scene_window*;
 
@@ -257,7 +257,7 @@ enum class scene_event_type
     // Requests that a client adjust its position/size as requested.
     // This request does not need to be honoured, clients may update
     // their window frames at any time for any reason.
-    window_reframe,
+    window_reposition,
 
     // Sent before a frame may be composited to an output.
     // This may be sent even if there is no new scene graph changes
@@ -319,7 +319,10 @@ struct scene_window_event
 {
     scene_window* window;
     union {
-        rect2f32 reframe;
+        struct {
+            rect2f32 frame;
+            vec2f32  gravity;
+        } reposition;
     };
 };
 

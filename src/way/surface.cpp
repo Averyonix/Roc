@@ -4,9 +4,13 @@ static
 void create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
     auto surface = core_create<way_surface>();
-    surface->server = way_get_userdata<way_server>(resource);
+
+    surface->client = way_client_from(way_get_userdata<way_server>(resource), client);
+    surface->client->surfaces.emplace_back(surface.get());
 
     surface->pending = &surface->cached.emplace_back();
+
+    surface->texture = scene_texture_create(surface->client->server->scene);
 
     surface->wl_surface = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
 }
@@ -35,13 +39,46 @@ void attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i3
 
     if (x || y) {
         if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
-            way_post_error(surface->server, resource, WL_SURFACE_ERROR_INVALID_OFFSET,
+            way_post_error(surface->client->server, resource, WL_SURFACE_ERROR_INVALID_OFFSET,
                 "Non-zero offset not allowed in wl_surface::attach since version {}", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
             pending->surface.delta = { x, y };
             pending->committed.insert(way_surface_committed_state::offset);
         }
     }
+}
+
+static
+void frame(wl_client* client, wl_resource* resource, u32 id)
+{
+    auto* surface = way_get_userdata<way_surface>(resource);
+    auto* pending = surface->pending;
+
+    auto callback = way_resource_create_(client, &wl_callback_interface, resource, id, nullptr, nullptr, false);
+
+    pending->surface.frame_callbacks.emplace_back(callback);
+}
+
+void way_surface_on_redraw(way_surface* surface)
+{
+    auto* server = surface->client->server;
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(way_get_elapsed(server)).count();
+
+    auto send_frame_callbacks = [&](way_resource_list& list) {
+        while (auto callback = list.front()) {
+            log_error("wl_surface::frame{{{}}}.done({})", (void*)callback, ms);
+            wl_callback_send_done(callback, ms);
+            wl_resource_destroy(callback);
+        }
+    };
+
+    send_frame_callbacks(surface->current.surface.frame_callbacks);
+    for (auto& pending : surface->cached) {
+        if (!pending.commit) continue;
+        send_frame_callbacks(pending.surface.frame_callbacks);
+    }
+
+    wl_display_flush_clients(server->wl_display);
 }
 
 way_surface_state::~way_surface_state()
@@ -57,38 +94,9 @@ void surface_set_mapped(way_surface* surface, bool mapped)
 
     log_info("Surface {} was {}", (void*)surface, mapped ? "mapped" : "unmapped");
 
-    if (mapped) {
-        auto* server = surface->server;
-        auto* scene = server->scene;
-        auto* buffer = surface->current.buffer.handle.get();
-
-        surface->window = scene_window_create(server->client.get());
-        scene_window_set_frame(surface->window.get(), {{}, buffer->extent, core_xywh});
-
-        auto texture = scene_texture_create(scene);
-        surface->texture = texture;
-        scene_texture_set_image(texture.get(), buffer->image.get(), server->sampler.get(), gpu_blend_mode::premultiplied);
-        scene_texture_set_dst(texture.get(), {{}, buffer->extent, core_xywh});
-
-        scene_node_set_transform(texture.get(), scene_window_get_transform(surface->window.get()));
-        scene_tree_place_above(scene_window_get_tree(surface->window.get()), nullptr, texture.get());
-
-        scene_window_map(surface->window.get());
-    } else {
-        surface->window = nullptr;
-        surface->texture = nullptr;
+    if (surface->role == way_surface_role::xdg_toplevel) {
+        way_toplevel_on_map_change(surface, mapped);
     }
-
-    // if (!mapped) {
-    //     if (surface == server->seat->keyboard->focused_surface.get()) {
-    //         refocus_on_unmap();
-    //     }
-
-    //     if (surface == server->seat->pointer->focused_surface.get()) {
-    //         // TODO: Re-check surface under pointer
-    //         server->seat->pointer->focused_surface = nullptr;
-    //     }
-    // }
 }
 
 
@@ -111,6 +119,8 @@ void apply(way_surface* surface, way_surface_state& from)
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.transform, buffer_transform);
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.scale,     buffer_scale);
 
+    surface->current.surface.frame_callbacks.take_and_append_all(std::move(from.surface.frame_callbacks));
+
     if (from.committed.contains(way_surface_committed_state::buffer)) {
         if (from.buffer.handle && from.buffer.handle->resource) {
             surface->current.buffer.handle = std::move(from.buffer.handle);
@@ -125,6 +135,14 @@ void apply(way_surface* surface, way_surface_state& from)
 
         from.buffer.handle = nullptr;
         from.buffer.lock = nullptr;
+
+        if (auto buffer = surface->current.buffer.handle) {
+            scene_texture_set_image(surface->texture.get(), buffer->image.get(),
+                surface->client->server->sampler.get(), gpu_blend_mode::premultiplied);
+            scene_texture_set_dst(surface->texture.get(), {{}, surface->current.buffer.handle->extent, core_xywh});
+        } else {
+            scene_texture_set_image(surface->texture.get(), nullptr, nullptr, gpu_blend_mode::none);
+        }
     }
 
     way_xdg_surface_apply(surface, from);
@@ -169,7 +187,10 @@ void flush(way_surface* surface)
     }
 
     if (surface->current.buffer.handle && surface->texture) {
-        scene_texture_set_image(surface->texture.get(), surface->current.buffer.handle->image.get(), surface->server->sampler.get(), gpu_blend_mode::premultiplied);
+        scene_texture_set_image(surface->texture.get(),
+            surface->current.buffer.handle->image.get(),
+            surface->client->server->sampler.get(),
+            gpu_blend_mode::premultiplied);
     }
 
     update_map_state(surface);
@@ -201,7 +222,7 @@ WAY_INTERFACE(wl_surface) = {
     .destroy = way_simple_destroy,
     .attach = attach,
     WAY_STUB(damage),
-    WAY_STUB(frame),
+    .frame = frame,
     WAY_STUB(set_opaque_region),
     WAY_STUB(set_input_region),
     .commit = commit,
@@ -215,4 +236,5 @@ WAY_INTERFACE(wl_surface) = {
 
 way_surface::~way_surface()
 {
+    std::erase(client->surfaces, this);
 }

@@ -246,3 +246,45 @@ public:
 
     CORE_DELETE_COPY_MOVE(way_resource_list)
 };
+
+// -----------------------------------------------------------------------------
+
+struct way_listener
+{
+    core_object* data;
+    wl_listener listener;
+
+    way_listener() = default;
+
+    CORE_DELETE_COPY_MOVE(way_listener);
+
+    ~way_listener()
+    {
+        wl_list_remove(&listener.link);
+    }
+
+    template<typename T>
+    T* get() const
+    {
+        return core_object_cast<T>(data);
+    }
+
+    static
+    way_listener& from(wl_listener* listener)
+    {
+        way_listener* way_listener = wl_container_of(listener, way_listener, listener);
+        return *way_listener;
+    }
+};
+
+template<typename T>
+T* way_try_get_userdata(wl_listener* listener)
+{
+    return dynamic_cast<T*>(way_listener::from(listener).data);
+}
+
+template<typename T>
+T* way_get_userdata(wl_listener* listener)
+{
+    return core_object_cast<T>(way_listener::from(listener).data);
+}

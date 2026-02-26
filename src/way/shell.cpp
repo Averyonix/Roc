@@ -28,8 +28,9 @@ void way_xdg_surface_apply(way_surface* surface, way_surface_state& from)
 static
 void configure(way_surface* surface)
 {
-    surface->sent_serial = way_next_serial(surface->server);
-    way_send(surface->server, xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial);
+    auto* server = surface->client->server;
+    surface->sent_serial = way_next_serial(server);
+    way_send(server, xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial);
 }
 
 // -----------------------------------------------------------------------------
@@ -39,14 +40,18 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* surface = way_get_userdata<way_surface>(resource);
     surface->role = way_surface_role::xdg_toplevel;
-    surface->xdg_toplevel = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
+    surface->toplevel.resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
+
+    surface->toplevel.window = scene_window_create(surface->client->scene.get());
+    scene_node_set_transform(surface->texture.get(), scene_window_get_transform(surface->toplevel.window.get()));
+    scene_tree_place_above(scene_window_get_tree(surface->toplevel.window.get()), nullptr, surface->texture.get());
 }
 
 static
 void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
 {
     auto* surface = way_get_userdata<way_surface>(resource);
-    auto* server = surface->server;
+    auto* server = surface->client->server;
 
     if (serial > surface->sent_serial) {
         way_post_error(server, surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
@@ -74,24 +79,56 @@ WAY_INTERFACE(xdg_surface) = {
     .ack_configure = ack_configure,
 };
 
-static
-void send_premap_configure(way_surface* surface)
+void way_toplevel_on_map_change(way_surface* surface, bool mapped)
 {
-    auto* server = surface->server;
-
-    if (wl_resource_get_version(surface->xdg_toplevel) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        way_send(server, xdg_toplevel_send_wm_capabilities, surface->xdg_toplevel, ptr_to(way_to_wl_array<const xdg_toplevel_wm_capabilities>({
-            XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
-        })));
+    if (mapped) {
+        scene_window_map(surface->toplevel.window.get());
+    } else {
+        scene_window_unmap(surface->toplevel.window.get());
     }
+}
 
-    way_send(server, xdg_toplevel_send_configure, surface->xdg_toplevel,
-        0, 0,
+static
+void configure_toplevel(way_surface* surface, vec2u32 extent)
+{
+    way_send(surface->client->server, xdg_toplevel_send_configure, surface->toplevel.resource,
+        extent.x, extent.y,
         ptr_to(way_to_wl_array<const xdg_toplevel_state>({
             XDG_TOPLEVEL_STATE_ACTIVATED,
         }))
     );
+}
 
+void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gravity)
+{
+    surface->toplevel.gravity = gravity;
+    if (surface->toplevel.anchor.extent == frame.extent) {
+        // Move
+        scene_window_set_frame(surface->toplevel.window.get(), {
+            frame.origin,
+            scene_window_get_frame(surface->toplevel.window.get()).extent,
+            core_xywh
+        });
+    } else {
+        // Resize
+        configure_toplevel(surface, frame.extent);
+        configure(surface);
+        surface->toplevel.anchor = frame;
+    }
+}
+
+static
+void send_premap_configure(way_surface* surface)
+{
+    auto* server = surface->client->server;
+
+    if (wl_resource_get_version(surface->toplevel.resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
+        way_send(server, xdg_toplevel_send_wm_capabilities, surface->toplevel.resource, ptr_to(way_to_wl_array<const xdg_toplevel_wm_capabilities>({
+            XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
+        })));
+    }
+
+    configure_toplevel(surface, {0, 0});
     configure(surface);
 }
 
@@ -102,7 +139,18 @@ void way_toplevel_apply(way_surface* surface, way_surface_state& from)
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.max_size, max_size);
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.min_size, min_size);
 
-    if (!surface->mapped) {
+    if (surface->mapped) {
+        vec2f32 extent = surface->current.buffer.handle->extent;
+        rect2f32 anchor = surface->toplevel.anchor;
+
+        rect2f32 frame { anchor.origin, extent, core_xywh };
+
+        // Apply gravity
+        vec2f32 rel = 1.f - ((surface->toplevel.gravity + 1.f) * .5f);
+        frame.origin -= rel * (extent - anchor.extent);
+
+        scene_window_set_frame(surface->toplevel.window.get(), frame);
+    } else {
         log_info("toplevel surface committed but not mapped, sending configure");
         send_premap_configure(surface);
     }

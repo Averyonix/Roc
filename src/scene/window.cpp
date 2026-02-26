@@ -39,13 +39,16 @@ void scene_window_set_title(scene_window* window, std::string_view title)
     window->title = title;
 }
 
-void scene_window_request_reframe(scene_window* window, rect2f32 frame)
+void scene_window_request_reposition(scene_window* window, rect2f32 frame, vec2f32 gravity)
 {
     scene_client_post_event(window->client, ptr_to(scene_event {
-        .type = scene_event_type::window_reframe,
+        .type = scene_event_type::window_reposition,
         .window = {
             .window = window,
-            .reframe = frame,
+            .reposition = {
+                .frame = frame,
+                .gravity = gravity,
+            },
         }
     }));
 }

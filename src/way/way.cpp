@@ -13,6 +13,8 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
 {
     auto server = core_create<way_server>();
 
+    server->epoch = std::chrono::steady_clock::now();
+
     server->event_loop = event_loop;
     server->gpu = gpu;
     server->scene = scene;
@@ -38,12 +40,16 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
 
     server->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    server->client = scene_client_create(scene);
-    scene_client_set_event_handler(server->client.get(), [client = server->client.get()](scene_event* event) {
-        // TODO
-    });
+    server->client.created.data = server.get();
+    server->client.created.listener.notify = way_on_client_create;
+    wl_display_add_client_created_listener(server->wl_display, &server->client.created.listener);
 
     return server;
+}
+
+auto way_get_elapsed(way_server* server) -> std::chrono::steady_clock::duration
+{
+    return std::chrono::steady_clock::now() - server->epoch;
 }
 
 wl_global* way_global_(way_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, void* data)

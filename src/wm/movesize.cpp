@@ -79,7 +79,7 @@ void handle_motion(wm_context* wm)
         frame.extent += delta;
     }
 
-    scene_window_request_reframe(wm->movesize.window.get(), frame);
+    scene_window_request_reposition(wm->movesize.window.get(), frame, wm->movesize.relative);
 }
 
 static

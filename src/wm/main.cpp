@@ -180,8 +180,8 @@ int main()
                 log_trace("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::focus_keyboard:
                 log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
-            break;case scene_event_type::window_reframe: {
-                auto frame = event->window.reframe;
+            break;case scene_event_type::window_reposition: {
+                auto frame = event->window.reposition.frame;
                 scene_texture_set_dst(     canvas.get(), {{}, frame.extent, core_xywh});
                 scene_input_plane_set_rect(input.get(),  {{}, frame.extent, core_xywh});
                 scene_window_set_frame(event->window.window, frame);
@@ -213,7 +213,7 @@ int main()
 
             if (ImGui::Button("Reposition")) {
                 if (auto* window = imui_get_window(ImGui::GetCurrentWindow())) {
-                    scene_window_request_reframe(window, {{}, {512, 512}, core_xywh});
+                    scene_window_request_reposition(window, {{}, {512, 512}, core_xywh}, {});
                 }
             }
         }

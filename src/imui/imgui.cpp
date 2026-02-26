@@ -277,9 +277,9 @@ void render_viewport(imui_context* ctx, ImGuiViewport* vp)
 
     // Apply any pending resizes for next frame
 
-    if (auto reframe = std::exchange(data->reframe, std::nullopt)) {
-        vp->WorkPos  = vp->Pos  = to_imvec(reframe->origin);
-        vp->WorkSize = vp->Size = to_imvec(reframe->extent);
+    if (auto frame = std::exchange(data->reposition, std::nullopt)) {
+        vp->WorkPos  = vp->Pos  = to_imvec(frame->origin);
+        vp->WorkSize = vp->Size = to_imvec(frame->extent);
         vp->PlatformRequestMove = true;
         vp->PlatformRequestResize = true;
         imui_request_frame(ctx);
@@ -321,10 +321,10 @@ void imui_frame(imui_context* ctx)
 // -----------------------------------------------------------------------------
 
 static
-void handle_reframe(imui_context* ctx, scene_window* window, rect2f32 reframe)
+void handle_reposition(imui_context* ctx, scene_window* window, rect2f32 frame)
 {
     if (auto* vp = find_viewport_for_window(window)) {
-        get_data(vp)->reframe = reframe;
+        get_data(vp)->reposition = frame;
         imui_request_frame(ctx);
     }
 }
@@ -356,8 +356,8 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
                 imui_handle_focus_pointer(ctx, event->focus.gained);
             break;case scene_event_type::focus_keyboard:
                 ;
-            break;case scene_event_type::window_reframe:
-                handle_reframe(ctx, event->window.window, event->window.reframe);
+            break;case scene_event_type::window_reposition:
+                handle_reposition(ctx, event->window.window, event->window.reposition.frame);
             break;case scene_event_type::redraw:
                 imui_frame(ctx);
             break;case scene_event_type::output_layout:

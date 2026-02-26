@@ -244,6 +244,7 @@ target_sources(way PUBLIC
     src/way/surface.cpp
     src/way/shell.cpp
     src/way/shm.cpp
+    src/way/client.cpp
     )
 target_link_libraries(way PUBLIC scene)
 

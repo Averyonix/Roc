@@ -19,11 +19,15 @@
 #include <wayland/server/cursor-shape-v1.h>
 #include <wayland/server/linux-drm-syncobj-v1.h>
 
+struct way_client;
+
 // -----------------------------------------------------------------------------
 
 struct way_server : core_object
 {
     core_event_loop* event_loop;
+
+    std::chrono::steady_clock::time_point epoch;
 
     gpu_context* gpu;
     scene_context* scene;
@@ -34,11 +38,15 @@ struct way_server : core_object
 
     ref<gpu_sampler> sampler;
 
-    // TODO: Per Wayland client
-    ref<scene_client> client;
+    struct {
+        way_listener created;
+        ankerl::unordered_dense::map<wl_client*, ref<way_client>> map;
+    } client;
 
     ~way_server();
 };
+
+auto way_get_elapsed(way_server*) -> std::chrono::steady_clock::duration;
 
 // -----------------------------------------------------------------------------
 
@@ -146,7 +154,7 @@ struct way_surface_state
 
 struct way_surface : core_object
 {
-    way_server* server;
+    way_client* client;
 
     // core
     way_resource wl_surface;
@@ -166,20 +174,28 @@ struct way_surface : core_object
     u32 sent_serial;
     u32 acked_serial;
 
-    // xdg_toplevel
-    way_resource xdg_toplevel;
+    struct {
+        way_resource resource;
+        rect2f32 anchor;
+        vec2f32  gravity = {1, 1};
+        ref<scene_window> window;
+    } toplevel;
 
-    // ui representation
-    ref<scene_window> window;
     ref<scene_texture> texture;
     bool mapped;
 
     ~way_surface();
 };
 
+void way_surface_on_redraw(way_surface*);
+
 void way_subsurface_apply( way_surface*, way_surface_state&);
+
 void way_xdg_surface_apply(way_surface*, way_surface_state&);
-void way_toplevel_apply(   way_surface*, way_surface_state&);
+
+void way_toplevel_apply(     way_surface*, way_surface_state&);
+void way_toplevel_on_map_change(    way_surface*, bool mapped);
+void way_toplevel_on_reposition(way_surface*, rect2f32 frame, vec2f32 gravity);
 
 // -----------------------------------------------------------------------------
 
@@ -257,6 +273,25 @@ struct way_shm_buffer : way_buffer
     virtual void on_commit(way_surface*) final override;
     virtual void on_unlock() final override;
 };
+
+// -----------------------------------------------------------------------------
+
+struct way_client : core_object
+{
+    way_server* server;
+
+    wl_client* wl_client;
+
+    ref<scene_client> scene;
+
+    way_listener on_destroy;
+
+    std::vector<way_surface*> surfaces;
+};
+
+void way_on_client_create(wl_listener* listener, void* data);
+
+way_client* way_client_from(way_server*, wl_client*);
 
 // -----------------------------------------------------------------------------
 

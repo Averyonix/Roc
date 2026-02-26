@@ -7,9 +7,9 @@ struct imui_viewport_data {
     ref<scene_tree>        draws;
     ref<scene_input_plane> input_plane;
 
-    // Pending reframe request. Requests are double-buffered so that
+    // Pending reposition request. Requests are double-buffered so that
     // resizes requested during ImGui frames are handled correctly.
-    std::optional<rect2f32> reframe;
+    std::optional<rect2f32> reposition;
 };
 
 struct imui_context : core_object
