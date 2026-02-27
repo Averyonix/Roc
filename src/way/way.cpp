@@ -19,6 +19,8 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
     server->gpu = gpu;
     server->scene = scene;
 
+    way_seat_init(server.get());
+
     server->wl_display = wl_display_create();
 
     wl_display_set_default_max_buffer_size(server->wl_display, 4096);
@@ -28,15 +30,14 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
     server->wl_event_loop_fd = core_fd_reference(wl_event_loop_get_fd(wl_display_get_event_loop(server->wl_display)));
     core_fd_set_listener(server->wl_event_loop_fd.get(), event_loop, core_fd_event_bit::readable,
         [server = server.get()](core_fd* fd, core_fd_event_bits events) {
-            log_error("wl_display - read started");
             unix_check(wl_event_loop_dispatch(wl_display_get_event_loop(server->wl_display), 0));
             wl_display_flush_clients(server->wl_display);
-            log_error("wl_display - read finished");
         });
 
     way_global(server.get(), wl_shm);
     way_global(server.get(), wl_compositor);
     way_global(server.get(), xdg_wm_base);
+    way_global(server.get(), wl_seat);
 
     server->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
@@ -79,7 +80,8 @@ u32 way_next_serial(way_server* server)
 
 void way_queue_client_flush(way_server* server)
 {
-    log_trace("way_queue_client_flush");
+    // TODO: Queue to run at end of event
+    wl_display_flush_clients(server->wl_display);
 }
 
 void way_simple_destroy(wl_client* client, wl_resource* resource)

@@ -85,6 +85,17 @@ auto scene_keyboard_get_pressed(scene_context*) -> std::span<const scene_scancod
 auto scene_keyboard_get_sym( scene_context*, scene_scancode) -> xkb_keysym_t;
 auto scene_keyboard_get_utf8(scene_context*, scene_scancode) -> std::string;
 
+struct scene_keyboard_info
+{
+    xkb_context* context;
+    xkb_state*   state;
+    xkb_keymap*  keymap;
+    i32          rate;
+    i32          delay;
+};
+
+auto scene_keyboard_get_info(scene_context*) -> const scene_keyboard_info&;
+
 // -----------------------------------------------------------------------------
 
 struct scene_pointer_driver_in
@@ -315,8 +326,8 @@ struct scene_pointer_event
 
 struct scene_focus
 {
-    scene_client*      client;
-    scene_input_region* plane;
+    scene_client*       client;
+    scene_input_region* region;
 };
 
 struct scene_focus_event

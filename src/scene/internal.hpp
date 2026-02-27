@@ -82,24 +82,17 @@ struct scene_window
 
 // -----------------------------------------------------------------------------
 
-struct scene_keyboard
+struct scene_keyboard : scene_keyboard_info
 {
     core_counting_set<u32> pressed;
 
     std::vector<io_input_device*> led_devices;
-
-    struct xkb_context* context;
-    struct xkb_state*   state;
-    struct xkb_keymap*  keymap;
 
     flags<scene_modifier> depressed;
     flags<scene_modifier> latched;
     flags<scene_modifier> locked;
 
     core_enum_map<scene_modifier, xkb_mod_mask_t> mod_masks;
-
-    i32 rate = 25;
-    i32 delay = 600;
 
     scene_focus focus;
 

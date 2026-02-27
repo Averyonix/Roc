@@ -11,6 +11,9 @@ auto scene_keyboard_create(scene_context*) -> ref<scene_keyboard>
 {
     auto kb = core_create<scene_keyboard>();
 
+    kb->rate = 25;
+    kb->delay = 600;
+
     // Init XKB
 
     kb->context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
@@ -210,6 +213,11 @@ auto scene_keyboard_get_utf8(scene_context* ctx, scene_scancode code) -> std::st
     return utf8;
 }
 
+auto scene_keyboard_get_info(scene_context* ctx) -> const scene_keyboard_info&
+{
+    return *ctx->keyboard.get();
+}
+
 // -----------------------------------------------------------------------------
 
 static
@@ -249,12 +257,12 @@ void update_pointer_focus(scene_context* ctx, vec2f32 pos)
 
     if (ctx->pointer->grab) {
         new_focus.client = ctx->pointer->grab;
-    } else if (auto* plane = find_input_region_at(ctx->root_tree.get(), pos)) {
-        new_focus.client = plane->client;
-        new_focus.plane = plane;
+    } else if (auto* region = find_input_region_at(ctx->root_tree.get(), pos)) {
+        new_focus.client = region->client;
+        new_focus.region = region;
     }
 
-    if (old_focus.plane == new_focus.plane && old_focus.client == new_focus.client) {
+    if (old_focus.region == new_focus.region && old_focus.client == new_focus.client) {
         return;
     }
 

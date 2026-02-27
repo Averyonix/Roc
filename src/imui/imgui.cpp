@@ -43,15 +43,15 @@ auto get_data(ImGuiViewport* vp) -> imui_viewport_data*
 // -----------------------------------------------------------------------------
 
 static
-auto find_viewport_for_input_plane(imui_context* ctx, scene_input_region* plane) -> ImGuiViewport*
+auto find_viewport_for_input_plane(imui_context* ctx, scene_input_region* region) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
-        if (auto* data = get_data(vp); data && data->input_plane.get() == plane) {
+        if (auto* data = get_data(vp); data && data->input_plane.get() == region) {
             return vp;
         }
     }
 
-    core_assert_fail("find_viewport_for_input_plane", "Failed to find viewport for plane");
+    core_assert_fail("find_viewport_for_input_plane", "Failed to find viewport for region");
 }
 
 static
@@ -451,8 +451,8 @@ void imui_handle_focus_pointer(imui_context* ctx, scene_focus gained)
         io.AddMouseViewportEvent(0);
         io.AddMousePosEvent(INFINITY, INFINITY);
 
-    } else if (gained.plane) {
-        io.AddMouseViewportEvent(find_viewport_for_input_plane(ctx, gained.plane)->ID);
+    } else if (gained.region) {
+        io.AddMouseViewportEvent(find_viewport_for_input_plane(ctx, gained.region)->ID);
 
         auto pos = scene_pointer_get_position(ctx->scene);
         io.AddMousePosEvent(pos.x, pos.y);

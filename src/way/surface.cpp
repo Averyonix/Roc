@@ -86,7 +86,6 @@ void way_surface_on_redraw(way_surface* surface)
 
     auto send_frame_callbacks = [&](way_resource_list& list) {
         while (auto callback = list.front()) {
-            log_error("wl_surface::frame{{{}}}.done({})", (void*)callback, ms);
             wl_callback_send_done(callback, ms);
             wl_resource_destroy(callback);
         }
@@ -98,7 +97,7 @@ void way_surface_on_redraw(way_surface* surface)
         send_frame_callbacks(pending.surface.frame_callbacks);
     }
 
-    wl_display_flush_clients(server->wl_display);
+    way_queue_client_flush(server);
 }
 
 static
@@ -158,6 +157,8 @@ void apply(way_surface* surface, way_surface_state& from)
 
     surface->current.surface.frame_callbacks.take_and_append_all(std::move(from.surface.frame_callbacks));
 
+    // Buffer state
+
     if (from.is_set(way_surface_committed_state::buffer)) {
         if (from.buffer.handle && from.buffer.handle->resource) {
             surface->current.buffer.handle = std::move(from.buffer.handle);
@@ -174,13 +175,17 @@ void apply(way_surface* surface, way_surface_state& from)
         from.buffer.lock = nullptr;
 
         if (auto buffer = surface->current.buffer.handle) {
-            scene_texture_set_image(surface->texture.get(), buffer->image.get(),
-                surface->client->server->sampler.get(), gpu_blend_mode::premultiplied);
+            scene_texture_set_image(surface->texture.get(),
+                buffer->image.get(),
+                surface->client->server->sampler.get(),
+                gpu_blend_mode::premultiplied);
             scene_texture_set_dst(surface->texture.get(), {{}, buffer->extent, core_xywh});
         } else {
             scene_texture_set_image(surface->texture.get(), nullptr, nullptr, gpu_blend_mode::none);
         }
     }
+
+    // Input regions
 
     if (from.is_set(way_surface_committed_state::input_region)) {
         // TODO: Do we still need to clip set input_regions against surface bounds?
@@ -193,9 +198,27 @@ void apply(way_surface* surface, way_surface_state& from)
             {{{}, surface->current.buffer.handle->extent, core_xywh}});
     }
 
-    way_xdg_surface_apply(surface, from);
-    way_toplevel_apply(   surface, from);
-    // way_subsurface_apply( surface, from);
+    // Map state
+
+    update_map_state(surface);
+
+    // Component state
+
+    if (surface->xdg_surface) {
+        way_xdg_surface_apply(surface, from);
+    }
+
+    switch (surface->role) {
+        break;case way_surface_role::xdg_toplevel:
+            way_toplevel_apply(surface, from);
+        break;case way_surface_role::subsurface:
+            // way_subsurface_apply( surface, from);
+        break;case way_surface_role::cursor:
+        break;case way_surface_role::drag_icon:
+        break;case way_surface_role::xdg_popup:
+        break;case way_surface_role::none:
+            ;
+    }
 }
 
 static
@@ -231,15 +254,6 @@ void flush(way_surface* surface)
             }
         }
     }
-
-    if (surface->current.buffer.handle && surface->texture) {
-        scene_texture_set_image(surface->texture.get(),
-            surface->current.buffer.handle->image.get(),
-            surface->client->server->sampler.get(),
-            gpu_blend_mode::premultiplied);
-    }
-
-    update_map_state(surface);
 }
 
 static
@@ -267,14 +281,14 @@ void commit(wl_client* client, wl_resource* resource)
 WAY_INTERFACE(wl_surface) = {
     .destroy = way_simple_destroy,
     .attach = attach,
-    WAY_STUB(damage),
+    WAY_STUB_QUIET(damage),
     .frame = frame,
     WAY_STUB(set_opaque_region),
     .set_input_region = set_input_region,
     .commit = commit,
     .set_buffer_transform = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.transform, buffer_transform, wl_output_transform(bt), i32 bt),
     .set_buffer_scale     = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.scale,     buffer_scale,     scale,                   i32 scale),
-    WAY_STUB(damage_buffer),
+    WAY_STUB_QUIET(damage_buffer),
     WAY_STUB(offset),
 };
 

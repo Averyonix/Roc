@@ -42,7 +42,7 @@ Roc is currently tested on the following:
 
 The project is currently in a state of rewriting the old monolothic `wroc` compositor implementation into a more more modular layered approach.
 
-Points marked as **❗** have not been ported over from the legacy `wroc` implementation.
+Points marked as **❗** have not been implemented in the rewrite yet.
 
 #### Core Utillities - `core`
 
@@ -74,7 +74,7 @@ Points marked as **❗** have not been ported over from the legacy `wroc` implem
 - Internal windowing API
    - Virtual clients
 - Per-client input routing
-   - Implicit pointer focus based on input plane nodes
+   - Implicit pointer focus based on input region nodes
    - Explicit keyboard/pointer focus based on client grabs
 
 #### Immediate Mode UI - `imui`
@@ -84,10 +84,10 @@ Points marked as **❗** have not been ported over from the legacy `wroc` implem
 
 #### Wayland Protocols - `way`
 
-- Adapts Wayland client state to `scene` elements **❗**
-   - `wl_client` -> `scene_client`
-   - `xdg_toplevel` -> `scene_window` + `scene_texture`
-   - `xdg_popup`, `wl_subsurface` -> `scene_texture`
+- Adapts Wayland client state to `scene` elements
+   - `wl_client` ⇾ `client`
+   - `xdg_toplevel` ⇾ `window` + `texture` + `input_region`
+   - `xdg_popup`, `wl_subsurface` ⇾ `texture` + `input_region` **❗**
 
 #### Window Manager - `wm`
 

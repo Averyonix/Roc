@@ -25,18 +25,21 @@ void handle_event(way_client* client, scene_event* event)
                 way_surface_on_redraw(surface);
             }
         }
-        break;default:
+        break;case scene_event_type::focus_keyboard:    way_seat_on_focus_keyboard(client, event);
+        break;case scene_event_type::focus_pointer:     way_seat_on_focus_pointer( client, event);
+        break;case scene_event_type::keyboard_key:      way_seat_on_key(           client, event);
+        break;case scene_event_type::keyboard_modifier: way_seat_on_modifier(      client, event);
+        break;case scene_event_type::pointer_motion:    way_seat_on_motion(        client, event);
+        break;case scene_event_type::pointer_button:    way_seat_on_button(        client, event);
+        break;case scene_event_type::pointer_scroll:    way_seat_on_scroll(        client, event);
+        break;case scene_event_type::hotkey:
+            ;
+        break;case scene_event_type::output_layout:
             ;
     }
 }
 
 // -----------------------------------------------------------------------------
-
-static
-void on_destroy(wl_listener* listener, void* data) {
-    auto* client = way_get_userdata<way_client>(listener);
-    client->server->client.map.erase(client->wl_client);
-}
 
 void way_on_client_create(wl_listener* listener, void* data)
 {
@@ -46,20 +49,18 @@ void way_on_client_create(wl_listener* listener, void* data)
     auto client = core_create<way_client>();
     client->server = server;
 
+    wl_client_set_user_data(wl_client, core_add_ref(client.get()), [](void* data) {
+        core_remove_ref(way_get_userdata<way_client>(data));
+    });
+
     client->scene = scene_client_create(server->scene);
     scene_client_set_event_handler(client->scene.get(), [client = client.get()](scene_event* event) {
         handle_event(client, event);
     });
-
-    server->client.map.insert({wl_client, client});
-
-    client->on_destroy.data = client.get();
-    client->on_destroy.listener.notify = on_destroy;
-    wl_client_add_destroy_listener(wl_client, &client->on_destroy.listener);
 }
 
-way_client* way_client_from(way_server* server, wl_client* client)
+way_client* way_client_from(way_server* server, const wl_client* client)
 {
-    auto iter = server->client.map.find(client);
-    return iter == server->client.map.end() ? nullptr : iter->second.get();
+    // NOTE: `wl_client_get_user_data` does not actually require a non-const client.
+    return way_get_userdata<way_client>(wl_client_get_user_data(const_cast<wl_client*>(client)));
 }

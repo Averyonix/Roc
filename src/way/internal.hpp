@@ -21,6 +21,14 @@ struct way_client;
 
 // -----------------------------------------------------------------------------
 
+struct way_keymap
+{
+    ref<core_fd> fd;
+    u32          size;
+};
+
+// -----------------------------------------------------------------------------
+
 struct way_server : core_object
 {
     core_event_loop* event_loop;
@@ -38,13 +46,28 @@ struct way_server : core_object
 
     struct {
         way_listener created;
-        ankerl::unordered_dense::map<wl_client*, ref<way_client>> map;
     } client;
+
+    struct {
+        way_keymap keymap;
+    } keyboard;
 
     ~way_server();
 };
 
 auto way_get_elapsed(way_server*) -> std::chrono::steady_clock::duration;
+
+// -----------------------------------------------------------------------------
+
+void way_seat_init(way_server* server);
+
+void way_seat_on_focus_keyboard(way_client*, scene_event*);
+void way_seat_on_focus_pointer( way_client*, scene_event*);
+void way_seat_on_key(           way_client*, scene_event*);
+void way_seat_on_modifier(      way_client*, scene_event*);
+void way_seat_on_motion(        way_client*, scene_event*);
+void way_seat_on_button(        way_client*, scene_event*);
+void way_seat_on_scroll(        way_client*, scene_event*);
 
 // -----------------------------------------------------------------------------
 
@@ -208,7 +231,7 @@ struct way_surface : core_object
     struct {
         way_resource resource;
         rect2f32 anchor;
-        vec2f32  gravity = {1, 1};
+        vec2f32 gravity = {1, 1};
         ref<scene_window> window;
     } toplevel;
 
@@ -221,12 +244,12 @@ struct way_surface : core_object
 
 void way_surface_on_redraw(way_surface*);
 
-void way_subsurface_apply( way_surface*, way_surface_state&);
+void way_subsurface_apply(way_surface*, way_surface_state&);
 
 void way_xdg_surface_apply(way_surface*, way_surface_state&);
 
-void way_toplevel_apply(     way_surface*, way_surface_state&);
-void way_toplevel_on_map_change(    way_surface*, bool mapped);
+void way_toplevel_apply(        way_surface*, way_surface_state&);
+void way_toplevel_on_map_change(way_surface*, bool mapped);
 void way_toplevel_on_reposition(way_surface*, rect2f32 frame, vec2f32 gravity);
 
 // -----------------------------------------------------------------------------
@@ -316,20 +339,23 @@ struct way_client : core_object
 
     ref<scene_client> scene;
 
-    way_listener on_destroy;
-
     std::vector<way_surface*> surfaces;
+
+    way_resource_list keyboards;
+    way_resource_list pointers;
+
+    weak<way_surface> pointer_focus;
+    weak<way_surface> keyboard_focus;
 };
 
 void way_on_client_create(wl_listener* listener, void* data);
 
-way_client* way_client_from(way_server*, wl_client*);
+way_client* way_client_from(way_server*, const wl_client*);
 
 // -----------------------------------------------------------------------------
 
 #define WAY_ADDON_SIMPLE_STATE_REQUEST(Type, Field, Name, Expr, ...) \
-    [](wl_client* client, wl_resource* resource, __VA_ARGS__) \
-    { \
+    [](wl_client* client, wl_resource* resource, __VA_ARGS__) { \
         auto* surface = way_get_userdata<way_surface>(resource); \
         surface->pending->Field = Expr; \
         surface->pending->set(way_surface_committed_state::Name); \
@@ -363,7 +389,6 @@ void way_send_(way_server* server, const char* fn_name, auto fn, auto&& resource
 
 #define way_send(Server, Fn, Resource, ...) \
     way_send_(Server, #Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
-
 
 template<typename ...Args>
 void way_post_error(way_server* server, wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
@@ -444,3 +469,7 @@ WAY_INTERFACE_DECLARE(wl_buffer);
 
 WAY_INTERFACE_DECLARE(wl_shm, 2);
 WAY_INTERFACE_DECLARE(wl_shm_pool);
+
+WAY_INTERFACE_DECLARE(wl_seat, 9);
+WAY_INTERFACE_DECLARE(wl_keyboard);
+WAY_INTERFACE_DECLARE(wl_pointer);
