@@ -502,7 +502,10 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
     // VMA allocator
 
     gpu_check(vmaCreateAllocator(ptr_to(VmaAllocatorCreateInfo {
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT
+               | VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT
+               | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE4_BIT
+               | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
         .physicalDevice = ctx->physical_device,
         .device = ctx->device,
         .pVulkanFunctions = ptr_to(VmaVulkanFunctions {
