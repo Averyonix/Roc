@@ -223,24 +223,24 @@ auto scene_keyboard_get_info(scene_context* ctx) -> const scene_keyboard_info&
 static
 scene_input_region* find_input_region_at(scene_tree* tree, vec2f32 pos)
 {
-    for (auto& node : tree->children | std::views::reverse) {
-        switch (node->type) {
-            break;case scene_node_type::tree:
-                if (auto* result = find_input_region_at(static_cast<scene_tree*>(node), pos)) {
-                    return result;
-                }
-            break;case scene_node_type::input_region: {
+    scene_input_region* region = nullptr;
+
+    scene_iterate(tree,
+        scene_iterate_direction::front_to_back,
+        scene_iterate_default,
+        [&](scene_node* node) {
+            if (node->type == scene_node_type::input_region) {
                 auto* input_region = static_cast<scene_input_region*>(node);
                 if (input_region->region.contains(input_region->transform->global.to_local(pos))) {
-                    return input_region;
+                    region = input_region;
+                    return scene_iterate_action::stop;
                 }
             }
-            break;default:
-                ;
-        }
-    }
+            return scene_iterate_action::next;
+        },
+        scene_iterate_default);
 
-    return nullptr;
+    return region;
 }
 
 static

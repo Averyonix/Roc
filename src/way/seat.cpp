@@ -99,7 +99,7 @@ auto find_surface(way_client* client, scene_input_region* region) -> way_surface
     if (!region) return nullptr;
     if (region->client != client->scene.get()) return nullptr;
     for (auto* surface : client->surfaces) {
-        if (surface->input_region.get() == region) return surface;
+        if (surface->scene.input_region.get() == region) return surface;
     }
     return nullptr;
 }
@@ -153,8 +153,7 @@ void way_seat_on_focus_keyboard(way_client* client, scene_event* event)
 static
 auto get_fixed_pos(way_surface* surface) -> std::pair<wl_fixed_t, wl_fixed_t>
 {
-    // TODO: Proper surface coordinate space logic
-    auto transform = surface->texture->transform.get();
+    auto* transform = surface->scene.transform.get();
 
     auto global = scene_transform_get_global(transform);
     auto local = global.to_local(scene_pointer_get_position(surface->client->server->scene));

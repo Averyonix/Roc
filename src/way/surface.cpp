@@ -29,8 +29,18 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
 
     surface->pending = &surface->cached.emplace_back();
 
-    surface->texture = scene_texture_create(surface->client->server->scene);
-    surface->input_region = scene_input_region_create(surface->client->scene.get());
+    auto* scene = surface->client->server->scene;
+
+    surface->scene.tree = scene_tree_create(scene);
+    surface->scene.transform = scene_transform_create(scene);
+
+    surface->scene.texture = scene_texture_create(scene);
+    scene_node_set_transform(surface->scene.texture.get(), surface->scene.transform.get());
+    scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.texture.get());
+
+    surface->scene.input_region = scene_input_region_create(surface->client->scene.get());
+    scene_node_set_transform(surface->scene.input_region.get(), surface->scene.transform.get());
+    scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.input_region.get());
 
     surface->wl_surface = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
 }
@@ -175,13 +185,13 @@ void apply(way_surface* surface, way_surface_state& from)
         from.buffer.lock = nullptr;
 
         if (auto buffer = surface->current.buffer.handle) {
-            scene_texture_set_image(surface->texture.get(),
+            scene_texture_set_image(surface->scene.texture.get(),
                 buffer->image.get(),
                 surface->client->server->sampler.get(),
                 gpu_blend_mode::premultiplied);
-            scene_texture_set_dst(surface->texture.get(), {{}, buffer->extent, core_xywh});
+            scene_texture_set_dst(surface->scene.texture.get(), {{}, buffer->extent, core_xywh});
         } else {
-            scene_texture_set_image(surface->texture.get(), nullptr, nullptr, gpu_blend_mode::none);
+            scene_texture_set_image(surface->scene.texture.get(), nullptr, nullptr, gpu_blend_mode::none);
         }
     }
 
@@ -189,12 +199,12 @@ void apply(way_surface* surface, way_surface_state& from)
 
     if (from.is_set(way_surface_committed_state::input_region)) {
         // TODO: Do we still need to clip set input_regions against surface bounds?
-        scene_input_region_set_region(surface->input_region.get(), std::move(from.surface.input_region));
+        scene_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
     }
 
     if (!surface->current.is_set(way_surface_committed_state::input_region) && surface->current.buffer.handle) {
         // Unset input_region fills entire surface
-        scene_input_region_set_region(surface->input_region.get(),
+        scene_input_region_set_region(surface->scene.input_region.get(),
             {{{}, surface->current.buffer.handle->extent, core_xywh}});
     }
 
@@ -247,11 +257,9 @@ void flush(way_surface* surface)
 
     // Flush subsurface state recursively
 
-    if (surface->stack.size() > 1) {
-        for (auto* s : surface->stack) {
-            if (s != surface) {
-                flush(s);
-            }
+    for (auto* child : surface->scene.tree->children) {
+        if (auto* tree = dynamic_cast<scene_tree*>(child)) {
+            flush(core_object_cast<way_surface>(tree->userdata));
         }
     }
 }
@@ -296,5 +304,6 @@ WAY_INTERFACE(wl_surface) = {
 
 way_surface::~way_surface()
 {
+    scene.tree->userdata = nullptr;
     std::erase(client->surfaces, this);
 }

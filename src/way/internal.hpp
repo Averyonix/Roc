@@ -220,14 +220,12 @@ struct way_surface : core_object
     std::deque<way_surface_state> cached;
     way_surface_state current;
 
-    // subsurface stacks
-    std::vector<way_surface*> stack;
-
     // xdg_surface
     way_resource xdg_surface;
     u32 sent_serial;
     u32 acked_serial;
 
+    // toplevel
     struct {
         way_resource resource;
         rect2f32 anchor;
@@ -235,8 +233,14 @@ struct way_surface : core_object
         ref<scene_window> window;
     } toplevel;
 
-    ref<scene_texture> texture;
-    ref<scene_input_region> input_region;
+    // scene
+    struct {
+        ref<scene_transform>    transform;
+        ref<scene_tree>         tree;
+        ref<scene_texture>      texture;
+        ref<scene_input_region> input_region;
+    } scene;
+
     bool mapped;
 
     ~way_surface();

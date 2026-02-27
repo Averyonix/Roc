@@ -160,7 +160,7 @@ void tree_place(scene_tree* tree, scene_node* reference, scene_node* node, bool 
     }
 
     // TODO: We only need to damage regions that were visually affected by the rotate
-    damage_node(node);
+    damage_node(tree);
 }
 
 void scene_tree_place_below(scene_tree* tree, scene_node* reference, scene_node* to_place)

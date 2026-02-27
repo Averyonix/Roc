@@ -83,7 +83,7 @@ int main()
 
     auto background_client = scene_client_create(scene.get());
 
-    ref<scene_tree> background_layer;
+    ref<scene_tree> background_layer = {};
     auto update_backgrounds = [&] {
         auto root = scene_get_root_transform(scene.get());
 

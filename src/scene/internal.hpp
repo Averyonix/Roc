@@ -65,7 +65,7 @@ void scene_client_post_event(scene_client*, scene_event*);
 
 // -----------------------------------------------------------------------------
 
-struct scene_window
+struct scene_window : core_object
 {
     scene_client* client;
 

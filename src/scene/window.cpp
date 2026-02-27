@@ -2,6 +2,7 @@
 
 scene_window::~scene_window()
 {
+    tree->userdata = nullptr;
     scene_window_unmap(this);
     std::erase(client->ctx->windows, this);
 }
@@ -19,6 +20,7 @@ auto scene_window_create(scene_client* client) -> ref<scene_window>
     scene_node_set_transform(window->transform.get(), ctx->root_transform.get());
 
     window->tree = scene_tree_create(ctx);
+    window->tree->userdata = window.get();
     scene_tree_place_above(scene_get_layer(ctx, scene_layer::window), nullptr, window->tree.get());
 
     return window;
@@ -97,37 +99,25 @@ void scene_window_unmap(scene_window* window)
 
 auto scene_find_window_at(scene_context* ctx, vec2f32 point) -> scene_window*
 {
-    // TOOD: It is relatively expensive to build this window-tree map.
-    //       If we start using this function in any hot paths, we will want to
-    //       cache this or find a better way to map from scene nodes to windows.
-
-    ankerl::unordered_dense::map<scene_tree*, scene_window*> window_trees;
-    for (auto* window : ctx->windows) {
-        window_trees.insert({window->tree.get(), window});
-    }
-
     // TODO: This will ignore any `input_plane`s currently.
     //       Should we provide (optional) mappings from `input_plane` back to windows
     //       and then intersect against both `input_plane`s and `window` frames?
 
-    return [&](this auto&& self, scene_tree* parent) -> scene_window* {
-        for (auto* child : parent->children | std::views::reverse) {
-            if (child->type != scene_node_type::tree) continue;
-            auto tree = static_cast<scene_tree*>(child);
+    scene_window* window = nullptr;
 
-            // Iterate children first in case there is a child window in front
-            if (auto* window = self(tree)) {
-                return window;
-            }
-
-            // Check if this is a window's root tree
-            if (auto w = window_trees.find(tree); w != window_trees.end()) {
-                if (core_rect_contains(scene_window_get_frame(w->second), point)) {
-                    return w->second;
+    scene_iterate(ctx->root_tree.get(),
+        scene_iterate_direction::front_to_back,
+        scene_iterate_default,
+        scene_iterate_default,
+        [&](scene_tree* tree) {
+            if (auto w = dynamic_cast<scene_window*>(tree->userdata)) {
+                if (core_rect_contains(scene_window_get_frame(w), point)) {
+                    window = w;
+                    return scene_iterate_action::stop;
                 }
             }
-        }
+            return scene_iterate_action::next;
+        });
 
-        return nullptr;
-    }(ctx->root_tree.get());
+    return window;
 }

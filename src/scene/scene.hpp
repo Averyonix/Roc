@@ -173,6 +173,8 @@ struct scene_tree : scene_node
 {
     scene_context* ctx;
 
+    core_object* userdata;
+
     core_ref_vector<scene_node> children;
 
     ~scene_tree();
@@ -249,6 +251,53 @@ void scene_window_set_frame(scene_window*, rect2f32 frame);
 auto scene_window_get_frame(scene_window*) -> rect2f32;
 
 auto scene_find_window_at(scene_context*, vec2f32 point) -> scene_window*;
+
+// -----------------------------------------------------------------------------
+
+enum class scene_iterate_action
+{
+    next, // Continue to next iteration action.
+    skip, // Skip children.
+    stop, // Stop iteration. If called in pre-visit, post-visit will be skipped.
+};
+
+static constexpr auto scene_iterate_default = [](auto*) -> scene_iterate_action { return scene_iterate_action::next; };
+
+enum class scene_iterate_direction
+{
+    front_to_back,
+    back_to_front,
+};
+
+template<typename Pre, typename Leaf, typename Post>
+auto scene_iterate(scene_tree* tree, scene_iterate_direction dir, Pre&& pre, Leaf&& leaf, Post&& post) -> scene_iterate_action
+{
+    auto pre_action = pre(tree);
+    if (pre_action == scene_iterate_action::stop) return scene_iterate_action::stop;
+    if (pre_action == scene_iterate_action::skip) return scene_iterate_action::next;
+
+    auto for_each = [&](auto&& children) -> scene_iterate_action {
+        for (auto* child : children) {
+            if (child->type == scene_node_type::tree) {
+                if (scene_iterate(static_cast<scene_tree*>(child), dir,
+                        std::forward<Pre>(pre), std::forward<Leaf>(leaf), std::forward<Post>(post))
+                            == scene_iterate_action::stop) {
+                    return scene_iterate_action::stop;
+                }
+            } else {
+                if (leaf(child) == scene_iterate_action::stop) return scene_iterate_action::stop;
+            }
+        }
+        return scene_iterate_action::next;
+    };
+
+    auto action = dir == scene_iterate_direction::front_to_back
+        ? for_each(tree->children | std::views::reverse)
+        : for_each(tree->children);
+    if (action == scene_iterate_action::stop) return action;
+
+    return post(tree);
+}
 
 // -----------------------------------------------------------------------------
 

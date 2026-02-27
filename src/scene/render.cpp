@@ -57,16 +57,8 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
 
     aabb2f32 default_clip = output->viewport;
 
-    auto walk_node = [&](this auto&& walk_node, scene_node* node) -> void
-    {
+    auto visit_node = [&](scene_node* node) -> scene_iterate_action {
         switch (node->type) {
-            break;case scene_node_type::transform:
-                core_assert_fail("", "Unexpected transform node in layer stack");
-            break;case scene_node_type::tree: {
-                for (auto* child : static_cast<scene_tree*>(node)->children) {
-                    walk_node(child);
-                }
-            }
             break;case scene_node_type::mesh: {
                 auto* mesh = static_cast<scene_mesh*>(node);
 
@@ -122,12 +114,17 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
                     .transform = texture->transform->global,
                 });
             }
-            break;case scene_node_type::input_region:
+            break;default:
                 ;
         }
+        return scene_iterate_action::next;
     };
 
-    walk_node(ctx->root_tree.get());
+    scene_iterate(ctx->root_tree.get(),
+        scene_iterate_direction::back_to_front,
+        scene_iterate_default,
+        visit_node,
+        scene_iterate_default);
 
     auto gpu = ctx->gpu;
 
