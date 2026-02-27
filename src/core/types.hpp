@@ -59,26 +59,26 @@ struct core_rect
 {
     core_vec<2, T> origin, extent;
 
-    core_rect() = default;
+    constexpr core_rect() = default;
 
-    core_rect(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
+    constexpr core_rect(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
         : origin(origin)
         , extent(extent)
     {}
 
-    core_rect(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
+    constexpr core_rect(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
         : origin(min)
         , extent(max - min)
     {}
 
     template<typename T2>
         requires (!std::same_as<T2, T>)
-    core_rect(const core_rect<T2>& other)
+    constexpr core_rect(const core_rect<T2>& other)
         : core_rect(other.origin, other.extent, core_xywh)
     {}
 
     template<typename T2>
-    core_rect(const core_aabb<T2>& other)
+    constexpr core_rect(const core_aabb<T2>& other)
         : core_rect(other.min, other.max, core_minmax)
     {}
 
@@ -96,26 +96,26 @@ struct core_aabb
 {
     core_vec<2, T> min, max;
 
-    core_aabb() = default;
+    constexpr core_aabb() = default;
 
-    core_aabb(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
+    constexpr core_aabb(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
         : min(origin)
         , max(origin + extent)
     {}
 
-    core_aabb(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
+    constexpr core_aabb(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
         : min(min)
         , max(max)
     {}
 
     template<typename T2>
         requires (!std::same_as<T2, T>)
-    core_aabb(const core_aabb<T2>& other)
+    constexpr core_aabb(const core_aabb<T2>& other)
         : core_aabb(other.min, other.max, core_minmax)
     {}
 
     template<typename T2>
-    core_aabb(const core_rect<T2>& other)
+    constexpr core_aabb(const core_rect<T2>& other)
         : core_aabb(other.origin, other.extent, core_xywh)
     {}
 

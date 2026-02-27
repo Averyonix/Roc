@@ -29,7 +29,7 @@ void damage_node(scene_node* node)
                 //       we can immediately return after a frame has been requested.
                 return;
             }
-        break;case scene_node_type::input_plane:
+        break;case scene_node_type::input_region:
             ;
     }
 }
@@ -243,7 +243,7 @@ void scene_mesh_update(scene_mesh* mesh, gpu_image* image, gpu_sampler* sampler,
 
 // -----------------------------------------------------------------------------
 
-scene_input_plane::~scene_input_plane()
+scene_input_region::~scene_input_region()
 {
     if (parent) {
         scene_node_unparent(this);
@@ -252,15 +252,15 @@ scene_input_plane::~scene_input_plane()
     scene_update_pointer_focus(client->ctx);
 }
 
-auto scene_input_plane_create(scene_client* client) -> ref<scene_input_plane>
+auto scene_input_region_create(scene_client* client) -> ref<scene_input_region>
 {
-    auto plane = core_create<scene_input_plane>();
-    plane->type = scene_node_type::input_plane;
-    plane->client = client;
-    return plane;
+    auto region = core_create<scene_input_region>();
+    region->type = scene_node_type::input_region;
+    region->client = client;
+    return region;
 }
 
-void scene_input_plane_set_rect(scene_input_plane* plane, aabb2f32 rect)
+void scene_input_region_set_region(scene_input_region* input_region, region2f32 region)
 {
-    plane->rect = rect;
+    input_region->region = std::move(region);
 }

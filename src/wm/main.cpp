@@ -96,8 +96,8 @@ int main()
             auto viewport = scene_output_get_viewport(output);
 
             // Create input sink
-            auto input = scene_input_plane_create(background_client.get());
-            scene_input_plane_set_rect(input.get(), viewport);
+            auto input = scene_input_region_create(background_client.get());
+            scene_input_region_set_region(input.get(), {viewport});
             scene_node_set_transform(input.get(), scene_get_root_transform(scene.get()));
             scene_tree_place_above(background_layer.get(), nullptr, input.get());
 
@@ -140,8 +140,8 @@ int main()
     scene_node_set_transform(canvas.get(), scene_window_get_transform(window.get()));
     scene_tree_place_below(scene_window_get_tree(window.get()), nullptr, canvas.get());
 
-    auto input = scene_input_plane_create(client.get());
-    scene_input_plane_set_rect(input.get(), {{}, initial_size, core_xywh});
+    auto input = scene_input_region_create(client.get());
+    scene_input_region_set_region(input.get(), {{{}, initial_size, core_xywh}});
     scene_node_set_transform(input.get(), scene_window_get_transform(window.get()));
     scene_tree_place_above(scene_window_get_tree(window.get()), nullptr, input.get());
 
@@ -182,8 +182,8 @@ int main()
                 log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
             break;case scene_event_type::window_reposition: {
                 auto frame = event->window.reposition.frame;
-                scene_texture_set_dst(     canvas.get(), {{}, frame.extent, core_xywh});
-                scene_input_plane_set_rect(input.get(),  {{}, frame.extent, core_xywh});
+                scene_texture_set_dst(       canvas.get(), {{}, frame.extent, core_xywh});
+                scene_input_region_set_region(input.get(), {{{}, frame.extent, core_xywh}});
                 scene_window_set_frame(event->window.window, frame);
             }
             break;case scene_event_type::redraw:

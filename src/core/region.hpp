@@ -137,3 +137,4 @@ struct core_region
 // -----------------------------------------------------------------------------
 
 using region2i32 = core_region<i32>;
+using region2f32 = core_region<f32>;

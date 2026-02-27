@@ -213,24 +213,18 @@ auto scene_keyboard_get_utf8(scene_context* ctx, scene_scancode code) -> std::st
 // -----------------------------------------------------------------------------
 
 static
-scene_input_plane* find_input_plane_at(scene_tree* tree, vec2f32 pos)
+scene_input_region* find_input_region_at(scene_tree* tree, vec2f32 pos)
 {
     for (auto& node : tree->children | std::views::reverse) {
         switch (node->type) {
             break;case scene_node_type::tree:
-                if (auto* result = find_input_plane_at(static_cast<scene_tree*>(node), pos)) {
+                if (auto* result = find_input_region_at(static_cast<scene_tree*>(node), pos)) {
                     return result;
                 }
-            break;case scene_node_type::input_plane: {
-                auto* plane = static_cast<scene_input_plane*>(node);
-                auto& global = plane->transform->global;
-                aabb2f32 bounds {
-                    global.translation + plane->rect.min * global.scale,
-                    global.translation + plane->rect.max * global.scale,
-                    core_minmax,
-                };
-                if (core_aabb_contains(bounds, pos)) {
-                    return plane;
+            break;case scene_node_type::input_region: {
+                auto* input_region = static_cast<scene_input_region*>(node);
+                if (input_region->region.contains(input_region->transform->global.to_local(pos))) {
+                    return input_region;
                 }
             }
             break;default:
@@ -255,7 +249,7 @@ void update_pointer_focus(scene_context* ctx, vec2f32 pos)
 
     if (ctx->pointer->grab) {
         new_focus.client = ctx->pointer->grab;
-    } else if (auto* plane = find_input_plane_at(ctx->root_tree.get(), pos)) {
+    } else if (auto* plane = find_input_region_at(ctx->root_tree.get(), pos)) {
         new_focus.client = plane->client;
         new_focus.plane = plane;
     }

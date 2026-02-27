@@ -3,9 +3,9 @@
 #include "imui.hpp"
 
 struct imui_viewport_data {
-    ref<scene_window>      window;
-    ref<scene_tree>        draws;
-    ref<scene_input_plane> input_plane;
+    ref<scene_window>       window;
+    ref<scene_tree>         draws;
+    ref<scene_input_region> input_plane;
 
     // Pending reposition request. Requests are double-buffered so that
     // resizes requested during ImGui frames are handled correctly.

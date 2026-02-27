@@ -43,7 +43,7 @@ auto get_data(ImGuiViewport* vp) -> imui_viewport_data*
 // -----------------------------------------------------------------------------
 
 static
-auto find_viewport_for_input_plane(imui_context* ctx, scene_input_plane* plane) -> ImGuiViewport*
+auto find_viewport_for_input_plane(imui_context* ctx, scene_input_region* plane) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->input_plane.get() == plane) {
@@ -93,7 +93,7 @@ void Platform_CreateWindow(ImGuiViewport* vp)
 
     data->window = scene_window_create(ctx->client.get());
 
-    data->input_plane = scene_input_plane_create(ctx->client.get());
+    data->input_plane = scene_input_region_create(ctx->client.get());
     scene_node_set_transform(data->input_plane.get(), scene_window_get_transform(data->window.get()));
     scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->input_plane.get());
 
@@ -270,7 +270,7 @@ void render_viewport(imui_context* ctx, ImGuiViewport* vp)
     {
         rect2f32 rect {from_imvec(vp->Pos), from_imvec(vp->Size), core_xywh};
         if (rect != scene_window_get_frame(data->window.get())) {
-            scene_input_plane_set_rect(data->input_plane.get(), {{}, rect.extent, core_xywh});
+            scene_input_region_set_region(data->input_plane.get(), {{{}, rect.extent, core_xywh}});
             scene_window_set_frame(data->window.get(), rect);
         }
     }

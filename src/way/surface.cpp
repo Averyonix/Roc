@@ -1,5 +1,24 @@
 #include "internal.hpp"
 
+WAY_INTERFACE(wl_region) = {
+    .destroy = way_simple_destroy,
+    .add = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 w, i32 h) {
+        way_get_userdata<way_region>(resource)->region.add({{x, y}, {w, h}, core_xywh});
+    },
+    .subtract = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 w, i32 h) {
+        way_get_userdata<way_region>(resource)->region.subtract({{x, y}, {w, h}, core_xywh});
+    }
+};
+
+static
+void create_region(wl_client* client, wl_resource* resource, u32 id)
+{
+    auto region = core_create<way_region>();
+    region->resource = way_resource_create_refcounted(wl_region, client, resource, id, region.get());
+}
+
+// -----------------------------------------------------------------------------
+
 static
 void create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
@@ -11,13 +30,14 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
     surface->pending = &surface->cached.emplace_back();
 
     surface->texture = scene_texture_create(surface->client->server->scene);
+    surface->input_region = scene_input_region_create(surface->client->scene.get());
 
     surface->wl_surface = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
 }
 
 WAY_INTERFACE(wl_compositor) = {
     .create_surface = create_surface,
-    WAY_STUB(create_region),
+    .create_region  = create_region,
 };
 
 WAY_BIND_GLOBAL(wl_compositor)
@@ -35,7 +55,7 @@ void attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i3
 
     pending->buffer.lock = nullptr;
     pending->buffer.handle = wl_buffer ? way_get_userdata<way_buffer>(wl_buffer) : nullptr;
-    pending->committed.insert(way_surface_committed_state::buffer);
+    pending->set(way_surface_committed_state::buffer);
 
     if (x || y) {
         if (wl_resource_get_version(resource) >= WL_SURFACE_OFFSET_SINCE_VERSION) {
@@ -43,7 +63,7 @@ void attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i3
                 "Non-zero offset not allowed in wl_surface::attach since version {}", WL_SURFACE_OFFSET_SINCE_VERSION);
         } else {
             pending->surface.delta = { x, y };
-            pending->committed.insert(way_surface_committed_state::offset);
+            pending->set(way_surface_committed_state::offset);
         }
     }
 }
@@ -81,6 +101,20 @@ void way_surface_on_redraw(way_surface* surface)
     wl_display_flush_clients(server->wl_display);
 }
 
+static
+void set_input_region(wl_client* client, wl_resource* resource, wl_resource* region)
+{
+    auto* surface = way_get_userdata<way_surface>(resource);
+    auto* pending = surface->pending;
+
+    if (region) {
+        pending->surface.input_region = way_get_userdata<way_region>(resource)->region;
+        pending->set(way_surface_committed_state::input_region);
+    } else {
+        pending->unset(way_surface_committed_state::input_region);
+    }
+}
+
 way_surface_state::~way_surface_state()
 {
     // TODO: Empty callbacks
@@ -116,12 +150,15 @@ void apply(way_surface* surface, way_surface_state& from)
 {
     surface->current.commit = from.commit;
 
+    surface->current.committed.set |=  from.committed.set;
+    surface->current.committed.set &= ~from.committed.unset;
+
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.transform, buffer_transform);
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer.scale,     buffer_scale);
 
     surface->current.surface.frame_callbacks.take_and_append_all(std::move(from.surface.frame_callbacks));
 
-    if (from.committed.contains(way_surface_committed_state::buffer)) {
+    if (from.is_set(way_surface_committed_state::buffer)) {
         if (from.buffer.handle && from.buffer.handle->resource) {
             surface->current.buffer.handle = std::move(from.buffer.handle);
             surface->current.buffer.lock   = std::move(from.buffer.lock);
@@ -139,17 +176,26 @@ void apply(way_surface* surface, way_surface_state& from)
         if (auto buffer = surface->current.buffer.handle) {
             scene_texture_set_image(surface->texture.get(), buffer->image.get(),
                 surface->client->server->sampler.get(), gpu_blend_mode::premultiplied);
-            scene_texture_set_dst(surface->texture.get(), {{}, surface->current.buffer.handle->extent, core_xywh});
+            scene_texture_set_dst(surface->texture.get(), {{}, buffer->extent, core_xywh});
         } else {
             scene_texture_set_image(surface->texture.get(), nullptr, nullptr, gpu_blend_mode::none);
         }
     }
 
+    if (from.is_set(way_surface_committed_state::input_region)) {
+        // TODO: Do we still need to clip set input_regions against surface bounds?
+        scene_input_region_set_region(surface->input_region.get(), std::move(from.surface.input_region));
+    }
+
+    if (!surface->current.is_set(way_surface_committed_state::input_region) && surface->current.buffer.handle) {
+        // Unset input_region fills entire surface
+        scene_input_region_set_region(surface->input_region.get(),
+            {{{}, surface->current.buffer.handle->extent, core_xywh}});
+    }
+
     way_xdg_surface_apply(surface, from);
     way_toplevel_apply(   surface, from);
     // way_subsurface_apply( surface, from);
-
-    surface->current.committed.insert_range(from.committed);
 }
 
 static
@@ -207,7 +253,7 @@ void commit(wl_client* client, wl_resource* resource)
 
     // Begin acquisition process for buffers
 
-    if (pending->committed.contains(way_surface_committed_state::buffer)) {
+    if (pending->is_set(way_surface_committed_state::buffer)) {
         if (pending->buffer.handle) {
             pending->buffer.lock = pending->buffer.handle->commit(surface);
         }
@@ -224,7 +270,7 @@ WAY_INTERFACE(wl_surface) = {
     WAY_STUB(damage),
     .frame = frame,
     WAY_STUB(set_opaque_region),
-    WAY_STUB(set_input_region),
+    .set_input_region = set_input_region,
     .commit = commit,
     .set_buffer_transform = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.transform, buffer_transform, wl_output_transform(bt), i32 bt),
     .set_buffer_scale     = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.scale,     buffer_scale,     scale,                   i32 scale),

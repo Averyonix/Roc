@@ -43,8 +43,12 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
     surface->toplevel.resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
 
     surface->toplevel.window = scene_window_create(surface->client->scene.get());
+
     scene_node_set_transform(surface->texture.get(), scene_window_get_transform(surface->toplevel.window.get()));
     scene_tree_place_above(scene_window_get_tree(surface->toplevel.window.get()), nullptr, surface->texture.get());
+
+    scene_node_set_transform(surface->input_region.get(), scene_window_get_transform(surface->toplevel.window.get()));
+    scene_tree_place_above(scene_window_get_tree(surface->toplevel.window.get()), nullptr, surface->input_region.get());
 }
 
 static
@@ -66,7 +70,7 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
     }
 
     surface->pending->xdg.acked_serial = serial;
-    surface->pending->committed.insert(way_surface_committed_state::acked_serial);
+    surface->pending->set(way_surface_committed_state::acked_serial);
 
     surface->acked_serial = serial;
 }
@@ -101,7 +105,6 @@ void configure_toplevel(way_surface* surface, vec2u32 extent)
 
 void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gravity)
 {
-    surface->toplevel.gravity = gravity;
     if (surface->toplevel.anchor.extent == frame.extent) {
         // Move
         scene_window_set_frame(surface->toplevel.window.get(), {
@@ -113,8 +116,9 @@ void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gr
         // Resize
         configure_toplevel(surface, frame.extent);
         configure(surface);
-        surface->toplevel.anchor = frame;
     }
+    surface->toplevel.anchor = frame;
+    surface->toplevel.gravity = gravity;
 }
 
 static

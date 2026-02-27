@@ -122,7 +122,7 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
                     .transform = texture->transform->global,
                 });
             }
-            break;case scene_node_type::input_plane:
+            break;case scene_node_type::input_region:
                 ;
         }
     };

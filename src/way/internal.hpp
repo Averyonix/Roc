@@ -3,8 +3,6 @@
 #include "way.hpp"
 #include "util.hpp"
 
-#include "core/region.hpp"
-
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
 
@@ -47,6 +45,15 @@ struct way_server : core_object
 };
 
 auto way_get_elapsed(way_server*) -> std::chrono::steady_clock::duration;
+
+// -----------------------------------------------------------------------------
+
+struct way_region : core_object
+{
+    way_resource resource;
+
+    region2f32 region;
+};
 
 // -----------------------------------------------------------------------------
 
@@ -112,16 +119,40 @@ struct way_subsurface_move
     vec2i32 position;
 };
 
+static constexpr aabb2f32 way_infinite_aabb = {{-INFINITY, -INFINITY}, {INFINITY, INFINITY}, core_minmax};
+
 struct way_surface_state
 {
     way_commit_id commit;
-    std::flat_set<way_surface_committed_state> committed;
+
+    struct {
+        u32 set   = 0;
+        u32 unset = 0;
+    } committed;
+
+    static_assert(sizeof(u32) * CHAR_BIT >
+        std::to_underlying(*std::ranges::max_element(magic_enum::enum_values<way_surface_committed_state>())));
+
+    bool is_set(  way_surface_committed_state state) { return committed.set   & (1 << std::to_underlying(state)); }
+    bool is_unset(way_surface_committed_state state) { return committed.unset & (1 << std::to_underlying(state)); }
+
+    void set(way_surface_committed_state state)
+    {
+        committed.set   |=  (1 << std::to_underlying(state));
+        committed.unset &= ~(1 << std::to_underlying(state));
+    }
+
+    void unset(way_surface_committed_state state)
+    {
+        committed.unset |=  (1 << std::to_underlying(state));
+        committed.set   &= ~(1 << std::to_underlying(state));
+    }
 
     struct {
         way_resource_list frame_callbacks;
         vec2i32 delta;
-        region2i32 opaque_region;
-        region2i32 input_region;
+        region2f32 opaque_region;
+        region2f32 input_region;
     } surface;
 
     struct {
@@ -182,6 +213,7 @@ struct way_surface : core_object
     } toplevel;
 
     ref<scene_texture> texture;
+    ref<scene_input_region> input_region;
     bool mapped;
 
     ~way_surface();
@@ -300,7 +332,7 @@ way_client* way_client_from(way_server*, wl_client*);
     { \
         auto* surface = way_get_userdata<way_surface>(resource); \
         surface->pending->Field = Expr; \
-        surface->pending->committed.insert(way_surface_committed_state::Name); \
+        surface->pending->set(way_surface_committed_state::Name); \
     }
 
 /**
@@ -308,7 +340,7 @@ way_client* way_client_from(way_server*, wl_client*);
  */
 #define WAY_ADDON_SIMPLE_STATE_APPLY(From, To, Field, Name) \
     do { \
-        if ((From).committed.contains(way_surface_committed_state::Name)) { \
+        if ((From).is_set(way_surface_committed_state::Name)) { \
             (To).Field = std::move((From).Field); \
         } \
     } while (false)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/region.hpp"
 #include "core/object.hpp"
 #include "gpu/gpu.hpp"
 
@@ -11,7 +12,7 @@ struct scene_node;
 struct scene_tree;
 struct scene_transform;
 struct scene_texture;
-struct scene_input_plane;
+struct scene_input_region;
 
 struct scene_context;
 CORE_OBJECT_EXPLICIT_DECLARE(scene_context);
@@ -111,7 +112,7 @@ enum class scene_node_type
     tree,
     texture,
     mesh,
-    input_plane,
+    input_region,
 };
 
 struct scene_node : core_object
@@ -131,7 +132,15 @@ struct scene_transform_state
     vec2f32 translation;
     f32     scale;
 
-    // TODO: apply(T) helpers
+    auto to_global(vec2f32 local) -> vec2f32
+    {
+        return local * scale + translation;
+    }
+
+    auto to_local(vec2f32 global) -> vec2f32
+    {
+        return (global - translation) / scale;
+    }
 };
 
 struct scene_transform : scene_node
@@ -195,16 +204,17 @@ struct scene_mesh : scene_node
 auto scene_mesh_create(scene_context*) -> ref<scene_mesh>;
 void scene_mesh_update(scene_mesh*, gpu_image*, gpu_sampler*, gpu_blend_mode, aabb2f32 clip, std::span<const scene_vertex> vertices, std::span<const u16> indices);
 
-struct scene_input_plane : scene_node
+struct scene_input_region : scene_node
 {
     scene_client* client;
-    aabb2f32      rect;
 
-    ~scene_input_plane();
+    region2f32 region;
+
+    ~scene_input_region();
 };
 
-auto scene_input_plane_create(scene_client*) -> ref<scene_input_plane>;
-void scene_input_plane_set_rect(scene_input_plane*, aabb2f32);
+auto scene_input_region_create(scene_client*) -> ref<scene_input_region>;
+void scene_input_region_set_region(scene_input_region*, region2f32);
 
 // -----------------------------------------------------------------------------
 
@@ -306,7 +316,7 @@ struct scene_pointer_event
 struct scene_focus
 {
     scene_client*      client;
-    scene_input_plane* plane;
+    scene_input_region* plane;
 };
 
 struct scene_focus_event
