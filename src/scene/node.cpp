@@ -121,6 +121,7 @@ auto scene_tree_create(scene_context* ctx) -> ref<scene_tree>
 
 void scene_node_unparent(scene_node* node)
 {
+    if (!node->parent) return;
     damage_node(node);
     auto parent = std::exchange(node->parent, nullptr);
     parent->children.erase(node);

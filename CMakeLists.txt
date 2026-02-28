@@ -242,6 +242,7 @@ target_sources(way PUBLIC
     src/way/way.cpp
     src/way/buffer.cpp
     src/way/surface.cpp
+    src/way/subsurface.cpp
     src/way/shell.cpp
     src/way/shm.cpp
     src/way/client.cpp

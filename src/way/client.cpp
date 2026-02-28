@@ -48,6 +48,7 @@ void way_on_client_create(wl_listener* listener, void* data)
 
     auto client = core_create<way_client>();
     client->server = server;
+    client->wl_client = wl_client;
 
     wl_client_set_user_data(wl_client, core_add_ref(client.get()), [](void* data) {
         core_remove_ref(way_get_userdata<way_client>(data));
@@ -63,4 +64,12 @@ way_client* way_client_from(way_server* server, const wl_client* client)
 {
     // NOTE: `wl_client_get_user_data` does not actually require a non-const client.
     return way_get_userdata<way_client>(wl_client_get_user_data(const_cast<wl_client*>(client)));
+}
+
+auto way_client_is_behind(way_client* client) -> bool
+{
+    return poll(ptr_to(pollfd {
+        .fd = wl_client_get_fd(client->wl_client),
+        .events = POLLOUT,
+    }), 1, 0) != 1;
 }

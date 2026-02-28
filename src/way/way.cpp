@@ -36,6 +36,7 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
 
     way_global(server.get(), wl_shm);
     way_global(server.get(), wl_compositor);
+    way_global(server.get(), wl_subcompositor);
     way_global(server.get(), xdg_wm_base);
     way_global(server.get(), wl_seat);
 

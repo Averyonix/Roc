@@ -117,8 +117,6 @@ void gpu_allocate_image_descriptor(gpu_image* image)
 
     image->id = id;
 
-    log_debug("Image allocated ID: {}", std::to_underlying(image->id));
-
     auto usage = gpu_image_usage_to_vk(image->usage);
 
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {

@@ -23,6 +23,10 @@ void way_xdg_surface_apply(way_surface* surface, way_surface_state& from)
 {
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.geometry,     geometry);
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.acked_serial, acked_serial);
+
+    if (!surface->current.is_set(way_surface_committed_state::geometry) && surface->mapped) {
+        surface->current.xdg.geometry = { {}, surface->current.buffer.handle->extent, core_xywh };
+    }
 }
 
 static
@@ -111,8 +115,13 @@ void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gr
         });
     } else {
         // Resize
-        configure_toplevel(surface, frame.extent);
-        configure(surface);
+        if (surface->toplevel.pending) {
+            surface->toplevel.queued = true;
+        } else {
+            configure_toplevel(surface, frame.extent);
+            configure(surface);
+            surface->toplevel.pending = true;
+        }
     }
     surface->toplevel.anchor = frame;
     surface->toplevel.gravity = gravity;
@@ -141,7 +150,7 @@ void way_toplevel_apply(way_surface* surface, way_surface_state& from)
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.min_size, min_size);
 
     if (surface->mapped) {
-        vec2f32 extent = surface->current.buffer.handle->extent;
+        vec2f32 extent = surface->current.xdg.geometry.extent;
         rect2f32 anchor = surface->toplevel.anchor;
 
         rect2f32 frame { anchor.origin, extent, core_xywh };
@@ -151,6 +160,15 @@ void way_toplevel_apply(way_surface* surface, way_surface_state& from)
         frame.origin -= rel * (extent - anchor.extent);
 
         scene_window_set_frame(surface->toplevel.window.get(), frame);
+        scene_transform_update(surface->scene.transform.get(), -surface->current.xdg.geometry.origin, 1);
+
+        surface->toplevel.pending = false;
+        if (surface->toplevel.queued) {
+            configure_toplevel(surface, anchor.extent);
+            configure(surface);
+            surface->toplevel.queued = false;
+            surface->toplevel.pending = true;
+        }
     } else {
         log_info("toplevel surface committed but not mapped, sending configure");
         send_premap_configure(surface);

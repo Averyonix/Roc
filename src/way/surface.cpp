@@ -32,6 +32,8 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
     auto* scene = surface->client->server->scene;
 
     surface->scene.tree = scene_tree_create(scene);
+    surface->scene.tree->userdata = surface.get();
+
     surface->scene.transform = scene_transform_create(scene);
 
     surface->scene.texture = scene_texture_create(scene);
@@ -117,7 +119,7 @@ void set_input_region(wl_client* client, wl_resource* resource, wl_resource* reg
     auto* pending = surface->pending;
 
     if (region) {
-        pending->surface.input_region = way_get_userdata<way_region>(resource)->region;
+        pending->surface.input_region = way_get_userdata<way_region>(region)->region;
         pending->set(way_surface_committed_state::input_region);
     } else {
         pending->unset(way_surface_committed_state::input_region);
@@ -202,7 +204,7 @@ void apply(way_surface* surface, way_surface_state& from)
         scene_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
     }
 
-    if (!surface->current.is_set(way_surface_committed_state::input_region) && surface->current.buffer.handle) {
+    if (!surface->current.is_set(way_surface_committed_state::input_region) && surface->mapped) {
         // Unset input_region fills entire surface
         scene_input_region_set_region(surface->scene.input_region.get(),
             {{{}, surface->current.buffer.handle->extent, core_xywh}});
@@ -222,13 +224,28 @@ void apply(way_surface* surface, way_surface_state& from)
         break;case way_surface_role::xdg_toplevel:
             way_toplevel_apply(surface, from);
         break;case way_surface_role::subsurface:
-            // way_subsurface_apply( surface, from);
         break;case way_surface_role::cursor:
         break;case way_surface_role::drag_icon:
         break;case way_surface_role::xdg_popup:
         break;case way_surface_role::none:
             ;
     }
+
+    way_subsurface_apply(surface, from);
+}
+
+static
+auto is_blocked_by_parent(way_surface* surface, way_surface_state& pending) -> bool
+{
+    if (!pending.is_set(way_surface_committed_state::parent_commit)) return false;
+
+    if (surface->parent && surface->parent->current.commit < pending.parent.commit) {
+        return true;
+    } else if (!surface->parent) {
+        log_warn("parent_commit set but parent is gone, applying");
+    }
+
+    return false;
 }
 
 static
@@ -241,7 +258,7 @@ void flush(way_surface* surface)
     while (surface->cached.size() > 1) {
         auto& packet = surface->cached.front();
 
-        // TODO: Subsurface parent commit dependencies
+        if (is_blocked_by_parent(surface, packet)) break;
 
         // Check for buffer ready
         if (packet.buffer.lock && !packet.buffer.lock->buffer->is_ready(surface)) {
@@ -273,6 +290,12 @@ void commit(wl_client* client, wl_resource* resource)
     pending->commit = ++surface->last_commit_id;
     surface->pending = &surface->cached.emplace_back();
 
+    // Apply subsurface synchronization barriers
+
+    if (surface->role == way_surface_role::subsurface) {
+        way_subsurface_commit(surface, *pending);
+    }
+
     // Begin acquisition process for buffers
 
     if (pending->is_set(way_surface_committed_state::buffer)) {
@@ -291,7 +314,7 @@ WAY_INTERFACE(wl_surface) = {
     .attach = attach,
     WAY_STUB_QUIET(damage),
     .frame = frame,
-    WAY_STUB(set_opaque_region),
+    WAY_STUB_QUIET(set_opaque_region),
     .set_input_region = set_input_region,
     .commit = commit,
     .set_buffer_transform = WAY_ADDON_SIMPLE_STATE_REQUEST(way_surface, buffer.transform, buffer_transform, wl_output_transform(bt), i32 bt),
@@ -304,6 +327,8 @@ WAY_INTERFACE(wl_surface) = {
 
 way_surface::~way_surface()
 {
+    scene_node_unparent(scene.tree.get());
+    scene_node_set_transform(scene.transform.get(), nullptr);
     scene.tree->userdata = nullptr;
     std::erase(client->surfaces, this);
 }

@@ -36,7 +36,12 @@ WAY_INTERFACE(wl_shm) = {
 
 WAY_BIND_GLOBAL(wl_shm)
 {
-    way_resource_create(wl_shm, client, version, id, way_get_userdata<way_server>(data));
+    auto* server = way_get_userdata<way_server>(data);
+
+    auto resource = way_resource_create(wl_shm, client, version, id, server);
+
+    way_send(server, wl_shm_send_format, resource, WL_SHM_FORMAT_ARGB8888);
+    way_send(server, wl_shm_send_format, resource, WL_SHM_FORMAT_XRGB8888);
 }
 
 // -----------------------------------------------------------------------------
@@ -57,7 +62,7 @@ gpu_drm_format to_drm(wl_shm_format shm)
     switch (shm) {
         break;case WL_SHM_FORMAT_XRGB8888: return DRM_FORMAT_XRGB8888;
         break;case WL_SHM_FORMAT_ARGB8888: return DRM_FORMAT_ARGB8888;
-        break;default:                  return gpu_drm_format(shm);
+        break;default:                     return gpu_drm_format(shm);
     }
 }
 
@@ -84,8 +89,6 @@ void create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset,
 
     buffer->image = gpu_image_create(server->gpu, buffer->extent, buffer->format,
         gpu_image_usage::texture | gpu_image_usage::transfer);
-
-    log_debug("Created shared buffer {}, format = {}", core_to_string(buffer->extent), buffer->format->name);
 }
 
 static

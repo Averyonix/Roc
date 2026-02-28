@@ -112,6 +112,7 @@ enum class way_surface_committed_state : u32
 
     // wl_subsurface / xdg_toplevel / xdg_popup
     parent,
+    parent_commit,
 
     // xdg_surface
     geometry,
@@ -122,11 +123,6 @@ enum class way_surface_committed_state : u32
     app_id,
     min_size,
     max_size,
-
-    // wl_subsurface
-    subsurface_place,
-    subsurface_move,
-    parent_commit,
 };
 
 struct way_subsurface_place
@@ -172,6 +168,10 @@ struct way_surface_state
     }
 
     struct {
+        way_commit_id commit;
+    } parent;
+
+    struct {
         way_resource_list frame_callbacks;
         vec2i32 delta;
         region2f32 opaque_region;
@@ -191,9 +191,8 @@ struct way_surface_state
     } xdg;
 
     struct {
-        way_commit_id parent_commit;
         std::vector<way_subsurface_place> places;
-        std::vector<way_subsurface_move> moves;
+        std::vector<way_subsurface_move>  moves;
     } subsurface;
 
     struct {
@@ -210,6 +209,8 @@ struct way_surface : core_object
 {
     way_client* client;
 
+    weak<way_surface> parent;
+
     // core
     way_resource wl_surface;
     way_surface_role role = way_surface_role::none;
@@ -219,6 +220,13 @@ struct way_surface : core_object
     way_surface_state* pending;
     std::deque<way_surface_state> cached;
     way_surface_state current;
+
+    // wl_subsurface
+    struct {
+        way_resource resource;
+        bool synchronized;
+        bool last_synchronized;
+    } subsurface;
 
     // xdg_surface
     way_resource xdg_surface;
@@ -231,6 +239,9 @@ struct way_surface : core_object
         rect2f32 anchor;
         vec2f32 gravity = {1, 1};
         ref<scene_window> window;
+
+        bool pending; // commit response to resize configure is pending
+        bool queued;  // new reposition request receieved while pending
     } toplevel;
 
     // scene
@@ -248,7 +259,8 @@ struct way_surface : core_object
 
 void way_surface_on_redraw(way_surface*);
 
-void way_subsurface_apply(way_surface*, way_surface_state&);
+void way_subsurface_commit(way_surface*, way_surface_state&);
+void way_subsurface_apply( way_surface*, way_surface_state&);
 
 void way_xdg_surface_apply(way_surface*, way_surface_state&);
 
@@ -356,6 +368,8 @@ void way_on_client_create(wl_listener* listener, void* data);
 
 way_client* way_client_from(way_server*, const wl_client*);
 
+auto way_client_is_behind(way_client* client) -> bool;
+
 // -----------------------------------------------------------------------------
 
 #define WAY_ADDON_SIMPLE_STATE_REQUEST(Type, Field, Name, Expr, ...) \
@@ -458,8 +472,8 @@ WAY_INTERFACE_DECLARE(wl_compositor, 6);
 WAY_INTERFACE_DECLARE(wl_region);
 WAY_INTERFACE_DECLARE(wl_surface);
 
-// WAY_INTERFACE_DECLARE(wl_subcompositor, true);
-// WAY_INTERFACE_DECLARE(wl_subsurface);
+WAY_INTERFACE_DECLARE(wl_subcompositor, 1);
+WAY_INTERFACE_DECLARE(wl_subsurface);
 
 // WAY_INTERFACE_DECLARE(wl_output, 4);
 

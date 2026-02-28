@@ -48,11 +48,13 @@ struct core_aabb;
 
 // -----------------------------------------------------------------------------
 
-struct core_xywh_tag{};
-static constexpr core_xywh_tag core_xywh;
+namespace detail {
+    struct core_xywh_tag   {};
+    struct core_minmax_tag {};
+}
 
-struct core_minmax_tag{};
-static constexpr core_minmax_tag core_minmax;
+static constexpr detail::core_xywh_tag   core_xywh;
+static constexpr detail::core_minmax_tag core_minmax;
 
 template<typename T>
 struct core_rect
@@ -61,12 +63,12 @@ struct core_rect
 
     constexpr core_rect() = default;
 
-    constexpr core_rect(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
+    constexpr core_rect(core_vec<2, T> origin, core_vec<2, T> extent, detail::core_xywh_tag)
         : origin(origin)
         , extent(extent)
     {}
 
-    constexpr core_rect(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
+    constexpr core_rect(core_vec<2, T> min, core_vec<2, T> max, detail::core_minmax_tag)
         : origin(min)
         , extent(max - min)
     {}
@@ -98,12 +100,12 @@ struct core_aabb
 
     constexpr core_aabb() = default;
 
-    constexpr core_aabb(core_vec<2, T> origin, core_vec<2, T> extent, core_xywh_tag)
+    constexpr core_aabb(core_vec<2, T> origin, core_vec<2, T> extent, detail::core_xywh_tag)
         : min(origin)
         , max(origin + extent)
     {}
 
-    constexpr core_aabb(core_vec<2, T> min, core_vec<2, T> max, core_minmax_tag)
+    constexpr core_aabb(core_vec<2, T> min, core_vec<2, T> max, detail::core_minmax_tag)
         : min(min)
         , max(max)
     {}

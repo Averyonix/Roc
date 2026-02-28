@@ -216,6 +216,27 @@ int main()
                     scene_window_request_reposition(window, {{}, {512, 512}, core_xywh}, {});
                 }
             }
+
+            if (ImGui::Button("Print Scene Graph")) {
+                u32 depth = 0;
+                auto indent = [&] { return std::string(depth, ' '); };
+                scene_iterate(scene_get_layer(scene.get(), scene_layer::window)->parent,
+                    scene_iterate_direction::back_to_front,
+                    [&](scene_tree* tree) {
+                        log_warn("{}tree {{", indent());
+                        depth += 2;
+                        return scene_iterate_action::next;
+                    },
+                    [&](scene_node* node) {
+                        log_warn("{}{}", indent(), core_enum_to_string(node->type));
+                        return scene_iterate_action::next;
+                    },
+                    [&](scene_tree* tree) {
+                        depth -= 2;
+                        log_warn("{}}}", indent());
+                        return scene_iterate_action::next;
+                    });
+            }
         }
     });
     imui_request_frame(imui.get());

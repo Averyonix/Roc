@@ -141,7 +141,9 @@ void way_seat_on_focus_keyboard(way_client* client, scene_event* event)
     u32 serial = way_next_serial(client->server);
 
     if (gained) {
-        scene_window_raise(surface->toplevel.window.get());
+        if (surface->toplevel.window) {
+            scene_window_raise(surface->toplevel.window.get());
+        }
         keyboard_enter(client, serial, surface);
     } else {
         keyboard_leave(client, serial, surface);
