@@ -244,9 +244,11 @@ target_sources(way PUBLIC
     src/way/surface.cpp
     src/way/subsurface.cpp
     src/way/shell.cpp
+    src/way/popup.cpp
     src/way/shm.cpp
     src/way/client.cpp
     src/way/seat.cpp
+    src/way/output.cpp
     )
 target_link_libraries(way PUBLIC scene)
 

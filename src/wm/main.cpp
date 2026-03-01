@@ -6,6 +6,7 @@
 
 #include "imui/imui.hpp"
 #include "way/way.hpp"
+#include "way/internal.hpp"
 
 int main()
 {
@@ -223,7 +224,13 @@ int main()
                 scene_iterate(scene_get_layer(scene.get(), scene_layer::window)->parent,
                     scene_iterate_direction::back_to_front,
                     [&](scene_tree* tree) {
-                        log_warn("{}tree {{", indent());
+                        if (auto* surface = dynamic_cast<way_surface*>(tree->userdata)) {
+                            log_warn("{}tree({}{}) {{", indent(),
+                                core_enum_to_string(surface->role),
+                                tree->enabled ? "": ", disabled");
+                        } else {
+                            log_warn("{}tree{} {{", indent(), tree->enabled ? "": "(disabled)");
+                        }
                         depth += 2;
                         return scene_iterate_action::next;
                     },

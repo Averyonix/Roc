@@ -205,6 +205,9 @@ struct way_surface_state
     ~way_surface_state();
 };
 
+struct way_positioner;
+CORE_OBJECT_EXPLICIT_DECLARE(way_positioner);
+
 struct way_surface : core_object
 {
     way_client* client;
@@ -233,7 +236,14 @@ struct way_surface : core_object
     u32 sent_serial;
     u32 acked_serial;
 
-    // toplevel
+    // xdg_popup
+    struct {
+        way_resource        resource;
+        ref<way_positioner> positioner;
+        bool                reposition;
+    } popup;
+
+    // xdg_toplevel
     struct {
         way_resource resource;
         rect2f32 anchor;
@@ -259,14 +269,32 @@ struct way_surface : core_object
 
 void way_surface_on_redraw(way_surface*);
 
+// -----------------------------------------------------------------------------
+
 void way_subsurface_commit(way_surface*, way_surface_state&);
 void way_subsurface_apply( way_surface*, way_surface_state&);
 
+// -----------------------------------------------------------------------------
+
 void way_xdg_surface_apply(way_surface*, way_surface_state&);
+
+// -----------------------------------------------------------------------------
 
 void way_toplevel_apply(        way_surface*, way_surface_state&);
 void way_toplevel_on_map_change(way_surface*, bool mapped);
 void way_toplevel_on_reposition(way_surface*, rect2f32 frame, vec2f32 gravity);
+
+// -----------------------------------------------------------------------------
+
+void way_create_positioner(wl_client*, wl_resource*, u32 id);
+void way_get_popup(        wl_client*, wl_resource*, u32 id,
+			               wl_resource* parent, wl_resource* positioner);
+
+void way_popup_apply(way_surface*, way_surface_state&);
+
+// -----------------------------------------------------------------------------
+
+void way_init_output(way_server*);
 
 // -----------------------------------------------------------------------------
 
@@ -460,7 +488,7 @@ wl_resource* way_resource_create_(wl_client* client, const wl_interface* interfa
     return way_resource_create_(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
 }
 
-#define way_resource_create(Name, Client, Version, IdOrResource, Object) \
+#define way_resource_create_unsafe(Name, Client, Version, IdOrResource, Object) \
     way_resource_create_(Client, &Name##_interface, Version, IdOrResource, &way_##Name##_impl, Object, false)
 
 #define way_resource_create_refcounted(Name, Client, Version, IdOrResource, Object) \
@@ -475,13 +503,13 @@ WAY_INTERFACE_DECLARE(wl_surface);
 WAY_INTERFACE_DECLARE(wl_subcompositor, 1);
 WAY_INTERFACE_DECLARE(wl_subsurface);
 
-// WAY_INTERFACE_DECLARE(wl_output, 4);
+WAY_INTERFACE_DECLARE(wl_output, 4);
 
 WAY_INTERFACE_DECLARE(xdg_wm_base, 7);
 WAY_INTERFACE_DECLARE(xdg_surface);
 WAY_INTERFACE_DECLARE(xdg_toplevel);
-// WAY_INTERFACE_DECLARE(xdg_positioner);
-// WAY_INTERFACE_DECLARE(xdg_popup);
+WAY_INTERFACE_DECLARE(xdg_positioner);
+WAY_INTERFACE_DECLARE(xdg_popup);
 
 WAY_INTERFACE_DECLARE(wl_buffer);
 

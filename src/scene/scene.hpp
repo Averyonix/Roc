@@ -173,6 +173,8 @@ struct scene_tree : scene_node
 {
     scene_context* ctx;
 
+    bool enabled;
+
     core_object* userdata;
 
     core_ref_vector<scene_node> children;
@@ -181,6 +183,7 @@ struct scene_tree : scene_node
 };
 
 auto scene_tree_create(scene_context*) -> ref<scene_tree>;
+void scene_tree_set_enabled(scene_tree*, bool enabled);
 void scene_tree_place_below(scene_tree*, scene_node* reference, scene_node* to_place);
 void scene_tree_place_above(scene_tree*, scene_node* reference, scene_node* to_place);
 
@@ -272,6 +275,8 @@ enum class scene_iterate_direction
 template<typename Pre, typename Leaf, typename Post>
 auto scene_iterate(scene_tree* tree, scene_iterate_direction dir, Pre&& pre, Leaf&& leaf, Post&& post) -> scene_iterate_action
 {
+    if (!tree->enabled) return scene_iterate_action::next;
+
     auto pre_action = pre(tree);
     if (pre_action == scene_iterate_action::stop) return scene_iterate_action::stop;
     if (pre_action == scene_iterate_action::skip) return scene_iterate_action::next;

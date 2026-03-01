@@ -38,7 +38,7 @@ WAY_BIND_GLOBAL(wl_shm)
 {
     auto* server = way_get_userdata<way_server>(data);
 
-    auto resource = way_resource_create(wl_shm, client, version, id, server);
+    auto resource = way_resource_create_unsafe(wl_shm, client, version, id, server);
 
     way_send(server, wl_shm_send_format, resource, WL_SHM_FORMAT_ARGB8888);
     way_send(server, wl_shm_send_format, resource, WL_SHM_FORMAT_XRGB8888);

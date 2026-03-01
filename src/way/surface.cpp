@@ -33,6 +33,7 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
 
     surface->scene.tree = scene_tree_create(scene);
     surface->scene.tree->userdata = surface.get();
+    scene_tree_set_enabled(surface->scene.tree.get(), false);
 
     surface->scene.transform = scene_transform_create(scene);
 
@@ -54,7 +55,7 @@ WAY_INTERFACE(wl_compositor) = {
 
 WAY_BIND_GLOBAL(wl_compositor)
 {
-    way_resource_create(wl_compositor, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(wl_compositor, client, version, id, way_get_userdata<way_server>(data));
 }
 
 // -----------------------------------------------------------------------------
@@ -139,11 +140,12 @@ void surface_set_mapped(way_surface* surface, bool mapped)
 
     log_info("Surface {} was {}", (void*)surface, mapped ? "mapped" : "unmapped");
 
+    scene_tree_set_enabled(surface->scene.tree.get(), mapped);
+
     if (surface->role == way_surface_role::xdg_toplevel) {
         way_toplevel_on_map_change(surface, mapped);
     }
 }
-
 
 static
 void update_map_state(way_surface* surface)
@@ -204,7 +206,7 @@ void apply(way_surface* surface, way_surface_state& from)
         scene_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
     }
 
-    if (!surface->current.is_set(way_surface_committed_state::input_region) && surface->mapped) {
+    if (!surface->current.is_set(way_surface_committed_state::input_region) && surface->current.buffer.handle) {
         // Unset input_region fills entire surface
         scene_input_region_set_region(surface->scene.input_region.get(),
             {{{}, surface->current.buffer.handle->extent, core_xywh}});
@@ -227,6 +229,7 @@ void apply(way_surface* surface, way_surface_state& from)
         break;case way_surface_role::cursor:
         break;case way_surface_role::drag_icon:
         break;case way_surface_role::xdg_popup:
+            way_popup_apply(surface, from);
         break;case way_surface_role::none:
             ;
     }

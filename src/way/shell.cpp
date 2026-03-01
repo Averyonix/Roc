@@ -8,15 +8,15 @@ void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resour
 }
 
 WAY_INTERFACE(xdg_wm_base) = {
-    WAY_STUB(destroy),
-    WAY_STUB(create_positioner),
+    .destroy = way_simple_destroy,
+    .create_positioner = way_create_positioner,
     .get_xdg_surface = get_xdg_surface,
     WAY_STUB(pong),
 };
 
 WAY_BIND_GLOBAL(xdg_wm_base)
 {
-    way_resource_create(xdg_wm_base, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(xdg_wm_base, client, version, id, way_get_userdata<way_server>(data));
 }
 
 void way_xdg_surface_apply(way_surface* surface, way_surface_state& from)
@@ -79,7 +79,7 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
 WAY_INTERFACE(xdg_surface) = {
     WAY_STUB(destroy),
     .get_toplevel = get_toplevel,
-    WAY_STUB(get_popup),
+    .get_popup = way_get_popup,
     .set_window_geometry = WAY_ADDON_SIMPLE_STATE_REQUEST(way_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, core_xywh), i32 x, i32 y, i32 w, i32 h),
     .ack_configure = ack_configure,
 };

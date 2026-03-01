@@ -5,7 +5,7 @@ void get_subsurface(wl_client* client, wl_resource* resource, u32 id, wl_resourc
 {
     auto* surface = way_get_userdata<way_surface>(wl_surface);
     surface->role = way_surface_role::subsurface;
-    surface->subsurface.resource = way_resource_create(wl_subsurface, client, resource, id, surface);
+    surface->subsurface.resource = way_resource_create_refcounted(wl_subsurface, client, resource, id, surface);
 
     auto* parent = way_get_userdata<way_surface>(wl_parent);
     surface->parent = parent;
@@ -29,7 +29,7 @@ WAY_INTERFACE(wl_subcompositor) = {
 
 WAY_BIND_GLOBAL(wl_subcompositor)
 {
-    way_resource_create(wl_subcompositor, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(wl_subcompositor, client, version, id, way_get_userdata<way_server>(data));
 }
 
 // -----------------------------------------------------------------------------

@@ -85,10 +85,11 @@ auto scene_transform_get_global(scene_transform* transform) -> scene_transform_s
 void scene_node_set_transform(scene_node* node, scene_transform* transform)
 {
     if (node->transform.get() == transform) return;
-    if (auto old_transform = std::exchange(node->transform, transform)) {
+    if (node->transform) {
         damage_node(node);
-        std::erase(old_transform->children, node);
+        core_assert(std::erase(node->transform->children, node) == 1);
     }
+    node->transform = transform;
     if (transform) {
         transform->children.emplace_back(node);
         damage_node(node);
@@ -97,9 +98,8 @@ void scene_node_set_transform(scene_node* node, scene_transform* transform)
 
 scene_node::~scene_node()
 {
-    if (transform) {
-        std::erase(transform->children, this);
-    }
+    scene_node_set_transform(this, nullptr);
+    core_assert(!parent);
 }
 
 // -----------------------------------------------------------------------------
@@ -116,7 +116,20 @@ auto scene_tree_create(scene_context* ctx) -> ref<scene_tree>
     auto tree = core_create<scene_tree>();
     tree->type = scene_node_type::tree;
     tree->ctx = ctx;
+    tree->enabled = true;
     return tree;
+}
+
+void scene_tree_set_enabled(scene_tree* tree, bool enabled)
+{
+    if (tree->enabled == enabled) return;
+    if (enabled) {
+        tree->enabled = true;
+        damage_node(tree);
+    } else {
+        damage_node(tree);
+        tree->enabled = false;
+    }
 }
 
 void scene_node_unparent(scene_node* node)
@@ -124,7 +137,7 @@ void scene_node_unparent(scene_node* node)
     if (!node->parent) return;
     damage_node(node);
     auto parent = std::exchange(node->parent, nullptr);
-    parent->children.erase(node);
+    core_assert(parent->children.erase(node) == 1);
 }
 
 static

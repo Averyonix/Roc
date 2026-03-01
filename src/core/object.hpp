@@ -54,6 +54,10 @@ struct core_registry
     u32 active_allocations;
     u32 inactive_allocations;
 
+    struct {
+        std::vector<core_allocation_header*> freed;
+    } debug;
+
     ~core_registry();
 
     core_allocation_header* allocate(usz size);

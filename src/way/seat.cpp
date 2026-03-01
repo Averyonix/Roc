@@ -35,7 +35,7 @@ void get_keyboard(wl_client* wl_client, wl_resource* resource, u32 id)
     auto* client = way_get_userdata<way_client>(resource);
     auto* server = client->server;
 
-    auto* kb = way_resource_create(wl_keyboard, wl_client, resource, id, client);
+    auto* kb = way_resource_create_unsafe(wl_keyboard, wl_client, resource, id, client);
     client->keyboards.emplace_back(kb);
 
     way_send(server, wl_keyboard_send_keymap, kb,
@@ -60,7 +60,7 @@ void get_pointer(wl_client* wl_client, wl_resource* resource, u32 id)
 {
     auto* client = way_get_userdata<way_client>(resource);
 
-    client->pointers.emplace_back(way_resource_create(wl_pointer, wl_client, resource, id, client));
+    client->pointers.emplace_back(way_resource_create_unsafe(wl_pointer, wl_client, resource, id, client));
 }
 
 WAY_INTERFACE(wl_pointer) = {
@@ -82,7 +82,7 @@ WAY_BIND_GLOBAL(wl_seat)
     auto* server = way_get_userdata<way_server>(data);
     auto* way_client = way_client_from(server, client);
 
-    auto* resource = way_resource_create(wl_seat, client, version, id, way_client);
+    auto* resource = way_resource_create_unsafe(wl_seat, client, version, id, way_client);
 
     way_send(server, wl_seat_send_capabilities, resource, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER);
 

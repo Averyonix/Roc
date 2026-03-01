@@ -1,5 +1,14 @@
 #include "object.hpp"
 
+#define CORE_REGISTRY_PROTECT_FREE 1
+#define CORE_REGISTRY_DONT_FREE    0
+
+#if CORE_REGISTRY_DONT_FREE
+static_assert(CORE_REGISTRY_PROTECT_FREE);
+#endif
+
+// -----------------------------------------------------------------------------
+
 core_registry::~core_registry()
 {
     if (active_allocations) {
@@ -17,6 +26,12 @@ core_registry::~core_registry()
             ::free(header);
         }
     }
+
+#if CORE_REGISTRY_DONT_FREE
+    for (auto* header : debug.freed) {
+        ::free(header);
+    }
+#endif
 
     log_debug("Peak registry allocation: {}", core_byte_size_to_string(total_allocation_size));
 }
@@ -55,7 +70,16 @@ void core_registry::free(core_allocation_header* header)
 
     header->version++;
 
+#if CORE_REGISTRY_PROTECT_FREE
+    auto size = (1 << header->bin) - sizeof(core_allocation_header);
+    ::memset(core_allocation_get_data(header), 0xDD, size);
+#endif
+
+#if CORE_REGISTRY_DONT_FREE
+    debug.freed.emplace_back(header);
+#else
     bins[header->bin].emplace_back(header);
+#endif
 }
 
 struct core_registry core_registry;

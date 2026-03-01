@@ -39,6 +39,7 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
     way_global(server.get(), wl_subcompositor);
     way_global(server.get(), xdg_wm_base);
     way_global(server.get(), wl_seat);
+    way_init_output(server.get());
 
     server->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
