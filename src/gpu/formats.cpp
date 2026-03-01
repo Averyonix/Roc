@@ -37,7 +37,7 @@ std::vector<gpu_format_info> generate_formats()
 }
 
 static
-std::vector<gpu_format_info> gpu_format_infos = generate_formats();
+const std::vector<gpu_format_info> gpu_format_infos = generate_formats();
 
 std::span<const gpu_format_info> gpu_get_format_infos()
 {

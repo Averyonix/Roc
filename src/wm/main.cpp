@@ -203,6 +203,22 @@ int main()
                 }
             }
 
+            {
+                defer {  ImGui::EndDisabled(); };
+                ImGui::BeginDisabled(!gpu->renderdoc);
+                if (ImGui::Button("Capture")) {
+                    static u32 capture = 0;
+                    gpu->renderdoc->StartFrameCapture(nullptr, nullptr);
+                    gpu->renderdoc->SetCaptureTitle(std::format("Roc capture {}", ++capture).c_str());
+                    for (auto* output : scene_list_outputs(scene.get())) {
+                        auto viewport =  scene_output_get_viewport(output);
+                        auto texture = gpu_image_create(gpu.get(), viewport.extent, gpu_format_from_drm(DRM_FORMAT_ABGR8888), gpu_image_usage::render);
+                        scene_render(scene.get(), texture.get(), viewport);
+                    }
+                    gpu->renderdoc->EndFrameCapture(nullptr, nullptr);
+                }
+            }
+
             if (ImGui::Button("Print Scene Graph")) {
                 u32 depth = 0;
                 auto indent = [&] { return std::string(depth, ' '); };

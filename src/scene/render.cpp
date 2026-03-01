@@ -3,8 +3,6 @@
 #include "render.h"
 #include "scene_render_shader.hpp"
 
-#include "gpu/internal.hpp"
-
 void scene_render_init(scene_context* ctx)
 {
     ctx->render.usage = gpu_image_usage::render;
@@ -29,15 +27,14 @@ void scene_render_init(scene_context* ctx)
 
 void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
 {
-    auto& render = ctx->render;
+    auto done = scene_render(ctx, target, output->viewport);
 
-    static u32 captures = 3;
-    bool capture = ctx->gpu->renderdoc && captures;
-    if (capture) {
-        captures--;
-        ctx->gpu->renderdoc->StartFrameCapture(nullptr, nullptr);
-        ctx->gpu->renderdoc->SetCaptureTitle(std::format("Roc capture {}", 3 - captures).c_str());
-    }
+    io_output_present(output->io, target, done);
+}
+
+auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> gpu_syncpoint
+{
+    auto& render = ctx->render;
 
     struct scene_draw
     {
@@ -55,7 +52,7 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
     std::vector<u32> indices;
     std::vector<scene_draw> draws;
 
-    aabb2f32 default_clip = output->viewport;
+    aabb2f32 default_clip = viewport;
 
     auto visit_node = [&](scene_node* node) -> scene_iterate_action {
         switch (node->type) {
@@ -145,6 +142,8 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
 
     // Protect images
 
+    gpu_commands_protect_object(commands.get(), target);
+
     gpu_commands_protect_object(commands.get(), render.white.get());
     for (auto& draw : draws) {
         gpu_commands_protect_object(commands.get(), draw.image);
@@ -188,17 +187,17 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
                 core_assert_fail("", "Must select blend mode");
         }
         rect2f32 scissor = draw.clip;
-        scissor.origin -= output->viewport.origin;
+        scissor.origin -= viewport.origin;
         gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D {
             .offset = {i32(scissor.origin.x), i32(scissor.origin.y)},
             .extent = {u32(scissor.extent.x), u32(scissor.extent.y)},
         }));
-        auto draw_scale = 2.f / output->viewport.extent;
+        auto draw_scale = 2.f / viewport.extent;
         gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(scene_render_input),
             ptr_to(scene_render_input {
                 .vertices = gpu_vertices.device(),
                 .scale = draw_scale * draw.transform.scale,
-                .offset = (draw.transform.translation - output->viewport.origin) * draw_scale - 1.f,
+                .offset = (draw.transform.translation - viewport.origin) * draw_scale - 1.f,
                 .texture = {draw.image, render.sampler.get()},
             }));
         gpu->vk.CmdDrawIndexed(cmd, draw.num_indices, 1, draw.first_index, draw.first_vertex, 0);
@@ -206,11 +205,5 @@ void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
 
     gpu->vk.CmdEndRendering(cmd);
 
-    auto done = gpu_commands_submit(commands.get(), {});
-
-    if (capture) {
-        ctx->gpu->renderdoc->EndFrameCapture(nullptr, nullptr);
-    }
-
-    io_output_present(output->io, target, done);
+    return gpu_commands_submit(commands.get(), {});
 }
