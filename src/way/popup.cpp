@@ -229,12 +229,47 @@ rect2i32 positioner_apply(const way_positioner_rules& rules, rect2i32 constraint
 // -----------------------------------------------------------------------------
 
 static
-void queue_reposition(way_surface* surface, way_positioner* positioner)
+void popup_update_geometry(way_surface* surface)
 {
-    // TODO: Respect `parent_configure` positioner rule
+    auto position    = surface->popup.position;
+    auto geom        = surface->current.xdg.geometry;
+    auto parent_geom = surface->parent->current.xdg.geometry;
+    scene_transform_update(surface->scene.transform.get(),
+        position + vec2f32(parent_geom.origin) - vec2f32(geom.origin), 1);
+}
 
-    surface->pending->popup.positioner = way_get_userdata<way_positioner>(positioner);
-    surface->pending->set(way_surface_committed_state::reposition);
+static
+void position(way_surface* surface, const way_positioner_rules& rules, std::optional<u32> token = std::nullopt)
+{
+    auto* server = surface->client->server;
+
+    rect2i32 constraint = {{-INT_MAX/4, -INT_MAX/4}, {INT_MAX/2, INT_MAX/2}, core_xywh};
+
+    {
+        auto anchor = rules.anchor_rect;
+        auto point = vec2f32(anchor.origin) + vec2f32(anchor.extent) * 0.5f;
+        if (auto* output = scene_find_output_for_point(server->scene, point).output) {
+            aabb2f32 vp = scene_output_get_viewport(output);
+            auto transform = surface->parent->scene.transform->global;
+            constraint = {
+                transform.to_local(vp.min),
+                transform.to_local(vp.max),
+                core_minmax
+            };
+        }
+    }
+
+    auto geometry = positioner_apply(rules, constraint);
+    log_debug("popup geometry: {}", core_to_string(geometry));
+    surface->popup.position = geometry.origin;
+
+    if (token) {
+        way_send(server, xdg_popup_send_repositioned, surface->popup.resource, *token);
+    }
+    way_send(server, xdg_popup_send_configure, surface->popup.resource,
+        geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
+    way_xdg_surface_configure(surface);
+    popup_update_geometry(surface);
 }
 
 void way_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_parent, wl_resource* positioner)
@@ -250,67 +285,19 @@ void way_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource
     scene_node_set_transform(surface->scene.transform.get(), parent->scene.transform.get());
     scene_tree_place_above(parent->scene.tree.get(), nullptr, surface->scene.tree.get());
 
-    // Queue initial position operation
-    queue_reposition(surface, way_get_userdata<way_positioner>(positioner));
-}
-
-static
-void position(way_surface* surface, const way_positioner_rules& rules)
-{
-    rect2i32 constraint = {{-INT_MAX/4, -INT_MAX/4}, {INT_MAX/2, INT_MAX/2}, core_xywh};
-
-    {
-        auto anchor = rules.anchor_rect;
-        auto point = vec2f32(anchor.origin) + vec2f32(anchor.extent) * 0.5f;
-        if (auto* output = scene_find_output_for_point(surface->client->server->scene, point).output) {
-            aabb2f32 vp = scene_output_get_viewport(output);
-            auto transform = surface->parent->scene.transform->global;
-            constraint = {
-                transform.to_local(vp.min),
-                transform.to_local(vp.max),
-                core_minmax
-            };
-        }
-    }
-
-    auto geometry = positioner_apply(rules, constraint);
-    log_debug("popup geometry: {}", core_to_string(geometry));
-    surface->popup.position = geometry.origin;
-
-    way_send(surface->client->server, xdg_popup_send_configure, surface->popup.resource,
-        geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
-    way_xdg_surface_configure(surface);
+    position(surface, way_get_userdata<way_positioner>(positioner)->rules);
 }
 
 void way_popup_apply(way_surface* surface, way_surface_state& from)
 {
-    // Apply reposition
-
-    if (from.is_set(way_surface_committed_state::reposition)) {
-        position(surface, from.popup.positioner->rules);
-        if (from.is_set(way_surface_committed_state::reposition_token)) {
-            way_send(surface->client->server, xdg_popup_send_repositioned, surface->popup.resource, from.popup.token);
-        }
-    }
-
-    // Adjust popup transform based on geometry offsets
-
-    {
-        auto position    = surface->popup.position;
-        auto geom        = surface->current.xdg.geometry;
-        auto parent_geom = surface->parent->current.xdg.geometry;
-        scene_transform_update(surface->scene.transform.get(),
-            position + vec2f32(parent_geom.origin) - vec2f32(geom.origin), 1);
-    }
+    popup_update_geometry(surface);
 }
 
 static
 void reposition(wl_client* client, wl_resource* resource, wl_resource* positioner, u32 token)
 {
     auto* surface = way_get_userdata<way_surface>(resource);
-    queue_reposition(surface, way_get_userdata<way_positioner>(positioner));
-    surface->pending->popup.token = token;
-    surface->pending->set(way_surface_committed_state::reposition_token);
+    position(surface, way_get_userdata<way_positioner>(positioner)->rules, token);
 }
 
 WAY_INTERFACE(xdg_popup) = {

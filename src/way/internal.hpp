@@ -118,10 +118,6 @@ enum class way_surface_committed_state : u32
     geometry,
     acked_serial,
 
-    // xdg_popup
-    reposition,
-    reposition_token,
-
     // xdg_toplevel
     title,
     app_id,
@@ -200,11 +196,6 @@ struct way_surface_state
         std::vector<way_subsurface_place> places;
         std::vector<way_subsurface_move>  moves;
     } subsurface;
-
-    struct {
-        ref<way_positioner> positioner;
-        u32                 token;
-    } popup;
 
     struct {
         vec2i32 min_size;
