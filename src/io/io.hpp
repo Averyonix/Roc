@@ -8,10 +8,54 @@
 // -----------------------------------------------------------------------------
 
 struct io_context;
-struct io_input_device;
-struct io_output;
-
 CORE_OBJECT_EXPLICIT_DECLARE(io_context);
+
+// -----------------------------------------------------------------------------
+
+enum class io_input_device_capability : u32
+{
+    libinput_led = 1 << 0,
+};
+
+struct io_input_device_info
+{
+    flags<io_input_device_capability> capabilities;
+};
+
+/**
+ * Generic raw input device interface.
+ *
+ * These input devices are modelled based on libinput and evdev, with normalized channel values.
+ */
+struct io_input_device
+{
+    virtual auto info() -> io_input_device_info = 0;
+    virtual void update_leds(flags<libinput_led>) {}
+};
+
+// -----------------------------------------------------------------------------
+
+struct io_output_info
+{
+    vec2u32 size;
+};
+
+/**
+ * Generic output device interface.
+ *
+ * TODO: Support multi-plane configuration query and present.
+ *       This interface is mostly temporary - the acquire/present
+ *       model won't work for direct scanout of client-owned images.
+ *       We'll also likely want to share swapchain logic (from `io/output.cpp`)
+ *       with other systems - most notably screen video capture.
+ */
+struct io_output
+{
+    virtual auto info() -> io_output_info = 0;
+    virtual void request_frame() = 0;
+    virtual auto acquire(flags<gpu_image_usage>) -> ref<gpu_image> = 0;
+    virtual void present(gpu_image*, gpu_syncpoint done) = 0;
+};
 
 // -----------------------------------------------------------------------------
 
@@ -45,11 +89,6 @@ struct io_shutdown_event
 
 // -----------------------------------------------------------------------------
 
-enum class io_input_device_capability : u32
-{
-    libinput_led = 1 << 0,
-};
-
 struct io_input_channel
 {
     u32 type;   // evdev type
@@ -82,16 +121,12 @@ struct io_input_event
 struct io_output_event
 {
     io_output* output;
-    union {
-        gpu_image* target;
-    };
 };
 
 // -----------------------------------------------------------------------------
 
 struct io_event
 {
-    io_context* ctx;
     io_event_type type;
 
     union {
@@ -110,14 +145,5 @@ void io_set_event_handler(io_context*, std::move_only_function<io_event_handler>
 void io_run( io_context*);
 void io_stop(io_context*);
 
-auto io_list_input_devices(io_context*) -> std::span<io_input_device* const>;
-auto io_input_device_get_capabilities(io_input_device*) -> flags<io_input_device_capability>;
-void io_input_device_update_leds(io_input_device*, flags<libinput_led>);
-
-auto io_list_outputs(io_context*) -> std::span<io_output* const>;
 void io_add_output(  io_context*);
 void io_close_output(io_output*);
-
-auto io_output_get_size(     io_output*) -> vec2u32;
-void io_output_request_frame(io_output*, flags<gpu_image_usage>);
-void io_output_present(      io_output*, gpu_image*, gpu_syncpoint);

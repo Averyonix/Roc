@@ -3,8 +3,8 @@
 static
 void request_frame(scene_context* ctx)
 {
-    for (auto* output : io_list_outputs(ctx->io)) {
-        io_output_request_frame(output, ctx->render.usage);
+    for (auto* output : ctx->outputs) {
+        output->io->request_frame();
     }
 }
 

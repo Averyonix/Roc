@@ -48,7 +48,6 @@ struct scene_context
 void scene_broadcast_event(scene_context*, scene_event*);
 
 void scene_render_init(scene_context*);
-void scene_render(scene_context*, scene_output*, gpu_image*);
 
 // -----------------------------------------------------------------------------
 

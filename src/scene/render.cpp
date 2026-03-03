@@ -25,13 +25,6 @@ void scene_render_init(scene_context* ctx)
     ctx->render.sampler = gpu_sampler_create(ctx->gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 }
 
-void scene_render(scene_context* ctx, scene_output* output, gpu_image* target)
-{
-    auto done = scene_render(ctx, target, output->viewport);
-
-    io_output_present(output->io, target, done);
-}
-
 auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> gpu_syncpoint
 {
     auto& render = ctx->render;

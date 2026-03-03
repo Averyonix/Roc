@@ -91,7 +91,7 @@ struct io_wayland
 
 // -----------------------------------------------------------------------------
 
-struct io_output_wayland : io_output
+struct io_output_wayland : io_output_base
 {
     IO_WL_INTERFACE(wl_surface);
     IO_WL_INTERFACE(xdg_surface);
@@ -120,14 +120,14 @@ auto get_impl(io_output* output) -> io_output_wayland*
 
 // -----------------------------------------------------------------------------
 
-struct io_input_device_wayland_keyboard : io_input_device
+struct io_input_device_wayland_keyboard : io_input_device_base
 {
     IO_WL_INTERFACE(wl_keyboard);
 
     ~io_input_device_wayland_keyboard();
 };
 
-struct io_input_device_wayland_pointer : io_input_device
+struct io_input_device_wayland_pointer : io_input_device_base
 {
     IO_WL_INTERFACE(wl_pointer);
     IO_WL_INTERFACE(zwp_relative_pointer_v1);

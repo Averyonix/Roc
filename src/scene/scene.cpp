@@ -26,11 +26,11 @@ void output_added(scene_context* ctx, io_output* io)
     auto output = core_create<scene_output>();
     output->ctx = ctx;
     output->io = io;
-    output->viewport = {{}, io_output_get_size(io), core_xywh};
+    output->viewport = {{}, io->info().size, core_xywh};
     ctx->outputs.push_back(output.get());
     reflow_outputs(ctx);
     scene_broadcast_event(ctx, ptr_to(scene_event { .type = scene_event_type::output_layout }));
-    io_output_request_frame(io, ctx->render.usage);
+    io->request_frame();
 }
 
 static
@@ -44,20 +44,23 @@ void output_removed(scene_context* ctx, io_output* io)
 static
 void output_configure(scene_context* ctx, scene_output* output)
 {
-    output->viewport.extent = io_output_get_size(output->io);
+    output->viewport.extent = output->io->info().size;
     reflow_outputs(ctx);
     scene_broadcast_event(ctx, ptr_to(scene_event { .type = scene_event_type::output_layout }));
-    io_output_request_frame(output->io, ctx->render.usage);
+    output->io->request_frame();
 }
 
 static
-void output_redraw(scene_context* ctx, scene_output* output, gpu_image* target)
+void output_redraw(scene_context* ctx, scene_output* output)
 {
     scene_broadcast_event(ctx, ptr_to(scene_event {
         .type = scene_event_type::redraw,
         .redraw = { .output = output },
     }));
-    scene_render(ctx, output, target);
+
+    auto target = output->io->acquire(ctx->render.usage);
+    auto done = scene_render(ctx, target.get(), output->viewport);
+    output->io->present(target.get(), done);
 }
 
 struct event_handler
@@ -66,7 +69,7 @@ struct event_handler
     void operator()(io_event* event) const {
         switch (event->type) {
             break;case io_event_type::shutdown_requested:
-                io_stop(event->ctx);
+                io_stop(ctx->io);
 
             break;case io_event_type::input_added:
                 scene_handle_input_added(ctx, event->input.device);
@@ -78,7 +81,7 @@ struct event_handler
             break;case io_event_type::output_configure:
                 output_configure(ctx, find_output(ctx, event->output.output));
             break;case io_event_type::output_redraw:
-                output_redraw(ctx, find_output(ctx, event->output.output), event->output.target);
+                output_redraw(ctx, find_output(ctx, event->output.output));
             break;case io_event_type::output_added:
                 output_added(ctx, event->output.output);
             break;case io_event_type::output_removed:
@@ -126,8 +129,8 @@ auto scene_get_root_transform(scene_context* ctx) -> scene_transform*
 
 void scene_request_redraw(scene_context* ctx)
 {
-    for (auto* output : io_list_outputs(ctx->io)) {
-        io_output_request_frame(output, ctx->render.usage);
+    for (auto* output : ctx->outputs) {
+        output->io->request_frame();
     }
 }
 

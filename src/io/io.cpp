@@ -68,8 +68,7 @@ void io_run(io_context* ctx)
 void io_request_shutdown(io_context* ctx, io_shutdown_reason reason)
 {
     core_event_loop_enqueue(ctx->event_loop, [ctx, reason] {
-        io_post_event(ptr_to(io_event {
-            .ctx = ctx,
+        io_post_event(ctx, ptr_to(io_event {
             .type = io_event_type::shutdown_requested,
             .shutdown {
                 .reason = reason,
@@ -83,7 +82,7 @@ void io_stop(io_context* ctx)
     core_event_loop_stop(ctx->event_loop);
 }
 
-void io_post_event(io_event* event)
+void io_post_event(io_context* ctx, io_event* event)
 {
-    event->ctx->event_handler(event);
+    ctx->event_handler(event);
 }

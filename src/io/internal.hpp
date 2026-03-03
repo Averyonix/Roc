@@ -16,6 +16,9 @@ IO_BACKEND(io_wayland);
 
 void io_wayland_start(io_context*);
 
+struct io_input_device_base;
+struct io_output_base;
+
 struct io_context : core_object
 {
     std::move_only_function<io_event_handler> event_handler;
@@ -23,8 +26,8 @@ struct io_context : core_object
     core_event_loop* event_loop;
     gpu_context*     gpu;
 
-    std::vector<io_input_device*> input_devices;
-    std::vector<io_output*>       outputs;
+    std::vector<io_input_device_base*> input_devices;
+    std::vector<io_output_base*>       outputs;
 
     ref<io_udev>     udev;
     ref<io_session>  session;
@@ -61,12 +64,11 @@ struct io_swapchain
     u32 images_in_flight;
 };
 
-struct io_output : core_object
+struct io_output_base : io_output
 {
     io_context* ctx;
 
     bool frame_requested;
-    flags<gpu_image_usage> requested_usage;
 
     vec2u32 size;
 
@@ -76,15 +78,24 @@ struct io_output : core_object
     bool commit_available = true;
     virtual void commit(gpu_image*, gpu_syncpoint acquire, gpu_syncpoint release, flags<io_output_commit_flag>) = 0;
 
-    ~io_output();
+    virtual auto info() -> io_output_info final override
+    {
+        return { .size = size };
+    }
+
+    virtual void request_frame() final override;
+    virtual auto acquire(flags<gpu_image_usage>) -> ref<gpu_image> final override;
+    virtual void present(gpu_image*, gpu_syncpoint done) final override;
+
+    virtual ~io_output_base();
 };
 
-void io_output_try_redraw(io_output*);
-void io_output_try_redraw_later(io_output*);
-void io_output_post_configure(io_output*);
+void io_output_try_redraw(io_output_base*);
+void io_output_try_redraw_later(io_output_base*);
+void io_output_post_configure(io_output_base*);
 
-void io_output_add(   io_output*);
-void io_output_remove(io_output*);
+void io_output_add(   io_output_base*);
+void io_output_remove(io_output_base*);
 
 // -----------------------------------------------------------------------------
 
@@ -94,22 +105,29 @@ void io_output_remove(io_output*);
  * 2. wayland  - Handles the above devices when running in a nested Wayland session.
  * 3. evdev    - Handles all remaining input devices (gamepad/joystick/etc...) that do not require privileged seat access.
  */
-struct io_input_device : core_object
+struct io_input_device_base : io_input_device
 {
     io_context* ctx;
 
     flags<io_input_device_capability> capabilities;
 
     std::flat_set<u32> pressed;
+
+    auto info() -> io_input_device_info
+    {
+        return { .capabilities = capabilities };
+    }
+
+    virtual ~io_input_device_base() = default;
 };
 
-void io_post_event(io_event*);
+void io_post_event(io_context*, io_event*);
 
-void io_input_device_add(           io_input_device*);
-void io_input_device_remove(        io_input_device*);
-void io_input_device_leave(         io_input_device*);
-void io_input_device_key_enter(     io_input_device*, std::span<const u32> keys);
-void io_input_device_key_press(     io_input_device*, u32 key);
-void io_input_device_key_release(   io_input_device*, u32 key);
-void io_input_device_pointer_motion(io_input_device*, vec2f32 delta);
-void io_input_device_pointer_scroll(io_input_device*, vec2f32 delta);
+void io_input_device_add(           io_input_device_base*);
+void io_input_device_remove(        io_input_device_base*);
+void io_input_device_leave(         io_input_device_base*);
+void io_input_device_key_enter(     io_input_device_base*, std::span<const u32> keys);
+void io_input_device_key_press(     io_input_device_base*, u32 key);
+void io_input_device_key_release(   io_input_device_base*, u32 key);
+void io_input_device_pointer_motion(io_input_device_base*, vec2f32 delta);
+void io_input_device_pointer_scroll(io_input_device_base*, vec2f32 delta);

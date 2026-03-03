@@ -359,7 +359,6 @@ enum class scene_event_type
     // will be applied immediately.
     redraw,
 
-    // Sent when an output is added/removed/moved in the scene output layout.
     output_layout,
 };
 
@@ -428,6 +427,7 @@ struct scene_event
         scene_pointer_event pointer;
         scene_focus_event   focus;
         scene_redraw_event  redraw;
+        scene_output*       output;
     };
 };
 

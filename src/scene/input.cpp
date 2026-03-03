@@ -133,7 +133,7 @@ void update_leds(scene_keyboard* kb)
     if (xkb_state_led_name_is_active(kb->state, XKB_LED_NAME_SCROLL) > 0) leds |= LIBINPUT_LED_SCROLL_LOCK;
 
     for (auto& device : kb->led_devices) {
-        io_input_device_update_leds(device, leds);
+        device->update_leds(leds);
     }
 }
 
@@ -408,7 +408,7 @@ void scene_pointer_set_driver(scene_context* ctx, std::move_only_function<scene_
 
 void scene_handle_input_added(scene_context* ctx, io_input_device* device)
 {
-    if (io_input_device_get_capabilities(device).contains(io_input_device_capability::libinput_led)) {
+    if (device->info().capabilities.contains(io_input_device_capability::libinput_led)) {
         ctx->keyboard->led_devices.emplace_back(device);
     }
 }
