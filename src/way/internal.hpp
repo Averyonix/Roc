@@ -511,6 +511,11 @@ WAY_INTERFACE_DECLARE(wl_data_offer);
 WAY_INTERFACE_DECLARE(wl_data_source);
 WAY_INTERFACE_DECLARE(wl_data_device);
 
+WAY_INTERFACE_DECLARE(zwp_pointer_gestures_v1, 3);
+WAY_INTERFACE_DECLARE(zwp_pointer_gesture_swipe_v1);
+WAY_INTERFACE_DECLARE(zwp_pointer_gesture_pinch_v1);
+WAY_INTERFACE_DECLARE(zwp_pointer_gesture_hold_v1);
+
 WAY_INTERFACE_DECLARE(xdg_wm_base, 7);
 WAY_INTERFACE_DECLARE(xdg_surface);
 WAY_INTERFACE_DECLARE(xdg_toplevel);
