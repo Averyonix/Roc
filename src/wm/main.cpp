@@ -55,13 +55,13 @@ int main()
                 reflow_outputs();
             break;case io_event_type::output_frame: {
                 auto output = std::ranges::find_if(outputs, [&](auto& p) { return p.io == event->output.output; });
-                scene_render(scene.get(), output->scene.get(), output->io);
+                scene_frame(scene.get(), output->scene.get(), output->io);
             }
         }
     });
     scene_client_set_event_handler(output_client.get(), [&](scene_event* event) {
         switch (event->type) {
-            break;case scene_event_type::output_damaged: {
+            break;case scene_event_type::output_frame_request: {
                 auto output = std::ranges::find_if(outputs, [&](auto& p) { return p.scene.get() == event->output; });
                 output->io->request_frame();
             }
@@ -230,7 +230,7 @@ int main()
                   case scene_event_type::output_added:
                   case scene_event_type::output_removed:
                   case scene_event_type::output_configured:
-                  case scene_event_type::output_damaged:
+                  case scene_event_type::output_frame_request:
                   case scene_event_type::output_layout:
                   case scene_event_type::hotkey:
                 ;

@@ -293,6 +293,12 @@ void commit(wl_client* client, wl_resource* resource)
     pending->commit = ++surface->last_commit_id;
     surface->pending = &surface->cached.emplace_back();
 
+    // Queue frame request for frame callbacks
+
+    if (pending->surface.frame_callbacks.front()) {
+        scene_request_frame(surface->client->server->scene);
+    }
+
     // Apply subsurface synchronization barriers
 
     if (surface->role == way_surface_role::subsurface) {

@@ -58,10 +58,10 @@ auto scene_get_root_transform(scene_context* ctx) -> scene_transform*
     return ctx->root_transform.get();
 }
 
-void scene_request_redraw(scene_context* ctx)
+void scene_request_frame(scene_context* ctx)
 {
     for (auto* output : ctx->outputs) {
-        scene_output_damage(output);
+        scene_output_request_frame(output);
     }
 }
 

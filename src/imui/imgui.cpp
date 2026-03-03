@@ -228,7 +228,7 @@ void imui_request_frame(imui_context* ctx)
     // Double-pump frames: ImGui always works based on last frame state,
     // so input needs a second frame to react against the updated state.
     ctx->frames_requested = 2;
-    scene_request_redraw(ctx->scene);
+    scene_request_frame(ctx->scene);
 }
 
 static
@@ -291,7 +291,7 @@ void imui_frame(imui_context* ctx)
     if (!ctx->frames_requested) return;
     ctx->frames_requested--;
 
-    if (ctx->frames_requested) scene_request_redraw(ctx->scene);
+    if (ctx->frames_requested) scene_request_frame(ctx->scene);
 
     auto& io = ImGui::GetIO();
     io.DisplaySize = {};
@@ -370,7 +370,7 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
             break;case scene_event_type::output_added:
                   case scene_event_type::output_configured:
                   case scene_event_type::output_removed:
-                  case scene_event_type::output_damaged:
+                  case scene_event_type::output_frame_request:
                 ;
             break;case scene_event_type::output_frame:
                 imui_frame(ctx);

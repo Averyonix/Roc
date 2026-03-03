@@ -38,7 +38,7 @@ void handle_event(way_client* client, scene_event* event)
               case scene_event_type::output_removed:
               case scene_event_type::output_configured:
               case scene_event_type::output_layout:
-              case scene_event_type::output_damaged:
+              case scene_event_type::output_frame_request:
             ;
     }
 }

@@ -121,7 +121,7 @@ auto scene_pointer_create(scene_context*) -> ref<scene_pointer>;
 
 // -----------------------------------------------------------------------------
 
-void scene_output_damage(scene_output*);
+void scene_output_request_frame(scene_output*);
 
 // -----------------------------------------------------------------------------
 

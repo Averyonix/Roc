@@ -20,10 +20,10 @@ auto scene_output_create(scene_client* client) -> ref<scene_output>
     return output;
 }
 
-void scene_output_damage(scene_output* output)
+void scene_output_request_frame(scene_output* output)
 {
     scene_client_post_event(output->client, ptr_to(scene_event {
-        .type = scene_event_type::output_damaged,
+        .type = scene_event_type::output_frame_request,
         .output = output,
     }));
 }
@@ -35,7 +35,7 @@ void scene_output_set_viewport(scene_output* output, rect2f32 viewport)
     output->viewport = viewport;
     scene_broadcast_event(ctx, ptr_to(scene_event { .type = scene_event_type::output_configured, .output = output }));
     scene_broadcast_event(ctx, ptr_to(scene_event { .type = scene_event_type::output_layout }));
-    scene_output_damage(output);
+    scene_output_request_frame(output);
 }
 
 auto scene_list_outputs(scene_context* ctx) -> std::span<scene_output* const>

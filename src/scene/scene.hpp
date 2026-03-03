@@ -35,7 +35,9 @@ enum class scene_layer
 
 auto scene_get_layer(scene_context*, scene_layer) -> scene_tree*;
 auto scene_get_root_transform(scene_context*) -> scene_transform*;
-void scene_request_redraw(scene_context*);
+
+// TODO: Requests should be handled per-output
+void scene_request_frame(scene_context*);
 
 // -----------------------------------------------------------------------------
 
@@ -44,7 +46,6 @@ void scene_push_io_event(scene_context* ctx, struct io_event*);
 // -----------------------------------------------------------------------------
 
 auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> gpu_syncpoint;
-auto scene_render(scene_context* ctx, scene_output*, struct io_output* output) -> gpu_syncpoint;
 
 // -----------------------------------------------------------------------------
 
@@ -69,6 +70,8 @@ struct scene_find_output_result
     vec2f32       position;
 };
 auto scene_find_output_for_point(scene_context*, vec2f32 point) -> scene_find_output_result;
+
+void scene_frame(scene_context* ctx, scene_output*, struct io_output* output);
 
 // -----------------------------------------------------------------------------
 
@@ -365,7 +368,10 @@ enum class scene_event_type
     output_configured,
     output_removed,
     output_layout,
-    output_damaged,
+
+    // Requests the output owner to make a `scene_frame` call at the
+    // next time that the output would accept a content update.
+    output_frame_request,
 
     // Sent before a frame may be composited to an output.
     // This may be sent even if there is no new scene graph changes
