@@ -250,6 +250,7 @@ target_sources(way PUBLIC
     src/way/client.cpp
     src/way/seat.cpp
     src/way/output.cpp
+    src/way/data.cpp
     )
 target_link_libraries(way PUBLIC scene)
 

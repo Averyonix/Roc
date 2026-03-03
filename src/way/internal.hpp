@@ -506,6 +506,11 @@ WAY_INTERFACE_DECLARE(wl_subsurface);
 
 WAY_INTERFACE_DECLARE(wl_output, 4);
 
+WAY_INTERFACE_DECLARE(wl_data_device_manager, 3);
+WAY_INTERFACE_DECLARE(wl_data_offer);
+WAY_INTERFACE_DECLARE(wl_data_source);
+WAY_INTERFACE_DECLARE(wl_data_device);
+
 WAY_INTERFACE_DECLARE(xdg_wm_base, 7);
 WAY_INTERFACE_DECLARE(xdg_surface);
 WAY_INTERFACE_DECLARE(xdg_toplevel);
