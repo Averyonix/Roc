@@ -99,7 +99,7 @@ void way_surface_on_redraw(way_surface* surface)
 
     auto send_frame_callbacks = [&](way_resource_list& list) {
         while (auto callback = list.front()) {
-            wl_callback_send_done(callback, ms);
+            way_send(server, wl_callback_send_done, callback, ms);
             wl_resource_destroy(callback);
         }
     };

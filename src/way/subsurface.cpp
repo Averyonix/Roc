@@ -57,6 +57,13 @@ void place(wl_client* client, wl_resource* resource, wl_resource* sibling)
     });
 }
 
+static
+bool is_synchronized(way_surface* surface)
+{
+    if (surface->role != way_surface_role::subsurface) return false;
+    return surface->subsurface.synchronized || (surface->parent && is_synchronized(surface->parent.get()));
+}
+
 template<bool sync>
 void set_sync(wl_client* client, wl_resource* resource)
 {
@@ -77,19 +84,10 @@ WAY_INTERFACE(wl_subsurface) = {
 
 void way_subsurface_commit(way_surface* surface, way_surface_state& pending)
 {
-    if (surface->subsurface.synchronized) {
-        if (surface->parent) {
-            pending.parent.commit = surface->parent->last_commit_id + 1;
-            pending.set(way_surface_committed_state::parent_commit);
-        }
-    } else if (surface->subsurface.last_synchronized) {
-        for (auto& packet : surface->cached) {
-            if (packet.commit) {
-                packet.unset(way_surface_committed_state::parent_commit);
-            }
-        }
+    if (is_synchronized(surface) && surface->parent) {
+        pending.parent.commit = surface->parent->last_commit_id + 1;
+        pending.set(way_surface_committed_state::parent_commit);
     }
-    surface->subsurface.last_synchronized = surface->subsurface.synchronized;
 }
 
 void way_subsurface_apply(way_surface* surface, way_surface_state& from)

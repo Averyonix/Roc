@@ -227,7 +227,6 @@ struct way_surface : core_object
     struct {
         way_resource resource;
         bool synchronized;
-        bool last_synchronized;
     } subsurface;
 
     // xdg_surface
