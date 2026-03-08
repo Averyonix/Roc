@@ -142,6 +142,14 @@ struct core_ref
         core_remove_ref(value);
     }
 
+    void destroy()
+    {
+        if (value) {
+            core_assert(core_allocation_from(value)->ref_count == 1);
+            reset();
+        }
+    }
+
     // Construction + Assignment
 
     core_ref() = default;

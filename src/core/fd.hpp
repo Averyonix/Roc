@@ -18,11 +18,9 @@ void core_fd_set_listener(   int fd, core_fd_listener*);
 
 // -----------------------------------------------------------------------------
 
-static constexpr u32 core_fd_max = 1024;
+static constexpr int core_fd_max = 1024;
 
 auto core_fd_get_ref_count(int fd) -> u32;
-
-void core_fd_set_owned( int fd, bool owned);
 
 auto core_fd_add_ref(   int fd) -> int;
 auto core_fd_remove_ref(int fd) -> int;
@@ -35,7 +33,7 @@ struct core_fd
         : fd(-1)
     {}
 
-    core_fd(int fd)
+    explicit core_fd(int fd)
         : fd(fd)
     {
         core_fd_add_ref(fd);

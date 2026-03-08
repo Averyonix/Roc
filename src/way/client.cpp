@@ -26,10 +26,13 @@ void handle_event(way_client* client, scene_event* event)
             }
         }
 
-        break;case scene_event_type::focus_keyboard:    way_seat_on_focus_keyboard(client, event);
-        break;case scene_event_type::focus_pointer:     way_seat_on_focus_pointer( client, event);
+        break;case scene_event_type::keyboard_enter:    way_seat_on_keyboard_enter(client, event);
+        break;case scene_event_type::keyboard_leave:    way_seat_on_keyboard_leave(client, event);
         break;case scene_event_type::keyboard_key:      way_seat_on_key(           client, event);
         break;case scene_event_type::keyboard_modifier: way_seat_on_modifier(      client, event);
+
+        break;case scene_event_type::pointer_enter:     way_seat_on_pointer_enter( client, event);
+        break;case scene_event_type::pointer_leave:     way_seat_on_pointer_leave( client, event);
         break;case scene_event_type::pointer_motion:    way_seat_on_motion(        client, event);
         break;case scene_event_type::pointer_button:    way_seat_on_button(        client, event);
         break;case scene_event_type::pointer_scroll:    way_seat_on_scroll(        client, event);
@@ -45,7 +48,7 @@ void handle_event(way_client* client, scene_event* event)
             ;
 
         break;case scene_event_type::selection:
-            way_offer_selection(client);
+            way_data_offer_selection(client);
     }
 }
 

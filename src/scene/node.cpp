@@ -259,6 +259,8 @@ void scene_mesh_update(scene_mesh* mesh, gpu_image* image, gpu_sampler* sampler,
 
 scene_input_region::~scene_input_region()
 {
+    client->input_regions--;
+
     if (parent) {
         scene_node_unparent(this);
     }
@@ -271,6 +273,7 @@ auto scene_input_region_create(scene_client* client) -> ref<scene_input_region>
     auto region = core_create<scene_input_region>();
     region->type = scene_node_type::input_region;
     region->client = client;
+    client->input_regions++;
     return region;
 }
 

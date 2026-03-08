@@ -36,7 +36,7 @@ struct core_event_loop : core_object
     u32 internal_listener_count;
     u32 listener_count = 0;
 
-    int epoll_fd;
+    core_fd epoll_fd;
 
     struct {
         u64 events_handled;

@@ -36,15 +36,15 @@ struct scene_context
     std::vector<scene_client*> clients;
     std::vector<scene_window*> windows;
 
-    ref<scene_keyboard> keyboard;
-    ref<scene_pointer>  pointer;
-
     struct {
-        ankerl::unordered_dense::map<scene_hotkey, scene_client*> registered;
-        ankerl::unordered_dense::map<scene_scancode, std::pair<flags<scene_modifier>, scene_client*>> pressed;
-    } hotkey;
+        ref<scene_keyboard> keyboard;
+        ref<scene_pointer>  pointer;
+        std::vector<io_input_device*> led_devices;
+    } seat;
 
     ref<scene_data_source> selection;
+
+    ~scene_context();
 };
 
 void scene_broadcast_event(scene_context*, scene_event*);
@@ -58,6 +58,8 @@ struct scene_client
     scene_context* ctx;
 
     std::move_only_function<scene_event_handler_fn> event_handler;
+
+    u32 input_regions = 0;
 
     ~scene_client();
 };
@@ -83,11 +85,30 @@ struct scene_window : core_object
 
 // -----------------------------------------------------------------------------
 
-struct scene_keyboard : scene_keyboard_info
+struct scene_hotkey_press_state
+{
+    flags<scene_modifier> modifiers;
+    scene_client*         client;
+};
+
+struct scene_hotkey_map {
+    ankerl::unordered_dense::map<scene_hotkey, scene_client*> registered;
+    ankerl::unordered_dense::map<scene_scancode, scene_hotkey_press_state> pressed;
+};
+
+struct scene_input_device
+{
+    scene_input_device_type type;
+    scene_context* ctx;
+
+    scene_hotkey_map hotkeys;
+};
+
+// -----------------------------------------------------------------------------
+
+struct scene_keyboard : scene_input_device, scene_keyboard_info
 {
     core_counting_set<u32> pressed;
-
-    std::vector<io_input_device*> led_devices;
 
     flags<scene_modifier> depressed;
     flags<scene_modifier> latched;
@@ -95,7 +116,9 @@ struct scene_keyboard : scene_keyboard_info
 
     core_enum_map<scene_modifier, xkb_mod_mask_t> mod_masks;
 
-    scene_focus focus;
+    struct {
+        scene_client* client;
+    } focus;
 
     ~scene_keyboard();
 };
@@ -104,7 +127,13 @@ auto scene_keyboard_create(scene_context*) -> ref<scene_keyboard>;
 
 // -----------------------------------------------------------------------------
 
-struct scene_pointer
+struct scene_pointer_focus
+{
+    scene_client*       client;
+    scene_input_region* region;
+};
+
+struct scene_pointer : scene_input_device
 {
     core_counting_set<u32> pressed;
 
@@ -114,12 +143,17 @@ struct scene_pointer
     std::move_only_function<scene_pointer_driver_fn> driver;
 
     scene_client* grab;
-    scene_focus   focus;
+
+    scene_pointer_focus focus;
 };
 
 void scene_update_pointer_focus(scene_context*);
 
 auto scene_pointer_create(scene_context*) -> ref<scene_pointer>;
+
+// -----------------------------------------------------------------------------
+
+auto scene_find_input_region_at(scene_tree* tree, vec2f32 pos) -> scene_input_region*;
 
 // -----------------------------------------------------------------------------
 

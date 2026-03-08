@@ -1,14 +1,15 @@
 #include "wm.hpp"
 
 static
-void begin_interaction(wm_context* wm, wm_movesize_mode initial_mode)
+void begin_interaction(wm_context* wm, scene_pointer* pointer, wm_movesize_mode initial_mode)
 {
-    auto pos = scene_pointer_get_position(wm->scene);
+    scene_pointer_grab(pointer, wm->movesize.client.get());
+    wm->movesize.pointer = pointer;
+
+    auto pos = scene_pointer_get_position(pointer);
     auto* window = scene_find_window_at(wm->scene, pos);
     if (!window) return;
     auto frame = scene_window_get_frame(window);
-
-    scene_pointer_grab(wm->movesize.client.get());
 
     wm->movesize.mode = initial_mode;
     wm->movesize.window = window;
@@ -36,7 +37,8 @@ void begin_interaction(wm_context* wm, wm_movesize_mode initial_mode)
 static
 void end_interaction(wm_context* wm)
 {
-    scene_pointer_ungrab(wm->movesize.client.get());
+    core_assert(!wm->movesize.pointer);
+    wm->movesize.mode = wm_movesize_mode::none;
 }
 
 // -----------------------------------------------------------------------------
@@ -45,16 +47,29 @@ static constexpr auto button_move = BTN_LEFT;
 static constexpr auto button_size = BTN_RIGHT;
 
 static
-void handle_hotkey(wm_context* wm, scene_hotkey hotkey, bool presed)
+bool handle_button(wm_context* wm, scene_pointer* pointer)
 {
-    if (!presed) {
-        end_interaction(wm);
+    if (scene_pointer_get_pressed(pointer).empty()) {
+        scene_pointer_ungrab(pointer, wm->movesize.client.get());
+        return true;
+    }
+
+    return false;
+}
+
+static
+void handle_hotkey(wm_context* wm, scene_hotkey_event event)
+{
+    auto* pointer = scene_input_device_get_pointer(event.input_device);
+
+    if (handle_button(wm, pointer)) return;
+    if (!event.pressed || wm->movesize.mode != wm_movesize_mode::none) {
         return;
     }
 
-    switch (hotkey.code) {
-        break;case button_move: begin_interaction(wm, wm_movesize_mode::move);
-        break;case button_size: begin_interaction(wm, wm_movesize_mode::size);
+    switch (event.hotkey.code) {
+        break;case button_move: begin_interaction(wm, pointer, wm_movesize_mode::move);
+        break;case button_size: begin_interaction(wm, pointer, wm_movesize_mode::size);
     }
 }
 
@@ -62,11 +77,11 @@ static
 void handle_motion(wm_context* wm)
 {
     if (!wm->movesize.window) {
-        end_interaction(wm);
+        scene_pointer_ungrab(wm->movesize.pointer, wm->movesize.client.get());
         return;
     }
 
-    auto pos = scene_pointer_get_position(wm->scene);
+    auto pos = scene_pointer_get_position(wm->movesize.pointer);
     auto delta = (pos - wm->movesize.grab) * wm->movesize.relative;
     auto frame = wm->movesize.frame;
 
@@ -85,10 +100,18 @@ void handle_motion(wm_context* wm)
 static
 void handle_event(wm_context* wm, scene_event* event)
 {
-    if (event->type == scene_event_type::hotkey) {
-        handle_hotkey(wm, event->hotkey.hotkey, event->hotkey.pressed);
-    } else if (event->type == scene_event_type::pointer_motion) {
-        handle_motion(wm);
+    switch (event->type) {
+        break;case scene_event_type::hotkey:
+            handle_hotkey(wm, event->hotkey);
+        break;case scene_event_type::pointer_leave:
+            wm->movesize.pointer = nullptr;
+            end_interaction(wm);
+        break;case scene_event_type::pointer_motion:
+            handle_motion(wm);
+        break;case scene_event_type::pointer_button:
+            handle_button(wm, event->pointer.pointer);
+        break;default:
+            ;
     }
 }
 

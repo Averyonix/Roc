@@ -210,15 +210,15 @@ void io_output_wayland::commit(gpu_image* image, gpu_syncpoint acquire, gpu_sync
 
 io_output_wayland::~io_output_wayland()
 {
-    wp_linux_drm_syncobj_surface_v1_destroy(wp_linux_drm_syncobj_surface_v1);
+    IO_WL_DESTROY(wp_linux_drm_syncobj_surface_v1);
 
-    if (frame_callback) wl_callback_destroy(frame_callback);
+    io_wl_destroy(wl_callback_destroy, frame_callback);
 
-    zwp_locked_pointer_v1_destroy(zwp_locked_pointer_v1);
+    IO_WL_DESTROY(zwp_locked_pointer_v1);
 
-    if (zxdg_toplevel_decoration_v1) zxdg_toplevel_decoration_v1_destroy(zxdg_toplevel_decoration_v1);
+    IO_WL_DESTROY(zxdg_toplevel_decoration_v1);
 
-    xdg_toplevel_destroy(xdg_toplevel);
-    xdg_surface_destroy(xdg_surface);
-    wl_surface_destroy(wl_surface);
+    IO_WL_DESTROY(xdg_toplevel);
+    IO_WL_DESTROY(xdg_surface);
+    IO_WL_DESTROY(wl_surface);
 }

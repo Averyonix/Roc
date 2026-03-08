@@ -4,13 +4,15 @@ CORE_OBJECT_EXPLICIT_DEFINE(scene_client);
 
 scene_client::~scene_client()
 {
+    core_assert(input_regions == 0);
+
     // All client windows must be destroyed before the client
     for (auto* window : ctx->windows) {
         core_assert(window->client != this);
     }
 
-    if (ctx->keyboard->focus.client == this) {
-        scene_keyboard_ungrab(this);
+    if (auto* kb = scene_get_keyboard(ctx); kb->focus.client == this) {
+        scene_keyboard_ungrab(kb, this);
     }
 
     std::erase(ctx->clients, this);

@@ -85,28 +85,39 @@ enum class scene_modifier : u32
     caps  = 1 << 5,
 };
 
+enum class scene_modifier_flags
+{
+    ignore_locked = 1 << 0
+};
+
 using scene_scancode = u32;
 
+auto scene_get_modifiers(scene_context*, flags<scene_modifier_flags> = {}) -> flags<scene_modifier>;
+
+enum class scene_input_device_type
+{
+    keyboard,
+    pointer,
+};
+
+struct scene_input_device;
 struct scene_keyboard;
 struct scene_pointer;
 
-auto scene_pointer_get_position(scene_context*) -> vec2f32;
-void scene_pointer_grab(scene_client*);
-void scene_pointer_ungrab(scene_client*);
+auto scene_input_device_get_type(    scene_input_device*) -> scene_input_device_type;
+auto scene_input_device_get_pointer( scene_input_device*) -> scene_pointer*;
+auto scene_input_device_get_keyboard(scene_input_device*) -> scene_keyboard*;
 
-auto scene_pointer_get_pressed(scene_context*) -> std::span<const scene_scancode>;
+auto scene_get_pointer( scene_context*) -> scene_pointer*;
+auto scene_get_keyboard(scene_context*) -> scene_keyboard*;
 
-auto scene_keyboard_get_modifiers(scene_context*) -> flags<scene_modifier>;
-void scene_keyboard_grab(scene_client*);
-// Clear client keyboard grab, defers to next most recent keyboard grab
-void scene_keyboard_ungrab(scene_client*);
-// Clear all keyboard grabs
-void scene_keyboard_clear_focus(scene_context*);
+auto scene_grab_pointer( scene_client*) -> scene_pointer*;
+auto scene_grab_keyboard(scene_client*) -> scene_keyboard*;
 
-auto scene_keyboard_get_pressed(scene_context*) -> std::span<const scene_scancode>;
-
-auto scene_keyboard_get_sym( scene_context*, scene_scancode) -> xkb_keysym_t;
-auto scene_keyboard_get_utf8(scene_context*, scene_scancode) -> std::string;
+void scene_pointer_grab(        scene_pointer*, scene_client*);
+void scene_pointer_ungrab(      scene_pointer*, scene_client*);
+auto scene_pointer_get_position(scene_pointer*) -> vec2f32;
+auto scene_pointer_get_pressed( scene_pointer*) -> std::span<const scene_scancode>;
 
 struct scene_keyboard_info
 {
@@ -117,7 +128,14 @@ struct scene_keyboard_info
     i32          delay;
 };
 
-auto scene_keyboard_get_info(scene_context*) -> const scene_keyboard_info&;
+void scene_keyboard_grab(         scene_keyboard*, scene_client*);
+void scene_keyboard_ungrab(       scene_keyboard*, scene_client*);
+void scene_keyboard_clear_focus(  scene_keyboard*);
+auto scene_keyboard_get_modifiers(scene_keyboard*, flags<scene_modifier_flags> = {}) -> flags<scene_modifier>;
+auto scene_keyboard_get_pressed(  scene_keyboard*) -> std::span<const scene_scancode>;
+auto scene_keyboard_get_sym(      scene_keyboard*, scene_scancode) -> xkb_keysym_t;
+auto scene_keyboard_get_utf8(     scene_keyboard*, scene_scancode) -> std::string;
+auto scene_keyboard_get_info(     scene_keyboard*) -> const scene_keyboard_info&;
 
 // -----------------------------------------------------------------------------
 
@@ -136,7 +154,7 @@ struct scene_pointer_driver_out
 
 using scene_pointer_driver_fn = auto(scene_pointer_driver_in) -> scene_pointer_driver_out;
 
-void scene_pointer_set_driver(scene_context*, std::move_only_function<scene_pointer_driver_fn>&&);
+void scene_pointer_set_driver(scene_pointer*, std::move_only_function<scene_pointer_driver_fn>&&);
 
 // -----------------------------------------------------------------------------
 
@@ -360,9 +378,8 @@ struct scene_hotkey
 
 CORE_MAKE_STRUCT_HASHABLE(scene_hotkey, v.mod, v.code)
 
-auto scene_client_hotkey_register(      scene_client*, scene_hotkey) -> bool;
-void scene_client_hotkey_unregister(    scene_client*, scene_hotkey);
-void scene_client_hotkey_unregister_all(scene_client*);
+auto scene_client_hotkey_register(  scene_client*, scene_hotkey) -> bool;
+void scene_client_hotkey_unregister(scene_client*, scene_hotkey);
 
 // -----------------------------------------------------------------------------
 
@@ -370,15 +387,16 @@ enum class scene_event_type
 {
     hotkey,
 
+    keyboard_enter,
+    keyboard_leave,
     keyboard_key,
     keyboard_modifier,
 
+    pointer_enter,
+    pointer_leave,
     pointer_motion,
     pointer_button,
     pointer_scroll,
-
-    focus_keyboard,
-    focus_pointer,
 
     // Requests that a client adjust its position/size as requested.
     // This request does not need to be honoured, clients may update
@@ -406,20 +424,33 @@ enum class scene_event_type
 
 struct scene_hotkey_event
 {
+    scene_input_device* input_device;
+
     scene_hotkey hotkey;
     bool         pressed;
 };
 
-struct scene_key_event
+struct scene_keyboard_event
 {
-    scene_scancode code;
-    bool           pressed;
-    bool           quiet;
+    scene_keyboard* keyboard;
+    union {
+        struct {
+            scene_scancode code;
+            bool           pressed;
+            bool           quiet;
+        } key;
+    };
 };
 
 struct scene_pointer_event
 {
+    scene_pointer* pointer;
     union {
+        struct {
+            scene_scancode code;
+            bool           pressed;
+            bool           quiet;
+        } button;
         struct {
             vec2f32 rel_accel;
             vec2f32 rel_unaccel;
@@ -427,19 +458,10 @@ struct scene_pointer_event
         struct {
             vec2f32 delta;
         } scroll;
+        struct {
+            scene_input_region*  region;
+        } focus;
     };
-};
-
-struct scene_focus
-{
-    scene_client*       client;
-    scene_input_region* region;
-};
-
-struct scene_focus_event
-{
-    scene_focus lost;
-    scene_focus gained;
 };
 
 struct scene_window_event
@@ -458,19 +480,23 @@ struct scene_redraw_event
     scene_output* output;
 };
 
+struct scene_data_event
+{
+    scene_data_source* source;
+};
+
 struct scene_event
 {
     scene_event_type type;
 
     union {
-        scene_hotkey_event  hotkey;
-        scene_window_event  window;
-        scene_key_event     key;
-        scene_pointer_event pointer;
-        scene_focus_event   focus;
-        scene_redraw_event  redraw;
-        scene_output*       output;
-        scene_data_source*  selection;
+        scene_hotkey_event   hotkey;
+        scene_window_event   window;
+        scene_keyboard_event keyboard;
+        scene_pointer_event  pointer;
+        scene_redraw_event   redraw;
+        scene_output*        output;
+        scene_data_event     data;
     };
 };
 

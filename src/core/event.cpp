@@ -73,7 +73,7 @@ ref<core_event_loop> core_event_loop_create()
     auto loop = core_create<core_event_loop>();
     loop->main_thread = std::this_thread::get_id();
 
-    loop->epoll_fd = unix_check(epoll_create1(EPOLL_CLOEXEC)).value;
+    loop->epoll_fd = core_fd_adopt(unix_check(epoll_create1(EPOLL_CLOEXEC)).value);
 
     loop->task_fd = core_fd_adopt(unix_check(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)).value);
     core_fd_add_listener(loop->task_fd.get(), loop.get(), core_fd_event_bit::readable, [loop = loop.get()](int fd, core_fd_event_bits events) {
@@ -104,8 +104,6 @@ core_event_loop::~core_event_loop()
     timer_fd = nullptr;
 
     core_assert(listener_count == 0);
-
-    close(epoll_fd);
 }
 
 void core_event_loop_stop(core_event_loop* loop)
@@ -136,7 +134,7 @@ void core_event_loop_run(core_event_loop* loop)
             loop->stats.poll_waits++;
             timeout = -1;
         }
-        auto[count, error] = unix_check(epoll_wait(loop->epoll_fd, events.data(), events.size(), timeout), EAGAIN, EINTR);
+        auto[count, error] = unix_check(epoll_wait(loop->epoll_fd.get(), events.data(), events.size(), timeout), EAGAIN, EINTR);
         if (error) {
             if (error == EAGAIN || error == EINTR) {
                 if (!loop->tasks_available) continue;
@@ -153,7 +151,7 @@ void core_event_loop_run(core_event_loop* loop)
         if (count > 0) {
             std::array<core_fd, max_epoll_events> sources;
             for (i32 i = 0; i < count; ++i) {
-                sources[i] = events[i].data.fd;
+                sources[i] = core_fd(events[i].data.fd);
             }
 
             for (i32 i = 0; i < count; ++i) {
@@ -214,7 +212,7 @@ void core_fd_add_listener(
     listener->loop = loop;
     core_fd_set_listener(fd, listener);
 
-    unix_check(epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, fd, ptr_to(epoll_event {
+    unix_check(epoll_ctl(loop->epoll_fd.get(), EPOLL_CTL_ADD, fd, ptr_to(epoll_event {
         .events = to_epoll_events(events),
         .data {
             .fd = fd,
@@ -227,7 +225,7 @@ void core_fd_remove_listener(int fd)
     auto* listener = core_fd_get_listener(fd);
     core_fd_get_listener(fd)->loop->listener_count--;
 
-    unix_check(epoll_ctl(listener->loop->epoll_fd, EPOLL_CTL_DEL, fd, nullptr));
+    unix_check(epoll_ctl(listener->loop->epoll_fd.get(), EPOLL_CTL_DEL, fd, nullptr));
     listener->loop = nullptr;
     core_fd_set_listener(fd, nullptr);
 }

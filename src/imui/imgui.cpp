@@ -160,7 +160,6 @@ void Platform_SetClipboardTextFn(ImGuiContext* imctx, const char* text)
     auto data_source = scene_data_source_create(ctx->client.get(), {
         .send = [message = std::string(text)](const char* mime, int fd) {
             write(fd, message.data(), message.size());
-            close(fd);
         }
     });
     for (auto* mime : text_mime_types) {
@@ -191,12 +190,15 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imctx) -> const char*
         auto available = scene_data_source_get_offered(source);
         for (auto mime : text_mime_types) {
             if (std::ranges::contains(available, std::string_view(mime))) {
-                int fd[2] = {-1, -1};
-                unix_check(pipe(fd));
-                defer { close(fd[0]); };
-                scene_data_source_send(source, mime, fd[1]);
+                auto[read, write] = [] {
+                    int fd[2] = {-1, -1};
+                    unix_check(pipe(fd));
+                    return std::pair { core_fd_adopt(fd[0]), core_fd_adopt(fd[1]) };
+                }();
+                scene_data_source_send(source, mime, write.get());
+                write.reset();
 
-                ctx->clipboard.text = read_to_string(fd[0]);
+                ctx->clipboard.text = read_to_string(read.get());
                 return ctx->clipboard.text.c_str();
             }
         }
@@ -409,24 +411,26 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
         ImGui::SetCurrentContext(ctx->context);
         switch (event->type) {
             // keyboard
+            break;case scene_event_type::keyboard_enter:
+                imui_handle_keyboard_enter(ctx, event->keyboard.keyboard);
+            break;case scene_event_type::keyboard_leave:
+                imui_handle_keyboard_leave(ctx);
             break;case scene_event_type::keyboard_key:
-                imui_handle_key(ctx, event->key.code, event->key.pressed);
+                imui_handle_key(ctx, event->keyboard.key.code, event->keyboard.key.pressed);
             break;case scene_event_type::keyboard_modifier:
-                imui_handle_mods(ctx, scene_keyboard_get_modifiers(ctx->scene));
+                imui_handle_mods(ctx);
 
             // pointer
+            break;case scene_event_type::pointer_enter:
+                imui_handle_pointer_enter(ctx, event->pointer.pointer, event->pointer.focus.region);
+            break;case scene_event_type::pointer_leave:
+                imui_handle_pointer_leave(ctx);
             break;case scene_event_type::pointer_motion:
                 imui_handle_motion(ctx);
             break;case scene_event_type::pointer_button:
-                imui_handle_button(ctx, event->key.code, event->key.pressed);
+                imui_handle_button(ctx, event->pointer.button.code, event->pointer.button.pressed);
             break;case scene_event_type::pointer_scroll:
                 imui_handle_wheel(ctx, event->pointer.scroll.delta);
-
-            // focus
-            break;case scene_event_type::focus_pointer:
-                imui_handle_focus_pointer(ctx, event->focus.gained);
-            break;case scene_event_type::focus_keyboard:
-                ;
 
             // window
             break;case scene_event_type::window_reposition:
@@ -463,19 +467,41 @@ void imui_add_frame_handler(imui_context* ctx, std::move_only_function<imui_fram
 
 // -----------------------------------------------------------------------------
 
-void imui_handle_key(imui_context* ctx, scene_scancode code, bool pressed)
+void imui_handle_keyboard_enter(imui_context* ctx, scene_keyboard* keyboard)
 {
-    auto& io = ImGui::GetIO();
+    ctx->keyboard = keyboard;
 
-    io.AddKeyEvent(imgui_key_from_xkb_sym(scene_keyboard_get_sym(ctx->scene, code)), pressed);
-    if (pressed) io.AddInputCharactersUTF8(scene_keyboard_get_utf8(ctx->scene, code).c_str());
+    auto& io = ImGui::GetIO();
+    io.AddFocusEvent(true);
 
     imui_request_frame(ctx);
 }
 
-void imui_handle_mods(imui_context* ctx, flags<scene_modifier> mods)
+void imui_handle_keyboard_leave(imui_context* ctx)
+{
+    ctx->keyboard = nullptr;
+
+    auto& io = ImGui::GetIO();
+    io.AddFocusEvent(false);
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_key(imui_context* ctx, scene_scancode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
+
+    io.AddKeyEvent(imgui_key_from_xkb_sym(scene_keyboard_get_sym(ctx->keyboard, code)), pressed);
+    if (pressed) io.AddInputCharactersUTF8(scene_keyboard_get_utf8(ctx->keyboard, code).c_str());
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_mods(imui_context* ctx)
+{
+    auto& io = ImGui::GetIO();
+
+    auto mods = scene_keyboard_get_modifiers(ctx->keyboard);
 
     io.AddKeyEvent(ImGuiMod_Shift, mods.contains(scene_modifier::shift));
     io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(scene_modifier::ctrl));
@@ -489,7 +515,7 @@ void imui_handle_motion(imui_context* ctx)
 {
     auto& io = ImGui::GetIO();
 
-    auto pos = scene_pointer_get_position(ctx->scene);
+    auto pos = scene_pointer_get_position(ctx->pointer);
     io.AddMousePosEvent(pos.x, pos.y);
 
     imui_request_frame(ctx);
@@ -509,13 +535,13 @@ void imui_handle_button(imui_context* ctx, scene_scancode code, bool pressed)
     if (!handled) return;
 
     if (pressed) {
-        scene_keyboard_grab(ctx->client.get());
-        scene_pointer_grab(ctx->client.get());
+        scene_grab_keyboard(ctx->client.get());
+        scene_pointer_grab(ctx->pointer, ctx->client.get());
         if (auto* vp = find_viewport_for_id(ctx, ImGui::GetIO().MouseHoveredViewport)) {
             scene_window_raise(get_data(vp)->window.get());
         }
     } else {
-        scene_pointer_ungrab(ctx->client.get());
+        scene_pointer_ungrab(ctx->pointer, ctx->client.get());
     }
 
     imui_request_frame(ctx);
@@ -529,20 +555,34 @@ void imui_handle_wheel(imui_context* ctx, vec2f32 delta)
     imui_request_frame(ctx);
 }
 
-void imui_handle_focus_pointer(imui_context* ctx, scene_focus gained)
+void imui_handle_pointer_enter(imui_context* ctx, scene_pointer* pointer, scene_input_region* region)
+{
+    ctx->pointer = pointer;
+
+    auto& io = ImGui::GetIO();
+
+    if (region) {
+        io.AddMouseViewportEvent(find_viewport_for_input_region(ctx, region)->ID);
+    }
+
+    auto pos = scene_pointer_get_position(pointer);
+    io.AddMousePosEvent(pos.x, pos.y);
+
+    imui_request_frame(ctx);
+}
+
+void imui_handle_pointer_leave(imui_context* ctx)
 {
     auto& io = ImGui::GetIO();
 
-    if (gained.client != ctx->client.get()) {
-        io.AddMouseViewportEvent(0);
-        io.AddMousePosEvent(-FLT_MAX,-FLT_MAX);
+    io.AddMouseViewportEvent(0);
+    io.AddMousePosEvent(-FLT_MAX,-FLT_MAX);
 
-    } else if (gained.region) {
-        io.AddMouseViewportEvent(find_viewport_for_input_region(ctx, gained.region)->ID);
-
-        auto pos = scene_pointer_get_position(ctx->scene);
-        io.AddMousePosEvent(pos.x, pos.y);
+    for (auto code : scene_pointer_get_pressed(ctx->pointer)) {
+        imui_handle_button(ctx, code, false);
     }
+
+    ctx->pointer = nullptr;
 
     imui_request_frame(ctx);
 }

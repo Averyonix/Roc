@@ -14,7 +14,6 @@ void create_data_source(wl_client* client, wl_resource* resource, u32 id)
         },
         .send = [source = source.get()](const char* mime, int fd) {
             way_send(source->client->server, wl_data_source_send_send, source->resource, mime, fd);
-            close(fd);
         }
     });
 }
@@ -43,8 +42,10 @@ WAY_BIND_GLOBAL(wl_data_device_manager)
 static
 void receive(wl_client* client, wl_resource* resource, const char* mime_type, int fd)
 {
+    auto write = core_fd_adopt(fd);
+
     auto* offer = way_get_userdata<way_data_offer>(resource);
-    scene_data_source_send(offer->source.get(), mime_type, fd);
+    scene_data_source_send(offer->source.get(), mime_type, write.get());
 }
 
 WAY_INTERFACE(wl_data_offer) = {
@@ -88,25 +89,29 @@ WAY_INTERFACE(wl_data_device) = {
 // -----------------------------------------------------------------------------
 
 static
-auto make_offer(way_client* client, wl_resource* device, scene_data_source* source) -> ref<way_data_offer>
+auto make_offer(way_client* client, scene_data_source* source) -> ref<way_data_offer>
 {
     auto* server = client->server;
 
     auto offer = core_create<way_data_offer>();
     offer->client = client;
     offer->source = source;
-    offer->resource = way_resource_create_refcounted(wl_data_offer, client->wl_client, device, 0, offer.get());
 
-    way_send(server, wl_data_device_send_data_offer, device, offer->resource);
-    for (auto& mime : scene_data_source_get_offered(offer->source.get())) {
-        way_send(server, wl_data_offer_send_offer, offer->resource, mime.c_str());
+
+    for (auto* device : client->data_devices) {
+        offer->resources.emplace_back(way_resource_create_refcounted(wl_data_offer, client->wl_client, device, 0, offer.get()));
+
+        way_send(server, wl_data_device_send_data_offer, device, device);
+        for (auto& mime : scene_data_source_get_offered(offer->source.get())) {
+            way_send(server, wl_data_offer_send_offer, device, mime.c_str());
+        }
+        way_send(server, wl_data_offer_send_source_actions, device, 0);
     }
-    way_send(server, wl_data_offer_send_source_actions, offer->resource, 0);
 
     return offer;
 }
 
-void way_offer_selection(way_client* client)
+void way_data_offer_selection(way_client* client)
 {
     auto* server = client->server;
     auto* source = scene_get_selection(server->scene);
@@ -114,8 +119,9 @@ void way_offer_selection(way_client* client)
     if (!source) return;
     if (!server->focus.keyboard || !server->focus.keyboard->client) return;
 
+    auto offer = make_offer(client, source);
+
     for (auto* device : client->data_devices) {
-        auto offer = make_offer(client, device, source);
-        way_send(server, wl_data_device_send_selection, device, offer->resource);
+        way_send(server, wl_data_device_send_selection, device, device);
     }
 }

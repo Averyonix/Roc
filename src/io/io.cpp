@@ -18,8 +18,25 @@ auto io_create(core_event_loop* event_loop, gpu_context* gpu) -> ref<io_context>
     return ctx;
 }
 
+static
+void shutdown(io_context* ctx)
+{
+    ctx->wayland.destroy();
+    ctx->drm.destroy();
+    ctx->evdev.destroy();
+    ctx->libinput.destroy();
+    ctx->session.destroy();
+
+    core_event_loop_stop(ctx->event_loop);
+}
+
 io_context::~io_context()
 {
+    core_assert(!wayland);
+    core_assert(!drm);
+    core_assert(!evdev);
+    core_assert(!libinput);
+    core_assert(!session);
 }
 
 void io_set_event_handler(io_context* ctx, std::move_only_function<io_event_handler>&& handler)
@@ -79,7 +96,12 @@ void io_request_shutdown(io_context* ctx, io_shutdown_reason reason)
 
 void io_stop(io_context* ctx)
 {
-    core_event_loop_stop(ctx->event_loop);
+    if (ctx->stop_requested) return;
+    ctx->stop_requested = true;
+
+    core_event_loop_enqueue(ctx->event_loop, [ctx] {
+        shutdown(ctx);
+    });
 }
 
 void io_post_event(io_context* ctx, io_event* event)

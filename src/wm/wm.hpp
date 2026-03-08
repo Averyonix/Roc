@@ -4,6 +4,7 @@
 
 enum class wm_movesize_mode
 {
+    none,
     move,
     size,
 };
@@ -15,6 +16,8 @@ struct wm_context
     scene_modifier main_mod;
 
     struct {
+        scene_pointer* pointer;
+
         ref<scene_client> client;
         weak<scene_window> window;
 

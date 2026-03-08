@@ -83,6 +83,8 @@ struct io_wayland
     ref<io_input_device_wayland_keyboard> keyboard;
     ref<io_input_device_wayland_pointer>  pointer;
 
+    bool in_keyboard_enter;
+
     io_wl_proxy_cache<gpu_semaphore, wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
     io_wl_proxy_cache<gpu_image,     wl_buffer,                        wl_buffer_destroy>                        buffer_cache;
 
@@ -137,6 +139,16 @@ struct io_input_device_wayland_pointer : io_input_device_base
 
     ~io_input_device_wayland_pointer();
 };
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+void io_wl_destroy(auto fn, T* t)
+{
+    if (t) fn(t);
+}
+
+#define IO_WL_DESTROY(T) if (T) T##_destroy(T)
 
 // -----------------------------------------------------------------------------
 

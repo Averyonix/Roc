@@ -120,20 +120,20 @@ io_wayland::~io_wayland()
 
     outputs.clear();
 
-    zwp_linux_dmabuf_v1_destroy(zwp_linux_dmabuf_v1);
+    IO_WL_DESTROY(zwp_linux_dmabuf_v1);
     syncobj_cache.entries.clear();
     buffer_cache.entries.clear();
-    wp_linux_drm_syncobj_manager_v1_destroy(wp_linux_drm_syncobj_manager_v1);
+    IO_WL_DESTROY(wp_linux_drm_syncobj_manager_v1);
 
-    zwp_relative_pointer_manager_v1_destroy(zwp_relative_pointer_manager_v1);
-    zwp_pointer_constraints_v1_destroy(zwp_pointer_constraints_v1);
+    IO_WL_DESTROY(zwp_relative_pointer_manager_v1);
+    IO_WL_DESTROY(zwp_pointer_constraints_v1);
 
-    if (zxdg_decoration_manager_v1) zxdg_decoration_manager_v1_destroy(zxdg_decoration_manager_v1);
-    wl_compositor_destroy(wl_compositor);
-    xdg_wm_base_destroy(xdg_wm_base);
-    wl_seat_destroy(wl_seat);
+    IO_WL_DESTROY(zxdg_decoration_manager_v1);
+    IO_WL_DESTROY(wl_compositor);
+    IO_WL_DESTROY(xdg_wm_base);
+    IO_WL_DESTROY(wl_seat);
 
-    wl_registry_destroy(wl_registry);
+    IO_WL_DESTROY(wl_registry);
 
     wl_display_disconnect(wl_display);
 }

@@ -50,8 +50,13 @@ struct way_server : core_object
     } client;
 
     struct {
+        scene_keyboard* scene;
         way_keymap keymap;
     } keyboard;
+
+    struct {
+        scene_pointer* scene;
+    } pointer;
 
     struct {
         weak<way_surface> pointer;
@@ -67,13 +72,16 @@ auto way_get_elapsed(way_server*) -> std::chrono::steady_clock::duration;
 
 void way_seat_init(way_server* server);
 
-void way_seat_on_focus_keyboard(way_client*, scene_event*);
-void way_seat_on_focus_pointer( way_client*, scene_event*);
+void way_seat_on_keyboard_enter(way_client*, scene_event*);
+void way_seat_on_keyboard_leave(way_client*, scene_event*);
 void way_seat_on_key(           way_client*, scene_event*);
 void way_seat_on_modifier(      way_client*, scene_event*);
-void way_seat_on_motion(        way_client*, scene_event*);
-void way_seat_on_button(        way_client*, scene_event*);
-void way_seat_on_scroll(        way_client*, scene_event*);
+
+void way_seat_on_pointer_enter(way_client*, scene_event*);
+void way_seat_on_pointer_leave(way_client*, scene_event*);
+void way_seat_on_motion(       way_client*, scene_event*);
+void way_seat_on_button(       way_client*, scene_event*);
+void way_seat_on_scroll(       way_client*, scene_event*);
 
 // -----------------------------------------------------------------------------
 
@@ -325,12 +333,12 @@ struct way_data_offer : core_object
 {
     way_client* client;
 
-    way_resource resource;
+    way_resource_list resources;
 
     ref<scene_data_source> source;
 };
 
-void way_offer_selection(way_client*);
+void way_data_offer_selection(way_client*);
 
 // -----------------------------------------------------------------------------
 
@@ -426,6 +434,10 @@ struct way_client : core_object
     way_resource_list data_devices;
 
     weak<way_surface> pending_keyboard_focus;
+
+    struct {
+        ref<way_data_offer> offer;
+    } drag;
 };
 
 void way_on_client_create(wl_listener* listener, void* data);

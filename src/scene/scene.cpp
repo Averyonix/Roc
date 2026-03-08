@@ -3,6 +3,13 @@
 CORE_OBJECT_EXPLICIT_DEFINE(scene_context);
 CORE_OBJECT_EXPLICIT_DEFINE(scene_window);
 
+scene_context::~scene_context()
+{
+    core_assert(outputs.empty());
+    core_assert(clients.empty());
+    core_assert(windows.empty());
+}
+
 void scene_push_io_event(scene_context* ctx, io_event* event)
 {
     switch (event->type) {
@@ -42,8 +49,8 @@ auto scene_create(gpu_context* gpu, io_context* io) -> ref<scene_context>
 
     scene_render_init(scene.get());
 
-    scene->keyboard = scene_keyboard_create(scene.get());
-    scene->pointer = scene_pointer_create(scene.get());
+    scene->seat.keyboard = scene_keyboard_create(scene.get());
+    scene->seat.pointer = scene_pointer_create(scene.get());
 
     return scene;
 }
@@ -70,4 +77,30 @@ void scene_broadcast_event(scene_context* ctx, scene_event* event)
     for (auto* client : ctx->clients) {
         scene_client_post_event(client, event);
     }
+}
+
+// -----------------------------------------------------------------------------
+
+auto scene_get_pointer(scene_context* ctx) -> scene_pointer*
+{
+    return ctx->seat.pointer.get();
+}
+
+auto scene_get_keyboard(scene_context* ctx) -> scene_keyboard*
+{
+    return ctx->seat.keyboard.get();
+}
+
+auto scene_grab_pointer(scene_client* client) -> scene_pointer*
+{
+    auto pointer = scene_get_pointer(client->ctx);
+    scene_pointer_grab(pointer, client);
+    return pointer;
+}
+
+auto scene_grab_keyboard(scene_client* client) -> scene_keyboard*
+{
+    auto keyboard = scene_get_keyboard(client->ctx);
+    scene_keyboard_grab(keyboard, client);
+    return keyboard;
 }

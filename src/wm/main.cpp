@@ -10,6 +10,8 @@
 
 int main()
 {
+    // Systems
+
     auto event_loop = core_event_loop_create();
     auto gpu = gpu_create({}, event_loop.get());
     auto io = io_create(event_loop.get(), gpu.get());
@@ -72,7 +74,7 @@ int main()
 
     // Pointer driver
 
-    scene_pointer_set_driver(scene.get(), [scene = scene.get()](scene_pointer_driver_in in) -> scene_pointer_driver_out {
+    scene_pointer_set_driver(scene_get_pointer(scene.get()), [scene = scene.get()](scene_pointer_driver_in in) -> scene_pointer_driver_out {
 
         // Apply a linear mouse acceleration curve
         //
@@ -124,10 +126,14 @@ int main()
     auto background_client = scene_client_create(scene.get());
 
     ref<scene_tree> background_layer = {};
+    auto unparent_background = [&] {
+        if (background_layer) scene_node_unparent(background_layer.get());
+    };
+    defer { unparent_background(); };
     auto update_backgrounds = [&] {
         auto root = scene_get_root_transform(scene.get());
 
-        if (background_layer) scene_node_unparent(background_layer.get());
+        unparent_background();
         background_layer = scene_tree_create(scene.get());
         scene_tree_place_above(scene_get_layer(scene.get(), scene_layer::background), nullptr, background_layer.get());
 
@@ -155,9 +161,9 @@ int main()
     scene_client_set_event_handler(background_client.get(), [scene = scene.get(), &update_backgrounds](scene_event* event) {
         switch (event->type) {
             break;case scene_event_type::pointer_button:
-                if (event->key.pressed) {
+                if (event->pointer.button.pressed) {
                     log_warn("Background clicked, dropping keyboard grabs");
-                    scene_keyboard_clear_focus(scene);
+                    scene_keyboard_clear_focus(scene_get_keyboard(scene));
                 }
             break;case scene_event_type::output_layout:
                 update_backgrounds();
@@ -199,27 +205,31 @@ int main()
         switch (event->type) {
             break;case scene_event_type::keyboard_key:
                 log_trace("keyboard_key({}, {})",
-                    libevdev_event_code_get_name(EV_KEY, event->key.code),
-                    event->key.pressed ? "pressed" : "released");
+                    libevdev_event_code_get_name(EV_KEY, event->keyboard.key.code),
+                    event->keyboard.key.pressed ? "pressed" : "released");
             break;case scene_event_type::keyboard_modifier:
-                log_trace("keyboard_modifier({})", core_to_string(scene_keyboard_get_modifiers(scene.get())));
+                log_trace("keyboard_modifier({})", core_to_string(scene_keyboard_get_modifiers(event->keyboard.keyboard)));
             break;case scene_event_type::pointer_motion:
                 log_trace("pointer_motion(accel: {}, unaccel: {}, pos: {})",
                     core_to_string(event->pointer.motion.rel_accel),
                     core_to_string(event->pointer.motion.rel_unaccel),
-                    core_to_string(scene_pointer_get_position(scene.get())));
+                    core_to_string(scene_pointer_get_position(event->pointer.pointer)));
             break;case scene_event_type::pointer_button:
                 log_trace("pointer_button({}, {})",
-                    libevdev_event_code_get_name(EV_KEY, event->key.code),
-                    event->key.pressed ? "pressed" : "released");
-                scene_keyboard_grab(client.get());
+                    libevdev_event_code_get_name(EV_KEY, event->pointer.button.code),
+                    event->pointer.button.pressed ? "pressed" : "released");
+                scene_grab_keyboard(client.get());
                 scene_window_raise(window.get());
             break;case scene_event_type::pointer_scroll:
                 log_trace("pointer_scroll(delta: {})", core_to_string(event->pointer.scroll.delta));
-            break;case scene_event_type::focus_pointer:
-                log_trace("focus_pointer({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
-            break;case scene_event_type::focus_keyboard:
-                log_trace("focus_keyboard({} -> {})", (void*)event->focus.lost.client, (void*)event->focus.gained.client);
+            break;case scene_event_type::pointer_enter:
+                log_trace("pointer_enter({}, region: {})", (void*)event->pointer.pointer, (void*)event->pointer.focus.region);
+            break;case scene_event_type::pointer_leave:
+                log_trace("pointer_leave({})", (void*)event->pointer.pointer);
+            break;case scene_event_type::keyboard_enter:
+                log_trace("keyboard_enter({})", (void*)event->keyboard.keyboard);
+            break;case scene_event_type::keyboard_leave:
+                log_trace("keyboard_leave({})", (void*)event->keyboard.keyboard);
             break;case scene_event_type::window_reposition: {
                 auto frame = event->window.reposition.frame;
                 scene_texture_set_dst(       canvas.get(), {{}, frame.extent, core_xywh});
@@ -236,7 +246,7 @@ int main()
             break;case scene_event_type::hotkey:
                 ;
             break;case scene_event_type::selection:
-                ;
+                log_trace("selection({})", (void*)event->data.source);
         }
     });
 
@@ -339,7 +349,6 @@ int main()
         .send = [&](const char* mime, int fd) {
             std::string message = "This is a test clipboard message.";
             write(fd, message.data(), message.size());
-            close(fd);
         }
     });
     scene_data_source_offer(data_source.get(), "text/plain;charset=utf-8");

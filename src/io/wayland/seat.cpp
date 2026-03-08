@@ -11,6 +11,10 @@ void keyboard_enter(void* udata, wl_keyboard*, u32 serial, wl_surface*, wl_array
     auto* ctx = static_cast<io_context*>(udata);
     auto* kb = ctx->wayland->keyboard.get();
     io_input_device_key_enter(kb, io_to_span<u32>(keys));
+
+    ctx->wayland->in_keyboard_enter = true;
+    wl_display_roundtrip(ctx->wayland->wl_display);
+    ctx->wayland->in_keyboard_enter = false;
 }
 
 static
@@ -96,10 +100,16 @@ void pointer_leave(void* udata, wl_pointer*, u32 serial, wl_surface*)
 static
 void pointer_button(void* udata, wl_pointer*, u32 serial, u32 time, u32 button, u32 state)
 {
-    auto* ptr = static_cast<io_context*>(udata)->wayland->pointer.get();
+    auto* ctx = static_cast<io_context*>(udata);
+    auto* ptr = ctx->wayland->pointer.get();
+
     switch (state) {
-        break;case WL_POINTER_BUTTON_STATE_PRESSED:  io_input_device_key_press(  ptr, button);
-        break;case WL_POINTER_BUTTON_STATE_RELEASED: io_input_device_key_release(ptr, button);
+        break;case WL_POINTER_BUTTON_STATE_PRESSED:
+            if (!ctx->wayland->in_keyboard_enter) {
+                io_input_device_key_press(ptr, button);
+            }
+        break;case WL_POINTER_BUTTON_STATE_RELEASED:
+            io_input_device_key_release(ptr, button);
     }
 }
 

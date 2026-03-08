@@ -45,7 +45,9 @@ void scene_offer_selection(scene_client* client, scene_data_source* source)
 {
     scene_client_post_event(client, ptr_to(scene_event {
         .type = scene_event_type::selection,
-        .selection = source,
+        .data {
+            .source =source,
+        },
     }));
 }
 
@@ -58,6 +60,6 @@ auto scene_data_source_get_offered(scene_data_source* source) -> std::span<const
 
 void scene_data_source_send(scene_data_source* source, const char* mime_type, int fd)
 {
-    log_error("scene_data_source_send({}, {}, {})", (void*)source, mime_type, fd);
+    log_debug("scene_data_source_send({}, {}, {})", (void*)source, mime_type, fd);
     source->ops.send(mime_type, fd);
 }

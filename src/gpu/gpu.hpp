@@ -214,7 +214,6 @@ struct gpu_context : core_object
 
     std::vector<VkSemaphore> free_binary_semaphores;
 
-
     VkDescriptorSetLayout set_layout;
     VkPipelineLayout pipeline_layout;
     VkDescriptorPool pool;

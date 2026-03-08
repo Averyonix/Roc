@@ -23,6 +23,8 @@ struct io_context : core_object
 {
     std::move_only_function<io_event_handler> event_handler;
 
+    bool stop_requested = false;
+
     core_event_loop* event_loop;
     gpu_context*     gpu;
 
