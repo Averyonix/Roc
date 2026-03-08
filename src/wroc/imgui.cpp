@@ -32,9 +32,8 @@ void wroc_imgui_init()
     server->imgui = core_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
 
-    imgui->pipeline = gpu_pipeline_create_graphics(gpu,
-        gpu_blend_mode::postmultiplied, server->renderer->output_format,
-        wroc_imgui_shader, "vertex", "fragment");
+    imgui->vertex = gpu_shader_create(gpu, VK_SHADER_STAGE_VERTEX_BIT, wroc_imgui_shader, "vertex");
+    imgui->fragment = gpu_shader_create(gpu, VK_SHADER_STAGE_FRAGMENT_BIT, wroc_imgui_shader, "fragment");
 
     imgui->context = ImGui::CreateContext();
     ImGui::SetCurrentContext(imgui->context);
@@ -386,7 +385,9 @@ void wroc_imgui_render(wroc_imgui* imgui, gpu_commands* commands, rect2f64 viewp
     // TODO: Protect images
     auto cmd = commands->buffer;
 
-    gpu->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline->pipeline);
+    gpu_cmd_bind_shaders(commands, {imgui->vertex.get(), imgui->fragment.get()});
+    gpu_cmd_reset_graphics_state(commands);
+    gpu_cmd_set_blend_state(commands, {gpu_blend_mode::postmultiplied});
     gpu->vk.CmdBindIndexBuffer(cmd,
         frame->indices.buffer->buffer, frame->indices.byte_offset,
         sizeof(ImDrawIdx) == sizeof(u16) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
@@ -411,13 +412,10 @@ void wroc_imgui_render(wroc_imgui* imgui, gpu_commands* commands, rect2f64 viewp
                 continue;
             }
 
-            gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D {
-                .offset = {i32(clip_min.x), i32(clip_min.y)},
-                .extent = {u32(clip_max.x - clip_min.x), u32(clip_max.y - clip_min.y)},
-            }));
+            gpu_cmd_set_scissors(commands, {{clip_min, clip_max, core_minmax}});
 
             auto draw_scale = 2.f / vec2f32(viewport.extent);
-            gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(wroc_imgui_shader_in),
+            gpu_cmd_push_constants(commands, 0, sizeof(wroc_imgui_shader_in),
                 ptr_to(wroc_imgui_shader_in {
                     .vertices = frame->vertices.device(),
                     .scale = draw_scale,

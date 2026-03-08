@@ -1053,7 +1053,8 @@ struct wroc_renderer : core_object
     gpu_format output_format;
     gpu_format_modifier_set output_format_modifiers;
 
-    ref<gpu_pipeline> pipeline;
+    ref<gpu_shader> fragment;
+    ref<gpu_shader> vertex;
 
     std::vector<wroc_renderer_frame_data> available_frames;
     std::vector<struct wroc_shader_rect> rects_cpu;
@@ -1102,7 +1103,8 @@ struct wroc_imgui : core_object
 
     rect2f64 layout_rect;
 
-    ref<gpu_pipeline> pipeline;
+    ref<gpu_shader> fragment;
+    ref<gpu_shader> vertex;
 
     gpu_array<ImDrawIdx> indices;
     gpu_array<ImDrawVert> vertices;

@@ -70,6 +70,7 @@ std::array required_device_extensions = {
     VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
     VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
     VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
+    VK_EXT_SHADER_OBJECT_EXTENSION_NAME,
 
     VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
     VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
@@ -452,6 +453,10 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
                     .unifiedImageLayouts = true,
                     .unifiedImageLayoutsVideo = true,
+                }),
+                ptr_to(VkPhysicalDeviceShaderObjectFeaturesEXT {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT,
+                    .shaderObject = true,
                 }),
             }),
             .queueCreateInfoCount = 2,

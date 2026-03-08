@@ -1,6 +1,49 @@
 #include "wayland.hpp"
 
 static
+void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, int fd, u32 size)
+{
+    auto _ = core_fd_adopt(fd);
+    auto* ctx = static_cast<io_context*>(udata);
+
+    struct entry {
+        u32 format;
+        u32 padding;
+        u64 modifier;
+    };
+
+    core_assert(size % sizeof(entry) == 0);
+
+    auto mapped = static_cast<entry*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
+    core_assert(mapped);
+    defer { munmap(mapped, size); };
+
+    auto count = size / sizeof(entry);
+    auto formats = std::span(mapped, count);
+
+    ctx->wayland->format.table.clear();
+    ctx->wayland->format.set.clear();
+    for (auto& entry : formats) {
+        if (auto format = gpu_format_from_drm(entry.format)) {
+            ctx->wayland->format.table.emplace_back(format, entry.modifier);
+        }
+    }
+}
+
+static
+void tranche_formats(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, wl_array* indices)
+{
+    auto* ctx = static_cast<io_context*>(udata);
+
+    for (auto[i, idx] : io_to_span<u16>(indices) | std::views::enumerate) {
+        auto[format, modifier] = ctx->wayland->format.table[idx];
+        ctx->wayland->format.set.add(format, modifier);
+    }
+}
+
+// -----------------------------------------------------------------------------
+
+static
 void configure(void* udata, xdg_surface* xdg_surface, u32 serial)
 {
     auto* output = static_cast<io_output_wayland*>(udata);
@@ -61,12 +104,12 @@ IO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
     .done = [](void*, zwp_linux_dmabuf_feedback_v1 *feedback) {
         zwp_linux_dmabuf_feedback_v1_destroy(feedback);
     },
-    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, format_table),
-    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, main_device),
-    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_done),
-    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_target_device),
-    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_formats),
-    IO_WL_STUB(zwp_linux_dmabuf_feedback_v1, tranche_flags),
+    .format_table = format_table,
+    IO_WL_STUB_QUIET(main_device),
+    IO_WL_STUB_QUIET(tranche_done),
+    IO_WL_STUB_QUIET(tranche_target_device),
+    .tranche_formats = tranche_formats,
+    IO_WL_STUB_QUIET(tranche_flags),
 };
 
 IO_WL_LISTENER(zwp_locked_pointer_v1) = {
@@ -88,6 +131,10 @@ void io_add_output(io_context* ctx)
 
     auto output = core_create<io_output_wayland>();
     output->ctx = ctx;
+
+    output->swapchain.format.format = gpu_format_from_drm(DRM_FORMAT_ABGR8888);
+    output->swapchain.format.available = ctx->wayland->format.set.get(output->swapchain.format.format);
+
     wl->outputs.emplace_back(output);
 
     output->wl_surface = wl_compositor_create_surface(wl->wl_compositor);

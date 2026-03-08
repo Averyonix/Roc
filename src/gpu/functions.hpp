@@ -26,8 +26,6 @@
     DO(CreateSemaphore) \
     DO(CreatePipelineLayout) \
     DO(CreateDescriptorPool) \
-    DO(CreateGraphicsPipelines) \
-    DO(CreateComputePipelines) \
     DO(WaitForFences) \
     DO(ResetFences) \
     DO(QueueWaitIdle) \
@@ -36,9 +34,6 @@
     DO(CmdPipelineBarrier2) \
     DO(BeginCommandBuffer) \
     DO(CmdBeginRendering) \
-    DO(CmdSetViewport) \
-    DO(CmdSetScissor) \
-    DO(CmdBindPipeline) \
     DO(CmdBindIndexBuffer) \
     DO(CmdDraw) \
     DO(CmdDrawIndexed) \
@@ -50,7 +45,6 @@
     DO(DestroyCommandPool) \
     DO(DestroySemaphore) \
     DO(DestroyPipelineLayout) \
-    DO(DestroyPipeline) \
     DO(CreateFence) \
     DO(DestroyFence) \
     DO(DestroyDescriptorPool) \
@@ -91,6 +85,33 @@
     DO(GetImageSubresourceLayout) \
     DO(GetMemoryFdKHR) \
     DO(CmdDispatch) \
+    DO(CreateShadersEXT) \
+    DO(DestroyShaderEXT) \
+    DO(CmdSetAlphaToCoverageEnableEXT) \
+    DO(CmdSetSampleMaskEXT) \
+    DO(CmdSetRasterizationSamplesEXT) \
+    DO(CmdSetVertexInputEXT) \
+    DO(CmdSetRasterizerDiscardEnable) \
+    DO(CmdSetPrimitiveRestartEnable) \
+    DO(CmdSetStencilTestEnable) \
+    DO(CmdSetStencilOp) \
+    DO(CmdSetDepthBiasEnable) \
+    DO(CmdSetDepthBoundsTestEnable) \
+    DO(CmdSetDepthBounds) \
+    DO(CmdSetViewportWithCount) \
+    DO(CmdSetScissorWithCount) \
+    DO(CmdSetPrimitiveTopology) \
+    DO(CmdSetPolygonModeEXT) \
+    DO(CmdSetLineWidth) \
+    DO(CmdSetCullMode) \
+    DO(CmdSetFrontFace) \
+    DO(CmdSetDepthTestEnable) \
+    DO(CmdSetDepthWriteEnable) \
+    DO(CmdSetDepthCompareOp) \
+    DO(CmdSetColorBlendEnableEXT) \
+    DO(CmdSetColorWriteMaskEXT) \
+    DO(CmdSetColorBlendEquationEXT) \
+    DO(CmdBindShadersEXT) \
 
 #define GPU_DECLARE_FUNCTION(funcName, ...) PFN_vk##funcName funcName;
 

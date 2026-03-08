@@ -74,6 +74,11 @@ struct io_wayland
     IO_WL_INTERFACE(zwp_linux_dmabuf_v1);
     IO_WL_INTERFACE(wp_linux_drm_syncobj_manager_v1);
 
+    struct {
+        std::vector<std::pair<gpu_format, gpu_drm_modifier>> table;
+        gpu_format_set set;
+    } format;
+
     core_fd wl_display_fd = {};
 
     std::vector<ref<io_output_wayland>> outputs;

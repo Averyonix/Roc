@@ -61,9 +61,8 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
 
     renderer->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
 
-    renderer->pipeline = gpu_pipeline_create_graphics(gpu,
-        gpu_blend_mode::premultiplied, renderer->output_format,
-        wroc_blit_shader, "vertex", "fragment");
+    renderer->vertex = gpu_shader_create(gpu, VK_SHADER_STAGE_VERTEX_BIT, wroc_blit_shader, "vertex");
+    renderer->fragment = gpu_shader_create(gpu, VK_SHADER_STAGE_FRAGMENT_BIT, wroc_blit_shader, "fragment");
 
     return renderer;
 }
@@ -96,16 +95,14 @@ void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame
         }),
     }));
 
-    gpu->vk.CmdSetViewport(cmd, 0, 1, ptr_to(VkViewport {
-        0, 0,
-        current_extent.x, current_extent.y,
-        0, 1,
-    }));
+    gpu_cmd_set_viewports(commands, {{{}, current_extent, core_xywh}});
     gpu->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, gpu->pipeline_layout, 0, 1, &gpu->set, 0, nullptr);
 
     auto start_draws = [&] {
-        gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D { {}, vk_extent }));
-        gpu->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->pipeline->pipeline);
+        gpu_cmd_set_scissors(commands, {{{}, current->extent, core_xywh}});
+        gpu_cmd_bind_shaders(commands, {renderer->vertex.get(), renderer->fragment.get()});
+        gpu_cmd_reset_graphics_state(commands);
+        gpu_cmd_set_blend_state(commands, {gpu_blend_mode::premultiplied});
     };
 
     u32 rect_id_start = 0;
@@ -152,7 +149,7 @@ void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame
         wroc_shader_rect_input si = {};
         si.rects = frame->rects.device();
         si.output_size = current_extent;
-        gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(si), &si);
+        gpu_cmd_push_constants(commands, 0, sizeof(si), &si);
         gpu->vk.CmdDraw(cmd, 6 * (rect_id - rect_id_start), 1, rect_id_start * 6, 0);
         rect_id_start = rect_id;
     };

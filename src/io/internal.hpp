@@ -62,6 +62,14 @@ struct io_swapchain
     std::vector<ref<gpu_image>> free_images;
     std::vector<release_slot> release_slots;
 
+    struct {
+        gpu_format             format;
+        flags<gpu_image_usage> usage;
+
+        gpu_format_modifier_set available;
+        gpu_format_modifier_set intersected;
+    } format;
+
     u32 max_images = 2;
     u32 images_in_flight;
 };

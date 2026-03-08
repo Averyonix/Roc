@@ -20,11 +20,10 @@ struct scene_context
     gpu_context* gpu;
 
     struct {
-        ref<gpu_pipeline> premult;
-        ref<gpu_pipeline> postmult;
+        ref<gpu_shader> vertex;
+        ref<gpu_shader> fragment;
         ref<gpu_image>    white;
         ref<gpu_sampler>  sampler;
-        flags<gpu_image_usage> usage;
     } render;
 
     ref<scene_transform> root_transform;

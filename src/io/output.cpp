@@ -33,6 +33,14 @@ void io_output_remove(io_output_base* output)
 
 auto io_output_base::acquire(flags<gpu_image_usage> usage) -> ref<gpu_image>
 {
+    if (usage != swapchain.format.usage) {
+        swapchain.format.usage = usage;
+        swapchain.format.intersected = gpu_intersect_format_modifiers({
+            &swapchain.format.available,
+            &gpu_get_format_props(ctx->gpu, swapchain.format.format, usage)->mods
+        });
+    }
+
     // Clear out any images that don't meet requirements
     std::erase_if(swapchain.free_images, [&](auto& i) {
         return i->extent != size || i->usage != usage;
@@ -55,13 +63,7 @@ auto io_output_base::acquire(flags<gpu_image_usage> usage) -> ref<gpu_image>
 
     log_warn("Creating new swapchain image {}", core_to_string(size));
 
-    auto gpu = ctx->gpu;
-
-    auto format = gpu_format_from_drm(DRM_FORMAT_ABGR8888);
-    auto mods = gpu_get_format_props(gpu, format, usage)->mods;
-    auto image = gpu_image_create_dmabuf(gpu, size, format, usage, mods);
-
-    return image;
+    return gpu_image_create_dmabuf(ctx->gpu, size, swapchain.format.format, usage, swapchain.format.intersected);
 }
 
 static

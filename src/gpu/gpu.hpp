@@ -485,25 +485,21 @@ enum class gpu_blend_mode : u32
     postmultiplied,
 };
 
-struct gpu_pipeline : core_object
-{
-    gpu_context* ctx;
+struct gpu_shader;
+CORE_OBJECT_EXPLICIT_DECLARE(gpu_shader);
 
-    VkPipeline pipeline;
+auto gpu_shader_create(gpu_context*, VkShaderStageFlagBits, std::span<const u32> spirv, const char* entry) -> ref<gpu_shader>;
 
-    ~gpu_pipeline();
-};
+void gpu_cmd_push_constants(   gpu_commands*, u64 offset, u64 size, const void* data);
+void gpu_cmd_set_scissors(     gpu_commands*, std::span<const rect2i32> scissors);
+void gpu_cmd_set_viewports(    gpu_commands*, std::span<const rect2f32> viewports);
+void gpu_cmd_set_polygon_state(gpu_commands*, VkPrimitiveTopology, VkPolygonMode, f32 line_width);
+void gpu_cmd_set_cull_state(   gpu_commands*, VkCullModeFlagBits, VkFrontFace);
+void gpu_cmd_set_depth_stae(   gpu_commands*, bool test_enable, bool write_enable, VkCompareOp);
+void gpu_cmd_set_blend_state(  gpu_commands*, std::span<const gpu_blend_mode>);
+void gpu_cmd_bind_shaders(     gpu_commands*, std::span<gpu_shader* const>);
 
-ref<gpu_pipeline> gpu_pipeline_create_graphics(gpu_context*,
-    gpu_blend_mode,
-    gpu_format,
-    std::span<const u32> spirv,
-    const char* vertex_entry,
-    const char* fragment_entry);
-
-ref<gpu_pipeline> gpu_pipeline_create_compute(gpu_context*,
-    std::span<const u32> spirv,
-    const char* entry);
+void gpu_cmd_reset_graphics_state(gpu_commands*);
 
 // -----------------------------------------------------------------------------
 

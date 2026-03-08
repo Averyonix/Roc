@@ -5,17 +5,8 @@
 
 void scene_render_init(scene_context* ctx)
 {
-    ctx->render.usage = gpu_image_usage::render;
-
-    ctx->render.postmult = gpu_pipeline_create_graphics(
-        ctx->gpu, gpu_blend_mode::postmultiplied,
-        gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-        scene_render_shader, "vertex", "fragment");
-
-    ctx->render.premult = gpu_pipeline_create_graphics(
-        ctx->gpu, gpu_blend_mode::premultiplied,
-        gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-        scene_render_shader, "vertex", "fragment");
+    ctx->render.vertex   = gpu_shader_create(ctx->gpu, VK_SHADER_STAGE_VERTEX_BIT,   scene_render_shader, "vertex");
+    ctx->render.fragment = gpu_shader_create(ctx->gpu, VK_SHADER_STAGE_FRAGMENT_BIT, scene_render_shader, "fragment");
 
     ctx->render.white = gpu_image_create(ctx->gpu, {1, 1},
         gpu_format_from_drm(DRM_FORMAT_ABGR8888),
@@ -34,7 +25,7 @@ void scene_frame(scene_context* ctx, scene_output* output, io_output* io_output)
 
     // TODO: Only redraw with damage
 
-    auto target = io_output->acquire(ctx->render.usage);
+    auto target = io_output->acquire(gpu_image_usage::render);
     auto done = scene_render(ctx, target.get(), output->viewport);
     io_output->present(target.get(), done);
 }
@@ -143,17 +134,17 @@ auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> g
 
     auto queue = gpu_get_queue(gpu, gpu_queue_type::graphics);
     auto commands = gpu_commands_begin(queue);
-    auto cmd = commands->buffer;
-    gpu_commands_protect_object(commands.get(), gpu_vertices.buffer.get());
-    gpu_commands_protect_object(commands.get(), gpu_indices.buffer.get());
+    auto cmd = commands.get();
+    gpu_commands_protect_object(cmd, gpu_vertices.buffer.get());
+    gpu_commands_protect_object(cmd, gpu_indices.buffer.get());
 
     // Protect images
 
-    gpu_commands_protect_object(commands.get(), target);
+    gpu_commands_protect_object(cmd, target);
 
-    gpu_commands_protect_object(commands.get(), render.white.get());
+    gpu_commands_protect_object(cmd, render.white.get());
     for (auto& draw : draws) {
-        gpu_commands_protect_object(commands.get(), draw.image);
+        gpu_commands_protect_object(cmd, draw.image);
     }
 
     // Record
@@ -161,7 +152,11 @@ auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> g
     VkExtent2D vk_extent = { target->extent.x, target->extent.y };
     vec2f32 target_extent = target->extent;
 
-    gpu->vk.CmdBeginRendering(cmd, ptr_to(VkRenderingInfo {
+    gpu_cmd_reset_graphics_state(cmd);
+    gpu_cmd_set_viewports(cmd, {{{}, target_extent, core_xywh}});
+    gpu_cmd_bind_shaders(cmd, {ctx->render.vertex.get(), ctx->render.fragment.get()});
+
+    gpu->vk.CmdBeginRendering(cmd->buffer, ptr_to(VkRenderingInfo {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .renderArea = { {}, vk_extent },
         .layerCount = 1,
@@ -175,42 +170,29 @@ auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> g
             .clearValue = {.color{.float32{0.f, 0.f, 0.f, 1.f}}},
         }),
     }));
-    gpu->vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, gpu->pipeline_layout, 0, 1, &gpu->set, 0, nullptr);
-    gpu->vk.CmdBindIndexBuffer(cmd, gpu_indices.buffer->buffer, 0, VK_INDEX_TYPE_UINT32);
-
-    gpu->vk.CmdSetViewport(cmd, 0, 1, ptr_to(VkViewport {
-        0, 0,
-        target_extent.x, target_extent.y,
-        0, 1,
-    }));
+    gpu->vk.CmdBindDescriptorSets(cmd->buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, gpu->pipeline_layout, 0, 1, &gpu->set, 0, nullptr);
+    gpu->vk.CmdBindIndexBuffer(cmd->buffer, gpu_indices.buffer->buffer, 0, VK_INDEX_TYPE_UINT32);
 
     for (auto& draw : draws) {
-        switch (draw.blend) {
-            break;case gpu_blend_mode::premultiplied:
-                gpu->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, render.premult->pipeline);
-            break;case gpu_blend_mode::postmultiplied:
-                gpu->vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, render.postmult->pipeline);
-            break;case gpu_blend_mode::none:
-                core_assert_fail("", "Must select blend mode");
-        }
+        gpu_cmd_set_blend_state(cmd, {draw.blend});
+
         rect2f32 scissor = draw.clip;
         scissor.origin -= viewport.origin;
-        gpu->vk.CmdSetScissor(cmd, 0, 1, ptr_to(VkRect2D {
-            .offset = {i32(scissor.origin.x), i32(scissor.origin.y)},
-            .extent = {u32(scissor.extent.x), u32(scissor.extent.y)},
-        }));
+        gpu_cmd_set_scissors(cmd, {scissor});
+
         auto draw_scale = 2.f / viewport.extent;
-        gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, 0, sizeof(scene_render_input),
+        gpu_cmd_push_constants(cmd, 0, sizeof(scene_render_input),
             ptr_to(scene_render_input {
                 .vertices = gpu_vertices.device(),
                 .scale = draw_scale * draw.transform.scale,
                 .offset = (draw.transform.translation - viewport.origin) * draw_scale - 1.f,
                 .texture = {draw.image, render.sampler.get()},
             }));
-        gpu->vk.CmdDrawIndexed(cmd, draw.num_indices, 1, draw.first_index, draw.first_vertex, 0);
+
+        gpu->vk.CmdDrawIndexed(cmd->buffer, draw.num_indices, 1, draw.first_index, draw.first_vertex, 0);
     }
 
-    gpu->vk.CmdEndRendering(cmd);
+    gpu->vk.CmdEndRendering(cmd->buffer);
 
-    return gpu_commands_submit(commands.get(), {});
+    return gpu_commands_submit(cmd, {});
 }

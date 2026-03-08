@@ -52,13 +52,10 @@ struct core_fd_data
     ~core_fd_data()
     {
         for (int fd = 0; fd < core_fd_max; ++fd) {
+            if (data.inherited[fd]) continue;
             if (fcntl(fd, F_GETFD) == -1) continue;
 
-            if (data.inherited[fd]) {
-                log_trace("fd[{}] alive (inherited)", fd);
-            } else {
-                log_error("fd[{}] alive (refs: {})", fd, ref_counts[fd]);
-            }
+            log_error("fd[{}] leaked (refs: {})", fd, ref_counts[fd]);
         }
     }
 #endif
