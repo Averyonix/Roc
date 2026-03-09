@@ -17,27 +17,27 @@
         },
         "kde-protocols": {
             "branch": "master",
-            "commit": "6fee13b7c0b25d4619e20090f4a178fc2b460be7",
+            "commit": "7a2283e8184c25c9efe43dddacc90c565619824d",
             "repo": "https://github.com/KDE/plasma-wayland-protocols.git"
         },
         "magic-enum": {
             "branch": "master",
-            "commit": "c1aa6de965960250f4ab762e97e67e6290395dc7",
+            "commit": "7d87efb4a3dddbbe8caa9ca14eff05ede1102ab8",
             "repo": "https://github.com/Neargye/magic_enum.git"
         },
         "renderdoc": {
             "branch": "v1.x",
-            "commit": "f42b33479bc2ae50621f1f47c5f5f01c5c7d5128",
+            "commit": "eeb4bf9f0474d3671bc9242f6aa823d3ad0d6a85",
             "repo": "https://github.com/baldurk/renderdoc.git"
         },
         "slang": {
             "branch": "master",
-            "commit": "ed97591062fd87f048d5fe3df5b4bafa51c257ed",
+            "commit": "d138e768f5b25d8189208105323464455d73b6ff",
             "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
             "branch": "master",
-            "commit": "f1c79c02822848a9bed4315b12c8c8f3761e1296",
+            "commit": "2fb8c5a3deb2110c89669f8d6f36e5833b556b44",
             "repo": "https://github.com/nothings/stb.git"
         },
         "unordered-dense": {
@@ -47,22 +47,22 @@
         },
         "vulkan-headers": {
             "branch": "main",
-            "commit": "ad9ce1235e88dc09287e19171dfac384db8ec32c",
+            "commit": "74d8a6cb930c68ef617b202c3ff3c59d919e086b",
             "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git"
         },
         "vulkan-memory-allocator": {
             "branch": "master",
-            "commit": "e722e57c891a8fbe3cc73ca56c19dd76be242759",
+            "commit": "b3cbbb43ea3a506dffe10759e205a41c27c35ae2",
             "repo": "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git"
         },
         "vulkan-utility-libraries": {
             "branch": "main",
-            "commit": "738ec97a3f659dd6469bff3c4078ef981b0a343f",
+            "commit": "20fb10eb1ec08ccd5cacec32b7df1b0e99e48a0c",
             "repo": "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git"
         },
         "xwayland-satellite": {
             "branch": "main",
-            "commit": "33c344fee50504089a447a8fef5878cf4f6215fc",
+            "commit": "10f985b84cdbcc3bbf35b3e7e43d1b2a84fa9ce2",
             "repo": "https://github.com/Supreeeme/xwayland-satellite.git"
         }
     }
