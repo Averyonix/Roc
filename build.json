@@ -12,7 +12,7 @@
         },
         "imgui": {
             "branch": "docking",
-            "commit": "934c6a5f5ef2355d6df25395d555cb71f790c4e9",
+            "commit": "aeaaee8090a7f9751ee9684de979a0ea673c935f",
             "repo": "https://github.com/ocornut/imgui.git"
         },
         "kde-protocols": {
@@ -27,12 +27,12 @@
         },
         "renderdoc": {
             "branch": "v1.x",
-            "commit": "eeb4bf9f0474d3671bc9242f6aa823d3ad0d6a85",
+            "commit": "c2147b0233ce4b3346b241f555937de909e49463",
             "repo": "https://github.com/baldurk/renderdoc.git"
         },
         "slang": {
             "branch": "master",
-            "commit": "d138e768f5b25d8189208105323464455d73b6ff",
+            "commit": "99e2a4fa8cd90ed476046743fff984365d208f5f",
             "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
@@ -57,7 +57,7 @@
         },
         "vulkan-utility-libraries": {
             "branch": "main",
-            "commit": "20fb10eb1ec08ccd5cacec32b7df1b0e99e48a0c",
+            "commit": "56773a2b578bb5831a1d8eb1927cd9ea92dddc65",
             "repo": "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git"
         },
         "xwayland-satellite": {
