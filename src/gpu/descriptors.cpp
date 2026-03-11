@@ -1,8 +1,8 @@
 #include "internal.hpp"
 
-void gpu_init_descriptors(gpu_context* ctx)
+void gpu_init_descriptors(gpu_context* gpu)
 {
-    auto& vk = ctx->vk;
+    auto& vk = gpu->vk;
 
     VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
         | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
@@ -10,10 +10,10 @@ void gpu_init_descriptors(gpu_context* ctx)
     constexpr auto num_image_descriptors_each = 65536;
     constexpr auto num_sampler_descriptors    =    16;
 
-    ctx->image_descriptor_allocator   = gpu_descriptor_id_allocator(num_image_descriptors_each);
-    ctx->sampler_descriptor_allocator = gpu_descriptor_id_allocator(num_sampler_descriptors);
+    gpu->image_descriptor_allocator   = gpu_descriptor_id_allocator(num_image_descriptors_each);
+    gpu->sampler_descriptor_allocator = gpu_descriptor_id_allocator(num_sampler_descriptors);
 
-    gpu_check(vk.CreateDescriptorSetLayout(ctx->device, ptr_to(VkDescriptorSetLayoutCreateInfo {
+    gpu_check(vk.CreateDescriptorSetLayout(gpu->device, ptr_to(VkDescriptorSetLayoutCreateInfo {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = ptr_to(VkDescriptorSetLayoutBindingFlagsCreateInfo {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
@@ -42,20 +42,20 @@ void gpu_init_descriptors(gpu_context* ctx)
                 .stageFlags = VK_SHADER_STAGE_ALL,
             }
         }.data(),
-    }), nullptr, &ctx->set_layout));
+    }), nullptr, &gpu->set_layout));
 
-    gpu_check(vk.CreatePipelineLayout(ctx->device, ptr_to(VkPipelineLayoutCreateInfo {
+    gpu_check(vk.CreatePipelineLayout(gpu->device, ptr_to(VkPipelineLayoutCreateInfo {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
-        .pSetLayouts = &ctx->set_layout,
+        .pSetLayouts = &gpu->set_layout,
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = ptr_to(VkPushConstantRange {
             .stageFlags = VK_SHADER_STAGE_ALL,
-            .size = 128,
+            .size = gpu_push_constant_size,
         }),
-    }), nullptr, &ctx->pipeline_layout));
+    }), nullptr, &gpu->pipeline_layout));
 
-    gpu_check(vk.CreateDescriptorPool(ctx->device, ptr_to(VkDescriptorPoolCreateInfo {
+    gpu_check(vk.CreateDescriptorPool(gpu->device, ptr_to(VkDescriptorPoolCreateInfo {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
         .maxSets = 1,
@@ -65,14 +65,14 @@ void gpu_init_descriptors(gpu_context* ctx)
             VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, num_image_descriptors_each },
             VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, num_sampler_descriptors },
         }.data(),
-    }), nullptr, &ctx->pool));
+    }), nullptr, &gpu->pool));
 
-    gpu_check(vk.AllocateDescriptorSets(ctx->device, ptr_to(VkDescriptorSetAllocateInfo {
+    gpu_check(vk.AllocateDescriptorSets(gpu->device, ptr_to(VkDescriptorSetAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = ctx->pool,
+        .descriptorPool = gpu->pool,
         .descriptorSetCount = 1,
-        .pSetLayouts = &ctx->set_layout,
-    }), &ctx->set));
+        .pSetLayouts = &gpu->set_layout,
+    }), &gpu->set));
 }
 
 // -----------------------------------------------------------------------------
@@ -106,10 +106,10 @@ void gpu_descriptor_id_allocator::free(gpu_descriptor_id id)
 
 void gpu_allocate_image_descriptor(gpu_image_base* image)
 {
-    auto* ctx = image->ctx;
-    auto& vk = ctx->vk;
+    auto* gpu = image->gpu;
+    auto& vk = gpu->vk;
 
-    auto id = ctx->image_descriptor_allocator.allocate();
+    auto id = gpu->image_descriptor_allocator.allocate();
     if (id == gpu_descriptor_id::invalid) {
         log_error("No more available image descriptors ids");
         return;
@@ -120,10 +120,10 @@ void gpu_allocate_image_descriptor(gpu_image_base* image)
     auto usage = gpu_image_usage_to_vk(image->usage());
 
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
-        vk.UpdateDescriptorSets(ctx->device, 1, std::array {
+        vk.UpdateDescriptorSets(gpu->device, 1, std::array {
             VkWriteDescriptorSet {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = ctx->set,
+                .dstSet = gpu->set,
                 .dstBinding = 0,
                 .dstArrayElement = std::to_underlying(id),
                 .descriptorCount = 1,
@@ -137,10 +137,10 @@ void gpu_allocate_image_descriptor(gpu_image_base* image)
     }
 
     if (usage & VK_IMAGE_USAGE_STORAGE_BIT) {
-        vk.UpdateDescriptorSets(ctx->device, 1, std::array {
+        vk.UpdateDescriptorSets(gpu->device, 1, std::array {
             VkWriteDescriptorSet {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = ctx->set,
+                .dstSet = gpu->set,
                 .dstBinding = 1,
                 .dstArrayElement = std::to_underlying(id),
                 .descriptorCount = 1,
@@ -158,10 +158,10 @@ void gpu_allocate_image_descriptor(gpu_image_base* image)
 
 void gpu_allocate_sampler_descriptor(gpu_sampler* sampler)
 {
-    auto* ctx = sampler->ctx;
-    auto& vk = ctx->vk;
+    auto* gpu = sampler->gpu;
+    auto& vk = gpu->vk;
 
-    auto id = ctx->sampler_descriptor_allocator.allocate();
+    auto id = gpu->sampler_descriptor_allocator.allocate();
     if (id == gpu_descriptor_id::invalid) {
         log_error("No more available image descriptors ids");
         return;
@@ -171,10 +171,10 @@ void gpu_allocate_sampler_descriptor(gpu_sampler* sampler)
 
     log_debug("Sampler allocated ID: {}", std::to_underlying(sampler->id));
 
-    vk.UpdateDescriptorSets(ctx->device, 1, std::array {
+    vk.UpdateDescriptorSets(gpu->device, 1, std::array {
         VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = ctx->set,
+            .dstSet = gpu->set,
             .dstBinding = 2,
             .dstArrayElement = std::to_underlying(sampler->id),
             .descriptorCount = 1,

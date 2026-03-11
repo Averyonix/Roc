@@ -2,7 +2,7 @@
 
 struct gpu_shader
 {
-    gpu_context* ctx;
+    gpu_context* gpu;
 
     VkShaderStageFlagBits stage;
     VkShaderEXT shader = {};
@@ -14,36 +14,36 @@ CORE_OBJECT_EXPLICIT_DEFINE(gpu_shader)
 
 gpu_shader::~gpu_shader()
 {
-    ctx->vk.DestroyShaderEXT(ctx->device, shader, nullptr);
+    gpu->vk.DestroyShaderEXT(gpu->device, shader, nullptr);
 }
 
-auto gpu_shader_create(gpu_context* ctx, VkShaderStageFlagBits stage, std::span<const u32> spirv, const char* entry) -> ref<gpu_shader>
+auto gpu_shader_create(gpu_context* gpu, const gpu_shader_create_info& info) -> ref<gpu_shader>
 {
     auto shader = core_create<gpu_shader>();
-    shader->ctx = ctx;
-    shader->stage = stage;
+    shader->gpu = gpu;
+    shader->stage = info.stage;
 
     flags<VkShaderStageFlagBits> next_stages = {};
-    switch (stage) {
+    switch (info.stage) {
         break;case VK_SHADER_STAGE_VERTEX_BIT:
             next_stages = VK_SHADER_STAGE_FRAGMENT_BIT;
         break;default:
     }
 
-    gpu_check(ctx->vk.CreateShadersEXT(ctx->device, 1, ptr_to(VkShaderCreateInfoEXT {
+    gpu_check(gpu->vk.CreateShadersEXT(gpu->device, 1, ptr_to(VkShaderCreateInfoEXT {
         .sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT,
-        .stage = stage,
+        .stage = info.stage,
         .nextStage = next_stages.get(),
         .codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT,
-        .codeSize = spirv.size() * 4,
-        .pCode = spirv.data(),
-        .pName = entry,
+        .codeSize = info.code.size() * 4,
+        .pCode = info.code.data(),
+        .pName = info.entry,
         .setLayoutCount = 1,
-        .pSetLayouts = &ctx->set_layout,
+        .pSetLayouts = &gpu->set_layout,
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = ptr_to(VkPushConstantRange {
             .stageFlags = VK_SHADER_STAGE_ALL,
-            .size = 128,
+            .size = gpu_push_constant_size,
         }),
     }), nullptr, &shader->shader));
 
@@ -52,13 +52,13 @@ auto gpu_shader_create(gpu_context* ctx, VkShaderStageFlagBits stage, std::span<
 
 void gpu_cmd_push_constants(gpu_commands* cmd, u64 offset, u64 size, const void* data)
 {
-    auto* ctx = cmd->queue->ctx;
-    ctx->vk.CmdPushConstants(cmd->buffer, ctx->pipeline_layout, VK_SHADER_STAGE_ALL, offset, size, data);
+    auto* gpu = cmd->queue->gpu;
+    gpu->vk.CmdPushConstants(cmd->buffer, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, offset, size, data);
 }
 
 void gpu_cmd_set_scissors(gpu_commands* cmd, std::span<const rect2i32> scissors)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
     std::vector<VkRect2D> vk_scissors(scissors.size());
     for (u32 i = 0; i < scissors.size(); ++i) {
@@ -66,16 +66,16 @@ void gpu_cmd_set_scissors(gpu_commands* cmd, std::span<const rect2i32> scissors)
         if (r.extent.x < 0) { r.origin.x -= (r.extent.x *= -1); }
         if (r.extent.y < 0) { r.origin.y -= (r.extent.y *= -1); }
         vk_scissors[i] = VkRect2D {
-            .offset{    r.origin.x,       r.origin.y  },
+            .offset{     r.origin.x,      r.origin.y  },
             .extent{ u32(r.extent.x), u32(r.extent.y) },
         };
     }
-    ctx->vk.CmdSetScissorWithCount(cmd->buffer, u32(scissors.size()), vk_scissors.data());
+    gpu->vk.CmdSetScissorWithCount(cmd->buffer, u32(scissors.size()), vk_scissors.data());
 }
 
 void gpu_cmd_set_viewports(gpu_commands* cmd, std::span<const rect2f32> viewports)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
     std::vector<VkViewport> vk_viewports(viewports.size());
     for (u32 i = 0; i < viewports.size(); ++i) {
@@ -88,38 +88,38 @@ void gpu_cmd_set_viewports(gpu_commands* cmd, std::span<const rect2f32> viewport
             .maxDepth = 1.f
         };
     }
-    ctx->vk.CmdSetViewportWithCount(cmd->buffer, u32(viewports.size()), vk_viewports.data());
+    gpu->vk.CmdSetViewportWithCount(cmd->buffer, u32(viewports.size()), vk_viewports.data());
 }
 
 void gpu_cmd_set_polygon_state(gpu_commands* cmd, VkPrimitiveTopology topology, VkPolygonMode polygon_mode, f32 line_width)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
-    ctx->vk.CmdSetPrimitiveTopology(cmd->buffer, topology);
-    ctx->vk.CmdSetPolygonModeEXT(   cmd->buffer, polygon_mode);
-    ctx->vk.CmdSetLineWidth(        cmd->buffer, line_width);
+    gpu->vk.CmdSetPrimitiveTopology(cmd->buffer, topology);
+    gpu->vk.CmdSetPolygonModeEXT(   cmd->buffer, polygon_mode);
+    gpu->vk.CmdSetLineWidth(        cmd->buffer, line_width);
 }
 
 void gpu_cmd_set_cull_state(gpu_commands* cmd, VkCullModeFlagBits cull_mode, VkFrontFace front_face)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
-    ctx->vk.CmdSetCullMode( cmd->buffer, cull_mode);
-    ctx->vk.CmdSetFrontFace(cmd->buffer, front_face);
+    gpu->vk.CmdSetCullMode( cmd->buffer, cull_mode);
+    gpu->vk.CmdSetFrontFace(cmd->buffer, front_face);
 }
 
-void gpu_cmd_set_depth_stae(gpu_commands* cmd, bool test_enable, bool write_enable, VkCompareOp compare_op)
+void gpu_cmd_set_depth_state(gpu_commands* cmd, flags<gpu_depth_enable> enabled, VkCompareOp compare_op)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
-    ctx->vk.CmdSetDepthTestEnable( cmd->buffer, test_enable);
-    ctx->vk.CmdSetDepthWriteEnable(cmd->buffer, write_enable);
-    ctx->vk.CmdSetDepthCompareOp(  cmd->buffer, compare_op);
+    gpu->vk.CmdSetDepthTestEnable( cmd->buffer, enabled.contains(gpu_depth_enable::test));
+    gpu->vk.CmdSetDepthWriteEnable(cmd->buffer, enabled.contains(gpu_depth_enable::write));
+    gpu->vk.CmdSetDepthCompareOp(  cmd->buffer, compare_op);
 }
 
 void gpu_cmd_set_blend_state(gpu_commands* cmd, std::span<const gpu_blend_mode> blends)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
     auto count = u32(blends.size());
 
@@ -163,14 +163,14 @@ void gpu_cmd_set_blend_state(gpu_commands* cmd, std::span<const gpu_blend_mode> 
         }
     }
 
-    ctx->vk.CmdSetColorBlendEnableEXT(  cmd->buffer, 0, count, blend_enable_bools.data());
-    ctx->vk.CmdSetColorWriteMaskEXT(    cmd->buffer, 0, count, components.data());
-    ctx->vk.CmdSetColorBlendEquationEXT(cmd->buffer, 0, count, blend_equations.data());
+    gpu->vk.CmdSetColorBlendEnableEXT(  cmd->buffer, 0, count, blend_enable_bools.data());
+    gpu->vk.CmdSetColorWriteMaskEXT(    cmd->buffer, 0, count, components.data());
+    gpu->vk.CmdSetColorBlendEquationEXT(cmd->buffer, 0, count, blend_equations.data());
 }
 
 void gpu_cmd_bind_shaders(gpu_commands* cmd, std::span<gpu_shader* const> shaders)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
     u32 count = u32(shaders.size());
 
@@ -182,34 +182,34 @@ void gpu_cmd_bind_shaders(gpu_commands* cmd, std::span<gpu_shader* const> shader
         shader_objects[i] = shaders[i]->shader;
     }
 
-    ctx->vk.CmdBindShadersEXT(cmd->buffer, count, stage_flags.data(), shader_objects.data());
+    gpu->vk.CmdBindShadersEXT(cmd->buffer, count, stage_flags.data(), shader_objects.data());
 }
 
 void gpu_cmd_reset_graphics_state(gpu_commands* cmd)
 {
-    auto* ctx = cmd->queue->ctx;
+    auto* gpu = cmd->queue->gpu;
 
-    ctx->vk.CmdSetAlphaToCoverageEnableEXT(cmd->buffer, false);
-    ctx->vk.CmdSetSampleMaskEXT(           cmd->buffer, VK_SAMPLE_COUNT_1_BIT, ptr_to<VkSampleMask>(0xFFFF'FFFF));
-    ctx->vk.CmdSetRasterizationSamplesEXT( cmd->buffer, VK_SAMPLE_COUNT_1_BIT);
-    ctx->vk.CmdSetVertexInputEXT(          cmd->buffer, 0, nullptr, 0, nullptr);
+    gpu->vk.CmdSetAlphaToCoverageEnableEXT(cmd->buffer, false);
+    gpu->vk.CmdSetSampleMaskEXT(           cmd->buffer, VK_SAMPLE_COUNT_1_BIT, ptr_to<VkSampleMask>(0xFFFF'FFFF));
+    gpu->vk.CmdSetRasterizationSamplesEXT( cmd->buffer, VK_SAMPLE_COUNT_1_BIT);
+    gpu->vk.CmdSetVertexInputEXT(          cmd->buffer, 0, nullptr, 0, nullptr);
 
-    ctx->vk.CmdSetRasterizerDiscardEnable(cmd->buffer, false);
-    ctx->vk.CmdSetPrimitiveRestartEnable( cmd->buffer, false);
+    gpu->vk.CmdSetRasterizerDiscardEnable(cmd->buffer, false);
+    gpu->vk.CmdSetPrimitiveRestartEnable( cmd->buffer, false);
 
     // Stencil tests
 
-    ctx->vk.CmdSetStencilTestEnable(cmd->buffer, false);
-    ctx->vk.CmdSetStencilOp(        cmd->buffer, VK_STENCIL_FACE_FRONT_AND_BACK,
+    gpu->vk.CmdSetStencilTestEnable(cmd->buffer, false);
+    gpu->vk.CmdSetStencilOp(        cmd->buffer, VK_STENCIL_FACE_FRONT_AND_BACK,
         VK_STENCIL_OP_KEEP, VK_STENCIL_OP_KEEP, VK_STENCIL_OP_KEEP, VK_COMPARE_OP_NEVER);
 
     // Depth (extended)
 
-    ctx->vk.CmdSetDepthBiasEnable(      cmd->buffer, false);
-    ctx->vk.CmdSetDepthBoundsTestEnable(cmd->buffer, false);
-    ctx->vk.CmdSetDepthBounds(          cmd->buffer, 0.f, 1.f);
+    gpu->vk.CmdSetDepthBiasEnable(      cmd->buffer, false);
+    gpu->vk.CmdSetDepthBoundsTestEnable(cmd->buffer, false);
+    gpu->vk.CmdSetDepthBounds(          cmd->buffer, 0.f, 1.f);
 
     gpu_cmd_set_polygon_state(cmd, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_FILL, 1.f);
     gpu_cmd_set_cull_state(   cmd, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-    gpu_cmd_set_depth_stae(   cmd, false, false, VK_COMPARE_OP_ALWAYS);
+    gpu_cmd_set_depth_state(   cmd, {}, VK_COMPARE_OP_ALWAYS);
 }

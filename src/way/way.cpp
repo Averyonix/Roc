@@ -44,7 +44,10 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
     way_global(server.get(), zwp_pointer_gestures_v1);
     way_init_output(server.get());
 
-    server->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    server->sampler = gpu_sampler_create(gpu, {
+        .mag = VK_FILTER_NEAREST,
+        .min = VK_FILTER_LINEAR,
+    });
 
     server->client.created.data = server.get();
     server->client.created.listener.notify = way_on_client_create;

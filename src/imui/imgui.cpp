@@ -396,7 +396,10 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
     auto ctx = core_create<imui_context>();
     ctx->scene   = scene;
     ctx->gpu     = gpu;
-    ctx->sampler = gpu_sampler_create(ctx->gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    ctx->sampler = gpu_sampler_create(ctx->gpu, {
+        .mag = VK_FILTER_NEAREST,
+        .min = VK_FILTER_LINEAR,
+    });
     ctx->client  = scene_client_create(scene);
 
     imui_init(ctx.get());

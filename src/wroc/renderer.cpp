@@ -62,17 +62,28 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
     });
     gpu_image_update_immed(renderer->background.get(), data);
 
-    renderer->sampler = gpu_sampler_create(gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    renderer->sampler = gpu_sampler_create(gpu, {
+        .mag = VK_FILTER_NEAREST,
+        .min = VK_FILTER_LINEAR,
+    });
 
-    renderer->vertex = gpu_shader_create(gpu, VK_SHADER_STAGE_VERTEX_BIT, wroc_blit_shader, "vertex");
-    renderer->fragment = gpu_shader_create(gpu, VK_SHADER_STAGE_FRAGMENT_BIT, wroc_blit_shader, "fragment");
+    renderer->vertex = gpu_shader_create(gpu, {
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .code = wroc_blit_shader,
+        .entry = "vertex"
+    });
+    renderer->fragment = gpu_shader_create(gpu, {
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .code = wroc_blit_shader,
+        .entry = "fragment"
+    });
 
     return renderer;
 }
 
 void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame_data* frame, gpu_image* current, rect2f64 scene_rect)
 {
-    auto* gpu = commands->queue->ctx;
+    auto* gpu = commands->queue->gpu;
     auto cmd = commands->buffer;
 
     wroc_coord_space space {

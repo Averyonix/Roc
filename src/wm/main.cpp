@@ -106,7 +106,10 @@ int main()
 
     // Background
 
-    auto sampler = gpu_sampler_create(gpu.get(), VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    auto sampler = gpu_sampler_create(gpu.get(), {
+        .mag = VK_FILTER_NEAREST,
+        .min = VK_FILTER_LINEAR,
+    });
 
     auto background_image = [&] {
         std::filesystem::path path = getenv("WALLPAPER");

@@ -1,16 +1,16 @@
 #include "internal.hpp"
 
-ref<gpu_buffer> gpu_buffer_create(gpu_context* ctx, usz size, flags<gpu_buffer_flag> flags)
+ref<gpu_buffer> gpu_buffer_create(gpu_context* gpu, usz size, flags<gpu_buffer_flag> flags)
 {
     auto buffer = core_create<gpu_buffer>();
-    buffer->ctx = ctx;
+    buffer->gpu = gpu;
 
     buffer->size = size;
 
-    ctx->stats.active_buffers++;
+    gpu->stats.active_buffers++;
 
     VmaAllocationInfo alloc_info;
-    gpu_check(vmaCreateBuffer(ctx->vma,
+    gpu_check(vmaCreateBuffer(gpu->vma,
         ptr_to(VkBufferCreateInfo {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .size = size,
@@ -22,8 +22,8 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* ctx, usz size, flags<gpu_buffer_f
             .sharingMode = VK_SHARING_MODE_CONCURRENT,
             .queueFamilyIndexCount = 2,
             .pQueueFamilyIndices = std::array {
-                ctx->graphics_queue->family,
-                ctx->transfer_queue->family,
+                gpu->graphics_queue->family,
+                gpu->transfer_queue->family,
             }.data(),
         }),
         flags.contains(gpu_buffer_flag::host)
@@ -38,11 +38,11 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* ctx, usz size, flags<gpu_buffer_f
             }),
         &buffer->buffer, &buffer->vma_allocation, &alloc_info));
 
-    ctx->stats.active_buffer_memory += alloc_info.size;
+    gpu->stats.active_buffer_memory += alloc_info.size;
 
     buffer->host_address = alloc_info.pMappedData;
 
-    buffer->device_address = ctx->vk.GetBufferDeviceAddress(ctx->device, ptr_to(VkBufferDeviceAddressInfo {
+    buffer->device_address = gpu->vk.GetBufferDeviceAddress(gpu->device, ptr_to(VkBufferDeviceAddressInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = buffer->buffer,
     }));
@@ -52,11 +52,11 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* ctx, usz size, flags<gpu_buffer_f
 
 gpu_buffer::~gpu_buffer()
 {
-    ctx->stats.active_buffers--;
+    gpu->stats.active_buffers--;
 
     VmaAllocationInfo alloc_info;
-    vmaGetAllocationInfo(ctx->vma, vma_allocation, &alloc_info);
-    ctx->stats.active_buffer_memory -= alloc_info.size;
+    vmaGetAllocationInfo(gpu->vma, vma_allocation, &alloc_info);
+    gpu->stats.active_buffer_memory -= alloc_info.size;
 
-    vmaDestroyBuffer(ctx->vma, buffer, vma_allocation);
+    vmaDestroyBuffer(gpu->vma, buffer, vma_allocation);
 }

@@ -55,7 +55,7 @@ VkFormatFeatureFlags gpu_get_required_format_features(gpu_format, flags<gpu_imag
 
 struct gpu_image_base : gpu_image
 {
-    gpu_context* ctx;
+    gpu_context* gpu;
 
     struct {
         gpu_format format;
@@ -69,13 +69,13 @@ struct gpu_image_base : gpu_image
         flags<gpu_image_usage> usage;
     } base;
 
-    virtual auto context()    const -> gpu_context*            final override { return ctx;         };
-    virtual auto extent()     const -> vec2u32                 final override { return base.extent; };
-    virtual auto format()     const -> gpu_format              final override { return base.format; };
-    virtual auto view()       const -> VkImageView             final override { return base.view;   };
-    virtual auto handle()     const -> VkImage                 final override { return base.image;  };
-    virtual auto usage()      const -> flags<gpu_image_usage>  final override { return base.usage;  };
-    virtual auto descriptor() const -> gpu_descriptor_id       final override { return base.id;     };
+    virtual auto context()    const -> gpu_context*           final override { return gpu;         };
+    virtual auto extent()     const -> vec2u32                final override { return base.extent; };
+    virtual auto format()     const -> gpu_format             final override { return base.format; };
+    virtual auto view()       const -> VkImageView            final override { return base.view;   };
+    virtual auto handle()     const -> VkImage                final override { return base.image;  };
+    virtual auto usage()      const -> flags<gpu_image_usage> final override { return base.usage;  };
+    virtual auto descriptor() const -> gpu_descriptor_id      final override { return base.id;     };
 
     virtual ~gpu_image_base();
 };
@@ -83,6 +83,8 @@ struct gpu_image_base : gpu_image
 void gpu_image_init(gpu_image_base*);
 
 // -----------------------------------------------------------------------------
+
+static constexpr u32 gpu_push_constant_size = 256;
 
 void gpu_init_descriptors(gpu_context*);
 void gpu_allocate_image_descriptor(gpu_image_base*);

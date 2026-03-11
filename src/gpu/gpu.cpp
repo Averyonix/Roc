@@ -40,7 +40,7 @@ gpu_context::~gpu_context()
 }
 
 static
-void load_renderdoc(gpu_context* ctx)
+void load_renderdoc(gpu_context* gpu)
 {
     log_debug("Loading RenderDoc API");
 
@@ -56,10 +56,10 @@ void load_renderdoc(gpu_context* ctx)
         return;
     }
 
-    RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_7_0, (void**)&ctx->renderdoc);
+    RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_7_0, (void**)&gpu->renderdoc);
 
     int major, minor, patch;
-    ctx->renderdoc->GetAPIVersion(&major, &minor, &patch);
+    gpu->renderdoc->GetAPIVersion(&major, &minor, &patch);
 
     log_debug("RenderDoc API loaded: {}.{}.{}", major, minor, patch);
 }
@@ -81,7 +81,7 @@ std::array required_device_extensions = {
 };
 
 static
-bool open_drm(gpu_context* ctx, drmDevice* device)
+bool open_drm(gpu_context* gpu, drmDevice* device)
 {
     // Prefer to open the render node for normal render operations,
     // even the requested drm was opened from a primary node
@@ -98,26 +98,26 @@ bool open_drm(gpu_context* ctx, drmDevice* device)
     }
 
     log_debug("  drm path: {}", name);
-    ctx->drm.fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
-    log_debug("  drm fd: {}", ctx->drm.fd);
+    gpu->drm.fd = open(name, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    log_debug("  drm fd: {}", gpu->drm.fd);
 
-    if (ctx->drm.fd) {
-        ctx->drm.device = device;
+    if (gpu->drm.fd) {
+        gpu->drm.device = device;
         struct stat drm_stat;
         stat(name, &drm_stat);
         log_debug("  drm id: {}", drm_stat.st_rdev);
-        ctx->drm.id = drm_stat.st_rdev;
+        gpu->drm.id = drm_stat.st_rdev;
         return true;
     }
     return false;
 }
 
 static
-bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
+bool try_physical_device(gpu_context* gpu, VkPhysicalDevice phdev)
 {
     {
         VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-        ctx->vk.GetPhysicalDeviceProperties2(phdev, &props);
+        gpu->vk.GetPhysicalDeviceProperties2(phdev, &props);
         log_debug("Testing physical device: {}", props.properties.deviceName);
     }
 
@@ -126,9 +126,9 @@ bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
     std::vector<VkExtensionProperties> available_extensions;
     {
         u32 count = 0;
-        gpu_check(ctx->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, nullptr));
+        gpu_check(gpu->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, nullptr));
         available_extensions.resize(count);
-        gpu_check(ctx->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, available_extensions.data()));
+        gpu_check(gpu->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, available_extensions.data()));
     }
 
     auto check_extension = [&](const char* name) -> bool {
@@ -149,13 +149,13 @@ bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
 
     // Match DRM device
 
-    ctx->drm.fd = -1;
+    gpu->drm.fd = -1;
 
     if (check_extension(VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME) && false) {
         VkPhysicalDeviceDrmPropertiesEXT drm_props {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT,
         };
-        ctx->vk.GetPhysicalDeviceProperties2(phdev, ptr_to(VkPhysicalDeviceProperties2 {
+        gpu->vk.GetPhysicalDeviceProperties2(phdev, ptr_to(VkPhysicalDeviceProperties2 {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
             .pNext = &drm_props,
         }));
@@ -171,7 +171,7 @@ bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
         drmDevice* device;
         unix_check(drmGetDeviceFromDevId(drm_props.hasRender ? render_dev_id : primary_dev_id, 0, &device));
 
-        if (!open_drm(ctx, device)) {
+        if (!open_drm(gpu, device)) {
             drmFreeDevice(&device);
             return false;
         }
@@ -192,7 +192,7 @@ bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
         };
         bool pci_info = check_extension(VK_EXT_PCI_BUS_INFO_EXTENSION_NAME);
         if (pci_info) props.pNext = &pci_props;
-        ctx->vk.GetPhysicalDeviceProperties2(phdev, &props);
+        gpu->vk.GetPhysicalDeviceProperties2(phdev, &props);
 
         if (check_extension(VK_EXT_PCI_BUS_INFO_EXTENSION_NAME)) {
             log_debug("Device does not support " VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME );
@@ -213,7 +213,7 @@ bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
                 if (props.properties.deviceID != candidate->deviceinfo.pci->device_id) continue;
             }
 
-            if (open_drm(ctx, candidate)) {
+            if (open_drm(gpu, candidate)) {
                 // Prevent candidate from being destroyed
                 candidate = nullptr;
                 break;
@@ -221,7 +221,7 @@ bool try_physical_device(gpu_context* ctx, VkPhysicalDevice phdev)
         }
     }
 
-    if (ctx->drm.fd == -1)  {
+    if (gpu->drm.fd == -1)  {
         log_warn("  failed to find or open DRM device, skipping...");
         return false;
     }
@@ -292,15 +292,15 @@ VkBool32 VKAPI_CALL debug_callback(
 
 ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event_loop)
 {
-    auto ctx = core_create<gpu_context>();
-    ctx->features = _features;
+    auto gpu = core_create<gpu_context>();
+    gpu->features = _features;
 
-    ctx->event_loop = event_loop;
+    gpu->event_loop = event_loop;
 
     // Loader
 
-    ctx->loader = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
-    if (!ctx->loader) {
+    gpu->loader = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+    if (!gpu->loader) {
         log_error("Failed to load vulkan library");
         return nullptr;
     }
@@ -319,22 +319,22 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
         .pfnUserCallback = debug_callback,
-        .pUserData = ctx.get(),
+        .pUserData = gpu.get(),
     };
 
-    auto vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(ctx->loader, "vkGetInstanceProcAddr"));
+    auto vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(gpu->loader, "vkGetInstanceProcAddr"));
     if (!vkGetInstanceProcAddr) {
         log_error("Failed to load vulkan library");
         return nullptr;
     }
 
-    gpu_init_functions(ctx.get(), vkGetInstanceProcAddr);
+    gpu_init_functions(gpu.get(), vkGetInstanceProcAddr);
 
     std::vector<const char*> instance_extensions {
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
     };
 
-    gpu_check(ctx->vk.CreateInstance(ptr_to(VkInstanceCreateInfo {
+    gpu_check(gpu->vk.CreateInstance(ptr_to(VkInstanceCreateInfo {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pNext = ptr_to(VkValidationFeaturesEXT {
             .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
@@ -346,25 +346,25 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
         }),
         .enabledExtensionCount = u32(instance_extensions.size()),
         .ppEnabledExtensionNames = instance_extensions.data(),
-    }), nullptr, &ctx->instance));
+    }), nullptr, &gpu->instance));
 
-    gpu_load_instance_functions(ctx.get());
+    gpu_load_instance_functions(gpu.get());
 
-    gpu_check(ctx->vk.CreateDebugUtilsMessengerEXT(ctx->instance, &debug_messenger_info, nullptr, &ctx->debug_messenger));
+    gpu_check(gpu->vk.CreateDebugUtilsMessengerEXT(gpu->instance, &debug_messenger_info, nullptr, &gpu->debug_messenger));
 
     // Select GPU
 
     std::vector<VkPhysicalDevice> physical_devices;
-    gpu_vk_enumerate(physical_devices, ctx->vk.EnumeratePhysicalDevices, ctx->instance);
+    gpu_vk_enumerate(physical_devices, gpu->vk.EnumeratePhysicalDevices, gpu->instance);
 
     for (auto& phdev : physical_devices) {
-        if (try_physical_device(ctx.get(), phdev)) {
-            ctx->physical_device = phdev;
+        if (try_physical_device(gpu.get(), phdev)) {
+            gpu->physical_device = phdev;
             break;
         }
     }
 
-    if (!ctx->physical_device) {
+    if (!gpu->physical_device) {
         log_error("No suitable vulkan device found");
         return nullptr;
     }
@@ -373,15 +373,15 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
 
     {
         std::vector<VkPhysicalDeviceToolProperties> tools;
-        gpu_vk_enumerate(tools, ctx->vk.GetPhysicalDeviceToolProperties, ctx->physical_device);
+        gpu_vk_enumerate(tools, gpu->vk.GetPhysicalDeviceToolProperties, gpu->physical_device);
 
         for (auto& tool : tools) {
             if (tool.layer == "VK_LAYER_KHRONOS_validation"sv) {
                 log_warn("Detected validation layers, enabling validation support");
-                ctx->features |= gpu_feature::validation;
+                gpu->features |= gpu_feature::validation;
 
             } else if (tool.name == "RenderDoc"sv) {
-                load_renderdoc(ctx.get());
+                load_renderdoc(gpu.get());
             }
         }
     }
@@ -393,7 +393,7 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
     u32 transfer_queue_family = invalid_index;
 
     std::vector<VkQueueFamilyProperties> queue_props;
-    gpu_vk_enumerate(queue_props, ctx->vk.GetPhysicalDeviceQueueFamilyProperties, ctx->physical_device);
+    gpu_vk_enumerate(queue_props, gpu->vk.GetPhysicalDeviceQueueFamilyProperties, gpu->physical_device);
     for (u32 i = 0; i < queue_props.size(); ++i) {
         if (queue_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             if (graphics_queue_family == invalid_index) {
@@ -407,7 +407,7 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
     }
 
     auto create_device = [&](bool global_priority) {
-        return gpu_check(ctx->vk.CreateDevice(ctx->physical_device, ptr_to(VkDeviceCreateInfo {
+        return gpu_check(gpu->vk.CreateDevice(gpu->physical_device, ptr_to(VkDeviceCreateInfo {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pNext = gpu_vk_make_chain_in({
                 ptr_to(VkPhysicalDeviceFeatures2 {
@@ -483,7 +483,7 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
             }.data(),
             .enabledExtensionCount = u32(required_device_extensions.size()),
             .ppEnabledExtensionNames = required_device_extensions.data(),
-        }), nullptr, &ctx->device), VK_ERROR_NOT_PERMITTED);
+        }), nullptr, &gpu->device), VK_ERROR_NOT_PERMITTED);
     };
 
     if (core_capability_has(CAP_SYS_NICE)) {
@@ -499,10 +499,10 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
         create_device(false);
     }
 
-    gpu_load_device_functions(ctx.get());
+    gpu_load_device_functions(gpu.get());
 
-    ctx->graphics_queue = gpu_queue_init(ctx.get(), gpu_queue_type::graphics, graphics_queue_family);
-    ctx->transfer_queue = gpu_queue_init(ctx.get(), gpu_queue_type::transfer, transfer_queue_family);
+    gpu->graphics_queue = gpu_queue_init(gpu.get(), gpu_queue_type::graphics, graphics_queue_family);
+    gpu->transfer_queue = gpu_queue_init(gpu.get(), gpu_queue_type::transfer, transfer_queue_family);
 
     // VMA allocator
 
@@ -511,19 +511,19 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
                | VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT
                | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE4_BIT
                | VMA_ALLOCATOR_CREATE_KHR_MAINTENANCE5_BIT,
-        .physicalDevice = ctx->physical_device,
-        .device = ctx->device,
+        .physicalDevice = gpu->physical_device,
+        .device = gpu->device,
         .pVulkanFunctions = ptr_to(VmaVulkanFunctions {
-            .vkGetInstanceProcAddr = ctx->vk.GetInstanceProcAddr,
-            .vkGetDeviceProcAddr = ctx->vk.GetDeviceProcAddr,
+            .vkGetInstanceProcAddr = gpu->vk.GetInstanceProcAddr,
+            .vkGetDeviceProcAddr = gpu->vk.GetDeviceProcAddr,
         }),
-        .instance = ctx->instance,
+        .instance = gpu->instance,
         .vulkanApiVersion = VK_API_VERSION_1_4,
-    }), &ctx->vma));
+    }), &gpu->vma));
 
     // State initialization
 
-    gpu_init_descriptors(ctx.get());
+    gpu_init_descriptors(gpu.get());
 
-    return ctx;
+    return gpu;
 }

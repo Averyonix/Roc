@@ -239,7 +239,7 @@ enum class gpu_queue_type : u32
 
 struct gpu_queue : core_object
 {
-    gpu_context* ctx;
+    gpu_context* gpu;
 
     gpu_queue_type type;
     u32 family;
@@ -259,24 +259,26 @@ gpu_queue* gpu_get_queue(gpu_context*, gpu_queue_type);
 
 // -----------------------------------------------------------------------------
 
-using gpu_semaphore_wait_fn = void(u64);
+struct gpu_wait : core_intrusive_list_base<gpu_wait>
+{
+    u64 point;
+
+    virtual void handle(u64 point) = 0;
+    virtual ~gpu_wait() = default;
+};
 
 struct gpu_semaphore : core_object
 {
-    gpu_context* ctx;
+    gpu_context* gpu;
 
     VkSemaphore semaphore;
     u32         syncobj;
 
-    core_fd wait_fd;
-    u64 wait_skips = 0;
-    struct wait_item : core_intrusive_list_base<wait_item>
-    {
-        u64 point;
-        virtual void handle(u64) = 0;
-        virtual ~wait_item() = default;
-    };
-    core_intrusive_list<wait_item> waits;
+    struct {
+        core_fd fd;
+        u64 skips = 0;
+        core_intrusive_list<gpu_wait> list;
+    } wait;
 
     ~gpu_semaphore();
 };
@@ -299,12 +301,12 @@ u64  gpu_semaphore_get_value(   gpu_semaphore*);
 void gpu_semaphore_signal_value(gpu_semaphore*, u64 value);
 void gpu_semaphore_wait_value(  gpu_semaphore*, u64 value);
 
-void gpu_semaphore_wait_value_impl(gpu_semaphore*, gpu_semaphore::wait_item*);
+void gpu_semaphore_wait_value_impl(gpu_semaphore*, gpu_wait*);
 
 template<typename Fn>
 void gpu_semaphore_wait_value(gpu_semaphore* semaphore, u64 value, Fn&& fn)
 {
-    struct wait_item : gpu_semaphore::wait_item
+    struct wait_item : gpu_wait
     {
         Fn fn;
         wait_item(Fn&& fn): fn(std::move(fn)) {}
@@ -343,7 +345,7 @@ void gpu_wait_idle(gpu_queue*);
 
 struct gpu_buffer : core_object
 {
-    gpu_context* ctx;
+    gpu_context* gpu;
 
     VkBuffer buffer;
     VmaAllocation vma_allocation;
@@ -460,16 +462,11 @@ void gpu_copy_buffer_to_image(gpu_commands*, gpu_image*, gpu_buffer*);
 void gpu_image_update(gpu_commands*, gpu_image*, const void* data);
 void gpu_image_update_immed(gpu_image*, const void* data);
 
-void gpu_transition(gpu_context* vk, gpu_commands*, gpu_image*,
-        VkPipelineStageFlags2 src, VkPipelineStageFlags2 dst,
-        VkAccessFlags2 src_access, VkAccessFlags2 dst_access,
-        VkImageLayout old_layout, VkImageLayout new_layout);
-
 // -----------------------------------------------------------------------------
 
 struct gpu_sampler : core_object
 {
-    gpu_context* ctx;
+    gpu_context* gpu;
 
     VkSampler sampler;
 
@@ -478,7 +475,13 @@ struct gpu_sampler : core_object
     ~gpu_sampler();
 };
 
-ref<gpu_sampler> gpu_sampler_create(gpu_context*, VkFilter mag, VkFilter min);
+struct gpu_sampler_create_info
+{
+    VkFilter mag;
+    VkFilter min;
+};
+
+ref<gpu_sampler> gpu_sampler_create(gpu_context*, const gpu_sampler_create_info&);
 
 // -----------------------------------------------------------------------------
 
@@ -492,14 +495,27 @@ enum class gpu_blend_mode : u32
 struct gpu_shader;
 CORE_OBJECT_EXPLICIT_DECLARE(gpu_shader);
 
-auto gpu_shader_create(gpu_context*, VkShaderStageFlagBits, std::span<const u32> spirv, const char* entry) -> ref<gpu_shader>;
+struct gpu_shader_create_info
+{
+    VkShaderStageFlagBits stage;
+    std::span<const u32>  code;
+    const char*           entry;
+};
+
+auto gpu_shader_create(gpu_context*, const gpu_shader_create_info&) -> ref<gpu_shader>;
+
+enum class gpu_depth_enable
+{
+    test  = 1 << 0,
+    write = 1 << 1,
+};
 
 void gpu_cmd_push_constants(   gpu_commands*, u64 offset, u64 size, const void* data);
 void gpu_cmd_set_scissors(     gpu_commands*, std::span<const rect2i32> scissors);
 void gpu_cmd_set_viewports(    gpu_commands*, std::span<const rect2f32> viewports);
 void gpu_cmd_set_polygon_state(gpu_commands*, VkPrimitiveTopology, VkPolygonMode, f32 line_width);
 void gpu_cmd_set_cull_state(   gpu_commands*, VkCullModeFlagBits, VkFrontFace);
-void gpu_cmd_set_depth_stae(   gpu_commands*, bool test_enable, bool write_enable, VkCompareOp);
+void gpu_cmd_set_depth_state(  gpu_commands*, flags<gpu_depth_enable> enabled, VkCompareOp);
 void gpu_cmd_set_blend_state(  gpu_commands*, std::span<const gpu_blend_mode>);
 void gpu_cmd_bind_shaders(     gpu_commands*, std::span<gpu_shader* const>);
 

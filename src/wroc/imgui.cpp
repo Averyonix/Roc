@@ -32,8 +32,16 @@ void wroc_imgui_init()
     server->imgui = core_create<wroc_imgui>();
     auto* imgui = server->imgui.get();
 
-    imgui->vertex = gpu_shader_create(gpu, VK_SHADER_STAGE_VERTEX_BIT, wroc_imgui_shader, "vertex");
-    imgui->fragment = gpu_shader_create(gpu, VK_SHADER_STAGE_FRAGMENT_BIT, wroc_imgui_shader, "fragment");
+    imgui->vertex = gpu_shader_create(gpu, {
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .code = wroc_imgui_shader,
+        .entry = "vertex"
+    });
+    imgui->fragment = gpu_shader_create(gpu, {
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .code = wroc_imgui_shader,
+        .entry = "fragment"
+    });
 
     imgui->context = ImGui::CreateContext();
     ImGui::SetCurrentContext(imgui->context);

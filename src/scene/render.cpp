@@ -5,8 +5,16 @@
 
 void scene_render_init(scene_context* ctx)
 {
-    ctx->render.vertex   = gpu_shader_create(ctx->gpu, VK_SHADER_STAGE_VERTEX_BIT,   scene_render_shader, "vertex");
-    ctx->render.fragment = gpu_shader_create(ctx->gpu, VK_SHADER_STAGE_FRAGMENT_BIT, scene_render_shader, "fragment");
+    ctx->render.vertex   = gpu_shader_create(ctx->gpu, {
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .code = scene_render_shader,
+        .entry = "vertex"
+    });
+    ctx->render.fragment = gpu_shader_create(ctx->gpu, {
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .code = scene_render_shader,
+        .entry = "fragment"
+    });
 
     ctx->render.white = gpu_image_create(ctx->gpu, {
         .extent = {1, 1},
@@ -15,7 +23,10 @@ void scene_render_init(scene_context* ctx)
     });
     gpu_image_update_immed(ctx->render.white.get(), ptr_to(vec4u8{255, 255, 255, 255}));
 
-    ctx->render.sampler = gpu_sampler_create(ctx->gpu, VK_FILTER_NEAREST, VK_FILTER_LINEAR);
+    ctx->render.sampler = gpu_sampler_create(ctx->gpu, {
+        .mag = VK_FILTER_NEAREST,
+        .min = VK_FILTER_LINEAR,
+    });
 }
 
 void scene_frame(scene_context* ctx, scene_output* output, io_output* io_output)

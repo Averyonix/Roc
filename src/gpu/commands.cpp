@@ -1,23 +1,23 @@
 #include "internal.hpp"
 
-ref<gpu_queue> gpu_queue_init(gpu_context* ctx, gpu_queue_type type, u32 family)
+ref<gpu_queue> gpu_queue_init(gpu_context* gpu, gpu_queue_type type, u32 family)
 {
     auto queue = core_create<gpu_queue>();
-    queue->ctx = ctx;
+    queue->gpu = gpu;
     queue->type = type;
     queue->family = family;
 
     log_debug("Queue created of type \"{}\" with family {}", core_enum_to_string(type), family);
 
-    ctx->vk.GetDeviceQueue(ctx->device, family, 0, &queue->queue);
+    gpu->vk.GetDeviceQueue(gpu->device, family, 0, &queue->queue);
 
-    gpu_check(ctx->vk.CreateCommandPool(ctx->device, ptr_to(VkCommandPoolCreateInfo {
+    gpu_check(gpu->vk.CreateCommandPool(gpu->device, ptr_to(VkCommandPoolCreateInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
         .queueFamilyIndex = queue->family,
     }), nullptr, &queue->cmd_pool));
 
-    queue->queue_sema = gpu_semaphore_create(ctx);
+    queue->queue_sema = gpu_semaphore_create(gpu);
 
     return queue;
 }
@@ -26,39 +26,39 @@ gpu_queue::~gpu_queue()
 {
     queue_sema = nullptr;
 
-    ctx->vk.DestroyCommandPool(ctx->device, cmd_pool, nullptr);
+    gpu->vk.DestroyCommandPool(gpu->device, cmd_pool, nullptr);
 }
 
 gpu_commands::~gpu_commands()
 {
-    auto* ctx = queue->ctx;
-    ctx->vk.FreeCommandBuffers(ctx->device, queue->cmd_pool, 1, &buffer);
+    auto* gpu = queue->gpu;
+    gpu->vk.FreeCommandBuffers(gpu->device, queue->cmd_pool, 1, &buffer);
 }
 
-gpu_queue* gpu_get_queue(gpu_context* ctx, gpu_queue_type type)
+gpu_queue* gpu_get_queue(gpu_context* gpu, gpu_queue_type type)
 {
     switch (type) {
         break;case gpu_queue_type::graphics:
-            return ctx->graphics_queue.get();
+            return gpu->graphics_queue.get();
         break;case gpu_queue_type::transfer:
-            return ctx->transfer_queue.get();
+            return gpu->transfer_queue.get();
     }
 }
 
 ref<gpu_commands> gpu_commands_begin(gpu_queue* queue)
 {
-    auto* ctx = queue->ctx;
+    auto* gpu = queue->gpu;
     auto commands = core_create<gpu_commands>();
     commands->queue = queue;
 
-    gpu_check(ctx->vk.AllocateCommandBuffers(ctx->device, ptr_to(VkCommandBufferAllocateInfo {
+    gpu_check(gpu->vk.AllocateCommandBuffers(gpu->device, ptr_to(VkCommandBufferAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = queue->cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &commands->buffer));
 
-    gpu_check(ctx->vk.BeginCommandBuffer(commands->buffer, ptr_to(VkCommandBufferBeginInfo {
+    gpu_check(gpu->vk.BeginCommandBuffer(commands->buffer, ptr_to(VkCommandBufferBeginInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
     })));
 
@@ -71,24 +71,24 @@ void gpu_commands_protect_object(gpu_commands* commands, core_object* object)
     commands->objects.emplace_back(object);
 }
 
-void gpu_wait_idle(gpu_context* ctx)
+void gpu_wait_idle(gpu_context* gpu)
 {
-    gpu_wait_idle(ctx->graphics_queue.get());
-    gpu_wait_idle(ctx->transfer_queue.get());
+    gpu_wait_idle(gpu->graphics_queue.get());
+    gpu_wait_idle(gpu->transfer_queue.get());
 }
 
 void gpu_wait_idle(gpu_queue* queue)
 {
-    queue->ctx->vk.QueueWaitIdle(queue->queue);
+    queue->gpu->vk.QueueWaitIdle(queue->queue);
     gpu_semaphore_wait_value(queue->queue_sema.get(), queue->submitted);
 }
 
 gpu_syncpoint gpu_commands_submit(gpu_commands* commands, std::span<const gpu_syncpoint> waits)
 {
     auto* queue = commands->queue;
-    auto* ctx = queue->ctx;
+    auto* gpu = queue->gpu;
 
-    gpu_check(ctx->vk.EndCommandBuffer(commands->buffer));
+    gpu_check(gpu->vk.EndCommandBuffer(commands->buffer));
 
     commands->submitted_value = ++queue->submitted;
 
@@ -103,7 +103,7 @@ gpu_syncpoint gpu_commands_submit(gpu_commands* commands, std::span<const gpu_sy
         gpu_commands_protect_object(commands, wait.semaphore);
     }
 
-    gpu_check(ctx->vk.QueueSubmit2(queue->queue, 1, ptr_to(VkSubmitInfo2 {
+    gpu_check(gpu->vk.QueueSubmit2(queue->queue, 1, ptr_to(VkSubmitInfo2 {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
         .waitSemaphoreInfoCount = u32(wait_infos.size()),
         .pWaitSemaphoreInfos = wait_infos.data(),
