@@ -166,9 +166,13 @@ void way_seat_on_keyboard_enter(way_client* client, scene_event* event)
 
     u32 serial = way_next_serial(server);
 
-    auto pressed = way_to_wl_array<const u32>(scene_keyboard_get_pressed(server->keyboard.scene));
-    for (auto* resource : client->keyboards) {
-        way_send(server, wl_keyboard_send_enter, resource, serial, surface->wl_surface, &pressed);
+    if (surface->wl_surface) {
+        auto pressed = way_to_wl_array<const u32>(scene_keyboard_get_pressed(server->keyboard.scene));
+        for (auto* resource : client->keyboards) {
+            way_send(server, wl_keyboard_send_enter, resource, serial, surface->wl_surface, &pressed);
+        }
+    } else {
+        log_error("Keyboard enter failed: wl_surface is destroyed for {}", (void*)surface);
     }
 
     server->focus.keyboard = surface;

@@ -64,7 +64,7 @@ void wroc_imgui_init()
             .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
             .usage = gpu_image_usage::texture | gpu_image_usage::transfer
         });
-        gpu_image_update_immed(imgui->font_image.get(), pixels);
+        gpu_image_update(imgui->font_image.get(), pixels);
 
         io.Fonts->SetTexID(ImTextureID(wroc_imgui_texture(imgui->font_image.get(), server->renderer->sampler.get())));
     }
@@ -370,7 +370,7 @@ void wroc_imgui_render(wroc_imgui* imgui, gpu_commands* commands, rect2f64 viewp
     };
     auto guard = core_create<frame_guard>();
     guard->imgui = imgui;
-    gpu_commands_protect_object(commands, guard.get());
+    gpu_cmd_protect(commands, guard.get());
 
     wroc_imgui_frame_data* frame = &guard->frame_data;
     if (!imgui->available_frames.empty()) {

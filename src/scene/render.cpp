@@ -21,7 +21,7 @@ void scene_render_init(scene_context* ctx)
         .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
         .usage = gpu_image_usage::texture | gpu_image_usage::transfer_dst
     });
-    gpu_image_update_immed(ctx->render.white.get(), ptr_to(vec4u8{255, 255, 255, 255}));
+    gpu_image_update(ctx->render.white.get(), ptr_to(vec4u8{255, 255, 255, 255}));
 
     ctx->render.sampler = gpu_sampler_create(ctx->gpu, {
         .mag = VK_FILTER_NEAREST,
@@ -188,16 +188,16 @@ auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> g
     auto queue = gpu_get_queue(gpu, gpu_queue_type::graphics);
     auto commands = gpu_commands_begin(queue);
     auto cmd = commands.get();
-    gpu_commands_protect_object(cmd, gpu_vertices.buffer.get());
-    gpu_commands_protect_object(cmd, gpu_indices.buffer.get());
+    gpu_cmd_protect(cmd, gpu_vertices.buffer.get());
+    gpu_cmd_protect(cmd, gpu_indices.buffer.get());
 
     // Protect images
 
-    gpu_commands_protect_object(cmd, target);
+    gpu_cmd_protect(cmd, target);
 
-    gpu_commands_protect_object(cmd, render.white.get());
+    gpu_cmd_protect(cmd, render.white.get());
     for (auto& draw : draws) {
-        gpu_commands_protect_object(cmd, draw.image);
+        gpu_cmd_protect(cmd, draw.image);
     }
 
     // Record
@@ -247,5 +247,5 @@ auto scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport) -> g
 
     gpu->vk.CmdEndRendering(cmd->buffer);
 
-    return gpu_commands_submit(cmd, {});
+    return gpu_submit(cmd, {});
 }

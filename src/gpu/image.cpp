@@ -156,7 +156,7 @@ void gpu_image_init(gpu_image_base* image)
 
     auto queue = gpu_get_queue(gpu, gpu_queue_type::transfer);
     auto cmd = gpu_commands_begin(queue);
-    gpu_commands_protect_object(cmd.get(), image);
+    gpu_cmd_protect(cmd.get(), image);
 
     gpu->vk.CmdPipelineBarrier2(cmd->buffer, ptr_to(VkDependencyInfo {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -174,18 +174,18 @@ void gpu_image_init(gpu_image_base* image)
         }),
     }));
 
-    auto done = gpu_commands_submit(cmd.get(), {});
-    gpu_semaphore_wait_value(done.semaphore, done.value);
+    auto done = gpu_submit(cmd.get(), {});
+    gpu_wait(done);
 }
 
 
-void gpu_copy_image_to_buffer(gpu_commands* cmd, gpu_buffer* buffer, gpu_image* image)
+void gpu_cmd_copy_image_to_buffer(gpu_commands* cmd, gpu_buffer* buffer, gpu_image* image)
 {
     auto* gpu = image->context();
     auto extent = image->extent();
 
-    gpu_commands_protect_object(cmd, image);
-    gpu_commands_protect_object(cmd, buffer);
+    gpu_cmd_protect(cmd, image);
+    gpu_cmd_protect(cmd, buffer);
 
     gpu->vk.CmdCopyImageToBuffer(cmd->buffer, image->handle(), VK_IMAGE_LAYOUT_GENERAL, buffer->buffer, 1, ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
@@ -195,13 +195,13 @@ void gpu_copy_image_to_buffer(gpu_commands* cmd, gpu_buffer* buffer, gpu_image* 
     }));
 }
 
-void gpu_copy_buffer_to_image(gpu_commands* cmd, gpu_image* image, gpu_buffer* buffer)
+void gpu_cmd_copy_buffer_to_image(gpu_commands* cmd, gpu_image* image, gpu_buffer* buffer)
 {
     auto* gpu = image->context();
     auto extent = image->extent();
 
-    gpu_commands_protect_object(cmd, image);
-    gpu_commands_protect_object(cmd, buffer);
+    gpu_cmd_protect(cmd, image);
+    gpu_cmd_protect(cmd, buffer);
 
     gpu->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->handle(), VK_IMAGE_LAYOUT_GENERAL, 1, ptr_to(VkBufferImageCopy {
         .bufferOffset = 0,
@@ -211,7 +211,7 @@ void gpu_copy_buffer_to_image(gpu_commands* cmd, gpu_image* image, gpu_buffer* b
     }));
 }
 
-void gpu_image_update(gpu_commands* cmd, gpu_image* image, const void* data)
+void gpu_cmd_copy_memory_to_image(gpu_commands* cmd, gpu_image* image, const void* data)
 {
     auto* gpu = image->context();
 
@@ -225,16 +225,16 @@ void gpu_image_update(gpu_commands* cmd, gpu_image* image, const void* data)
 
     std::memcpy(buffer->host_address, data, image_size);
 
-    gpu_copy_buffer_to_image(cmd, image, buffer.get());
+    gpu_cmd_copy_buffer_to_image(cmd, image, buffer.get());
 }
 
-void gpu_image_update_immed(gpu_image* image, const void* data)
+void gpu_image_update(gpu_image* image, const void* data)
 {
     auto queue = gpu_get_queue(image->context(), gpu_queue_type::transfer);
     auto commands = gpu_commands_begin(queue);
-    gpu_image_update(commands.get(), image, data);
-    auto done = gpu_commands_submit(commands.get(), {});
-    gpu_semaphore_wait_value(done.semaphore, done.value);
+    gpu_cmd_copy_memory_to_image(commands.get(), image, data);
+    auto done = gpu_submit(commands.get(), {});
+    gpu_wait(done);
 }
 
 // -----------------------------------------------------------------------------

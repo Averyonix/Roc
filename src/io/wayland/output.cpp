@@ -239,7 +239,7 @@ void io_output_wayland::commit(gpu_image* image, gpu_syncpoint done, flags<io_ou
     release->point++;
     release->image = image;
 
-    gpu_semaphore_wait_value(release->semaphore.get(), release->point, [output = weak(this), semaphore = release->semaphore.get()](u64 point) {
+    gpu_wait({release->semaphore.get(), release->point}, [output = weak(this), semaphore = release->semaphore.get()](u64 point) {
         if (!output) return;
         auto release = std::ranges::find_if(output->release_slots, [&](auto& s) { return s.semaphore.get() == semaphore; });
         release->image = nullptr;

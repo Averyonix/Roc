@@ -168,7 +168,7 @@ void handle_waits(gpu_semaphore* semaphore)
     }
 }
 
-void gpu_semaphore_wait_value_impl(gpu_semaphore* semaphore, gpu_wait* wait)
+void gpu_semaphore_wait(gpu_semaphore* semaphore, gpu_wait_fn* wait)
 {
     auto* gpu = semaphore->gpu;
 
@@ -193,8 +193,9 @@ void gpu_semaphore_wait_value_impl(gpu_semaphore* semaphore, gpu_wait* wait)
     })));
 }
 
-void gpu_semaphore_wait_value(gpu_semaphore* semaphore, u64 value)
+void gpu_wait(gpu_syncpoint syncpoint)
 {
+    auto[semaphore, value, stages] = syncpoint;
     auto* gpu = semaphore->gpu;
 
     gpu_check(gpu->vk.WaitSemaphores(gpu->device, ptr_to(VkSemaphoreWaitInfo {

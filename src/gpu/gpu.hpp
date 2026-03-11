@@ -11,6 +11,8 @@
 // -----------------------------------------------------------------------------
 
 struct gpu_image;
+struct gpu_buffer;
+struct gpu_sampler;
 struct gpu_semaphore;
 struct gpu_commands;
 struct gpu_queue;
@@ -259,12 +261,12 @@ auto gpu_get_queue(gpu_context*, gpu_queue_type) -> gpu_queue*;
 
 // -----------------------------------------------------------------------------
 
-struct gpu_wait : core_intrusive_list_base<gpu_wait>
+struct gpu_wait_fn : core_intrusive_list_base<gpu_wait_fn>
 {
     u64 point;
 
     virtual void handle(u64 point) = 0;
-    virtual ~gpu_wait() = default;
+    virtual ~gpu_wait_fn() = default;
 };
 
 struct gpu_semaphore : core_object
@@ -277,7 +279,7 @@ struct gpu_semaphore : core_object
     struct {
         core_fd fd;
         u64 skips = 0;
-        core_intrusive_list<gpu_wait> list;
+        core_intrusive_list<gpu_wait_fn> list;
     } wait;
 
     ~gpu_semaphore();
@@ -299,22 +301,24 @@ int  gpu_semaphore_export_syncfile(gpu_semaphore*, u64 source_point);
 
 u64  gpu_semaphore_get_value(   gpu_semaphore*);
 void gpu_semaphore_signal_value(gpu_semaphore*, u64 value);
-void gpu_semaphore_wait_value(  gpu_semaphore*, u64 value);
 
-void gpu_semaphore_wait_value_impl(gpu_semaphore*, gpu_wait*);
+void gpu_semaphore_wait(gpu_semaphore*, gpu_wait_fn*);
+
+// WARNING: Blocking
+void gpu_wait(gpu_syncpoint);
 
 template<typename Fn>
-void gpu_semaphore_wait_value(gpu_semaphore* semaphore, u64 value, Fn&& fn)
+void gpu_wait(gpu_syncpoint sync, Fn&& fn)
 {
-    struct wait_item : gpu_wait
+    struct wait_item : gpu_wait_fn
     {
         Fn fn;
         wait_item(Fn&& fn): fn(std::move(fn)) {}
         virtual void handle(u64 value) final override { fn(value); }
     };
     auto wait = new wait_item(std::move(fn));
-    wait->point = value;
-    gpu_semaphore_wait_value_impl(semaphore, wait);
+    wait->point = sync.value;
+    gpu_semaphore_wait(sync.semaphore, wait);
 }
 
 // -----------------------------------------------------------------------------
@@ -333,12 +337,14 @@ struct gpu_commands : core_object
 
 auto gpu_commands_begin(gpu_queue*) -> ref<gpu_commands>;
 
-void gpu_commands_protect_object(gpu_commands*, core_object*);
-auto gpu_commands_submit(        gpu_commands*, std::span<const gpu_syncpoint> waits) -> gpu_syncpoint;
+void gpu_cmd_protect(gpu_commands*, core_object*);
 
-// TODO: This is a blocking operation and a temporary solution
-//       Replace with an asynchronous callback
+auto gpu_submit(gpu_commands*, std::span<const gpu_syncpoint> waits) -> gpu_syncpoint;
+
+// WARNING: Blocking
 void gpu_wait_idle(gpu_context*);
+
+// WARNING: Blocking
 void gpu_wait_idle(gpu_queue*);
 
 // -----------------------------------------------------------------------------
@@ -457,11 +463,12 @@ struct gpu_image_create_info
 
 auto gpu_image_create(gpu_context*, const gpu_image_create_info&) -> ref<gpu_image>;
 
-void gpu_copy_image_to_buffer(gpu_commands*, gpu_buffer*, gpu_image*);
-void gpu_copy_buffer_to_image(gpu_commands*, gpu_image*, gpu_buffer*);
+void gpu_cmd_copy_image_to_buffer(gpu_commands*, gpu_buffer*, gpu_image*);
+void gpu_cmd_copy_buffer_to_image(gpu_commands*, gpu_image*, gpu_buffer*);
+void gpu_cmd_copy_memory_to_image(gpu_commands*, gpu_image*, const void* data);
 
-void gpu_image_update(gpu_commands*, gpu_image*, const void* data);
-void gpu_image_update_immed(gpu_image*, const void* data);
+// WARNING: Blocking
+void gpu_image_update(gpu_image*, const void* data);
 
 // -----------------------------------------------------------------------------
 

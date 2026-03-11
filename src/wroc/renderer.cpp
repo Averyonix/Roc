@@ -60,7 +60,7 @@ ref<wroc_renderer> wroc_renderer_create(flags<wroc_render_option> render_options
         .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
         .usage = gpu_image_usage::texture | gpu_image_usage::transfer
     });
-    gpu_image_update_immed(renderer->background.get(), data);
+    gpu_image_update(renderer->background.get(), data);
 
     renderer->sampler = gpu_sampler_create(gpu, {
         .mag = VK_FILTER_NEAREST,
@@ -128,7 +128,7 @@ void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame
 
         // log_debug("draw(dest = {}, source = {})", core_to_string(dest), core_to_string(source));
 
-        gpu_commands_protect_object(commands, image);
+        gpu_cmd_protect(commands, image);
 
         auto pixel_dst = core_round<i32, f64>(space.from_global(dest));
 
@@ -151,7 +151,7 @@ void render(wroc_renderer* renderer, gpu_commands* commands, wroc_renderer_frame
             if (frame->rects.buffer && rect_id_start) {
                 // Previous draws using this buffer, keep alive until all draws complete
                 log_debug("  previous buffer still used in draws ({}), keeping...", rect_id_start);
-                gpu_commands_protect_object(commands, frame->rects.buffer.get());
+                gpu_cmd_protect(commands, frame->rects.buffer.get());
             }
             frame->rects = {gpu_buffer_create(gpu, new_size * sizeof(wroc_shader_rect), {}), new_size};
         }
@@ -375,16 +375,16 @@ void wroc_screenshot(rect2f64 rect)
     auto render_queue = gpu_get_queue(gpu, gpu_queue_type::graphics);
     auto render_commands = gpu_commands_begin(render_queue);
     render(renderer, render_commands.get(), &guard->frame, image.get(), rect);
-    gpu_commands_protect_object(render_commands.get(), guard.get());
-    auto render_done = gpu_commands_submit(render_commands.get(), {});
+    gpu_cmd_protect(render_commands.get(), guard.get());
+    auto render_done = gpu_submit(render_commands.get(), {});
 
     // Transfer
 
     auto transfer_queue = gpu_get_queue(gpu, gpu_queue_type::transfer);
     auto transfer_commands = gpu_commands_begin(transfer_queue);
-    gpu_copy_image_to_buffer(transfer_commands.get(), buffer.get(), image.get());
-    gpu_commands_protect_object(transfer_commands.get(), guard.get());
-    gpu_commands_submit(transfer_commands.get(), {render_done});
+    gpu_cmd_copy_image_to_buffer(transfer_commands.get(), buffer.get(), image.get());
+    gpu_cmd_protect(transfer_commands.get(), guard.get());
+    gpu_submit(transfer_commands.get(), {render_done});
 }
 
 bool wroc_output_try_prepare_acquire(wroc_output* output)
@@ -466,7 +466,7 @@ void present(wroc_output* output, gpu_image* image, gpu_syncpoint acquire)
     output->commit(image, acquire, {slot->semaphore.get(), slot->release_point}, flags);
 
     auto slot_idx = std::distance(swapchain.release_slots.begin(), slot);
-    gpu_semaphore_wait_value(slot->semaphore.get(), slot->release_point,
+    gpu_wait({slot->semaphore.get(), slot->release_point},
         [output = weak(output), slot_idx](u64 signalled) {
             if (output) release(output.get(), slot_idx,signalled);
         });
@@ -505,7 +505,7 @@ void wroc_render_frame(wroc_output* output)
     };
     auto guard = core_create<frame_guard>();
     guard->output = output;
-    gpu_commands_protect_object(commands.get(), guard.get());
+    gpu_cmd_protect(commands.get(), guard.get());
 
     wroc_renderer_frame_data* frame = &guard->frame_data;
     if (!renderer->available_frames.empty()) {
@@ -528,7 +528,7 @@ void wroc_render_frame(wroc_output* output)
 
     // Submit
 
-    auto render_done = gpu_commands_submit(commands.get(), {});
+    auto render_done = gpu_submit(commands.get(), {});
 
     // Present
 

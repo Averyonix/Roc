@@ -179,7 +179,7 @@ bool wroc_dma_buffer::is_ready(wroc_surface* surface)
         ready = gpu_semaphore_get_value(acquire_timeline.get()) >= acquire_point;
         if (!ready) {
             surface->apply_queued = true;
-            gpu_semaphore_wait_value(acquire_timeline.get(), acquire_point, [surface = weak(surface)](u64)  {
+            gpu_wait({acquire_timeline.get(), acquire_point}, [surface = weak(surface)](u64)  {
                 if (surface) {
                     surface->apply_queued = false;
                     wroc_surface_flush_apply(surface.get());

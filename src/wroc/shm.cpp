@@ -150,7 +150,7 @@ bool wroc_shm_buffer::is_ready(wroc_surface* surface)
         auto queue = gpu_get_queue(image->context(), gpu_queue_type::graphics);
         auto commands = gpu_commands_begin(queue);
 
-        gpu_image_update(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
+        gpu_cmd_copy_memory_to_image(commands.get(), image.get(), static_cast<char*>(mapping->data) + offset);
 
         struct shm_transfer_guard : core_object
         {
@@ -168,9 +168,9 @@ bool wroc_shm_buffer::is_ready(wroc_surface* surface)
         auto transfer_guard = core_create<shm_transfer_guard>();
         transfer_guard->lock = lock();
         transfer_guard->mapping = mapping;
-        gpu_commands_protect_object(commands.get(), transfer_guard.get());
+        gpu_cmd_protect(commands.get(), transfer_guard.get());
 
-        gpu_commands_submit(commands.get(), {});
+        gpu_submit(commands.get(), {});
 
         pending_transfer = false;
     }

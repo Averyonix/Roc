@@ -22,7 +22,7 @@ void render(gpu_context* gpu, io_output* output, gpu_image_pool* pool)
         ptr_to(VkClearColorValue{.float32{1,0,0,1}}),
         1, ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
-    auto done = gpu_commands_submit(commands.get(), {});
+    auto done = gpu_submit(commands.get(), {});
     output->commit(image.get(), done, io_output_commit_flag::vsync);
 }
 
