@@ -20,12 +20,13 @@ struct io_input_device_wayland_pointer;
 
 // -----------------------------------------------------------------------------
 
-template<typename K, typename V, void(*Destroy)(V*)>
+template<typename K, typename V>
 struct io_wl_proxy_cache
 {
-    using Vptr = std::unique_ptr<V, decltype([](V* v) { Destroy(v); })>;
+    using Vptr = std::unique_ptr<V, void(*)(V*)>;
     struct entry { weak<K> key; Vptr value; };
 
+    void(*destroy)(V*);
     std::vector<entry> entries;
 
     V* find(K* needle)
@@ -41,7 +42,7 @@ struct io_wl_proxy_cache
 
     V* insert(K* key, V* value)
     {
-        return entries.emplace_back(key, Vptr(value)).value.get();
+        return entries.emplace_back(key, Vptr(value, destroy)).value.get();
     }
 };
 
@@ -90,8 +91,8 @@ struct io_wayland
 
     bool in_keyboard_enter;
 
-    io_wl_proxy_cache<gpu_semaphore, wp_linux_drm_syncobj_timeline_v1, wp_linux_drm_syncobj_timeline_v1_destroy> syncobj_cache;
-    io_wl_proxy_cache<gpu_image,     wl_buffer,                        wl_buffer_destroy>                        buffer_cache;
+    io_wl_proxy_cache<gpu_semaphore, wp_linux_drm_syncobj_timeline_v1> syncobj_cache { wp_linux_drm_syncobj_timeline_v1_destroy };
+    io_wl_proxy_cache<gpu_image, wl_buffer> buffer_cache  { wl_buffer_destroy };
 
     ~io_wayland();
 };

@@ -16,6 +16,8 @@ parser.add_argument("-R", "--release", action="store_true", help="Release")
 parser.add_argument("-I", "--install", action="store_true", help="Install")
 parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
 parser.add_argument("--system-slangc", action="store_true", help="Use system slangc")
+parser.add_argument("--system-linker", action="store_true", help="Use system linker (even if mold is available)")
+parser.add_argument("--use-gcc", action="store_true", help="Use GCC instead of Clang")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
@@ -296,39 +298,8 @@ build_shaders()
 
 # -----------------------------------------------------------------------------
 
-build_type   = "Debug" if not args.release else "Release"
-c_compiler   = "clang"
-cxx_compiler = "clang++"
-linker_type  = "MOLD"
-
-build_name = build_type.lower()
-if args.asan:
-    build_name += "-asan"
-cmake_dir = build_dir / build_name
-
-configure_ok = True
-
-if ((args.build or args.install) and not cmake_dir.exists()) or args.configure:
-    cmd  = ["cmake", "--fresh", "-B", cmake_dir, "-G", "Ninja", f"-DVENDOR_DIR={vendor_dir}", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
-    cmd += [f"-DCMAKE_C_COMPILER={c_compiler}", f"-DCMAKE_CXX_COMPILER={cxx_compiler}", f"-DCMAKE_LINKER_TYPE={linker_type}"]
-    cmd += [f"-DCMAKE_BUILD_TYPE={build_type}"]
-    if args.asan:
-        cmd += ["-DUSE_ASAN=1"]
-
-    print(cmd)
-    res = subprocess.run(cmd)
-    if res.returncode != 0:
-        os._exit(res.returncode)
-
-if (cmake_dir / "compile_commands.json").exists():
-    shutil.copy2(cmake_dir / "compile_commands.json", build_dir / "compile_commands.json")
-
-if configure_ok and (args.build or args.install):
-    res = subprocess.run(["cmake", "--build", cmake_dir])
-    if res.returncode != 0:
-        os._exit(res.returncode)
-
-# -----------------------------------------------------------------------------
+local_bin_dir  = ensure_dir(os.path.expanduser("~/.local/bin"))
+xdg_portal_dir = ensure_dir(os.path.expanduser("~/.config/xdg-desktop-portal"))
 
 def install_file(file: Path, target: Path):
     if target.exists():
@@ -338,13 +309,55 @@ def install_file(file: Path, target: Path):
     print(f"Installing [{file}] to [{target}]")
     shutil.copy2(file, target)
 
+# -----------------------------------------------------------------------------
+
+cxx_compilers = {
+    "clang": "clang++",
+    "gcc":   "g++",
+}
+
+def build(build_type, compiler, linker_type, install = None):
+    build_name = f"{build_type.lower()}-{compiler}-{linker_type.lower()}"
+    if args.asan:
+        build_name += "-asan"
+    cmake_dir = build_dir / build_name
+
+    configure_ok = True
+
+    if ((args.build or args.install) and not cmake_dir.exists()) or args.configure:
+        cmd  = ["cmake", "--fresh", "-B", cmake_dir, "-G", "Ninja", f"-DVENDOR_DIR={vendor_dir}", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
+        cmd += [f"-DCMAKE_C_COMPILER={compiler}", f"-DCMAKE_CXX_COMPILER={cxx_compilers[compiler]}", f"-DCMAKE_LINKER_TYPE={linker_type}"]
+        cmd += [f"-DCMAKE_BUILD_TYPE={build_type}"]
+        if args.asan:
+            cmd += ["-DUSE_ASAN=1"]
+
+        print(cmd)
+        res = subprocess.run(cmd)
+        if res.returncode != 0:
+            os._exit(res.returncode)
+
+    if (cmake_dir / "compile_commands.json").exists():
+        shutil.copy2(cmake_dir / "compile_commands.json", build_dir / "compile_commands.json")
+
+    if configure_ok and (args.build or args.install):
+        res = subprocess.run(["cmake", "--build", cmake_dir])
+        if res.returncode != 0:
+            os._exit(res.returncode)
+
+    if install:
+        install_file(cmake_dir / install, local_bin_dir / install)
+        install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{install}-portals.conf")
+
+# -----------------------------------------------------------------------------
+
+use_mold = not args.system_linker and shutil.which("mold")
+
+build(build_type  = "Release" if args.release else "Debug",
+      compiler    = "gcc"     if args.use_gcc else "clang",
+      linker_type = "MOLD"    if use_mold     else "SYSTEM",
+      install     = "wroc"    if args.install else None)
+
+# -----------------------------------------------------------------------------
+
 if args.install:
-    local_bin_dir  = ensure_dir(os.path.expanduser("~/.local/bin"))
-    xdg_portal_dir = ensure_dir(os.path.expanduser("~/.config/xdg-desktop-portal"))
-
-    def install_for(program_name):
-        install_file(cmake_dir / program_name, local_bin_dir / program_name)
-        install_file(cwd / "resources/portals.conf", xdg_portal_dir / f"{program_name}-portals.conf")
-
-    install_for("wroc")
     install_file(xwayland_satellite_bin, local_bin_dir / "xwayland-satellite")

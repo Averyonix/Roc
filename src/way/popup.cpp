@@ -176,6 +176,8 @@ core_vec<2, T> positioner_anchor_to_rel(xdg_positioner_anchor anchor, core_vec<2
     switch (anchor) {
         EDGES_TO_REL_CASES(XDG_POSITIONER_ANCHOR)
     }
+
+    core_unreachable();
 }
 
 template<typename T>
@@ -184,6 +186,8 @@ core_vec<2, T> positioner_gravity_to_rel(xdg_positioner_gravity gravity, core_ve
     switch (gravity) {
         EDGES_TO_REL_CASES(XDG_POSITIONER_GRAVITY)
     }
+
+    core_unreachable();
 }
 
 #undef EDGES_TO_REL_CASES

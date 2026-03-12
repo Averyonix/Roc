@@ -14,11 +14,10 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* gpu, usz size, flags<gpu_buffer_f
         ptr_to(VkBufferCreateInfo {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .size = size,
-            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
-                | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-                | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
-                | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-                | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+                   | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+                   | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                   | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             .sharingMode = VK_SHARING_MODE_CONCURRENT,
             .queueFamilyIndexCount = 2,
             .pQueueFamilyIndices = std::array {

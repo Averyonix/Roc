@@ -94,29 +94,37 @@ target_include_directories(renderdoc-api INTERFACE ${VENDOR_DIR}/renderdoc/rende
 function(init_target target_name)
     target_compile_options(${target_name} PRIVATE
         -std=c++26
+
         -Wall
         -Wextra
-        -Wpedantic
         -Werror
-        -Wno-sometimes-uninitialized
-        -Wno-missing-designated-field-initializers
+        -Wimplicit-fallthrough
+
         -Wno-missing-field-initializers
         -Wno-unknown-pragmas
-        -Wno-gnu-conditional-omitted-operand
-        -Wno-zero-length-array
         -Wno-unused-parameter
-        -Wno-nested-anon-types
-        -Wimplicit-fallthrough
-        -Wno-gnu-case-range
-
-        # -Wno-unused-const-variable
-        # -Wno-unused-function
-
-        -Wshadow
         )
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(${target_name} PRIVATE
+            -Wpedantic
+            -Wshadow
+
+            -Wno-gnu-case-range
+            -Wno-zero-length-array
+            -Wno-gnu-conditional-omitted-operand
+            -Wno-missing-designated-field-initializers
+            -Wno-sometimes-uninitialized
+            -Wno-nested-anon-types
+            )
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target_name} PRIVATE
+            -Wno-changes-meaning
+            -Wno-maybe-uninitialized
+            )
+    endif()
     if(USE_ASAN)
         target_compile_options(${target_name} PUBLIC -fsanitize=address)
-        target_link_libraries(${target_name} PUBLIC asan)
+        target_link_libraries( ${target_name} PUBLIC asan)
     endif()
 endfunction()
 

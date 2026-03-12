@@ -81,6 +81,8 @@ std::string core_time_to_string(std::chrono::system_clock::time_point time, core
             return std::format("{:02}:{:02}:{:02}.{:03}", tm.tm_hour, tm.tm_min, tm.tm_sec, msec);
         }
     }
+
+    core_unreachable();
 }
 
 std::string core_duration_to_string(std::chrono::duration<f64, std::nano> dur)

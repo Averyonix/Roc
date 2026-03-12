@@ -675,5 +675,8 @@ void wroc_handle_pointer_event(const wroc_pointer_event& event)
         break;case wroc_event_type::pointer_axis:
             wroc_pointer_axis(event.pointer, event.axis.delta);
         break;default:
+            ;
     }
+
+    core_unreachable();
 }

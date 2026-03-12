@@ -37,6 +37,8 @@ gpu_queue* gpu_get_queue(gpu_context* gpu, gpu_queue_type type)
         break;case gpu_queue_type::transfer:
             return gpu->transfer_queue.get();
     }
+
+    core_unreachable();
 }
 
 // -----------------------------------------------------------------------------

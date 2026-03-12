@@ -28,6 +28,7 @@ auto gpu_shader_create(gpu_context* gpu, const gpu_shader_create_info& info) -> 
         break;case VK_SHADER_STAGE_VERTEX_BIT:
             next_stages = VK_SHADER_STAGE_FRAGMENT_BIT;
         break;default:
+            ;
     }
 
     gpu_check(gpu->vk.CreateShadersEXT(gpu->device, 1, ptr_to(VkShaderCreateInfoEXT {

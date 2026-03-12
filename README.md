@@ -131,8 +131,8 @@ Builds on `scene` to implement opinionated window management, styling, and behav
 - ninja
 - wayland-protocols
 - xkbcommon
-- mold
-- clang (C++26 capable version at minimum)
+- mold (optional)
+- clang/gcc (C++26 capable version at minimum)
 
 ### Quickstart
 

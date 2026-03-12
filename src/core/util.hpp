@@ -6,14 +6,23 @@
 
 // -----------------------------------------------------------------------------
 
-[[clang::noinline]] inline
+#if defined(__clang__)
+#define CORE_NOINLINE [[clang::noinline]]
+
+#elif defined(__GNUC__) || defined(__GNUG__)
+#define CORE_NOINLINE __attribute__ ((noinline))
+#endif
+
+// -----------------------------------------------------------------------------
+
+CORE_NOINLINE inline
 void core_debugbreak()
 {
     std::cerr << std::stacktrace::current() << std::endl;
     raise(SIGTRAP);
 }
 
-[[noreturn]] [[clang::noinline]] inline
+[[noreturn]] CORE_NOINLINE inline
 void core_debugkill()
 {
     std::cerr << std::stacktrace::current() << std::endl;
@@ -30,7 +39,7 @@ void core_unreachable()
 #endif
 }
 
-[[noreturn]] [[clang::noinline]] inline
+[[noreturn]] CORE_NOINLINE inline
 void core_assert_fail(std::string_view expr, std::string_view reason = {})
 {
     log_error("assert({}) failed{}{}", expr, reason.empty() ? "" : ": ", reason);
