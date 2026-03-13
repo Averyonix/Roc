@@ -677,6 +677,4 @@ void wroc_handle_pointer_event(const wroc_pointer_event& event)
         break;default:
             ;
     }
-
-    core_unreachable();
 }

@@ -304,7 +304,7 @@ void reposition(wl_client* client, wl_resource* resource, wl_resource* positione
 }
 
 WAY_INTERFACE(xdg_popup) = {
-    .destroy = way_simple_destroy,
+    .destroy = way_role_destroy,
     WAY_STUB(grab),
     .reposition = reposition,
 };

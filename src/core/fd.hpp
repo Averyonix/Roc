@@ -60,6 +60,7 @@ struct core_fd
     core_fd& operator=(core_fd&& other)
     {
         if (this != &other) {
+            core_fd_remove_ref(fd);
             fd = std::exchange(other.fd, -1);
         }
         return *this;

@@ -49,9 +49,9 @@ WAY_INTERFACE(wl_compositor) = {
     .create_region  = create_region,
 };
 
-WAY_BIND_GLOBAL(wl_compositor)
+WAY_BIND_GLOBAL(wl_compositor, bind)
 {
-    way_resource_create_unsafe(wl_compositor, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(wl_compositor, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------
@@ -391,4 +391,11 @@ way_surface::~way_surface()
     scene_node_unparent(scene.tree.get());
     scene.tree->userdata = nullptr;
     core_assert(std::erase(client->surfaces, this));
+}
+
+void way_role_destroy(wl_client* client, wl_resource* resource)
+{
+    auto* surface = way_get_userdata<way_surface>(resource);
+    surface->role = way_surface_role::none;
+    way_simple_destroy(client, resource);
 }

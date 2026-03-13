@@ -331,9 +331,11 @@ struct way_surface : core_object
     ~way_surface();
 };
 
+void way_role_destroy(wl_client*, wl_resource*);
+
 void way_surface_on_redraw(way_surface*);
 
-void way_viewport_apply(way_surface* surface, way_surface_state& from);
+void way_viewport_apply(way_surface*, way_surface_state& from);
 
 // -----------------------------------------------------------------------------
 
@@ -363,7 +365,7 @@ void way_popup_apply(way_surface*, way_surface_state&);
 
 // -----------------------------------------------------------------------------
 
-void way_init_output(way_server*);
+void way_output_init(way_server*);
 
 // -----------------------------------------------------------------------------
 
@@ -391,9 +393,6 @@ void way_data_offer_selection(way_client*);
 
 struct way_buffer : core_object
 {
-    way_server* server;
-    way_resource resource;
-
     vec2u32 extent;
 
     // Sent when a wl_surface::attach is committed
@@ -517,14 +516,28 @@ wl_global* way_global_(way_server*, const wl_interface*, i32 version, wl_global_
 #define WAY_INTERFACE(Name) \
     const struct Name##_interface way_##Name##_impl
 
-#define WAY_BIND_GLOBAL(Name) void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id)
+struct way_bind_global_data
+{
+    wl_client* client;
+    way_server* server;
+    u32 version;
+    u32 id;
+};
+
+#define WAY_BIND_GLOBAL(Name, Data) \
+    static void way_##Name##_bind_global_impl(const way_bind_global_data& Data); \
+           void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id) \
+    { \
+        way_##Name##_bind_global_impl({client, way_get_userdata<way_server>(data), version, id}); \
+    } \
+    static void way_##Name##_bind_global_impl(const way_bind_global_data& Data)
 
 #define WAY_INTERFACE_DECLARE(Name, ...) \
     extern WAY_INTERFACE(Name) \
     __VA_OPT__(; \
         static_assert(std::same_as<decltype(__VA_ARGS__), int>); \
         constexpr u32 way_##Name##_version = __VA_ARGS__; \
-        WAY_BIND_GLOBAL(Name) \
+        void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id) \
     )
 
 // -----------------------------------------------------------------------------

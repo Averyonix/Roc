@@ -751,11 +751,11 @@ struct core_stacktrace_cache
 
 template<typename T, u32 Max>
 struct core_fixed_array {
-    T data[Max];
-    u32 count;
+    std::array<T, Max> data = {};
+    u32 count = 0;
 
-    auto begin(this auto&& self) { return self.data; }
-    auto   end(this auto&& self) { return self.data + self.count; }
+    auto begin(this auto&& self) { return self.data.begin();              }
+    auto   end(this auto&& self) { return self.data.begin() + self.count; }
 
     auto& operator[](this auto&& self, usz i) { return self.data[i]; }
 };

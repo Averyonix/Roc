@@ -97,17 +97,16 @@ WAY_INTERFACE(wl_seat) = {
     .release = way_simple_destroy,
 };
 
-WAY_BIND_GLOBAL(wl_seat)
+WAY_BIND_GLOBAL(wl_seat, bind)
 {
-    auto* server = way_get_userdata<way_server>(data);
-    auto* way_client = way_client_from(server, client);
+    auto* client = way_client_from(bind.server, bind.client);
 
-    auto* resource = way_resource_create_unsafe(wl_seat, client, version, id, way_client);
+    auto* resource = way_resource_create_unsafe(wl_seat, bind.client, bind.version, bind.id, client);
 
-    way_send(server, wl_seat_send_capabilities, resource, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER);
+    way_send(bind.server, wl_seat_send_capabilities, resource, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER);
 
-    if (version >= WL_SEAT_NAME_SINCE_VERSION) {
-        way_send(server, wl_seat_send_name, resource, "seat0");
+    if (bind.version >= WL_SEAT_NAME_SINCE_VERSION) {
+        way_send(bind.server, wl_seat_send_name, resource, "seat0");
     }
 }
 

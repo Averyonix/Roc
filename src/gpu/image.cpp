@@ -538,8 +538,6 @@ ref<gpu_image> gpu_image_import(gpu_context* gpu, const gpu_dma_params& params, 
 
     VkBindImageMemoryInfo bind_info[gpu_dma_max_planes] = {};
     VkBindImagePlaneMemoryInfo plane_info[gpu_dma_max_planes] = {};
-    log_trace("  planes = {}{}", params.planes.count, params.disjoint ? " (disjoint)" : "");
-    log_trace("  modifier = {}", gpu_drm_modifier_get_name(params.modifier));
 
     for (u32 i = 0; i < mem_count; ++i) {
         auto fd = params.planes[i].fd;
@@ -567,8 +565,6 @@ ref<gpu_image> gpu_image_import(gpu_context* gpu, const gpu_dma_params& params, 
         // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
         int vk_fd = core_fd_dup_unsafe(fd.get());
 
-        log_trace("  mem[{}].fd   = {}", i, vk_fd);
-        log_trace("  mem[{}].size = {}", i, core_byte_size_to_string(mem_reqs.memoryRequirements.size));
         image->stats.allocation_size   += mem_reqs.memoryRequirements.size;
         gpu->stats.active_image_memory += mem_reqs.memoryRequirements.size;
 

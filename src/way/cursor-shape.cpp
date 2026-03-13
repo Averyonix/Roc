@@ -13,9 +13,9 @@ WAY_INTERFACE(wp_cursor_shape_manager_v1) = {
     WAY_STUB(get_tablet_tool_v2),
 };
 
-WAY_BIND_GLOBAL(wp_cursor_shape_manager_v1)
+WAY_BIND_GLOBAL(wp_cursor_shape_manager_v1, bind)
 {
-    way_resource_create_unsafe(wp_cursor_shape_manager_v1, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(wp_cursor_shape_manager_v1, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------

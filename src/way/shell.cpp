@@ -14,9 +14,9 @@ WAY_INTERFACE(xdg_wm_base) = {
     WAY_STUB(pong),
 };
 
-WAY_BIND_GLOBAL(xdg_wm_base)
+WAY_BIND_GLOBAL(xdg_wm_base, bind)
 {
-    way_resource_create_unsafe(xdg_wm_base, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(xdg_wm_base, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------
@@ -58,7 +58,7 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
 }
 
 WAY_INTERFACE(xdg_surface) = {
-    WAY_STUB(destroy),
+    .destroy = way_role_destroy,
     .get_toplevel = get_toplevel,
     .get_popup = way_get_popup,
     .set_window_geometry = WAY_ADDON_SIMPLE_STATE_REQUEST(way_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, core_xywh), i32 x, i32 y, i32 w, i32 h),
@@ -178,7 +178,7 @@ void way_toplevel_apply(way_surface* surface, way_surface_state& from)
 // -----------------------------------------------------------------------------
 
 WAY_INTERFACE(xdg_toplevel) = {
-    WAY_STUB(destroy),
+    .destroy = way_role_destroy,
     WAY_STUB(set_parent),
     .set_title  = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.title,  title,  title,  const char* title),
     .set_app_id = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.app_id, app_id, app_id, const char* app_id),

@@ -25,9 +25,9 @@ WAY_INTERFACE(zwp_pointer_gestures_v1) = {
     .get_hold_gesture = get_hold_gesture,
 };
 
-WAY_BIND_GLOBAL(zwp_pointer_gestures_v1)
+WAY_BIND_GLOBAL(zwp_pointer_gestures_v1, bind)
 {
-    way_resource_create_unsafe(zwp_pointer_gestures_v1, client, version, id, nullptr);
+    way_resource_create_unsafe(zwp_pointer_gestures_v1, bind.client, bind.version, bind.id, nullptr);
 }
 
 // -----------------------------------------------------------------------------

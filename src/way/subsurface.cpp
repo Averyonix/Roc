@@ -26,9 +26,9 @@ WAY_INTERFACE(wl_subcompositor) = {
     .get_subsurface = get_subsurface,
 };
 
-WAY_BIND_GLOBAL(wl_subcompositor)
+WAY_BIND_GLOBAL(wl_subcompositor, bind)
 {
-    way_resource_create_unsafe(wl_subcompositor, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(wl_subcompositor, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------

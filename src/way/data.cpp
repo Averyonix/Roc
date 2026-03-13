@@ -32,9 +32,9 @@ WAY_INTERFACE(wl_data_device_manager) = {
     .get_data_device = get_data_device,
 };
 
-WAY_BIND_GLOBAL(wl_data_device_manager)
+WAY_BIND_GLOBAL(wl_data_device_manager, bind)
 {
-    way_resource_create_unsafe(wl_data_device_manager, client, version, id, way_get_userdata<way_server>(data));
+    way_resource_create_unsafe(wl_data_device_manager, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------
