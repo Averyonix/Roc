@@ -259,6 +259,7 @@ target_sources(way PUBLIC
     src/way/shell.cpp
     src/way/popup.cpp
     src/way/shm.cpp
+    src/way/dmabuf.cpp
     src/way/client.cpp
     src/way/seat.cpp
     src/way/output.cpp

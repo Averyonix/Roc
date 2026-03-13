@@ -44,6 +44,7 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
     way_global(server.get(), zwp_pointer_gestures_v1);
     way_global(server.get(), wp_cursor_shape_manager_v1);
     way_output_init(server.get());
+    way_dmabuf_init(server.get());
 
     server->sampler = gpu_sampler_create(gpu, {
         .mag = VK_FILTER_NEAREST,

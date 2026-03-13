@@ -63,10 +63,20 @@ struct way_server : core_object
         weak<way_surface> keyboard;
     } focus;
 
+    struct {
+        core_fd format_table;
+        usz format_table_size;
+        std::vector<u16> tranche_formats;
+    } dmabuf;
+
     ~way_server();
 };
 
 auto way_get_elapsed(way_server*) -> std::chrono::steady_clock::duration;
+
+// -----------------------------------------------------------------------------
+
+void way_dmabuf_init(way_server*);
 
 // -----------------------------------------------------------------------------
 
@@ -597,3 +607,7 @@ WAY_INTERFACE_DECLARE(wl_shm_pool);
 WAY_INTERFACE_DECLARE(wl_seat, 9);
 WAY_INTERFACE_DECLARE(wl_keyboard);
 WAY_INTERFACE_DECLARE(wl_pointer);
+
+WAY_INTERFACE_DECLARE(zwp_linux_dmabuf_v1, 5);
+WAY_INTERFACE_DECLARE(zwp_linux_buffer_params_v1);
+WAY_INTERFACE_DECLARE(zwp_linux_dmabuf_feedback_v1);
