@@ -1,4 +1,5 @@
 #include "util.hpp"
+#include "debug.hpp"
 
 bool core_capability_has(cap_value_t cap)
 {

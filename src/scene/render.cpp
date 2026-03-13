@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/math.hpp"
+
 #include "render.h"
 #include "scene_render_shader.hpp"
 

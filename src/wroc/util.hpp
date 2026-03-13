@@ -22,6 +22,10 @@
 
 // -----------------------------------------------------------------------------
 
+bool core_allocate_shm_file_pair(usz size, int* p_rw_fd, int* p_ro_fd);
+
+// -----------------------------------------------------------------------------
+
 #define WROC_STUB(Member)       .Member = [](auto...) { log_warn("TODO: " #Member); }
 #define WROC_STUB_QUIET(Member) .Member = [](auto...) { }
 

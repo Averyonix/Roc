@@ -4,7 +4,9 @@
 #include "core/types.hpp"
 #include "core/event.hpp"
 #include "core/fd.hpp"
-#include "core/flags.hpp"
+#include "core/hash.hpp"
+#include "core/containers.hpp"
+#include "core/memory.hpp"
 
 #include "functions.hpp"
 

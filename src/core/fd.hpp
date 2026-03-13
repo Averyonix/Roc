@@ -1,7 +1,7 @@
 #pragma once
 
 #include "object.hpp"
-#include "flags.hpp"
+#include "enum.hpp"
 
 // -----------------------------------------------------------------------------
 

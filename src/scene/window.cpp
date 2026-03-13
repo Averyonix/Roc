@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/math.hpp"
+
 scene_window::~scene_window()
 {
     tree->userdata = nullptr;

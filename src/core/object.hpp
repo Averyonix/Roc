@@ -3,6 +3,7 @@
 #include "types.hpp"
 #include "log.hpp"
 #include "util.hpp"
+#include "debug.hpp"
 
 // -----------------------------------------------------------------------------
 

@@ -1,5 +1,7 @@
 #include "event.hpp"
 
+#include "core/math.hpp"
+
 static
 bool toplevel_is_interactable(wroc_toplevel* toplevel)
 {

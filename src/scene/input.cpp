@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/math.hpp"
+
 auto scene_input_device_get_type(scene_input_device* device) -> scene_input_device_type
 {
     return device->type;

@@ -2,6 +2,7 @@
 
 #include "core/types.hpp"
 #include "core/util.hpp"
+#include "core/process.hpp"
 
 #include <sys/sysmacros.h>
 

@@ -3,7 +3,6 @@
 #include "core/log.hpp"
 #include "core/object.hpp"
 
-#include "util.hpp"
 #include "wroc.hpp"
 
 // -----------------------------------------------------------------------------

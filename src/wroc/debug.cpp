@@ -1,5 +1,10 @@
-#include <wroc/wroc.hpp>
-#include <wroc/event.hpp>
+#include "wroc.hpp"
+#include "event.hpp"
+
+#include "core/color.hpp"
+#include "core/math.hpp"
+#include "core/stacktrace.hpp"
+#include "core/chrono.hpp"
 
 static constexpr int x11_disabled = 0;
 static constexpr int x11_enabled = 1;

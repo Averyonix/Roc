@@ -1,6 +1,7 @@
 #include "gpu/internal.hpp"
 
 #include "core/util.hpp"
+#include "core/string.hpp"
 
 std::vector<gpu_format_info> generate_formats()
 {

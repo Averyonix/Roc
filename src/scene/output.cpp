@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/math.hpp"
+
 CORE_OBJECT_EXPLICIT_DEFINE(scene_output);
 
 scene_output::~scene_output()

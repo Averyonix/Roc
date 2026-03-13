@@ -145,13 +145,15 @@ target_precompile_headers(core PUBLIC src/core/pch.hpp)
 target_compile_definitions(core PUBLIC PROGRAM_NAME="wroc" PROJECT_NAME="Roc")
 target_sources(core PUBLIC
     src/core/log.cpp
-    src/core/shm.cpp
-    src/core/format.cpp
+    src/core/string.cpp
     src/core/object.cpp
     src/core/fd.cpp
     src/core/event.cpp
     src/core/stacktrace.cpp
     src/core/process.cpp
+    src/core/chrono.cpp
+    src/core/debug.cpp
+    src/core/memory.cpp
     )
 target_include_directories(core PUBLIC
     src
@@ -284,6 +286,7 @@ target_link_libraries(roc PUBLIC scene way imui)
 
 init_executable(wroc)
 target_sources(wroc PUBLIC
+    src/wroc/util.cpp
     src/wroc/client.cpp
     src/wroc/server.cpp
     src/wroc/event.cpp

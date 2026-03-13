@@ -1,5 +1,7 @@
 #include "io.hpp"
 
+#include "core/math.hpp"
+
 static
 void render(gpu_context* gpu, io_output* output, gpu_image_pool* pool)
 {

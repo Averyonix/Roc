@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/enum.hpp"
+
 ref<gpu_queue> gpu_queue_init(gpu_context* gpu, gpu_queue_type type, u32 family)
 {
     auto queue = core_create<gpu_queue>();

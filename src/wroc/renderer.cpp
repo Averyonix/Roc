@@ -1,5 +1,7 @@
 #include "wroc.hpp"
 
+#include "core/chrono.hpp"
+#include "core/math.hpp"
 #include "core/object.hpp"
 
 #include "gpu/gpu.hpp"

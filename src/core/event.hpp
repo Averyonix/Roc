@@ -1,8 +1,14 @@
 #pragma once
 
-#include "util.hpp"
+#include "debug.hpp"
 #include "object.hpp"
 #include "fd.hpp"
+
+u64  core_eventfd_read( int fd);
+void core_eventfd_signal(int fd, u64 inc);
+
+// -----------------------------------------------------------------------------
+
 
 struct core_event_source;
 struct core_fd;

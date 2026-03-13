@@ -1,4 +1,7 @@
 #include "object.hpp"
+#include "math.hpp"
+#include "memory.hpp"
+#include "debug.hpp"
 
 #define CORE_REGISTRY_PROTECT_FREE 1
 #define CORE_REGISTRY_DONT_FREE    0

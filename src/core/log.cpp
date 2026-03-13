@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "log.hpp"
-#include "util.hpp"
+#include "stacktrace.hpp"
+#include "chrono.hpp"
 
 #define CORE_VT_COLOR_BEGIN(color) "\u001B[" #color "m"
 #define CORE_VT_COLOR_RESET "\u001B[0m"

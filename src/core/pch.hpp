@@ -2,6 +2,15 @@
 
 // -----------------------------------------------------------------------------
 
+#if defined(__clang__)
+#define CORE_NOINLINE [[clang::noinline]]
+
+#elif defined(__GNUC__) || defined(__GNUG__)
+#define CORE_NOINLINE __attribute__ ((noinline))
+#endif
+
+// -----------------------------------------------------------------------------
+
 #include <thread>
 #include <print>
 #include <vector>

@@ -1,6 +1,8 @@
 #include "wroc.hpp"
 
-#include "core/shm.hpp"
+#include "core/math.hpp"
+#include "core/memory.hpp"
+
 #include "protocol.hpp"
 
 const u32 wroc_zwp_linux_dmabuf_v1_version = 5;

@@ -1,5 +1,8 @@
 #include "protocol.hpp"
 
+#include "core/math.hpp"
+#include "core/chrono.hpp"
+
 #include "gpu/gpu.hpp"
 #include "gpu/internal.hpp"
 

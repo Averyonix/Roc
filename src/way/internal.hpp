@@ -3,6 +3,8 @@
 #include "way.hpp"
 #include "util.hpp"
 
+#include "core/math.hpp"
+
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
 

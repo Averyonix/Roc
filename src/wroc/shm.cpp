@@ -1,5 +1,7 @@
 #include "protocol.hpp"
 
+#include "core/math.hpp"
+
 const u32 wroc_wl_shm_version = 2;
 
 inline

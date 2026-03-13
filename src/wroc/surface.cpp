@@ -1,5 +1,7 @@
 #include "protocol.hpp"
 
+#include "core/math.hpp"
+
 const u32 wroc_wl_compositor_version = 6;
 const u32 wroc_wl_subcompositor_version = 1;
 

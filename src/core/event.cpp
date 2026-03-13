@@ -1,4 +1,19 @@
 #include "event.hpp"
+#include "chrono.hpp"
+#include "util.hpp"
+
+u64 core_eventfd_read(int fd)
+{
+    u64 count = 0;
+    return (unix_check(read(fd, &count, sizeof(count)), EAGAIN, EINTR).value == sizeof(count)) ? count : 0;
+}
+
+void core_eventfd_signal(int fd, u64 inc)
+{
+    unix_check(write(fd, &inc, sizeof(inc)));
+}
+
+// -----------------------------------------------------------------------------
 
 static
 u32 to_epoll_events(core_fd_event_bits events)

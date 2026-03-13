@@ -1,6 +1,16 @@
 #pragma once
 
-#include "util.hpp"
+#include "types.hpp"
+
+template<typename Enum>
+    requires std::is_enum_v<Enum>
+std::string_view core_to_string(Enum value)
+{
+    std::string_view name = magic_enum::enum_name(value);
+    return name;
+}
+
+// -----------------------------------------------------------------------------
 
 template<typename E>
     requires std::is_enum_v<E>

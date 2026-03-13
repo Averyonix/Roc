@@ -1,4 +1,5 @@
-#include "util.hpp"
+#include "stacktrace.hpp"
+#include "debug.hpp"
 
 std::string core_to_string(const core_stacktrace& st)
 {

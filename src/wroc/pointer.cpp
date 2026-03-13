@@ -1,5 +1,7 @@
 #include "protocol.hpp"
 
+#include "core/math.hpp"
+
 #include "wroc/event.hpp"
 
 const u32 wroc_zwp_relative_pointer_manager_v1_version = 1;
