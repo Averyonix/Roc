@@ -21,7 +21,7 @@ std::string print_value_with_suffix(std::string_view suffix, f64 amount, u32 dec
     }
 }
 
-std::string core_time_to_string(std::chrono::system_clock::time_point time, core_time_format format)
+std::string core_to_string(std::chrono::system_clock::time_point time, core_time_format format)
 {
     tm tm = {};
     gmtime_r(ptr_to(std::chrono::system_clock::to_time_t(time)), &tm);
@@ -85,7 +85,7 @@ std::string core_time_to_string(std::chrono::system_clock::time_point time, core
     core_unreachable();
 }
 
-std::string core_duration_to_string(std::chrono::duration<f64, std::nano> dur)
+std::string core_to_string(std::chrono::duration<f64, std::nano> dur)
 {
     f64 nanos = dur.count();
 
@@ -118,8 +118,10 @@ std::string core_duration_to_string(std::chrono::duration<f64, std::nano> dur)
     return "0";
 }
 
-std::string core_byte_size_to_string(u64 bytes)
+std::string core_to_string(core_fmt_bytes size)
 {
+    auto bytes = size.bytes;
+
 #define CORE_BYTE_SIZE_FORMAT_CASE(Size, Suffix) \
     if (bytes >= (Size)) { \
         f64 in_size = f64(bytes) / (Size); \

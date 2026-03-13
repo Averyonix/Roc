@@ -7,7 +7,7 @@ ref<gpu_queue> gpu_queue_init(gpu_context* gpu, gpu_queue_type type, u32 family)
     queue->type = type;
     queue->family = family;
 
-    log_debug("Queue created of type \"{}\" with family {}", core_enum_to_string(type), family);
+    log_debug("Queue created of type \"{}\" with family {}", core_to_string(type), family);
 
     gpu->vk.GetDeviceQueue(gpu->device, family, 0, &queue->queue);
 

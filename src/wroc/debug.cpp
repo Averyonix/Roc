@@ -184,11 +184,11 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
             stats.last_poll_waits = server->event_loop->stats.poll_waits;
         }
 
-        ImGui_Text("Date:          {}", core_time_to_string(std::chrono::system_clock::now(), core_time_format::date_pretty));
-        ImGui_Text("Time:          {}", core_time_to_string(std::chrono::system_clock::now(), core_time_format::datetime));
-        ImGui_Text("Elapsed:       {}", core_duration_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
+        ImGui_Text("Date:          {}", core_to_string(std::chrono::system_clock::now(), core_time_format::date_pretty));
+        ImGui_Text("Time:          {}", core_to_string(std::chrono::system_clock::now(), core_time_format::datetime));
+        ImGui_Text("Elapsed:       {}", core_to_string(std::chrono::milliseconds(wroc_get_elapsed_milliseconds())));
         ImGui_Text("Events:        {}/s ({}/s)", stats.events_per_second, stats.poll_waits_per_second);
-        ImGui_Text("Frametime:     {} ({:.2f} Hz)", core_duration_to_string(stats.frametime), stats.fps);
+        ImGui_Text("Frametime:     {} ({:.2f} Hz)", core_to_string(stats.frametime), stats.fps);
     }
 
     category_separator();
@@ -254,8 +254,8 @@ void wroc_imgui_show_debug(wroc_debug_gui* debug)
     ImGui::Separator();
 
     auto* gpu = server->gpu;
-    ImGui_Text("GPU.Images:   {} ({})", gpu->stats.active_images,  core_byte_size_to_string(gpu->stats.active_image_memory));
-    ImGui_Text("GPU.Buffers:  {} ({})", gpu->stats.active_buffers, core_byte_size_to_string(gpu->stats.active_buffer_memory));
+    ImGui_Text("GPU.Images:   {} ({})", gpu->stats.active_images,  core_to_string(core_fmt_bytes(gpu->stats.active_image_memory)));
+    ImGui_Text("GPU.Buffers:  {} ({})", gpu->stats.active_buffers, core_to_string(core_fmt_bytes(gpu->stats.active_buffer_memory)));
 
     ImGui::Separator();
 
@@ -336,7 +336,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
     defer { ImGui::End(); };
     if (!ImGui::Begin(std::format("Log ({} entries - {})###Log",
             history.entries.size(),
-            core_byte_size_to_string(history.entries.size_bytes() + history.buffer_size)
+            core_to_string(core_fmt_bytes(history.entries.size_bytes() + history.buffer_size))
         ).c_str(),
         &debug->show_log_window, ImGuiWindowFlags_NoCollapse)) return;
 
@@ -515,7 +515,7 @@ void wroc_imgui_show_log(wroc_debug_gui* debug)
                     ImGui::PushID(section_id++);
                     ImGui::Selectable("##selectable", false, ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns);
                     ImGui::SameLine();
-                    ImGui::TextUnformatted(core_time_to_string(entry.timestamp, core_time_format::datetime_ms).c_str());
+                    ImGui::TextUnformatted(core_to_string(entry.timestamp, core_time_format::datetime_ms).c_str());
                     ImGui::PopID();
                 }
 

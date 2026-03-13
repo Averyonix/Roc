@@ -50,8 +50,8 @@ void constrain_pointer(
     u32 lifetime)
 {
     log_debug("Pointer constraint created: type = {}, lifetime = {}",
-        core_enum_to_string(type),
-        core_enum_to_string(zwp_pointer_constraints_v1_lifetime(lifetime)));
+        core_to_string(type),
+        core_to_string(zwp_pointer_constraints_v1_lifetime(lifetime)));
 
     auto* surface = wroc_get_userdata<wroc_surface>(_surface);
     auto* pointer = wroc_get_userdata<wroc_seat_pointer>(_pointer);
@@ -134,7 +134,7 @@ void wroc_pointer_constraint::activate()
         pointer->active_constraint->deactivate();
     }
 
-    log_debug("Pointer constraint {} activated", core_enum_to_string(type));
+    log_debug("Pointer constraint {} activated", core_to_string(type));
 
     pointer->active_constraint = this;
 
@@ -452,7 +452,7 @@ void wroc_seat_pointer_update_state(wroc_seat_pointer* pointer, wroc_key_action 
         }
 
         if (action == wroc_key_action::release ? pointer->pressed.dec(button) : pointer->pressed.inc(button)) {
-            // log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), core_enum_to_string(action));
+            // log_trace("button {} - {}", libevdev_event_code_get_name(EV_KEY, button), core_to_string(action));
             if (action != wroc_key_action::enter) {
                 wroc_post_event(wroc_pointer_event {
                     .type = wroc_event_type::pointer_button,

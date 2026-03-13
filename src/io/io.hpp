@@ -83,8 +83,8 @@ enum class io_event_type
 enum class io_shutdown_reason
 {
     no_more_outputs,        // Sent when no more outputs will be opened by the backend
-    terminate_receieved,    // Sent when SIGTERM is received
-    interrupt_receieved,    // Sent when SIGINT  is received
+    terminate_received,    // Sent when SIGTERM is received
+    interrupt_received,    // Sent when SIGINT  is received
 };
 
 struct io_shutdown_event

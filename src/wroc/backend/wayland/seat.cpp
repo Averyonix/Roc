@@ -71,7 +71,7 @@ static
 void wroc_listen_wl_pointer_axis_value120(void* data, wl_pointer*, u32 axis, i32 value120)
 {
 #if WROC_WAYLAND_BACKEND_NOISY_POINTER_AXIS
-    log_debug("pointer_axis_value120(axis = {}, value = {})", core_enum_to_string(wl_pointer_axis(axis)), value120);
+    log_debug("pointer_axis_value120(axis = {}, value = {})", core_to_string(wl_pointer_axis(axis)), value120);
 #endif
 
     auto* pointer = static_cast<wroc_wayland_pointer*>(data);
@@ -87,8 +87,8 @@ void wroc_listen_wl_pointer_axis_relative_direction(void* data, wl_pointer*, u32
 {
 #if WROC_WAYLAND_BACKEND_NOISY_POINTER_AXIS
     log_debug("pointer_axis_relative_direction(axis = {}, direction = {})",
-        core_enum_to_string(wl_pointer_axis(axis)),
-        core_enum_to_string(wl_pointer_axis_relative_direction(direction)));
+        core_to_string(wl_pointer_axis(axis)),
+        core_to_string(wl_pointer_axis_relative_direction(direction)));
 #endif
 }
 

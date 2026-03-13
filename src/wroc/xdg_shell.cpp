@@ -326,7 +326,7 @@ void toplevel_anchor_to_parent(wroc_toplevel* toplevel)
     toplevel->anchor.position = parent_frame.origin + parent_frame.extent * 0.5;
     toplevel->anchor.relative = wroc_edges_to_relative({});
 
-    if (toplevel->initial_size_receieved) {
+    if (toplevel->initial_size_received) {
         toplevel_clamp_to_layout(toplevel);
     }
 
@@ -370,8 +370,8 @@ void wroc_toplevel::apply(wroc_commit_id id)
         initial_configure_complete = true;
         toplevel_on_initial_commit(this);
     }
-    else if (!initial_size_receieved) {
-        initial_size_receieved = true;
+    else if (!initial_size_received) {
+        initial_size_received = true;
         toplevel_on_initial_size(this);
     }
 }
@@ -741,8 +741,6 @@ rect2i32 positioner_apply(const wroc_positioner_rules& rules, rect2i32 constrain
 
 #define WROC_NOISY_POPUP 0
 
-CORE_DEFINE_ENUM_NAME_PROPS(xdg_positioner_constraint_adjustment, "XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_", "");
-
 void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _parent, wl_resource* positioner)
 {
     auto* new_resource = wroc_resource_create(client, &xdg_popup_interface, wl_resource_get_version(resource), id);
@@ -768,8 +766,8 @@ void get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* _p
     log_debug("xdg_popup<{}> created:", (void*)popup);
     log_debug("  size = {}", core_to_string(rules.size));
     log_debug("  anchor_rect = {}", core_to_string(rules.anchor_rect));
-    log_debug("  anchor = {}", core_enum_to_string(rules.anchor));
-    log_debug("  gravity = {}", core_enum_to_string(rules.gravity));
+    log_debug("  anchor = {}", core_to_string(rules.anchor));
+    log_debug("  gravity = {}", core_to_string(rules.gravity));
     log_debug("  adjustment = {}", core_to_string(rules.constraint_adjustment));
     log_debug("  offset = {}", core_to_string(rules.offset));
     log_debug("  reactive = {}", rules.reactive);

@@ -506,7 +506,7 @@ struct wroc_toplevel : wroc_xdg_shell_role_addon, wroc_surface_state_queue_base<
     wroc_resource resource;
 
     bool initial_configure_complete;
-    bool initial_size_receieved;
+    bool initial_size_received;
 
     struct configure {
         vec2i32 bounds;
@@ -942,8 +942,6 @@ struct wroc_pointer_constraint : wroc_surface_addon, wroc_surface_state_queue_ba
 void wroc_update_pointer_constraint_state();
 
 // -----------------------------------------------------------------------------
-
-CORE_DEFINE_ENUM_NAME_PROPS(wl_data_device_manager_dnd_action, "WL_DATA_DEVICE_MANAGER_DND_ACTION_", "");
 
 struct wroc_data_source : core_object
 {

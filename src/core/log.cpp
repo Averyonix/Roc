@@ -156,10 +156,10 @@ void core_log(core_log_level level, std::string_view message)
             fmt = { CORE_VT_COLOR(90, "{}") " [" CORE_VT_COLOR(91, "FATAL") "] {}\n",                          "{} [FATAL] {}\n" };
     }
 
-    auto time_str = core_time_to_string(timestamp, core_time_format::time_ms);
+    auto time_str = core_to_string(timestamp, core_time_format::time_ms);
     std::cout << std::vformat(fmt.vt, std::make_format_args(time_str, message));
     if (state.log_file.is_open()) {
-        auto datetime_str = core_time_to_string(timestamp, core_time_format::datetime_ms);
+        auto datetime_str = core_to_string(timestamp, core_time_format::datetime_ms);
         state.log_file << std::vformat(fmt.plain, std::make_format_args(datetime_str, message)) << std::flush;
     }
 }

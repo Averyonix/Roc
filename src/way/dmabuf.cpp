@@ -46,7 +46,7 @@ void way_dmabuf_init(way_server* server)
 
     usz size = entries.size() * sizeof(tranche_entry);
 
-    auto fd = core_fd_adopt(unix_check(memfd_create(PROGRAM_NAME "-keymap", MFD_ALLOW_SEALING | MFD_CLOEXEC)).value);
+    auto fd = core_fd_adopt(unix_check(memfd_create(PROGRAM_NAME "-formats", MFD_ALLOW_SEALING | MFD_CLOEXEC)).value);
     unix_check(ftruncate(fd.get(), size));
 
     auto mapped = unix_check(mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0)).value;
@@ -196,7 +196,7 @@ void params_add(wl_client* client, wl_resource* resource, int _fd, u32 plane_idx
         .stride = stride,
     };
 
-    // Deduplicate file descriptors as we receieve them
+    // Deduplicate file descriptors as we receive them
 
     for (auto& p : params->params.planes) {
         if (core_fd_are_same(p.fd.get(), fd.get())) {
@@ -220,7 +220,6 @@ struct way_dma_buffer : way_buffer
 
     std::optional<gpu_dma_params> params;
 
-    virtual void commit() final override { };
     virtual auto acquire(way_surface*, way_surface_state& from) -> ref<gpu_image> final override;
 };
 
@@ -254,7 +253,7 @@ auto create_buffer(way_dma_params* dma_params, u32 buffer_id, vec2u32 extent, gp
         wl_resource_get_client(dma_params->resource), dma_params->resource, buffer_id, buffer.get());
     buffer->extent = extent;
 
-    // TODO: Handle `flags`
+    // TODO: Handle flags
 
     params.format = format;
     params.extent = extent;

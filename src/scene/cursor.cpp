@@ -25,9 +25,10 @@ auto get_visual(scene_pointer* pointer) -> scene_node*
         : pointer->tree->children.front();
 }
 
-void scene_pointer_set_cursor(scene_pointer* pointer, scene_node* visual)
+static
+void set_visual(scene_pointer* pointer, scene_node* visual)
 {
-    if (get_visual(pointer) == visual) return;
+    core_assert(get_visual(pointer) != visual);
 
     while (!pointer->tree->children.empty()) {
         scene_node_unparent(*pointer->tree->children.begin());
@@ -35,6 +36,14 @@ void scene_pointer_set_cursor(scene_pointer* pointer, scene_node* visual)
 
     if (visual) {
         scene_tree_place_above(pointer->tree.get(), nullptr, visual);
+    }
+}
+
+void scene_pointer_set_cursor(scene_pointer* pointer, scene_node* visual)
+{
+    if (visual != get_visual(pointer)) {
+        log_trace("scene.pointer.set_cursor({})", visual ? std::format("{}", (void*)visual) : "nullptr");
+        set_visual(pointer, visual);
     }
 }
 
@@ -77,12 +86,12 @@ auto get_xcursor(scene_context* ctx, const char* semantic) -> scene_node*
     return visual.get();
 }
 
-void scene_pointer_set_xcursor(scene_pointer* pointer, const char* xcursor_semantic)
+void scene_pointer_set_xcursor(scene_pointer* pointer, const char* semantic)
 {
-    auto visual = xcursor_semantic ? get_xcursor(pointer->ctx, xcursor_semantic) : nullptr;
+    auto visual = semantic ? get_xcursor(pointer->ctx, semantic) : nullptr;
 
     if (visual != get_visual(pointer)) {
-        log_trace("set_xcursor({})", xcursor_semantic ?: "nullptr");
-        scene_pointer_set_cursor(pointer, visual);
+        log_trace("scene.pointer.set_xcursor({})", semantic ?: "nullptr");
+        set_visual(pointer, visual);
     }
 }

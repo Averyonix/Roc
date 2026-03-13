@@ -33,7 +33,7 @@ void handle_event(io_context* io, gpu_context* gpu, gpu_image_pool* pool, io_eve
 
     switch (event->type) {
         break;case io_event_type::shutdown_requested:
-            log_error("io::shutdown_requested({})", core_enum_to_string(event->shutdown.reason));
+            log_error("io::shutdown_requested({})", core_to_string(event->shutdown.reason));
             io_stop(io);
         break;case io_event_type::input_event:
             static constexpr auto channel_to_str = [](auto& e) {
@@ -51,7 +51,7 @@ void handle_event(io_context* io, gpu_context* gpu, gpu_image_pool* pool, io_eve
               case io_event_type::input_removed:
               case io_event_type::output_added:
               case io_event_type::output_removed:
-            log_warn("io::{}", core_enum_to_string(event->type));
+            log_warn("io::{}", core_to_string(event->type));
     }
 }
 

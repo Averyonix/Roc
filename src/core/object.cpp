@@ -33,7 +33,7 @@ core_registry::~core_registry()
     }
 #endif
 
-    log_debug("Peak registry allocation: {}", core_byte_size_to_string(total_allocation_size));
+    log_debug("Peak registry allocation: {}", core_to_string(core_fmt_bytes(total_allocation_size)));
 }
 
 auto core_registry::allocate(usz size) -> core_allocation_header*

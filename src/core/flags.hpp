@@ -49,6 +49,7 @@ constexpr core_flags<E> operator|(E a, E b)
 }
 
 template<typename Enum>
+    requires std::is_enum_v<Enum>
 std::string core_to_string(core_flags<Enum> bitfield)
 {
     std::string result;
@@ -59,7 +60,7 @@ std::string core_to_string(core_flags<Enum> bitfield)
     while (v) {
         Type lsb = Type(1) << std::countr_zero(v);
         if (!result.empty()) result += "|";
-        result += core_enum_to_string(Enum(lsb));
+        result += core_to_string(Enum(lsb));
         v &= ~lsb;
     }
 

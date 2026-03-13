@@ -52,26 +52,10 @@ void core_assert_fail(std::string_view expr, std::string_view reason = {})
 // -----------------------------------------------------------------------------
 
 template<typename Enum>
-struct core_enum_name_props
-{
-    static constexpr usz prefix = 0;
-    static constexpr usz suffix = 0;
-};
-
-#define CORE_DEFINE_ENUM_NAME_PROPS(Enum, Prefix, Suffix) \
-    template<> \
-    struct core_enum_name_props<Enum> \
-    { \
-        static constexpr usz prefix = std::string_view(Prefix).size(); \
-        static constexpr usz suffix = std::string_view(Suffix).size(); \
-    }
-
-template<typename Enum>
-std::string_view core_enum_to_string(Enum value)
+    requires std::is_enum_v<Enum>
+std::string_view core_to_string(Enum value)
 {
     std::string_view name = magic_enum::enum_name(value);
-    name.remove_prefix(core_enum_name_props<Enum>::prefix);
-    name.remove_suffix(core_enum_name_props<Enum>::suffix);
     return name;
 }
 
@@ -308,10 +292,21 @@ enum class core_time_format : u32
     time_ms,
 };
 
-std::string core_time_to_string(std::chrono::system_clock::time_point, core_time_format);
+std::string core_to_string(std::chrono::system_clock::time_point, core_time_format);
 
-std::string core_duration_to_string(std::chrono::duration<f64, std::nano> dur);
-std::string core_byte_size_to_string(u64 bytes);
+std::string core_to_string(std::chrono::duration<f64, std::nano> dur);
+
+// -----------------------------------------------------------------------------
+
+struct core_fmt_bytes
+{
+    u64 bytes;
+
+    core_fmt_bytes() = default;
+    core_fmt_bytes(u64 size): bytes(size) {}
+};
+
+std::string core_to_string(core_fmt_bytes size);
 
 // -----------------------------------------------------------------------------
 

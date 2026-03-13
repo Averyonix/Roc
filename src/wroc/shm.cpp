@@ -78,7 +78,7 @@ void wroc_wl_shm_pool_create_buffer(wl_client* client, wl_resource* resource, u3
 
     auto format = gpu_format_from_drm(to_drm(wl_shm_format(_format)));
     if (!format) {
-        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", core_enum_to_string(wl_shm_format(_format)));
+        wroc_post_error(resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", core_to_string(wl_shm_format(_format)));
         return;
     }
 

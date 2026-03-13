@@ -81,7 +81,6 @@ struct way_shm_buffer : way_buffer
     i32 stride;
     gpu_format format;
 
-    virtual void commit() final override { };
     virtual auto acquire(way_surface*, way_surface_state& from) -> ref<gpu_image> final override;
 };
 
@@ -101,7 +100,7 @@ void create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset,
     buffer->offset = offset;
 
     if (!buffer->format) {
-        way_post_error(server, resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", core_enum_to_string(wl_shm_format(_format)));
+        way_post_error(server, resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", core_to_string(wl_shm_format(_format)));
         return;
     }
 }
@@ -143,7 +142,7 @@ auto try_steal(way_shm_buffer* buffer, way_surface* surface) -> gpu_image*
     if (candidate->format() != buffer->format) return nullptr;
 
 #if NOISY_SHM_BUFFER_IMAGES
-    if (shm_buffer == buffer) log_trace("REUSING shm buffer image {}",  core_to_string(candidate->extent()));
+    if (shm_buffer == buffer) log_info( "REUSING shm buffer image {}",  core_to_string(candidate->extent()));
     else                      log_debug("STEALING shm buffer image {}", core_to_string(candidate->extent()));
 #endif
 

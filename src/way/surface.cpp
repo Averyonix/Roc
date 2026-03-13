@@ -356,11 +356,7 @@ void commit(wl_client* client, wl_resource* resource)
         way_subsurface_commit(surface, *pending);
     }
 
-    // Begin acquisition process for buffers
-
-    if (pending->is_set(way_surface_committed_state::buffer)) {
-        pending->buffer->commit();
-    } else {
+    if (!pending->is_set(way_surface_committed_state::buffer)) {
         core_assert(!pending->buffer_damage,  "TODO: wl_surface::damage_buffer without attached buffer");
         core_assert(!pending->surface.damage, "TODO: wl_surface::damage without attached buffer");
     }

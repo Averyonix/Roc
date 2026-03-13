@@ -139,7 +139,7 @@ void core_event_loop_run(core_event_loop* loop)
             if (error == EAGAIN || error == EINTR) {
                 if (!loop->tasks_available) continue;
             } else {
-                // At this point, we can't assume that we'll receieve any future FD events.
+                // At this point, we can't assume that we'll receive any future FD events.
                 // Since this includes all user input, the only safe thing to do is
                 // immediately terminate to avoid locking out the user's system.
                 core_debugkill();

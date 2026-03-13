@@ -81,7 +81,7 @@ void wroc_dmabuf_params_add(wl_client* client, wl_resource* resource, int _fd, u
         .stride = stride,
     };
 
-    // Deduplicate file descriptors as we receieve them
+    // Deduplicate file descriptors as we receive them
 
     for (auto& p : params->params.planes) {
         if (core_fd_are_same(p.fd.get(), fd.get())) {

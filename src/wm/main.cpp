@@ -294,7 +294,7 @@ int main()
                     [&](scene_tree* tree) {
                         if (auto* surface = dynamic_cast<way_surface*>(tree->userdata)) {
                             log_warn("{}tree({}{}) {{", indent(),
-                                core_enum_to_string(surface->role),
+                                core_to_string(surface->role),
                                 tree->enabled ? "": ", disabled");
                         } else {
                             log_warn("{}tree{} {{", indent(), tree->enabled ? "": "(disabled)");
@@ -303,7 +303,7 @@ int main()
                         return scene_iterate_action::next;
                     },
                     [&](scene_node* node) {
-                        log_warn("{}{}", indent(), core_enum_to_string(node->type));
+                        log_warn("{}{}", indent(), core_to_string(node->type));
                         return scene_iterate_action::next;
                     },
                     [&](scene_tree* tree) {

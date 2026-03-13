@@ -130,7 +130,7 @@ void wroc_listen_toplevel_configure(void* data, xdg_toplevel*, i32 width, i32 he
     };
 
     for (auto[i, state] : wroc_to_span<xdg_toplevel_state>(states) | std::views::enumerate) {
-        log_debug("  states[{}] = {}", i, core_enum_to_string(state));
+        log_debug("  states[{}] = {}", i, core_to_string(state));
     }
 
     wroc_post_event(wroc_output_event {
@@ -168,7 +168,7 @@ void wroc_listen_toplevel_wm_capabilities(void* data, xdg_toplevel*, wl_array* c
     log_debug("xdg_toplevel::wm_capabilities");
 
     for (auto[i, capability] : wroc_to_span<xdg_toplevel_state>(capabilities) | std::views::enumerate) {
-        log_debug("  capabilities[] = {}", i, core_enum_to_string(capability));
+        log_debug("  capabilities[] = {}", i, core_to_string(capability));
     }
 }
 

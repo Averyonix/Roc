@@ -41,14 +41,14 @@ void wroc_wl_data_device_manager_bind_global(wl_client* client, void* data, u32 
 static
 void wroc_wl_data_offer_receive(wl_client* client, wl_resource* resource, const char* mime_type, int fd)
 {
-    log_debug("<- wl_data_offer.receieve(mime = \"{}\", fd = {})", mime_type, fd);
+    log_debug("<- wl_data_offer.receive(mime = \"{}\", fd = {})", mime_type, fd);
 
     auto* offer = wroc_get_userdata<wroc_data_offer>(resource);
 
     if (offer->source) {
         wroc_send(wl_data_source_send_send, offer->source->resource, mime_type, fd);
     } else {
-        log_error("Data offer receieve failed: source {} was destroyed", (void*)offer->source.get());
+        log_error("Data offer receive failed: source {} was destroyed", (void*)offer->source.get());
     }
 
     close(fd);
@@ -62,7 +62,7 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
 #if WROC_NOISY_DRAG
     log_trace("<- wl_data_offer.set_actions({}, {})",
         core_to_string(flags(wl_data_device_manager_dnd_action(dnd_actions))),
-        core_enum_to_string(wl_data_device_manager_dnd_action(preferred_action)));
+        core_to_string(wl_data_device_manager_dnd_action(preferred_action)));
 #endif
 
     if (!data_offer->source) {
@@ -82,7 +82,7 @@ void wroc_wl_data_offer_set_actions(wl_client* client, wl_resource* resource, u3
 
     if (new_action != data_offer->action) {
         data_offer->action = new_action;
-        log_debug("-> wl_data_offer.send_action({}, {})", (void*)data_offer->resource, core_enum_to_string(new_action));
+        log_debug("-> wl_data_offer.send_action({}, {})", (void*)data_offer->resource, core_to_string(new_action));
         wroc_send(wl_data_offer_send_action, data_offer->resource, data_offer->action);
     }
 }
@@ -378,7 +378,7 @@ void wroc_data_manager_finish_drag()
     if (drag.offer && drag.offer->device && drag.offer->source) {
         if (drag.offer->action && drag.source->dnd_actions.contains(drag.offer->action)) {
             log_debug("Drag completed with offer");
-            log_debug("  action = {}", core_enum_to_string(drag.offer->action));
+            log_debug("  action = {}", core_to_string(drag.offer->action));
             log_debug("  mime_type = {}", drag.offer->mime_type);
             wroc_send(wl_data_device_send_drop, drag.offer->device->resource);
             wroc_send(wl_data_source_send_dnd_drop_performed, drag.source->resource);

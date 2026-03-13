@@ -43,7 +43,7 @@ void signal_handler(int sig)
             break;case SIGINT:  name = "Interrupt";
         }
 
-        log_error("{} ({}) signal receieved", name, sig);
+        log_error("{} ({}) signal received", name, sig);
 
         if (sig == SIGTERM || sig == SIGINT) {
             wroc_terminate();

@@ -169,8 +169,8 @@ void wroc_output_send_configuration(wroc_wl_output* wl_output, wl_resource* clie
     log_debug("  model = {}", desc.model);
     log_debug("  position = {}", core_to_string(wl_output->position));
     log_debug("  physical size = {}x{}mm", desc.physical_size_mm.x, desc.physical_size_mm.y);
-    log_debug("  transform = {}", core_enum_to_string(desc.transform));
-    log_debug("  subpixel_layout = {}", core_enum_to_string(desc.subpixel));
+    log_debug("  transform = {}", core_to_string(desc.transform));
+    log_debug("  subpixel_layout = {}", core_to_string(desc.subpixel));
     log_debug("  scale = {:.2f}", desc.scale);
 
     wroc_send(wl_output_send_geometry, client_resource,
@@ -324,7 +324,7 @@ void on_output_commit(const wroc_output_event& event)
         log_warn("output.commit[{:.2f}] id = {} | latency = {}",
             event.timestamp.time_since_epoch().count() / 1000000.0,
             event.commit.id,
-            core_duration_to_string(event.timestamp - event.commit.start));
+            core_to_string(event.timestamp - event.commit.start));
     }
 }
 

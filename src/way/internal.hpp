@@ -326,7 +326,7 @@ struct way_surface : core_object
         ref<scene_window> window;
 
         bool pending; // commit response to resize configure is pending
-        bool queued;  // new reposition request receieved while pending
+        bool queued;  // new reposition request received while pending
     } toplevel;
 
     // scene
@@ -404,9 +404,6 @@ void way_data_offer_selection(way_client*);
 struct way_buffer : core_object
 {
     vec2u32 extent;
-
-    // Sent when a wl_surface::attach is committed
-    virtual void commit() = 0;
 
     // Sent on apply, should return a gpu_image when the buffer is ready to display
     [[nodiscard]] virtual auto acquire(way_surface*, way_surface_state& from) -> ref<gpu_image> = 0;

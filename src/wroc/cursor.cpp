@@ -128,8 +128,6 @@ static constexpr auto shape_names = [] {
     return shapes;
 }();
 
-CORE_DEFINE_ENUM_NAME_PROPS(wp_cursor_shape_device_v1_shape, "WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_", "");
-
 wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_v1_shape shape)
 {
     if (!shape) return nullptr;
@@ -137,7 +135,7 @@ wroc_surface* wroc_cursor_get_shape(wroc_cursor* cursor, wp_cursor_shape_device_
     auto& surface = cursor->shapes[shape];
     if (surface) return surface.get();
 
-    log_info("Loading cursor shape {} \"{}\"", core_enum_to_string(shape), shape_names[shape]);
+    log_info("Loading cursor shape {} \"{}\"", core_to_string(shape), shape_names[shape]);
 
     // TODO: This is a a hacky mess, we should implement a proper way to have locally managed surfaces
     //       We'll want something like this for integrating compositor UI with the surface stack properly later.

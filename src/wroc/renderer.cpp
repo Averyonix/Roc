@@ -316,13 +316,13 @@ static
 void on_screenshot_ready(std::chrono::steady_clock::time_point start, gpu_image* image, gpu_buffer* buffer)
 {
     auto save_start = std::chrono::steady_clock::now();
-    log_info("Screenshot captured in {}, saving...", core_duration_to_string(save_start - start));
+    log_info("Screenshot captured in {}, saving...", core_to_string(save_start - start));
 
     auto save_path = "screenshot.png";
 
     stbi_write_png(save_path, image->extent().x, image->extent().y, STBI_rgb_alpha, buffer->host_address, image->extent().x * 4);
     auto save_end = std::chrono::steady_clock::now();
-    log_info("Screenshot saved in {}", core_duration_to_string(save_end - save_start));
+    log_info("Screenshot saved in {}", core_to_string(save_end - save_start));
 
     core_event_loop_enqueue(server->event_loop.get(), [image, buffer] {
         log_debug("Deleting screenshot resources");
