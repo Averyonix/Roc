@@ -48,7 +48,7 @@ struct core_unix_result
 
 template<typename T>
     requires std::is_integral_v<T> || std::is_pointer_v<T>
-core_unix_result<T> core_unix_check(T value, auto... quiet)
+auto core_unix_check(T value, auto... quiet) -> core_unix_result<T>
 {
     static constexpr int fallback_error_code = INT_MAX;
     int error_code = 0;
@@ -77,3 +77,19 @@ core_unix_result<T> core_unix_check(T value, auto... quiet)
 
 #define unix_check(Expr, ...) \
     core_unix_check((errno = 0, (Expr)) __VA_OPT__(,) __VA_ARGS__)
+
+/**
+ * Custom error checking logic is required for `mmap` as it doesn't follow the usual
+ * error cases (-1 for integer types, falsey for unsigned / pointers).
+ * Failed maps instead return `MAP_FAILED` : `((void*)-1)`
+ */
+inline
+auto core_mmap(void* addr, size_t len, int prot, int flags, int fd, __off_t offset) -> core_unix_result<void*>
+{
+    auto map = mmap(addr, len, prot, flags, fd, offset);
+    if (map != MAP_FAILED) return { map, 0 };
+
+    auto error_code = errno;
+    core_log_unix_error("core_mmap", error_code);
+    return { nullptr, error_code };
+}

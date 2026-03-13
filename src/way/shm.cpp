@@ -15,12 +15,12 @@ void pool_map(way_shm_pool* pool, usz size)
 {
     pool_unmap(pool);
 
-    auto res = unix_check(mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd.get(), 0));
+    auto res = core_mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd.get(), 0);
     if (res.ok()) {
         pool->data = res.value;
         pool->size = size;
     } else {
-        way_post_error(pool->server, pool->resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
+        way_post_error(pool->server, pool->resource, WL_SHM_ERROR_INVALID_FD, "mmap failed: {}", strerror(res.error));
     }
 }
 

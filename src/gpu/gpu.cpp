@@ -125,12 +125,7 @@ bool try_physical_device(gpu_context* gpu, VkPhysicalDevice phdev)
     // Device extension support
 
     std::vector<VkExtensionProperties> available_extensions;
-    {
-        u32 count = 0;
-        gpu_check(gpu->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, nullptr));
-        available_extensions.resize(count);
-        gpu_check(gpu->vk.EnumerateDeviceExtensionProperties(phdev, nullptr, &count, available_extensions.data()));
-    }
+    gpu_vk_enumerate(available_extensions, gpu->vk.EnumerateDeviceExtensionProperties, phdev, nullptr);
 
     auto check_extension = [&](const char* name) -> bool {
         for (auto& extension : available_extensions) {

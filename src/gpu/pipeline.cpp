@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/stack.hpp"
+
 struct gpu_shader
 {
     gpu_context* gpu;
@@ -61,7 +63,9 @@ void gpu_cmd_set_scissors(gpu_commands* cmd, std::span<const rect2i32> scissors)
 {
     auto* gpu = cmd->queue->gpu;
 
-    std::vector<VkRect2D> vk_scissors(scissors.size());
+    core_thread_stack stack;
+
+    auto* vk_scissors = stack.allocate<VkRect2D>(scissors.size());
     for (u32 i = 0; i < scissors.size(); ++i) {
         auto r = scissors[i];
         if (r.extent.x < 0) { r.origin.x -= (r.extent.x *= -1); }
@@ -71,14 +75,16 @@ void gpu_cmd_set_scissors(gpu_commands* cmd, std::span<const rect2i32> scissors)
             .extent{ u32(r.extent.x), u32(r.extent.y) },
         };
     }
-    gpu->vk.CmdSetScissorWithCount(cmd->buffer, u32(scissors.size()), vk_scissors.data());
+    gpu->vk.CmdSetScissorWithCount(cmd->buffer, u32(scissors.size()), vk_scissors);
 }
 
 void gpu_cmd_set_viewports(gpu_commands* cmd, std::span<const rect2f32> viewports)
 {
     auto* gpu = cmd->queue->gpu;
 
-    std::vector<VkViewport> vk_viewports(viewports.size());
+    core_thread_stack stack;
+
+    auto* vk_viewports = stack.allocate<VkViewport>(viewports.size());
     for (u32 i = 0; i < viewports.size(); ++i) {
         vk_viewports[i] = VkViewport {
             .x = viewports[i].origin.x,
@@ -89,7 +95,7 @@ void gpu_cmd_set_viewports(gpu_commands* cmd, std::span<const rect2f32> viewport
             .maxDepth = 1.f
         };
     }
-    gpu->vk.CmdSetViewportWithCount(cmd->buffer, u32(viewports.size()), vk_viewports.data());
+    gpu->vk.CmdSetViewportWithCount(cmd->buffer, u32(viewports.size()), vk_viewports);
 }
 
 void gpu_cmd_set_polygon_state(gpu_commands* cmd, VkPrimitiveTopology topology, VkPolygonMode polygon_mode, f32 line_width)
@@ -124,9 +130,11 @@ void gpu_cmd_set_blend_state(gpu_commands* cmd, std::span<const gpu_blend_mode> 
 
     auto count = u32(blends.size());
 
-    std::vector<VkColorComponentFlags> components(count);
-    std::vector<VkBool32> blend_enable_bools(count);
-    std::vector<VkColorBlendEquationEXT> blend_equations(count);
+    core_thread_stack stack;
+
+    auto* components         = stack.allocate<VkColorComponentFlags>(  count);
+    auto* blend_enable_bools = stack.allocate<VkBool32>(               count);
+    auto* blend_equations    = stack.allocate<VkColorBlendEquationEXT>(count);
 
     for (u32 i = 0; i < count; ++i) {
         components[i] = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
@@ -164,9 +172,9 @@ void gpu_cmd_set_blend_state(gpu_commands* cmd, std::span<const gpu_blend_mode> 
         }
     }
 
-    gpu->vk.CmdSetColorBlendEnableEXT(  cmd->buffer, 0, count, blend_enable_bools.data());
-    gpu->vk.CmdSetColorWriteMaskEXT(    cmd->buffer, 0, count, components.data());
-    gpu->vk.CmdSetColorBlendEquationEXT(cmd->buffer, 0, count, blend_equations.data());
+    gpu->vk.CmdSetColorBlendEnableEXT(  cmd->buffer, 0, count, blend_enable_bools);
+    gpu->vk.CmdSetColorWriteMaskEXT(    cmd->buffer, 0, count, components);
+    gpu->vk.CmdSetColorBlendEquationEXT(cmd->buffer, 0, count, blend_equations);
 }
 
 void gpu_cmd_bind_shaders(gpu_commands* cmd, std::span<gpu_shader* const> shaders)
@@ -175,15 +183,17 @@ void gpu_cmd_bind_shaders(gpu_commands* cmd, std::span<gpu_shader* const> shader
 
     u32 count = u32(shaders.size());
 
-    std::vector<VkShaderStageFlagBits> stage_flags(count);
-    std::vector<VkShaderEXT> shader_objects(count);
+    core_thread_stack stack;
+
+    auto* stage_flags    = stack.allocate<VkShaderStageFlagBits>(count);
+    auto* shader_objects = stack.allocate<VkShaderEXT>(count);
 
     for (u32 i = 0; i < shaders.size(); ++i) {
         stage_flags[i] = VkShaderStageFlagBits(shaders[i]->stage);
         shader_objects[i] = shaders[i]->shader;
     }
 
-    gpu->vk.CmdBindShadersEXT(cmd->buffer, count, stage_flags.data(), shader_objects.data());
+    gpu->vk.CmdBindShadersEXT(cmd->buffer, count, stage_flags, shader_objects);
 }
 
 void gpu_cmd_reset_graphics_state(gpu_commands* cmd)

@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/stack.hpp"
+
 void io_input_device_add(io_input_device_base* device)
 {
     core_assert(!std::ranges::contains(device->ctx->input_devices, device));
@@ -39,28 +41,30 @@ void post_input(io_input_device_base* device, bool quiet, std::span<const io_inp
 
 void io_input_device_leave(io_input_device_base* device)
 {
-    std::vector<io_input_channel> events;
-    events.reserve(device->pressed.size());
+    core_thread_stack stack;
+    auto* events = stack.allocate<io_input_channel>(device->pressed.size());
+    usz count = 0;
     for (auto key : device->pressed) {
-        events.emplace_back(EV_KEY, key, 0);
+        events[count++] = {EV_KEY, key, 0};
     }
-    if (!events.empty()) {
-        post_input(device, true, events);
+    if (count) {
+        post_input(device, true, {events, count});
     }
     device->pressed.clear();
 }
 
 void io_input_device_key_enter(io_input_device_base* device, std::span<const u32> keys)
 {
-    std::vector<io_input_channel> events;
-    events.reserve(keys.size());
+    core_thread_stack stack;
+    auto* events = stack.allocate<io_input_channel>(keys.size());
+    usz count = 0;
     for (auto key : keys) {
         if (device->pressed.insert(key).second) {
-            events.emplace_back(EV_KEY, key, 1);
+            events[count++] = {EV_KEY, key, 1};
         }
     }
-    if (!events.empty()) {
-        post_input(device, true, events);
+    if (count) {
+        post_input(device, true, {events, count});
     }
 }
 

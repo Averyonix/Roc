@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include "core/stack.hpp"
+
 static auto imgui_cursor_to_xcursor(ImGuiMouseCursor) -> const char*;
 static auto imgui_key_from_xkb_sym(xkb_keysym_t) -> ImGuiKey;
 
@@ -308,8 +310,9 @@ void render_viewport(imui_context* ctx, ImGuiViewport* vp)
             auto indices = to_span(list->IdxBuffer).subspan(cmd.IdxOffset, cmd.ElemCount);
             auto vtx_count = std::ranges::max(indices) + 1;
 
-            static std::vector<scene_vertex> vertices;
-            vertices.resize(vtx_count);
+            core_thread_stack stack;
+
+            auto* vertices = stack.allocate<scene_vertex>(vtx_count);
             for (auto[i, imvert] : to_span(list->VtxBuffer).subspan(cmd.VtxOffset, vtx_count) | std::views::enumerate) {
                 vertices[i] = scene_vertex {
                     .pos = from_imvec(imvert.pos) - translation,
@@ -323,7 +326,7 @@ void render_viewport(imui_context* ctx, ImGuiViewport* vp)
 
             auto[image, sampler, blend] = ctx->textures[cmd.GetTexID()];
             auto mesh = scene_mesh_create(ctx->scene);
-            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend, clip, vertices, indices);
+            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend, clip, {vertices, usz(vtx_count)}, indices);
             scene_tree_place_above(data->draws.get(), nullptr, mesh.get());
         }
     }

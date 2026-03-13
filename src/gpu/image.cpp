@@ -1,5 +1,6 @@
 #include "internal.hpp"
 
+#include "core/stack.hpp"
 #include "core/util.hpp"
 
 VkImageUsageFlags gpu_image_usage_to_vk(flags<gpu_image_usage> usage)
@@ -198,10 +199,12 @@ void gpu_cmd_copy_buffer_to_image(gpu_commands* cmd, gpu_image* image, gpu_buffe
 {
     auto* gpu = image->context();
 
+    core_thread_stack stack;
+
     gpu_cmd_protect(cmd, image);
     gpu_cmd_protect(cmd, buffer);
 
-    std::vector<VkBufferImageCopy> copies(regions.size());
+    auto* copies = stack.allocate<VkBufferImageCopy>(regions.size());
     for (auto[i, region] : regions | std::views::enumerate) {
         copies[i] = {
             .bufferOffset = region.buffer_offset,
@@ -212,7 +215,7 @@ void gpu_cmd_copy_buffer_to_image(gpu_commands* cmd, gpu_image* image, gpu_buffe
         };
     }
 
-    gpu->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->handle(), VK_IMAGE_LAYOUT_GENERAL, copies.size(), copies.data());
+    gpu->vk.CmdCopyBufferToImage(cmd->buffer, buffer->buffer, image->handle(), VK_IMAGE_LAYOUT_GENERAL, regions.size(), copies);
 }
 
 void gpu_cmd_copy_memory_to_image(gpu_commands* cmd, gpu_image* image, core_byte_view data, std::span<const gpu_buffer_image_copy> regions)

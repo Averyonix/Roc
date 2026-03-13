@@ -1,6 +1,7 @@
 #include "internal.hpp"
 
 #include "core/enum.hpp"
+#include "core/stack.hpp"
 
 ref<gpu_queue> gpu_queue_init(gpu_context* gpu, gpu_queue_type type, u32 family)
 {
@@ -100,6 +101,8 @@ gpu_syncpoint gpu_submit(gpu_commands* commands, std::span<const gpu_syncpoint> 
     auto* queue = commands->queue;
     auto* gpu = queue->gpu;
 
+    core_thread_stack stack;
+
     gpu_check(gpu->vk.EndCommandBuffer(commands->buffer));
 
     commands->submitted_value = ++queue->submitted;
@@ -109,7 +112,7 @@ gpu_syncpoint gpu_submit(gpu_commands* commands, std::span<const gpu_syncpoint> 
         .value = commands->submitted_value,
     };
 
-    std::vector<VkSemaphoreSubmitInfo> wait_infos(waits.size());
+    auto* wait_infos = stack.allocate<VkSemaphoreSubmitInfo>(waits.size());
     for (auto[i, wait] : waits | std::views::enumerate) {
         wait_infos[i] = gpu_syncpoint_to_submit_info(wait);
         gpu_cmd_protect(commands, wait.semaphore);
@@ -117,8 +120,8 @@ gpu_syncpoint gpu_submit(gpu_commands* commands, std::span<const gpu_syncpoint> 
 
     gpu_check(gpu->vk.QueueSubmit2(queue->queue, 1, ptr_to(VkSubmitInfo2 {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .waitSemaphoreInfoCount = u32(wait_infos.size()),
-        .pWaitSemaphoreInfos = wait_infos.data(),
+        .waitSemaphoreInfoCount = u32(waits.size()),
+        .pWaitSemaphoreInfos = wait_infos,
         .commandBufferInfoCount = 1,
         .pCommandBufferInfos = ptr_to(VkCommandBufferSubmitInfo {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,

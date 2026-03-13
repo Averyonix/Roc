@@ -49,7 +49,7 @@ void way_dmabuf_init(way_server* server)
     auto fd = core_fd_adopt(unix_check(memfd_create(PROGRAM_NAME "-formats", MFD_ALLOW_SEALING | MFD_CLOEXEC)).value);
     unix_check(ftruncate(fd.get(), size));
 
-    auto mapped = unix_check(mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0)).value;
+    auto mapped = core_mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0).value;
     std::memcpy(mapped, entries.data(), size);
     munmap(mapped, size);
 

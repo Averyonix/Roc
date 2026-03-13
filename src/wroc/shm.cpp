@@ -29,8 +29,8 @@ void update_mapping(wroc_shm_pool* pool, usz size)
 {
     auto mapping = core_create<wroc_shm_mapping>();
     mapping->size = size;
-    mapping->data = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0);
-    if (mapping->data == MAP_FAILED) {
+    mapping->data = core_mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, pool->fd, 0).value;
+    if (!mapping->data) {
         wroc_post_error(pool->resource, WL_SHM_ERROR_INVALID_FD, "mmap failed");
         return;
     }

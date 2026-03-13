@@ -42,3 +42,12 @@ usz core_compute_geometric_growth(usz current_size, usz new_min_size)
     usz geometric = current_size + (current_size >> 1);
     return std::max(geometric, new_min_size);
 }
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+constexpr
+T core_align_up_power2(T v, u64 align) noexcept
+{
+    return T((u64(v) + (align - 1)) &~ (align - 1));
+}
