@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-U", "--update", action="store_true", help="Update")
 parser.add_argument("-C", "--configure", action="store_true", help="Force configure")
 parser.add_argument("-B", "--build", action="store_true", help="Build")
+parser.add_argument("-S", "--shader", action="store_true", help="Build Shaders")
 parser.add_argument("-R", "--release", action="store_true", help="Release")
 parser.add_argument("-I", "--install", action="store_true", help="Install")
 parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
@@ -242,12 +243,18 @@ def build_shaders():
     cmake_out += f"target_compile_options({target_name} PRIVATE -std=c++26 -Wno-c23-extensions)\n"
     cmake_out += f"target_sources({target_name} PRIVATE\n"
 
+    any_skipped = False
+
     for shader_src, prefix in shaders:
 
         cmake_out += f"    src/{prefix}.cpp\n"
 
         header_path = shader_gen_include_dir / f"{prefix}.hpp"
         source_path = shader_gen_source_dir  / f"{prefix}.cpp"
+
+        if source_path.exists() and header_path.exists() and not args.shader:
+            any_skipped = True
+            continue
 
         tmp_path    = shader_gen_spv_dir / f"{prefix}.spv.tmp"
         spv_path    = shader_gen_spv_dir / f"{prefix}.spv"
@@ -294,7 +301,10 @@ def build_shaders():
     cmake_out += "    )\n"
     write_file_lazy(cmake_path, cmake_out)
 
-build_shaders()
+    return not any_skipped
+
+if not build_shaders():
+    print("Shader recompilation skipped (pass -S to recompile shaders)")
 
 # -----------------------------------------------------------------------------
 
