@@ -66,9 +66,9 @@ io_input_device_wayland_pointer::~io_input_device_wayland_pointer()
 static
 io_output_wayland* find_output_for_surface(io_context* ctx, wl_surface* surface)
 {
-    for (auto& output : ctx->wayland->outputs) {
+    for (auto* output : ctx->wayland->outputs) {
         if (output->wl_surface == surface) {
-            return output.get();
+            return output;
         }
     }
 

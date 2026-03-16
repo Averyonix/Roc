@@ -87,7 +87,7 @@ void toplevel_close(void* udata, xdg_toplevel*)
 {
     auto* output = static_cast<io_output_wayland*>(udata);
     auto* ctx = output->ctx;
-    std::erase_if(ctx->wayland->outputs, core_object_equals{output});
+    ctx->wayland->outputs.erase(output);
     if (ctx->wayland->outputs.empty()) {
         io_request_shutdown(ctx, io_shutdown_reason::no_more_outputs);
     }
@@ -132,7 +132,7 @@ void io_add_output(io_context* ctx)
     auto output = core_create<io_output_wayland>();
     output->ctx = ctx;
 
-    wl->outputs.emplace_back(output);
+    wl->outputs.emplace_back(output.get());
 
     output->wl_surface = wl_compositor_create_surface(wl->wl_compositor);
     output->xdg_surface = xdg_wm_base_get_xdg_surface(wl->xdg_wm_base, output->wl_surface);

@@ -330,7 +330,7 @@ struct gpu_commands
     gpu_queue* queue;
 
     VkCommandBuffer buffer;
-    std::vector<ref<void>> objects;
+    core_ref_vector<void> objects;
 
     u64 submitted_value;
 

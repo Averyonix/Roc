@@ -17,9 +17,9 @@ struct gpu_image_pattern
 {
     gpu_image_pool_default* pool;
 
-    gpu_format_modifier_set     modifiers;
-    gpu_image_create_info       info;
-    std::vector<ref<gpu_image>> images;
+    gpu_format_modifier_set    modifiers;
+    gpu_image_create_info      info;
+    core_ref_vector<gpu_image> images;
 
     ~gpu_image_pattern()
     {
@@ -79,9 +79,7 @@ auto gpu_image_pool_default::acquire(const gpu_image_create_info& info) -> ref<g
     auto pattern = find_pattern(this, info);
 
     if (!pattern->images.empty()) {
-        auto image = std::move(pattern->images.back());
-        pattern->images.pop_back();
-        return make_lease(pattern.get(), std::move(image));
+        return make_lease(pattern.get(), pattern->images.pop_back());
     }
 
     auto image = gpu_image_create(gpu, info);

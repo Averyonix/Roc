@@ -120,7 +120,7 @@ void wroc_output_update(wroc_output_layout* layout)
 static
 void wroc_output_layout_add_output(wroc_output_layout* layout, wroc_output* output)
 {
-    if (!weak_container_contains(layout->outputs, output)) {
+    if (!std::ranges::contains(layout->outputs, weak(output))) {
         log_debug("NEW OUTPUT");
         layout->outputs.emplace_back(output);
     }

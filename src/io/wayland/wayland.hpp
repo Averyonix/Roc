@@ -84,7 +84,7 @@ struct io_wayland
 
     core_fd wl_display_fd = {};
 
-    std::vector<ref<io_output_wayland>> outputs;
+    core_ref_vector<io_output_wayland> outputs;
 
     std::chrono::steady_clock::time_point current_dispatch_time;
 

@@ -14,7 +14,7 @@ static_assert(CORE_REGISTRY_PROTECT_FREE);
 
 struct core_registry
 {
-    std::array<std::vector<core_allocation_header*>, 64> bins;
+    std::array<std::vector<core_allocation*>, 64> bins;
     core_registry_stats stats;
 
 #if CORE_REGISTRY_DONT_FREE
@@ -64,17 +64,17 @@ auto core_registry_get_stats() -> core_registry_stats
 
 // -----------------------------------------------------------------------------
 
-auto core_registry_allocate(u8 bin_idx) -> core_allocation_header*
+auto core_registry_allocate(u8 bin_idx) -> core_allocation*
 {
     auto size = 1 << bin_idx;
     auto& bin = registry.bins[bin_idx];
 
     registry.stats.active_allocations++;
 
-    core_allocation_header* header;
+    core_allocation* header;
     if (bin.empty()) {
-        header = static_cast<core_allocation_header*>(unix_check<malloc>(size).value);
-        new (header) core_allocation_header { };
+        header = static_cast<core_allocation*>(unix_check<malloc>(size).value);
+        new (header) core_allocation { };
         header->version = 1;
     } else {
         header = bin.back();
@@ -87,7 +87,7 @@ auto core_registry_allocate(u8 bin_idx) -> core_allocation_header*
     return header;
 }
 
-void core_registry_free(core_allocation_header* header, u8 bin)
+void core_registry_free(core_allocation* header, u8 bin)
 {
     registry.stats.active_allocations--;
     registry.stats.inactive_allocations++;
@@ -96,7 +96,7 @@ void core_registry_free(core_allocation_header* header, u8 bin)
 
 #if CORE_REGISTRY_PROTECT_FREE
     header->free = nullptr;
-    auto size = (1 << bin) - sizeof(core_allocation_header);
+    auto size = (1 << bin) - sizeof(core_allocation);
     ::memset(core_allocation_get_data(header), 0xDD, size);
 #endif
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.hpp"
+#include "object.hpp"
 
 // -----------------------------------------------------------------------------
 //      Enum Map
@@ -124,4 +125,82 @@ struct core_intrusive_list
     iterator end()   { return {&root};      }
 
     bool empty() const { return root.next == &root; }
+};
+
+// -----------------------------------------------------------------------------
+
+template<typename T>
+class core_ref_vector
+{
+    std::vector<T*> values;
+
+    using const_iterator = decltype(values)::const_iterator;
+    using iterator = decltype(values)::iterator;
+
+public:
+    T* emplace_back(T* value)
+    {
+        return values.emplace_back(core_add_ref(value));
+    }
+
+    T* emplace_back(ref<T>&& value)
+    {
+        return values.emplace_back(std::exchange(value.value, nullptr));
+    }
+
+    template<typename Fn>
+    usz erase_if(Fn&& fn)
+    {
+        return std::erase_if(values, [&](auto* c) {
+            if (fn(c)) {
+                core_remove_ref(c);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    usz erase(T* v)
+    {
+        return erase_if([v](T* c) { return c == v; });
+    }
+
+    usz  size()  const { return values.size();  }
+    bool empty() const { return values.empty(); }
+    T*   front() const { return values.front(); }
+    T*   back()  const { return values.back();  }
+
+    void clear()
+    {
+        for (auto* v : values) core_remove_ref(v);
+        values.clear();
+    }
+
+    auto pop_front() -> ref<T>
+    {
+        auto value = core_adopt_ref(values.front());
+        values.pop_front();
+        return value;
+    }
+
+    auto pop_back() -> ref<T>
+    {
+        auto value = core_adopt_ref(values.back());
+        values.pop_back();
+        return value;
+    }
+
+    auto insert(const_iterator i, T* v)
+    {
+        core_add_ref(v);
+        return values.insert(i, v);
+    }
+
+    auto begin(this auto&& self) { return self.values.begin(); }
+    auto   end(this auto&& self) { return self.values.end();   }
+
+    ~core_ref_vector()
+    {
+        for (auto* v : values) core_remove_ref(v);
+    }
 };

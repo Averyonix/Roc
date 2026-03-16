@@ -108,7 +108,7 @@ void tree_place(scene_tree* tree, scene_node* reference, scene_node* node, bool 
 
     if (ref == end) {
         if (tree->children.empty()) {
-            tree->children.push_back(node);
+            tree->children.emplace_back(node);
             return;
         }
         ref = above ? end - 1 : tree->children.begin();
