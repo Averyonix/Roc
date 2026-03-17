@@ -119,14 +119,7 @@ struct scene_input_device
     scene_context* ctx;
 
     scene_hotkey_map hotkeys;
-};
-
-struct scene_focus
-{
-    scene_client*       client = nullptr;
-    scene_input_region* region = nullptr;
-
-    constexpr bool operator==(const scene_focus&) const noexcept = default;
+    scene_focus focus;
 };
 
 // -----------------------------------------------------------------------------
@@ -140,8 +133,6 @@ struct scene_keyboard : scene_input_device, scene_keyboard_info
     flags<scene_modifier> locked;
 
     core_enum_map<scene_modifier, xkb_mod_mask_t> mod_masks;
-
-    scene_focus focus;
 
     ~scene_keyboard();
 };
@@ -157,8 +148,6 @@ struct scene_pointer : scene_input_device
     ref<scene_tree> tree;
 
     std::move_only_function<scene_pointer_driver_fn> driver;
-
-    scene_focus focus;
 };
 
 void scene_update_pointer_focus(scene_context*);

@@ -21,6 +21,11 @@ auto scene_input_device_get_keyboard(scene_input_device* device) -> scene_keyboa
         : nullptr;
 }
 
+auto scene_input_device_get_focus(scene_input_device* device) -> scene_focus
+{
+    return device->focus;
+}
+
 // -----------------------------------------------------------------------------
 
 scene_keyboard::~scene_keyboard()
@@ -241,6 +246,11 @@ void scene_keyboard_clear_focus(scene_keyboard* keyboard)
     scene_keyboard_set_focus(keyboard, {});
 }
 
+auto scene_keyboard_get_focus(scene_keyboard* keyboard) -> scene_focus
+{
+    return scene_input_device_get_focus(keyboard);
+}
+
 auto scene_keyboard_get_pressed(scene_keyboard* keyboard) -> std::span<const scene_scancode>
 {
     return keyboard->pressed;
@@ -445,6 +455,11 @@ void handle_scroll(scene_pointer* pointer, vec2f32 delta)
 void scene_pointer_focus(scene_pointer* pointer, scene_client* client, scene_input_region* region)
 {
     scene_pointer_set_focus(pointer, {client, region});
+}
+
+auto scene_pointer_get_focus(scene_pointer* pointer) -> scene_focus
+{
+    return scene_input_device_get_focus(pointer);
 }
 
 void scene_pointer_set_driver(scene_pointer* pointer, std::move_only_function<scene_pointer_driver_fn>&& driver)

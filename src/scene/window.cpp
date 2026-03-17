@@ -50,6 +50,16 @@ void scene_window_request_reposition(scene_window* window, rect2f32 frame, vec2f
     }));
 }
 
+void scene_window_request_close(scene_window* window)
+{
+    scene_client_post_event(window->client, ptr_to(scene_event {
+        .type = scene_event_type::window_close,
+        .window = {
+            .window = window,
+        }
+    }));
+}
+
 void scene_window_set_frame(scene_window* window, rect2f32 frame)
 {
     window->extent = frame.extent;

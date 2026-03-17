@@ -86,7 +86,7 @@ void Platform_CreateWindow(ImGuiViewport* vp)
 
     data->window = scene_window_create(ctx->client.get());
 
-    data->input_plane = scene_input_region_create(ctx->client.get());
+    data->input_plane = scene_input_region_create(ctx->client.get(), data->window.get());
     scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->input_plane.get());
 
     data->draws = scene_tree_create(ctx->scene);
@@ -398,6 +398,15 @@ void handle_reposition(imui_context* ctx, scene_window* window, rect2f32 frame)
     }
 }
 
+static
+void handle_close(imui_context* ctx, scene_window* window)
+{
+    if (auto* vp = find_viewport_for_window(window)) {
+        vp->PlatformRequestClose = true;
+        imui_request_frame(ctx);
+    }
+}
+
 auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
 {
     auto ctx = core_create<imui_context>();
@@ -439,6 +448,8 @@ auto imui_create(gpu_context* gpu, scene_context* scene) -> ref<imui_context>
             // window
             break;case scene_event_type::window_reposition:
                 handle_reposition(ctx, event->window.window, event->window.reposition.frame);
+            break;case scene_event_type::window_close:
+                handle_close(ctx, event->window.window);
 
             // output
             break;case scene_event_type::output_added:

@@ -69,6 +69,14 @@ void scene_frame(scene_context* ctx, scene_output*, struct io_output* output, gp
 
 // -----------------------------------------------------------------------------
 
+struct scene_focus
+{
+    scene_client*       client = nullptr;
+    scene_input_region* region = nullptr;
+
+    constexpr bool operator==(const scene_focus&) const noexcept = default;
+};
+
 enum class scene_modifier : u32
 {
     super = 1 << 0,
@@ -102,6 +110,7 @@ struct scene_pointer;
 auto scene_input_device_get_type(    scene_input_device*) -> scene_input_device_type;
 auto scene_input_device_get_pointer( scene_input_device*) -> scene_pointer*;
 auto scene_input_device_get_keyboard(scene_input_device*) -> scene_keyboard*;
+auto scene_input_device_get_focus(   scene_input_device*) -> scene_focus;
 
 auto scene_get_pointer( scene_context*) -> scene_pointer*;
 auto scene_get_keyboard(scene_context*) -> scene_keyboard*;
@@ -109,6 +118,7 @@ auto scene_get_keyboard(scene_context*) -> scene_keyboard*;
 void scene_pointer_focus(       scene_pointer*, scene_client*, scene_input_region* = nullptr);
 auto scene_pointer_get_position(scene_pointer*) -> vec2f32;
 auto scene_pointer_get_pressed( scene_pointer*) -> std::span<const scene_scancode>;
+auto scene_pointer_get_focus(   scene_pointer*) -> scene_focus;
 
 void scene_pointer_set_cursor( scene_pointer*, scene_node*);
 void scene_pointer_set_xcursor(scene_pointer*, const char* xcursor_semantic);
@@ -128,6 +138,7 @@ auto scene_keyboard_get_pressed(  scene_keyboard*) -> std::span<const scene_scan
 auto scene_keyboard_get_sym(      scene_keyboard*, scene_scancode) -> xkb_keysym_t;
 auto scene_keyboard_get_utf8(     scene_keyboard*, scene_scancode) -> std::string;
 auto scene_keyboard_get_info(     scene_keyboard*) -> const scene_keyboard_info&;
+auto scene_keyboard_get_focus(    scene_keyboard*) -> scene_focus;
 
 // -----------------------------------------------------------------------------
 
@@ -256,13 +267,14 @@ void scene_mesh_update(scene_mesh*, gpu_image*, gpu_sampler*, gpu_blend_mode, aa
 struct scene_input_region : scene_node
 {
     scene_client* client;
+    weak<scene_window> window;
 
     region2f32 region;
 
     ~scene_input_region();
 };
 
-auto scene_input_region_create(scene_client*) -> ref<scene_input_region>;
+auto scene_input_region_create(scene_client*, scene_window*) -> ref<scene_input_region>;
 void scene_input_region_set_region(scene_input_region*, region2f32);
 
 // -----------------------------------------------------------------------------
@@ -281,6 +293,8 @@ void scene_window_raise(scene_window*);
 auto scene_window_get_tree(scene_window*) -> scene_tree*;
 
 void scene_window_request_reposition(scene_window*, rect2f32 frame, vec2f32 gravity);
+void scene_window_request_close(     scene_window*);
+
 void scene_window_set_frame(scene_window*, rect2f32 frame);
 auto scene_window_get_frame(scene_window*) -> rect2f32;
 
@@ -405,10 +419,8 @@ enum class scene_event_type
     pointer_button,
     pointer_scroll,
 
-    // Requests that a client adjust its position/size as requested.
-    // This request does not need to be honoured, clients may update
-    // their window frames at any time for any reason.
     window_reposition,
+    window_close,
 
     output_added,
     output_configured,

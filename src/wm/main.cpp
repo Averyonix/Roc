@@ -180,7 +180,7 @@ int main()
     scene_texture_set_dst(canvas.get(), {{}, initial_size, core_xywh});
     scene_tree_place_below(scene_window_get_tree(window.get()), nullptr, canvas.get());
 
-    auto input = scene_input_region_create(client.get());
+    auto input = scene_input_region_create(client.get(), window.get());
     scene_input_region_set_region(input.get(), {{{}, initial_size, core_xywh}});
     scene_tree_place_above(scene_window_get_tree(window.get()), nullptr, input.get());
 
@@ -227,6 +227,8 @@ int main()
                 scene_input_region_set_region(input.get(), {{{}, frame.extent, core_xywh}});
                 scene_window_set_frame(event->window.window, frame);
             }
+            break;case scene_event_type::window_close:
+                log_warn("window_close({})", (void*)event->window.window);
             break;case scene_event_type::output_frame:
                   case scene_event_type::output_added:
                   case scene_event_type::output_removed:
@@ -321,17 +323,31 @@ int main()
 
     auto main_mod = scene_modifier::alt;
     auto hotkey_client = scene_client_create(scene.get());
-    ankerl::unordered_dense::map<scene_hotkey, std::string> hotkeys;
-    hotkeys[{ main_mod,                         KEY_SPACE  }] = "launcher";
-    hotkeys[{ main_mod,                         KEY_Q      }] = "close-focused";
-    hotkeys[{ main_mod,                         KEY_S      }] = "clear-focus";
-    hotkeys[{ main_mod,                         BTN_MIDDLE }] = "close-under-cursor";
-    for (auto[hotkey, _] : hotkeys) {
+    ankerl::unordered_dense::map<scene_hotkey, std::move_only_function<void(scene_event*)>> hotkeys;
+
+    auto close_hotkey = [](scene_event* event) {
+        if (!event->hotkey.pressed) return;
+        auto[_, input_region] = scene_input_device_get_focus(event->hotkey.input_device);
+        if (input_region && input_region->window) {
+            scene_window_request_close(input_region->window.get());
+        }
+    };
+    hotkeys[{ main_mod, KEY_Q      }] = close_hotkey;
+    hotkeys[{ main_mod, BTN_MIDDLE }] = close_hotkey;
+
+    hotkeys[{ main_mod, KEY_S }] = [](scene_event* event) {
+        if (!event->hotkey.pressed) return;
+        auto keyboard = scene_input_device_get_keyboard(event->hotkey.input_device);
+        if (!keyboard) return;
+        scene_keyboard_clear_focus(keyboard);
+    };
+
+    for (auto&[hotkey, _] : hotkeys) {
         core_assert(scene_client_hotkey_register(hotkey_client.get(), hotkey));
     }
     scene_client_set_event_handler(hotkey_client.get(), [&](scene_event* event) {
         if (event->type == scene_event_type::hotkey) {
-            log_debug("hotkey({} - {})", hotkeys.at(event->hotkey.hotkey), event->hotkey.pressed ? "pressed" : "released");
+            hotkeys.at(event->hotkey.hotkey)(event);
         }
     });
 

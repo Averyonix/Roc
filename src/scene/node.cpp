@@ -356,11 +356,12 @@ scene_input_region::~scene_input_region()
     scene_update_pointer_focus(client->ctx);
 }
 
-auto scene_input_region_create(scene_client* client) -> ref<scene_input_region>
+auto scene_input_region_create(scene_client* client, scene_window* window) -> ref<scene_input_region>
 {
     auto region = core_create<scene_input_region>();
     region->type = scene_node_type::input_region;
     region->client = client;
+    region->window = window;
     client->input_regions++;
     return region;
 }
@@ -379,4 +380,9 @@ void scene_input_region_set_region(scene_input_region* input_region, region2f32 
     input_region->region = std::move(region);
 
     damage_node(input_region);
+}
+
+void scene_input_region_set_window(scene_input_region* input_region, scene_window* window)
+{
+    input_region->window = window;
 }

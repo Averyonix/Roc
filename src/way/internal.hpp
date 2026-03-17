@@ -368,6 +368,7 @@ void way_xdg_surface_configure(way_surface*);
 void way_toplevel_apply(        way_surface*, way_surface_state&);
 void way_toplevel_on_map_change(way_surface*, bool mapped);
 void way_toplevel_on_reposition(way_surface*, rect2f32 frame, vec2f32 gravity);
+void way_toplevel_on_close(     way_surface*);
 
 // -----------------------------------------------------------------------------
 
