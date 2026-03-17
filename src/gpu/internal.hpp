@@ -95,4 +95,13 @@ ref<gpu_queue> gpu_queue_init(gpu_context*, gpu_queue_type, u32 family);
 
 // -----------------------------------------------------------------------------
 
-VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoint);
+struct gpu_binary_semaphore
+{
+    gpu_context* gpu;
+
+    VkSemaphore semaphore;
+
+    ~gpu_binary_semaphore();
+};
+
+auto gpu_get_binary_semaphore(gpu_context*) -> ref<gpu_binary_semaphore>;

@@ -30,8 +30,6 @@ Roc is currently tested on the following:
 
 - Arch Linux + AMD Mesa (RADV)
 
-**NOTE:** Roc will *not* work on NVidia (or likely Intel) GPUs currently as it relies on Mesa's ability to import/export Vulkan timeline semaphores as DRM syncobjs via OPAQUE_FD handles.
-
 # Architecture
 
 Roc is built around an internal protocol-independent "display server", with a separate "window manager" component providing high-level behaviours and styling.

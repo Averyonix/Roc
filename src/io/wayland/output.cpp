@@ -198,17 +198,16 @@ wl_buffer* get_image_proxy(io_context* ctx, gpu_image* image)
 }
 
 static
-wp_linux_drm_syncobj_timeline_v1* get_semaphore_proxy(io_context* ctx, gpu_semaphore* semaphore)
+wp_linux_drm_syncobj_timeline_v1* get_syncobj_proxy(io_context* ctx, gpu_syncobj* syncobj)
 {
     auto* wl = ctx->wayland.get();
 
-    if (auto* found = wl->syncobj_cache.find(semaphore)) return found;
+    if (auto* found = wl->syncobj_cache.find(syncobj)) return found;
 
-    auto fd = gpu_semaphore_export_syncobj(semaphore);
-    auto syncobj = wp_linux_drm_syncobj_manager_v1_import_timeline(wl->wp_linux_drm_syncobj_manager_v1, fd);
-    close(fd);
+    auto fd = gpu_syncobj_export(syncobj);
+    auto proxy = wp_linux_drm_syncobj_manager_v1_import_timeline(wl->wp_linux_drm_syncobj_manager_v1, fd.get());
 
-    return wl->syncobj_cache.insert(semaphore, syncobj);
+    return wl->syncobj_cache.insert(syncobj, proxy);
 }
 
 static
@@ -232,28 +231,28 @@ void io_output_wayland::commit(gpu_image* image, gpu_syncpoint done, flags<io_ou
     auto release = std::ranges::find_if(release_slots, [](auto& s) { return !s.image; });
     if (release == release_slots.end()) {
         release = release_slots.insert(release_slots.end(), release_slot {
-            .semaphore = gpu_semaphore_create(ctx->gpu),
+            .syncobj = gpu_syncobj_create(ctx->gpu),
         });
     }
 
     release->point++;
     release->image = image;
 
-    gpu_wait({release->semaphore.get(), release->point}, [output = weak(this), semaphore = release->semaphore.get()](u64 point) {
+    gpu_wait({release->syncobj.get(), release->point}, [output = weak(this), syncobj = release->syncobj.get()](u64 point) {
         if (!output) return;
-        auto release = std::ranges::find_if(output->release_slots, [&](auto& s) { return s.semaphore.get() == semaphore; });
+        auto release = std::ranges::find_if(output->release_slots, [&](auto& s) { return s.syncobj.get() == syncobj; });
         release->image = nullptr;
     });
 
     auto* wl_buffer = get_image_proxy(ctx, image);
-    auto* acquire_syncpoint = get_semaphore_proxy(ctx, done.semaphore);
-    auto* release_syncpoint = get_semaphore_proxy(ctx, release->semaphore.get());
+    auto* acquire_proxy = get_syncobj_proxy(ctx, done.syncobj);
+    auto* release_proxy = get_syncobj_proxy(ctx, release->syncobj.get());
 
     wl_surface_attach(wl_surface, wl_buffer, 0, 0);
     wl_surface_damage_buffer(wl_surface, 0, 0, INT32_MAX, INT32_MAX);
 
-    wp_linux_drm_syncobj_surface_v1_set_acquire_point(wp_linux_drm_syncobj_surface_v1, acquire_syncpoint, done.value     >> 32, done.value     & ~0u);
-    wp_linux_drm_syncobj_surface_v1_set_release_point(wp_linux_drm_syncobj_surface_v1, release_syncpoint, release->point >> 32, release->point & ~0u);
+    wp_linux_drm_syncobj_surface_v1_set_acquire_point(wp_linux_drm_syncobj_surface_v1, acquire_proxy, done.value     >> 32, done.value     & ~0u);
+    wp_linux_drm_syncobj_surface_v1_set_release_point(wp_linux_drm_syncobj_surface_v1, release_proxy, release->point >> 32, release->point & ~0u);
 
     if (!frame_callback) {
         frame_callback = wl_surface_frame(wl_surface);

@@ -36,6 +36,7 @@ gpu_context::~gpu_context()
     vk.DestroyDebugUtilsMessengerEXT(instance, debug_messenger, nullptr);
     vk.DestroyInstance(instance, nullptr);
 
+    unix_check<drmSyncobjDestroy>(drm.fd, drm.syncobj);
     drmFreeDevice(&drm.device);
     close(drm.fd);
 }
@@ -382,6 +383,10 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
         }
     }
 
+#if !GPU_VALIDATION_COMPATIBILITY
+    core_assert(!gpu->features.contains(gpu_feature::validation), PROJECT_NAME " was not compiled with validation compatibility");
+#endif
+
     // Device creation
 
     static constexpr u32 invalid_index = ~0u;
@@ -431,7 +436,6 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
                     .descriptorBindingPartiallyBound = true,
                     .runtimeDescriptorArray = true,
                     .scalarBlockLayout = true,
-                    .timelineSemaphore = true,
                     .bufferDeviceAddress = true,
                 }),
                 ptr_to(VkPhysicalDeviceVulkan13Features {
@@ -499,6 +503,10 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
 
     gpu->graphics_queue = gpu_queue_init(gpu.get(), gpu_queue_type::graphics, graphics_queue_family);
     gpu->transfer_queue = gpu_queue_init(gpu.get(), gpu_queue_type::transfer, transfer_queue_family);
+
+    // Transfer syncobj
+
+    unix_check<drmSyncobjCreate>(gpu->drm.fd, 0, &gpu->drm.syncobj);
 
     // VMA allocator
 

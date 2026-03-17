@@ -40,8 +40,6 @@
     DO(CmdEndRendering) \
     DO(EndCommandBuffer) \
     DO(QueueSubmit2) \
-    DO(GetSemaphoreCounterValue) \
-    DO(WaitSemaphores) \
     DO(DestroyCommandPool) \
     DO(DestroySemaphore) \
     DO(DestroyPipelineLayout) \
@@ -80,7 +78,6 @@
     DO(BindImageMemory2) \
     DO(ImportSemaphoreFdKHR) \
     DO(GetSemaphoreFdKHR) \
-    DO(SignalSemaphore) \
     DO(GetImageDrmFormatModifierPropertiesEXT) \
     DO(GetImageSubresourceLayout) \
     DO(GetMemoryFdKHR) \

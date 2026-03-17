@@ -10,12 +10,14 @@
 
 #include "functions.hpp"
 
+#define GPU_VALIDATION_COMPATIBILITY 1
+
 // -----------------------------------------------------------------------------
 
 struct gpu_image;
 struct gpu_buffer;
 struct gpu_sampler;
-struct gpu_semaphore;
+struct gpu_syncobj;
 struct gpu_commands;
 struct gpu_queue;
 
@@ -198,6 +200,8 @@ struct gpu_context
         drmDevice* device;
         dev_t      id;
         int        fd;
+
+        u32 syncobj;
     } drm;
 
     VmaAllocator vma;
@@ -250,9 +254,8 @@ struct gpu_queue
     VkQueue queue;
 
     VkCommandPool cmd_pool;
-    VkCommandBuffer cmd;
 
-    ref<gpu_semaphore> queue_sema;
+    ref<gpu_syncobj> syncobj;
 
     u64 submitted;
 
@@ -271,12 +274,11 @@ struct gpu_wait_fn : core_intrusive_list_base<gpu_wait_fn>
     virtual ~gpu_wait_fn() = default;
 };
 
-struct gpu_semaphore
+struct gpu_syncobj
 {
     gpu_context* gpu;
 
-    VkSemaphore semaphore;
-    u32         syncobj;
+    u32 syncobj;
 
     struct {
         core_fd fd;
@@ -284,27 +286,27 @@ struct gpu_semaphore
         core_intrusive_list<gpu_wait_fn> list;
     } wait;
 
-    ~gpu_semaphore();
+    ~gpu_syncobj();
 };
 
 struct gpu_syncpoint
 {
-    gpu_semaphore* semaphore;
-    u64 value = 0;
+    gpu_syncobj*          syncobj;
+    u64                   value = 0;
     VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 };
 
-auto gpu_semaphore_create(gpu_context*) -> ref<gpu_semaphore>;
-auto gpu_semaphore_import_syncobj(gpu_context*, int syncobj_fd) -> ref<gpu_semaphore>;
-int  gpu_semaphore_export_syncobj(gpu_semaphore*);
+auto gpu_syncobj_create(gpu_context*) -> ref<gpu_syncobj>;
+auto gpu_syncobj_import(gpu_context*, int syncobj_fd) -> ref<gpu_syncobj>;
+auto gpu_syncobj_export(gpu_syncobj*) -> core_fd;
 
-void gpu_semaphore_import_syncfile(gpu_semaphore*, int sync_fd, u64 target_point);
-int  gpu_semaphore_export_syncfile(gpu_semaphore*, u64 source_point);
+void gpu_syncobj_import_syncfile(gpu_syncobj*, int sync_fd, u64 target_point);
+int  gpu_syncobj_export_syncfile(gpu_syncobj*, u64 source_point);
 
-u64  gpu_semaphore_get_value(   gpu_semaphore*);
-void gpu_semaphore_signal_value(gpu_semaphore*, u64 value);
+u64  gpu_syncobj_get_value(   gpu_syncobj*);
+void gpu_syncobj_signal_value(gpu_syncobj*, u64 value);
 
-void gpu_semaphore_wait(gpu_semaphore*, gpu_wait_fn*);
+void gpu_syncobj_wait(gpu_syncobj*, gpu_wait_fn*);
 
 // WARNING: Blocking
 void gpu_wait(gpu_syncpoint);
@@ -320,7 +322,7 @@ void gpu_wait(gpu_syncpoint sync, Fn&& fn)
     };
     auto wait = new wait_item(std::move(fn));
     wait->point = sync.value;
-    gpu_semaphore_wait(sync.semaphore, wait);
+    gpu_syncobj_wait(sync.syncobj, wait);
 }
 
 // -----------------------------------------------------------------------------
@@ -333,6 +335,12 @@ struct gpu_commands
     core_ref_vector<void> objects;
 
     u64 submitted_value;
+
+#if GPU_VALIDATION_COMPATIBILITY
+    struct {
+        VkFence fence;
+    } validation;
+#endif
 
     ~gpu_commands();
 };

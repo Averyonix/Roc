@@ -52,6 +52,8 @@ CORE_UNIX_ERROR_BEHAVIOUR(drmSyncobjImportSyncFile, negative_one)
 CORE_UNIX_ERROR_BEHAVIOUR(drmSyncobjExportSyncFile, negative_one)
 CORE_UNIX_ERROR_BEHAVIOUR(drmSyncobjTimelineSignal, negative_one)
 CORE_UNIX_ERROR_BEHAVIOUR(drmSyncobjTransfer,       negative_one)
+CORE_UNIX_ERROR_BEHAVIOUR(drmSyncobjQuery,          negative_one)
+CORE_UNIX_ERROR_BEHAVIOUR(drmSyncobjTimelineWait,   negative_one)
 
 CORE_UNIX_ERROR_BEHAVIOUR(drmGetDeviceFromDevId, negative_one)
 CORE_UNIX_ERROR_BEHAVIOUR(drmIoctl,              negative_one)

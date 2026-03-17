@@ -93,7 +93,7 @@ struct io_wayland
 
     bool in_keyboard_enter;
 
-    io_wl_proxy_cache<gpu_semaphore, wp_linux_drm_syncobj_timeline_v1> syncobj_cache { wp_linux_drm_syncobj_timeline_v1_destroy };
+    io_wl_proxy_cache<gpu_syncobj, wp_linux_drm_syncobj_timeline_v1> syncobj_cache { wp_linux_drm_syncobj_timeline_v1_destroy };
     io_wl_proxy_cache<gpu_image, wl_buffer> buffer_cache  { wl_buffer_destroy };
 
     ~io_wayland();
@@ -127,9 +127,9 @@ struct io_output_wayland : io_output_base
 
     struct release_slot
     {
-        ref<gpu_image>     image;
-        ref<gpu_semaphore> semaphore;
-        u64                point;
+        ref<gpu_image>   image;
+        ref<gpu_syncobj> syncobj;
+        u64              point;
     };
 
     std::vector<release_slot> release_slots;

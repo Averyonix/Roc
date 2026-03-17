@@ -1,227 +1,181 @@
 #include "internal.hpp"
 
-VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoint)
+ref<gpu_syncobj> gpu_syncobj_create(gpu_context* gpu)
 {
-    return {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = syncpoint.semaphore->semaphore,
-        .value     = syncpoint.value,
-        .stageMask = syncpoint.stages,
-    };
+    auto syncobj = core_create<gpu_syncobj>();
+    syncobj->gpu = gpu;
+
+    unix_check<drmSyncobjCreate>(gpu->drm.fd, 0, &syncobj->syncobj);
+
+    return syncobj;
 }
 
-static
-ref<gpu_semaphore> create_semaphore_base(gpu_context* gpu)
+ref<gpu_syncobj> gpu_syncobj_import(gpu_context* gpu, int syncobj_fd)
 {
-    auto semaphore = core_create<gpu_semaphore>();
-    semaphore->gpu = gpu;
+    auto syncobj = core_create<gpu_syncobj>();
+    syncobj->gpu = gpu;
 
-    gpu_check(gpu->vk.CreateSemaphore(gpu->device, ptr_to(VkSemaphoreCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = ptr_to(VkSemaphoreTypeCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
-            .pNext = ptr_to(VkExportSemaphoreCreateInfo {
-                .sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
-                .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
-            }),
-            .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
-        })
-    }), nullptr, &semaphore->semaphore));
+    unix_check<drmSyncobjFDToHandle>(gpu->drm.fd, syncobj_fd, &syncobj->syncobj);
 
-    return semaphore;
+    return syncobj;
 }
 
-ref<gpu_semaphore> gpu_semaphore_create(gpu_context* gpu)
-{
-    // Here we are creating a timeline sempahore, and exporting a persistent syncobj
-    // handle to it that we can use for importing/exporting syncobj files for interop.
-    // This trick only works when the driver uses syncobjs as the opaque fd type.
-    // This seems to work fine on AMD, but definitely won't work for all vendors.
-
-    // As a portable solution, we'll have to use DRM syncobjs as the underlying type, creating
-    // binary semaphores as required for vulkan waits
-
-    auto semaphore = create_semaphore_base(gpu);
-
-    int syncobj_fd = -1;
-    gpu_check(gpu->vk.GetSemaphoreFdKHR(gpu->device, ptr_to(VkSemaphoreGetFdInfoKHR {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
-        .semaphore = semaphore->semaphore,
-        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
-    }), &syncobj_fd));
-
-    unix_check<drmSyncobjFDToHandle>(gpu->drm.fd, syncobj_fd, &semaphore->syncobj);
-
-    close(syncobj_fd);
-
-    return semaphore;
-}
-
-ref<gpu_semaphore> gpu_semaphore_import_syncobj(gpu_context* gpu, int syncobj_fd)
-{
-    auto semaphore = create_semaphore_base(gpu);
-
-    unix_check<drmSyncobjFDToHandle>(gpu->drm.fd, syncobj_fd, &semaphore->syncobj);
-
-    if (gpu_check(gpu->vk.ImportSemaphoreFdKHR(gpu->device, ptr_to(VkImportSemaphoreFdInfoKHR {
-        .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
-        .semaphore = semaphore->semaphore,
-        .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
-        .fd = syncobj_fd,
-    }))) != VK_SUCCESS) {
-        close(syncobj_fd);
-    };
-
-    return semaphore;
-}
-
-int gpu_semaphore_export_syncobj(gpu_semaphore* semaphore)
+auto gpu_syncobj_export(gpu_syncobj* syncobj) -> core_fd
 {
     int fd = -1;
-    unix_check<drmSyncobjHandleToFD>(semaphore->gpu->drm.fd, semaphore->syncobj, &fd);
-    return fd;
+    unix_check<drmSyncobjHandleToFD>(syncobj->gpu->drm.fd, syncobj->syncobj, &fd);
+    return core_fd_adopt(fd);
 }
 
-void gpu_semaphore_import_syncfile(gpu_semaphore* semaphore, int sync_fd, u64 target_point)
+void gpu_syncobj_import_syncfile(gpu_syncobj* syncobj, int sync_fd, u64 target_point)
 {
-    auto* gpu = semaphore->gpu;
+    auto* gpu = syncobj->gpu;
 
     if (sync_fd == -1) {
-        unix_check<drmSyncobjTimelineSignal>(gpu->drm.fd, &semaphore->syncobj, &target_point, 1);
+        unix_check<drmSyncobjTimelineSignal>(gpu->drm.fd, &syncobj->syncobj, &target_point, 1);
         return;
     }
 
-    // We can't import from a syncfile directly to a syncobj point, so we import to a non-timeline syncobj first
+    // We can't import from a syncfile directly to a timeline syncobj point, so we import to a temporary binary syncobj first
     // and then transfer to our target point from that.
 
-    u32 syncobj = {};
-    unix_check<drmSyncobjCreate>(gpu->drm.fd, 0, &syncobj);
-    defer { unix_check<drmSyncobjDestroy>(gpu->drm.fd, syncobj); };
-    unix_check<drmSyncobjImportSyncFile>(gpu->drm.fd, syncobj, sync_fd);
-    unix_check<drmSyncobjTransfer>(gpu->drm.fd, semaphore->syncobj, target_point, syncobj, 0, 0);
+    unix_check<drmSyncobjImportSyncFile>(gpu->drm.fd, gpu->drm.syncobj, sync_fd);
+    unix_check<drmSyncobjTransfer>(gpu->drm.fd, syncobj->syncobj, target_point, gpu->drm.syncobj, 0, 0);
 }
 
-int gpu_semaphore_export_syncfile(gpu_semaphore* semaphore, u64 source_point)
+int gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point)
 {
-    auto* gpu = semaphore->gpu;
+    auto* gpu = syncobj->gpu;
 
-    // We can't export directly from a timeline syncobj to a syncfile, so we transfer to a non-timeline syncobj first
+    // We can't export directly from a timeline syncobj point to a syncfile, so we transfer to a temporary binary syncobj first
     // and then export the syncfile from that.
 
-    u32 syncobj = {};
-    unix_check<drmSyncobjCreate>(gpu->drm.fd, 0, &syncobj);
-    defer { unix_check<drmSyncobjDestroy>(gpu->drm.fd, syncobj); };
-    unix_check<drmSyncobjTransfer>(gpu->drm.fd, syncobj, 0, semaphore->syncobj, source_point, 0);
+    unix_check<drmSyncobjTransfer>(gpu->drm.fd, gpu->drm.syncobj, 0, syncobj->syncobj, source_point, 0);
     int sync_fd = -1;
-    unix_check<drmSyncobjExportSyncFile>(gpu->drm.fd, syncobj, &sync_fd);
+    unix_check<drmSyncobjExportSyncFile>(gpu->drm.fd, gpu->drm.syncobj, &sync_fd);
 
     return sync_fd;
 }
 
-gpu_semaphore::~gpu_semaphore()
+gpu_syncobj::~gpu_syncobj()
 {
     while (!wait.list.empty()) {
         wait.skips++;
         delete wait.list.first().remove().get();
     }
 
-    gpu->vk.DestroySemaphore(gpu->device, semaphore, nullptr);
     unix_check<drmSyncobjDestroy>(gpu->drm.fd, syncobj);
 }
 
-u64 gpu_semaphore_get_value(gpu_semaphore* semaphore)
+u64 gpu_syncobj_get_value(gpu_syncobj* syncobj)
 {
-    auto* gpu = semaphore->gpu;
+    auto* gpu = syncobj->gpu;
 
     u64 value = 0;
-    gpu_check(gpu->vk.GetSemaphoreCounterValue(gpu->device, semaphore->semaphore, &value));
+    unix_check<drmSyncobjQuery>(gpu->drm.fd, &syncobj->syncobj, &value, 1);
 
     return value;
 }
 
 static
-void handle_waits(gpu_semaphore* semaphore)
+void handle_waits(gpu_syncobj* syncobj)
 {
-    auto count = core_eventfd_read(semaphore->wait.fd.get());
+    auto count = core_eventfd_read(syncobj->wait.fd.get());
 
-    if (semaphore->gpu->features.contains(gpu_feature::validation)) {
-        // Validation layers need to see the new semaphore value.
-        auto _ = gpu_semaphore_get_value(semaphore);
-    }
-
-    if (count > semaphore->wait.skips) {
-        count -= semaphore->wait.skips;
-        semaphore->wait.skips = 0;
+    if (count > syncobj->wait.skips) {
+        count -= syncobj->wait.skips;
+        syncobj->wait.skips = 0;
 
         // Waits are always sorted by increasing point values.
         // This means that we can simply pop the first N values
         // and know that they *must* have been reached. Regardless
         // of the order that events are actually signalled in.
         for (u32 i = 0; i < count; ++i) {
-            auto w = semaphore->wait.list.first();
-            core_assert(w != semaphore->wait.list.end());
+            auto w = syncobj->wait.list.first();
+            core_assert(w != syncobj->wait.list.end());
             w.remove()->handle(w->point);
             delete w.get();
         }
     } else {
-        semaphore->wait.skips -= count;
+        syncobj->wait.skips -= count;
     }
 }
 
-void gpu_semaphore_wait(gpu_semaphore* semaphore, gpu_wait_fn* wait)
+void gpu_syncobj_wait(gpu_syncobj* syncobj, gpu_wait_fn* wait)
 {
-    auto* gpu = semaphore->gpu;
+    auto* gpu = syncobj->gpu;
 
-    if (!semaphore->wait.fd) {
-        semaphore->wait.fd = core_fd_adopt(eventfd(0, EFD_CLOEXEC));
+    if (!syncobj->wait.fd) {
+        syncobj->wait.fd = core_fd_adopt(eventfd(0, EFD_CLOEXEC));
 
-        core_fd_add_listener(semaphore->wait.fd.get(), gpu->event_loop.get(), core_fd_event_bit::readable,
-            [semaphore](int, flags<core_fd_event_bit>) {
-                handle_waits(semaphore);
+        core_fd_add_listener(syncobj->wait.fd.get(), gpu->event_loop.get(), core_fd_event_bit::readable,
+            [syncobj](int, flags<core_fd_event_bit>) {
+                handle_waits(syncobj);
             });
     }
 
     // Insert sorted into list
-    auto cur = semaphore->wait.list.last();
-    for (; cur != semaphore->wait.list.end() && cur->point > wait->point; cur = cur.prev());
+    auto cur = syncobj->wait.list.last();
+    for (; cur != syncobj->wait.list.end() && cur->point > wait->point; cur = cur.prev());
     cur.insert_after(wait);
 
     unix_check<drmIoctl>(gpu->drm.fd, DRM_IOCTL_SYNCOBJ_EVENTFD, ptr_to(drm_syncobj_eventfd {
-        .handle = semaphore->syncobj,
+        .handle = syncobj->syncobj,
         .point = wait->point,
-        .fd = semaphore->wait.fd.get(),
+        .fd = syncobj->wait.fd.get(),
     }));
 }
 
 void gpu_wait(gpu_syncpoint syncpoint)
 {
-    auto[semaphore, value, stages] = syncpoint;
-    auto* gpu = semaphore->gpu;
+    auto[syncobj, value, stages] = syncpoint;
+    auto* gpu = syncobj->gpu;
 
-    gpu_check(gpu->vk.WaitSemaphores(gpu->device, ptr_to(VkSemaphoreWaitInfo {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-        .semaphoreCount = 1,
-        .pSemaphores = &semaphore->semaphore,
-        .pValues = &value,
-    }), UINT64_MAX));
+    u32 first_signalled;
+    unix_check<drmSyncobjTimelineWait>(gpu->drm.fd, &syncobj->syncobj, &value, 1, INT64_MAX, 0, &first_signalled);
 
     if (std::this_thread::get_id() == gpu->event_loop->main_thread) {
-        decltype(semaphore->wait.list)::iterator w;
-        while (w = semaphore->wait.list.first(), w != semaphore->wait.list.end() && w->point <= value) {
-            semaphore->wait.skips++;
+        decltype(syncobj->wait.list)::iterator w;
+        while (w = syncobj->wait.list.first(), w != syncobj->wait.list.end() && w->point <= value) {
+            syncobj->wait.skips++;
             w.remove()->handle(value);
             delete w.get();
         }
     }
 }
 
-void gpu_semaphore_signal_value(gpu_semaphore* semaphore, u64 value)
+void gpu_syncobj_signal_value(gpu_syncobj* syncobj, u64 value)
 {
-    auto* gpu = semaphore->gpu;
+    auto* gpu = syncobj->gpu;
 
-    gpu_check(gpu->vk.SignalSemaphore(gpu->device, ptr_to(VkSemaphoreSignalInfo {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO,
-        .semaphore = semaphore->semaphore,
-        .value = value,
-    })));
+    unix_check<drmSyncobjTimelineSignal>(gpu->drm.fd, &syncobj->syncobj, &value, 1);
+}
+
+// -----------------------------------------------------------------------------
+
+gpu_binary_semaphore::~gpu_binary_semaphore()
+{
+    gpu->free_binary_semaphores.emplace_back(semaphore);
+}
+
+auto gpu_get_binary_semaphore(gpu_context* gpu) -> ref<gpu_binary_semaphore>
+{
+    auto binary = core_create<gpu_binary_semaphore>();
+    binary->gpu = gpu;
+
+    if (gpu->free_binary_semaphores.empty()) {
+        log_warn("Allocating new binary semaphore");
+        gpu_check(gpu->vk.CreateSemaphore(gpu->device, ptr_to(VkSemaphoreCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = ptr_to(VkExportSemaphoreCreateInfo {
+                .sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
+                .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+            }),
+        }), nullptr, &binary->semaphore));
+    } else {
+        binary->semaphore = gpu->free_binary_semaphores.back();
+        gpu->free_binary_semaphores.pop_back();
+    }
+
+    return binary;
 }
