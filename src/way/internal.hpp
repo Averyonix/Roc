@@ -616,3 +616,9 @@ WAY_INTERFACE_DECLARE(wl_pointer);
 WAY_INTERFACE_DECLARE(zwp_linux_dmabuf_v1, 5);
 WAY_INTERFACE_DECLARE(zwp_linux_buffer_params_v1);
 WAY_INTERFACE_DECLARE(zwp_linux_dmabuf_feedback_v1);
+
+WAY_INTERFACE_DECLARE(zxdg_decoration_manager_v1, 1);
+WAY_INTERFACE_DECLARE(zxdg_toplevel_decoration_v1);
+
+WAY_INTERFACE_DECLARE(org_kde_kwin_server_decoration_manager, 1);
+WAY_INTERFACE_DECLARE(org_kde_kwin_server_decoration);

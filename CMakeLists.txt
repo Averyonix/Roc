@@ -272,6 +272,7 @@ target_sources(way PUBLIC
     src/way/viewport.cpp
     src/way/gestures.cpp
     src/way/cursor-shape.cpp
+    src/way/decoration.cpp
     )
 target_link_libraries(way PUBLIC scene)
 

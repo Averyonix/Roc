@@ -42,6 +42,8 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
     way_global(server.get(), wp_viewporter);
     way_global(server.get(), zwp_pointer_gestures_v1);
     way_global(server.get(), wp_cursor_shape_manager_v1);
+    way_global(server.get(), zxdg_decoration_manager_v1);
+    way_global(server.get(), org_kde_kwin_server_decoration_manager);
     way_output_init(server.get());
     way_dmabuf_init(server.get());
 
