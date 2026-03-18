@@ -53,6 +53,7 @@ auto gpu_shader_create(gpu_context* gpu, const gpu_shader_create_info& info) -> 
 
 void gpu_cmd_push_constants(gpu_commands* cmd, u32 offset, core_byte_view data)
 {
+    core_assert(offset + data.size <= gpu_push_constant_size, "{} > {}", offset + data.size, gpu_push_constant_size);
     auto* gpu = cmd->queue->gpu;
     gpu->vk.CmdPushConstants(cmd->buffer, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, offset, data.size, data.data);
 }

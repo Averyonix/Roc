@@ -113,12 +113,7 @@ ref<gpu_image> gpu_image_create(gpu_context* gpu, const gpu_image_create_info& i
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = gpu_image_usage_to_vk(info.usage),
-        .sharingMode = VK_SHARING_MODE_CONCURRENT,
-        .queueFamilyIndexCount = 2,
-        .pQueueFamilyIndices = std::array {
-            gpu->graphics_queue->family,
-            gpu->transfer_queue->family,
-        }.data(),
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), ptr_to(VmaAllocationCreateInfo {
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -362,12 +357,7 @@ ref<gpu_image> gpu_image_create_dmabuf(gpu_context* gpu, const gpu_image_create_
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
         .usage = vk_usage,
-        .sharingMode = VK_SHARING_MODE_CONCURRENT,
-        .queueFamilyIndexCount = 2,
-        .pQueueFamilyIndices = std::array {
-            gpu->graphics_queue->family,
-            gpu->transfer_queue->family,
-        }.data(),
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image->data.image));
     core_assert(image->handle());

@@ -83,7 +83,7 @@ ref<gpu_image> gpu_image_create_dmabuf(gpu_context*, const gpu_image_create_info
 
 // -----------------------------------------------------------------------------
 
-static constexpr u32 gpu_push_constant_size = 256;
+static constexpr u32 gpu_push_constant_size = 128;
 
 void gpu_init_descriptors(gpu_context*);
 void gpu_allocate_image_descriptor(gpu_image_base*);
@@ -91,7 +91,8 @@ void gpu_allocate_sampler_descriptor(gpu_sampler*);
 
 // -----------------------------------------------------------------------------
 
-ref<gpu_queue> gpu_queue_init(gpu_context*, gpu_queue_type, u32 family);
+auto gpu_queue_create(gpu_context*, gpu_queue_type, u32 family, const VkQueueFamilyOwnershipTransferPropertiesKHR&) -> ref<gpu_queue>;
+void gpu_queue_init(gpu_queue*);
 
 // -----------------------------------------------------------------------------
 

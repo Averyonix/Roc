@@ -158,26 +158,6 @@ bool query_format_support(
 }
 
 static
-auto get_drm_modifiers(gpu_context* gpu, gpu_format format) -> std::vector<VkDrmFormatModifierProperties2EXT>
-{
-    VkDrmFormatModifierPropertiesList2EXT mod_list = {
-        .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
-    };
-    VkFormatProperties2 props = {
-        .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
-        .pNext = &mod_list,
-    };
-    gpu->vk.GetPhysicalDeviceFormatProperties2(gpu->physical_device, format->vk, &props);
-
-    std::vector<VkDrmFormatModifierProperties2EXT> mod_props(mod_list.drmFormatModifierCount);
-    mod_list.pDrmFormatModifierProperties = mod_props.data();
-
-    gpu->vk.GetPhysicalDeviceFormatProperties2(gpu->physical_device, format->vk, &props);
-
-    return mod_props;
-}
-
-static
 auto load_format_props(gpu_context* gpu, gpu_format_props& props, gpu_format format, flags<gpu_image_usage> usage) -> const gpu_format_props*
 {
     auto vk_usage = gpu_image_usage_to_vk(usage);
@@ -186,16 +166,28 @@ auto load_format_props(gpu_context* gpu, gpu_format_props& props, gpu_format for
         return (features & required_features) == required_features;
     };
 
-    {
-        VkFormatProperties2 vk_props = {
-            .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
-        };
-        gpu->vk.GetPhysicalDeviceFormatProperties2(gpu->physical_device, format->vk, &vk_props);
+    // Query format properties
 
+    VkDrmFormatModifierPropertiesList2EXT mod_list = {
+        .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
+    };
+    VkFormatProperties2 vk_props = {
+        .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
+        .pNext = &mod_list,
+    };
+    gpu->vk.GetPhysicalDeviceFormatProperties2(gpu->physical_device, format->vk, &vk_props);
+
+    std::vector<VkDrmFormatModifierProperties2EXT> mod_props(mod_list.drmFormatModifierCount);
+    mod_list.pDrmFormatModifierProperties = mod_props.data();
+
+    gpu->vk.GetPhysicalDeviceFormatProperties2(gpu->physical_device, format->vk, &vk_props);
+
+    // Query optimal tiling properties
+
+    if (has_all_features(vk_props.formatProperties.optimalTilingFeatures)) {
         VkImageFormatProperties image_props;
         bool has_mutable_srgb = false;
-        if (query_format_support(gpu, format->vk, format->vk_srgb, vk_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)
-                && has_all_features(vk_props.formatProperties.optimalTilingFeatures)) {
+        if (query_format_support(gpu, format->vk, format->vk_srgb, vk_usage, nullptr, &has_mutable_srgb, &image_props, nullptr)) {
             props.opt_props = std::unique_ptr<gpu_format_modifier_props>(new gpu_format_modifier_props {
                 .modifier = DRM_FORMAT_MOD_INVALID,
                 .features = vk_props.formatProperties.optimalTilingFeatures,
@@ -205,12 +197,15 @@ auto load_format_props(gpu_context* gpu, gpu_format_props& props, gpu_format for
         }
     }
 
-    for (auto& mod : get_drm_modifiers(gpu, format)) {
+    // Query drm modifier properties
+
+    for (auto& mod : mod_props) {
+        if (!has_all_features(mod.drmFormatModifierTilingFeatures)) continue;
+
         VkImageFormatProperties image_props;
         bool has_mutable_srgb = false;
         VkExternalMemoryProperties ext_mem_props;
-        if (query_format_support(gpu, format->vk, format->vk_srgb, vk_usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)
-                && has_all_features(mod.drmFormatModifierTilingFeatures)) {
+        if (query_format_support(gpu, format->vk, format->vk_srgb, vk_usage, &mod, &has_mutable_srgb, &image_props, &ext_mem_props)) {
             props.mod_props.emplace_back(gpu_format_modifier_props {
                 .modifier = mod.drmFormatModifier,
                 .features = mod.drmFormatModifierTilingFeatures,

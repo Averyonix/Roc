@@ -251,6 +251,8 @@ struct gpu_queue
 
     gpu_queue_type type;
     u32 family;
+    u32 optimal_transfers_to;
+
     VkQueue queue;
 
     VkCommandPool cmd_pool;

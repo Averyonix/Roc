@@ -3,16 +3,24 @@
 #include "core/enum.hpp"
 #include "core/stack.hpp"
 
-ref<gpu_queue> gpu_queue_init(gpu_context* gpu, gpu_queue_type type, u32 family)
+auto gpu_queue_create(gpu_context* gpu, gpu_queue_type type, u32 family, const VkQueueFamilyOwnershipTransferPropertiesKHR& transfer_props) -> ref<gpu_queue>
 {
     auto queue = core_create<gpu_queue>();
     queue->gpu = gpu;
     queue->type = type;
     queue->family = family;
+    queue->optimal_transfers_to = transfer_props.optimalImageTransferToQueueFamilies;
 
     log_debug("Queue created of type \"{}\" with family {}", core_to_string(type), family);
 
-    gpu->vk.GetDeviceQueue(gpu->device, family, 0, &queue->queue);
+    return queue;
+}
+
+void gpu_queue_init(gpu_queue* queue)
+{
+    auto* gpu = queue->gpu;
+
+    gpu->vk.GetDeviceQueue(gpu->device, queue->family, 0, &queue->queue);
 
     gpu_check(gpu->vk.CreateCommandPool(gpu->device, ptr_to(VkCommandPoolCreateInfo {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -21,8 +29,6 @@ ref<gpu_queue> gpu_queue_init(gpu_context* gpu, gpu_queue_type type, u32 family)
     }), nullptr, &queue->cmd_pool));
 
     queue->syncobj = gpu_syncobj_create(gpu);
-
-    return queue;
 }
 
 gpu_queue::~gpu_queue()

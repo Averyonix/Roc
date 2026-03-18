@@ -3,6 +3,7 @@
 #include "core/types.hpp"
 #include "core/util.hpp"
 #include "core/process.hpp"
+#include "core/stack.hpp"
 
 #include <sys/sysmacros.h>
 
@@ -73,6 +74,9 @@ std::array required_device_extensions = {
     VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
     VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
     VK_EXT_SHADER_OBJECT_EXTENSION_NAME,
+
+    VK_KHR_MAINTENANCE_8_EXTENSION_NAME,
+    VK_KHR_MAINTENANCE_9_EXTENSION_NAME,
 
     VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
     VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
@@ -259,7 +263,7 @@ VkBool32 VKAPI_CALL debug_callback(
         auto objects = std::span(data->pObjects, data->objectCount);
 
         // Compute max widths for printing
-        usz max_index_width = std::log10(data->objectCount - 1) + 1;
+        usz max_index_width = std::to_string(data->objectCount).length();
         usz max_type_len = 0;
         for (auto& object : objects) {
             max_type_len = std::max(max_type_len, strlen(string_VkObjectType(object.objectType)));
@@ -270,6 +274,7 @@ VkBool32 VKAPI_CALL debug_callback(
             auto prefix = sizeof("VK_OBJECT_TYPE_") - 1;
             auto type_name = std::string_view(string_VkObjectType(object.objectType)).substr(prefix);
             auto type_width = max_type_len - prefix;
+
             // clangd fails on the nested string width parameter, so we uese vformat directly
             message += std::vformat("    [{:{}}]: {:{}} {:#x}\n",
                 std::make_format_args(i, max_index_width, type_name, type_width, object.objectHandle));
@@ -387,25 +392,45 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
     core_assert(!gpu->features.contains(gpu_feature::validation), PROJECT_NAME " was not compiled with validation compatibility");
 #endif
 
-    // Device creation
+    // Queue selection
 
-    static constexpr u32 invalid_index = ~0u;
-    u32 graphics_queue_family = invalid_index;
-    u32 transfer_queue_family = invalid_index;
+    {
+        u32 count;
+        gpu->vk.GetPhysicalDeviceQueueFamilyProperties2(gpu->physical_device, &count, nullptr);
 
-    std::vector<VkQueueFamilyProperties> queue_props;
-    gpu_vk_enumerate(queue_props, gpu->vk.GetPhysicalDeviceQueueFamilyProperties, gpu->physical_device);
-    for (u32 i = 0; i < queue_props.size(); ++i) {
-        if (queue_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            if (graphics_queue_family == invalid_index) {
-                graphics_queue_family = i;
-            }
-        } else if (queue_props[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
-            if (transfer_queue_family == invalid_index) {
-                transfer_queue_family = i;
+        core_thread_stack stack;
+        auto props = stack.allocate<VkQueueFamilyProperties2>(count);
+        auto transfer_props = stack.allocate<VkQueueFamilyOwnershipTransferPropertiesKHR>(count);
+        for (u32 i = 0; i < count; ++i) {
+            props[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
+            props[i].pNext = &transfer_props[i];
+            transfer_props[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR;
+        }
+
+        gpu->vk.GetPhysicalDeviceQueueFamilyProperties2(gpu->physical_device, &count, props);
+
+        for (u32 i = 0; i < count; ++i) {
+            if (props[i].queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                if (!gpu->graphics_queue) {
+                    gpu->graphics_queue = gpu_queue_create(gpu.get(), gpu_queue_type::graphics, i, transfer_props[i]);
+                }
+            } else if (props[i].queueFamilyProperties.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+                if (!gpu->transfer_queue) {
+                    gpu->transfer_queue = gpu_queue_create(gpu.get(), gpu_queue_type::transfer, i, transfer_props[i]);
+                }
             }
         }
+
+        // TODO: Relax requirement for dedicated transfer queue
+        core_assert(gpu->graphics_queue);
+        core_assert(gpu->transfer_queue);
+
+        // Require QFOT-less transfers between graphics and transfer queues (from maintenance 9)
+        core_assert(gpu->graphics_queue->optimal_transfers_to & (1 << gpu->transfer_queue->family));
+        core_assert(gpu->transfer_queue->optimal_transfers_to & (1 << gpu->graphics_queue->family));
     }
+
+    // Device creation
 
     auto create_device = [&](bool global_priority) {
         return gpu_check(gpu->vk.CreateDevice(gpu->physical_device, ptr_to(VkDeviceCreateInfo {
@@ -458,6 +483,14 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT,
                     .shaderObject = true,
                 }),
+                ptr_to(VkPhysicalDeviceMaintenance8FeaturesKHR {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_8_FEATURES_KHR,
+                    .maintenance8 = true,
+                }),
+                ptr_to(VkPhysicalDeviceMaintenance9FeaturesKHR {
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_9_FEATURES_KHR,
+                    .maintenance9 = true,
+                }),
             }),
             .queueCreateInfoCount = 2,
             .pQueueCreateInfos = std::array {
@@ -470,13 +503,13 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
                                 .globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH,
                             })
                             : nullptr,
-                    .queueFamilyIndex = graphics_queue_family,
+                    .queueFamilyIndex = gpu->graphics_queue->family,
                     .queueCount = 1,
                     .pQueuePriorities = ptr_to(1.f),
                 },
                 VkDeviceQueueCreateInfo {
                     .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                    .queueFamilyIndex = transfer_queue_family,
+                    .queueFamilyIndex = gpu->transfer_queue->family,
                     .queueCount = 1,
                     .pQueuePriorities = ptr_to(1.f),
                 },
@@ -501,8 +534,8 @@ ref<gpu_context> gpu_create(flags<gpu_feature> _features, core_event_loop* event
 
     gpu_load_device_functions(gpu.get());
 
-    gpu->graphics_queue = gpu_queue_init(gpu.get(), gpu_queue_type::graphics, graphics_queue_family);
-    gpu->transfer_queue = gpu_queue_init(gpu.get(), gpu_queue_type::transfer, transfer_queue_family);
+    gpu_queue_init(gpu->graphics_queue.get());
+    gpu_queue_init(gpu->transfer_queue.get());
 
     // Transfer syncobj
 

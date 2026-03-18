@@ -18,12 +18,7 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* gpu, usz size, flags<gpu_buffer_f
                    | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
                    | VK_BUFFER_USAGE_TRANSFER_DST_BIT
                    | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_CONCURRENT,
-            .queueFamilyIndexCount = 2,
-            .pQueueFamilyIndices = std::array {
-                gpu->graphics_queue->family,
-                gpu->transfer_queue->family,
-            }.data(),
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         }),
         flags.contains(gpu_buffer_flag::host)
             ? ptr_to(VmaAllocationCreateInfo {
