@@ -19,11 +19,11 @@ auto io_create(core_event_loop* event_loop, gpu_context* gpu) -> ref<io_context>
 static
 void shutdown(io_context* ctx)
 {
-    ctx->wayland.destroy();
-    ctx->drm.destroy();
-    ctx->evdev.destroy();
-    ctx->libinput.destroy();
-    ctx->session.destroy();
+    io_session_deinit(ctx);
+    io_libinput_deinit(ctx);
+    io_evdev_deinit(ctx);
+    io_drm_deinit(ctx);
+    io_wayland_deinit(ctx);
 
     core_event_loop_stop(ctx->event_loop);
 }

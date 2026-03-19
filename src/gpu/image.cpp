@@ -438,7 +438,7 @@ gpu_dma_params gpu_image_export(gpu_image* _image)
             .memory = image->memory[0],
             .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
         }), &_fd));
-        return core_fd_adopt(_fd);
+        return core_fd(_fd);
     };
 
     if (image->memory.count == 1) {

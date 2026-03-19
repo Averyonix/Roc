@@ -88,49 +88,65 @@ ref<core_event_loop> core_event_loop_create()
     auto loop = core_create<core_event_loop>();
     loop->main_thread = std::this_thread::get_id();
 
-    loop->epoll_fd = core_fd_adopt(unix_check<epoll_create1>(EPOLL_CLOEXEC).value);
+    loop->epoll_fd = core_fd(unix_check<epoll_create1>(EPOLL_CLOEXEC).value);
 
-    loop->task_fd = core_fd_adopt(unix_check<eventfd>(0, EFD_CLOEXEC | EFD_NONBLOCK).value);
-    core_fd_add_listener(loop->task_fd.get(), loop.get(), core_fd_event_bit::readable, [loop = loop.get()](int fd, flags<core_fd_event_bit> events) {
+    loop->task_fd = core_fd(unix_check<eventfd>(0, EFD_CLOEXEC | EFD_NONBLOCK).value);
+    core_event_loop_fd_listen(loop.get(), loop->task_fd.get(), core_fd_event_bit::readable, [loop = loop.get()](int fd, flags<core_fd_event_bit> events) {
         loop->tasks_available += core_eventfd_read(fd);
 
         // Don't double dip task event stats
         loop->stats.events_handled--;
     });
 
-    loop->timer_fd = core_fd_adopt(unix_check<timerfd_create>(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC).value);
-    core_fd_add_listener(loop->timer_fd.get(), loop.get(), core_fd_event_bit::readable, [loop = loop.get()](int fd, flags<core_fd_event_bit> events) {
+    loop->timer_fd = core_fd(unix_check<timerfd_create>(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC).value);
+    core_event_loop_fd_listen(loop.get(), loop->timer_fd.get(), core_fd_event_bit::readable, [loop = loop.get()](int fd, flags<core_fd_event_bit> events) {
         handle_timer(loop, fd);
 
         // Don't double dip timer event stats
         loop->stats.events_handled--;
     });
 
-    loop->internal_listener_count = loop->listener_count;
-
     return loop;
 }
+
+#define CORE_EVENT_LOOP_CHECK_LISTENERS 1
 
 core_event_loop::~core_event_loop()
 {
     core_assert(stopped);
 
-    task_fd = nullptr;
-    timer_fd = nullptr;
+    core_event_loop_fd_unlisten(this, task_fd.get());
+    core_event_loop_fd_unlisten(this, timer_fd.get());
 
-    core_assert(listener_count == 0);
+#if CORE_EVENT_LOOP_CHECK_LISTENERS
+    for (auto[i, listener] : listeners | std::views::enumerate) {
+        core_assert(!listener, "Listener for ({}) still registered", i);
+    }
+#endif
 }
 
 void core_event_loop_stop(core_event_loop* loop)
 {
     loop->stopped = true;
 
-    if (loop->listener_count > loop->internal_listener_count) {
+#if CORE_EVENT_LOOP_CHECK_LISTENERS
+    auto user_listeners = loop->listeners
+        | std::views::enumerate
+        | std::views::filter([&](auto e) {
+            auto[fd, l] = e;
+            return l && fd != loop->timer_fd.get() && fd != loop->task_fd.get();
+        });
+
+    if (u32 listeners = core_count(user_listeners)) {
         // Just log an error for now, in the future we will be more strict and
         // assert if any user registered listeners are still attached at this point.
-        log_error("Stopping event loop with {} registered listeners remaining!",
-            loop->listener_count - loop->internal_listener_count);
+        log_error("Stopping event loop with {} registered listeners remaining!", listeners);
     }
+
+    for (auto[i, listener] : user_listeners) {
+        log_error("  ({})", i);
+    }
+#endif
 }
 
 void core_event_loop_run(core_event_loop* loop)
@@ -164,24 +180,20 @@ void core_event_loop_run(core_event_loop* loop)
         // Flush fd events
 
         if (count > 0) {
-            std::array<core_fd, max_epoll_events> sources;
             for (i32 i = 0; i < count; ++i) {
-                sources[i] = core_fd(events[i].data.fd);
-            }
-
-            for (i32 i = 0; i < count; ++i) {
-                if (!sources[i]) continue;
+                auto fd = events[i].data.fd;
+                auto l = loop->listeners[fd];
+                if (!l) continue;
 
                 loop->stats.events_handled++;
 
-                auto l = core_fd_get_listener(sources[i].get());
                 auto event_bits = from_epoll_events(events[i].events);
                 if (l->flags.contains(core_fd_listen_flag::oneshot)) {
                     ref listener = l;
-                    core_fd_remove_listener(sources[i].get());
-                    listener->handle(sources[i].get(), event_bits);
+                    core_event_loop_fd_unlisten(loop, fd);
+                    listener->handle(fd, event_bits);
                 } else {
-                    l->handle(sources[i].get(), event_bits);
+                    l->handle(fd, event_bits);
                 }
             }
         }
@@ -209,21 +221,19 @@ void core_event_loop_run(core_event_loop* loop)
 
 // -----------------------------------------------------------------------------
 
-void core_fd_add_listener(
-    int fd,
+void core_event_loop_fd_listen(
     core_event_loop* loop,
+    int fd,
     core_fd_listener* listener)
 {
     auto events = listener->events;
 
+    core_assert(core_fd_is_valid(fd));
+
     core_assert(events);
-    core_assert(!listener->loop);
-    core_assert(!core_fd_get_listener(fd));
+    core_assert(!loop->listeners[fd]);
 
-    loop->listener_count++;
-
-    listener->loop = loop;
-    core_fd_set_listener(fd, listener);
+    loop->listeners[fd] = listener;
 
     unix_check<epoll_ctl>(loop->epoll_fd.get(), EPOLL_CTL_ADD, fd, ptr_to(epoll_event {
         .events = to_epoll_events(events),
@@ -233,12 +243,16 @@ void core_fd_add_listener(
     }));
 }
 
-void core_fd_remove_listener(int fd)
+void core_event_loop_fd_unlisten(core_event_loop* loop, int fd)
 {
-    auto* listener = core_fd_get_listener(fd);
-    core_fd_get_listener(fd)->loop->listener_count--;
+    core_assert(core_fd_is_valid(fd));
 
-    unix_check<epoll_ctl>(listener->loop->epoll_fd.get(), EPOLL_CTL_DEL, fd, nullptr);
-    listener->loop = nullptr;
-    core_fd_set_listener(fd, nullptr);
+    if (!loop->listeners[fd]) {
+        log_warn("fd does not have registered listener");
+    }
+
+    auto res = unix_check<epoll_ctl>(loop->epoll_fd.get(), EPOLL_CTL_DEL, fd, nullptr);
+    core_assert(res.ok());
+
+    loop->listeners[fd] = nullptr;
 }

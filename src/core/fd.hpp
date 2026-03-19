@@ -1,7 +1,10 @@
 #pragma once
 
-#include "object.hpp"
-#include "enum.hpp"
+#include "types.hpp"
+
+// -----------------------------------------------------------------------------
+
+static constexpr int core_fd_limit = 1024;
 
 // -----------------------------------------------------------------------------
 
@@ -10,19 +13,18 @@ auto core_fd_dup_unsafe(int fd) -> int;
 
 // -----------------------------------------------------------------------------
 
-struct core_fd_listener;
-void core_fd_remove_listener(int fd);
-auto core_fd_get_listener(   int fd) -> core_fd_listener*;
-void core_fd_set_listener(   int fd, core_fd_listener*);
-
-// -----------------------------------------------------------------------------
-
-static constexpr int core_fd_max = 1024;
+inline
+bool core_fd_is_valid(int fd)
+{
+    return fd >= 0 && fd < core_fd_limit;
+}
 
 auto core_fd_get_ref_count(int fd) -> u32;
 
 auto core_fd_add_ref(   int fd) -> int;
 auto core_fd_remove_ref(int fd) -> int;
+
+auto core_fd_extract(int fd) -> int;
 
 struct core_fd
 {
@@ -84,11 +86,7 @@ struct core_fd
 
     int get() const noexcept { return fd; }
 
+    int extract() noexcept;
+
     explicit operator bool() const noexcept { return fd >= 0; }
 };
-
-// -----------------------------------------------------------------------------
-
-auto core_fd_adopt(    int fd) -> core_fd;
-auto core_fd_reference(int fd) -> core_fd;
-auto core_fd_dup(      int fd) -> core_fd;

@@ -22,6 +22,7 @@ gpu_context::~gpu_context()
 
     core_assert(!queue.commands, "Unflushed commands");
     vk.DestroyCommandPool(device, queue.pool, nullptr);
+    queue.syncobj = nullptr;
 
     vmaDestroyAllocator(vma);
 

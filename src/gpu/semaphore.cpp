@@ -24,10 +24,10 @@ auto gpu_syncobj_export(gpu_syncobj* syncobj) -> core_fd
 {
     int fd = -1;
     unix_check<drmSyncobjHandleToFD>(syncobj->gpu->drm.fd, syncobj->syncobj, &fd);
-    return core_fd_adopt(fd);
+    return core_fd(fd);
 }
 
-void gpu_syncobj_import_syncfile(gpu_syncobj* syncobj, int sync_fd, u64 target_point)
+void gpu_syncobj_import_syncfile(gpu_syncobj* syncobj, u64 target_point, int sync_fd)
 {
     auto* gpu = syncobj->gpu;
 
@@ -43,7 +43,7 @@ void gpu_syncobj_import_syncfile(gpu_syncobj* syncobj, int sync_fd, u64 target_p
     unix_check<drmSyncobjTransfer>(gpu->drm.fd, syncobj->syncobj, target_point, gpu->drm.syncobj, 0, 0);
 }
 
-int gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point)
+auto gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point) -> core_fd
 {
     auto* gpu = syncobj->gpu;
 
@@ -54,11 +54,15 @@ int gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point)
     int sync_fd = -1;
     unix_check<drmSyncobjExportSyncFile>(gpu->drm.fd, gpu->drm.syncobj, &sync_fd);
 
-    return sync_fd;
+    return core_fd(sync_fd);
 }
 
 gpu_syncobj::~gpu_syncobj()
 {
+    if (wait.fd) {
+        core_event_loop_fd_unlisten(gpu->event_loop, wait.fd.get());
+    }
+
     while (!wait.list.empty()) {
         wait.skips++;
         delete wait.list.first().remove().get();
@@ -106,9 +110,9 @@ void gpu_syncobj_wait(gpu_syncobj* syncobj, gpu_wait_fn* wait)
     auto* gpu = syncobj->gpu;
 
     if (!syncobj->wait.fd) {
-        syncobj->wait.fd = core_fd_adopt(eventfd(0, EFD_CLOEXEC));
+        syncobj->wait.fd = core_fd(eventfd(0, EFD_CLOEXEC));
 
-        core_fd_add_listener(syncobj->wait.fd.get(), gpu->event_loop.get(), core_fd_event_bit::readable,
+        core_event_loop_fd_listen(gpu->event_loop, syncobj->wait.fd.get(), core_fd_event_bit::readable,
             [syncobj](int, flags<core_fd_event_bit>) {
                 handle_waits(syncobj);
             });

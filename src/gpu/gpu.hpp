@@ -214,7 +214,7 @@ struct gpu_context
         u32 active_samplers;
     } stats;
 
-    ref<core_event_loop> event_loop;
+    core_event_loop* event_loop;
 
     std::vector<VkSemaphore> free_binary_semaphores;
 
@@ -278,8 +278,8 @@ auto gpu_syncobj_create(gpu_context*) -> ref<gpu_syncobj>;
 auto gpu_syncobj_import(gpu_context*, int syncobj_fd) -> ref<gpu_syncobj>;
 auto gpu_syncobj_export(gpu_syncobj*) -> core_fd;
 
-void gpu_syncobj_import_syncfile(gpu_syncobj*, int sync_fd, u64 target_point);
-int  gpu_syncobj_export_syncfile(gpu_syncobj*, u64 source_point);
+void gpu_syncobj_import_syncfile(gpu_syncobj*, u64 target_point, int sync_fd);
+auto gpu_syncobj_export_syncfile(gpu_syncobj*, u64 source_point) -> core_fd;
 
 u64  gpu_syncobj_get_value(   gpu_syncobj*);
 void gpu_syncobj_signal_value(gpu_syncobj*, u64 value);

@@ -42,7 +42,7 @@ WAY_BIND_GLOBAL(wl_data_device_manager, bind)
 static
 void receive(wl_client* client, wl_resource* resource, const char* mime_type, int fd)
 {
-    auto write = core_fd_adopt(fd);
+    auto write = core_fd(fd);
 
     auto* offer = way_get_userdata<way_data_offer>(resource);
     scene_data_source_send(offer->source.get(), mime_type, write.get());

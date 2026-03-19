@@ -45,9 +45,7 @@ struct way_server
     scene_system_id scene_system;
 
     wl_display* wl_display;
-    core_fd wl_event_loop_fd;
     std::string socket_name;
-
 
     ref<gpu_sampler> sampler;
 

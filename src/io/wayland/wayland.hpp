@@ -82,8 +82,6 @@ struct io_wayland
         gpu_format_set set;
     } format;
 
-    core_fd wl_display_fd = {};
-
     core_ref_vector<io_output_wayland> outputs;
 
     std::chrono::steady_clock::time_point current_dispatch_time;

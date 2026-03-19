@@ -74,7 +74,7 @@ void transfer(gpu_binary_semaphore* from, gpu_syncobj* to, u64 to_point)
         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
     }), &syncobj_fd));
 
-    gpu_syncobj_import_syncfile(to, syncobj_fd, to_point);
+    gpu_syncobj_import_syncfile(to, to_point, syncobj_fd);
     close(syncobj_fd);
 }
 

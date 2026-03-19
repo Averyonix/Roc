@@ -46,7 +46,7 @@ void way_dmabuf_init(way_server* server)
 
     usz size = entries.size() * sizeof(tranche_entry);
 
-    auto fd = core_fd_adopt(unix_check<memfd_create>(PROGRAM_NAME "-formats", MFD_ALLOW_SEALING | MFD_CLOEXEC).value);
+    auto fd = core_fd(unix_check<memfd_create>(PROGRAM_NAME "-formats", MFD_ALLOW_SEALING | MFD_CLOEXEC).value);
     unix_check<ftruncate>(fd.get(), size);
 
     auto mapped = unix_check<mmap>(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0).value;
@@ -163,7 +163,7 @@ void create_params(wl_client* client, wl_resource* resource, u32 params_id)
 static
 void params_add(wl_client* client, wl_resource* resource, int _fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo)
 {
-    auto fd = core_fd_adopt(_fd);
+    auto fd = core_fd(_fd);
 
     auto* params = way_get_userdata<way_dma_params>(resource);
     auto* server = params->server;

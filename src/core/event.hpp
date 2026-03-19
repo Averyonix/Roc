@@ -2,6 +2,7 @@
 
 #include "debug.hpp"
 #include "object.hpp"
+#include "enum.hpp"
 #include "fd.hpp"
 
 u64  core_eventfd_read( int fd);
@@ -19,9 +20,13 @@ struct core_task
     std::atomic_flag* sync;
 };
 
+struct core_fd_listener;
+
 struct core_event_loop
 {
     bool stopped = false;
+
+    std::array<ref<core_fd_listener>, core_fd_limit> listeners  = {};
 
     std::thread::id main_thread;
 
@@ -38,9 +43,6 @@ struct core_event_loop
     };
     std::deque<timed_event> timed_events;
     std::optional<std::chrono::steady_clock::time_point> current_wakeup;
-
-    u32 internal_listener_count;
-    u32 listener_count = 0;
 
     core_fd epoll_fd;
 
@@ -108,7 +110,6 @@ using core_fd_listener_fn = void(int, flags<core_fd_event_bit> events);
 
 struct core_fd_listener
 {
-    weak<core_event_loop> loop = nullptr;
     flags<core_fd_event_bit> events;
     flags<core_fd_listen_flag> flags;
 
@@ -117,12 +118,13 @@ struct core_fd_listener
 
 // -----------------------------------------------------------------------------
 
-void core_fd_add_listener(int, core_event_loop*, core_fd_listener*);
+void core_event_loop_fd_listen(  core_event_loop*, int fd, core_fd_listener*);
+void core_event_loop_fd_unlisten(core_event_loop*, int fd);
 
 template<typename Fn>
-void core_fd_add_listener(
-    int fd,
+void core_event_loop_fd_listen(
     core_event_loop* loop,
+    int fd,
     flags<core_fd_event_bit> events,
     Fn&& callback,
     flags<core_fd_listen_flag> flags = {})
@@ -137,5 +139,5 @@ void core_fd_add_listener(
     auto listener = core_create<core_fd_listener_lambda>(std::move(callback));
     listener->events = events;
     listener->flags = flags;
-    core_fd_add_listener(fd, loop, listener.get());
+    core_event_loop_fd_listen(loop, fd, listener.get());
 }

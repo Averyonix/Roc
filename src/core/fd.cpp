@@ -1,5 +1,8 @@
 #include "fd.hpp"
 
+#include "debug.hpp"
+#include "log.hpp"
+
 bool core_fd_are_same(int fd0, int fd1)
 {
     struct stat st0 = {};
@@ -24,35 +27,25 @@ int core_fd_dup_unsafe(int fd)
 
 struct core_fd_data
 {
-    static constexpr u32 max_fds = core_fd_max + 1;
-
-    struct {
-        std::array<ref<core_fd_listener>, max_fds> listeners  = {};
-        std::array<u32,                   max_fds> ref_counts = {};
-        std::array<bool,                  max_fds> no_close   = {};
+    std::array<u32,  core_fd_limit> ref_counts = {};
 #if CORE_FD_LEAK_CHECK
-        std::array<bool,                  max_fds> inherited  = {};
+    std::array<bool, core_fd_limit> inherited  = {};
 #endif
-    } data;
-
-    ref<core_fd_listener>* listeners  = data.listeners.data()  + 1;
-    u32*                   ref_counts = data.ref_counts.data() + 1;
-    bool*                  no_close   = data.no_close.data()   + 1;
 
 #if CORE_FD_LEAK_CHECK
     core_fd_data()
     {
-        for (int fd = 0; fd < core_fd_max; ++fd) {
+        for (int fd = 0; fd < core_fd_limit; ++fd) {
             if (fcntl(fd, F_GETFD) == 0) {
-                data.inherited[fd] = true;
+                inherited[fd] = true;
             }
         }
     }
 
     ~core_fd_data()
     {
-        for (int fd = 0; fd < core_fd_max; ++fd) {
-            if (data.inherited[fd]) continue;
+        for (int fd = 0; fd < core_fd_limit; ++fd) {
+            if (inherited[fd]) continue;
             if (fcntl(fd, F_GETFD) == -1) continue;
 
             log_error("fd[{}] leaked (refs: {})", fd, ref_counts[fd]);
@@ -66,19 +59,9 @@ core_fd_data fds;
 
 auto core_fd_get_ref_count(int fd) -> u32
 {
+    if (!core_fd_is_valid(fd)) return 0;
+
     return fds.ref_counts[fd];
-}
-
-auto core_fd_get_listener(int fd) -> core_fd_listener*
-{
-    return fds.listeners[fd].get();
-}
-
-void core_fd_set_listener(int fd, core_fd_listener* listener)
-{
-    if (fd < 0) return;
-
-    fds.listeners[fd] = listener;
 }
 
 #define CORE_NOISY_FDS 0
@@ -91,7 +74,7 @@ void core_fd_set_listener(int fd, core_fd_listener* listener)
 
 auto core_fd_add_ref(int fd) -> int
 {
-    if (fd == -1) return -1;
+    if (!core_fd_is_valid(fd)) return -1;
 
     FD_LOG("core_fd_add_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] + 1);
     fds.ref_counts[fd]++;
@@ -101,23 +84,14 @@ auto core_fd_add_ref(int fd) -> int
 static
 void destroy_fd(int fd)
 {
-    if (fds.listeners[fd]) {
-        FD_LOG("  core_fd_remove_listener({})", fd);
-        core_fd_remove_listener(fd);
-    }
-
-    if (!fds.no_close[fd]) {
-        FD_LOG("  close({})", fd);
-        unix_check<close>(fd);
-    } else {
-        // Next
-        fds.no_close[fd] = false;
-    }
+    FD_LOG("  close({})", fd);
+    // std::cout << std::stacktrace::current();
+    unix_check<close>(fd);
 }
 
 auto core_fd_remove_ref(int fd) -> int
 {
-    if (fd == -1) return -1;
+    if (!core_fd_is_valid(fd)) return -1;
 
     FD_LOG("core_fd_remove_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] - 1);
     if (!--fds.ref_counts[fd]) {
@@ -128,26 +102,22 @@ auto core_fd_remove_ref(int fd) -> int
     return fd;
 }
 
+auto core_fd_extract(int fd) -> int
+{
+    core_assert(core_fd_is_valid(fd));
+    core_assert(core_fd_get_ref_count(fd) == 1);
+    fds.ref_counts[fd] = 0;
+    return fd;
+}
+
+int core_fd::extract() noexcept
+{
+    return core_fd_extract(std::exchange(fd, -1));
+}
+
 // -----------------------------------------------------------------------------
-
-core_fd core_fd_adopt(int fd)
-{
-    FD_LOG("core_fd_adopt({})", fd);
-    core_assert(core_fd_get_ref_count(fd) == 0);
-    core_assert(fds.no_close[fd] == false);
-    return core_fd(fd);
-}
-
-core_fd core_fd_reference(int fd)
-{
-    FD_LOG("core_fd_reference({})", fd);
-    core_assert(core_fd_get_ref_count(fd) == 0);
-    core_assert(fds.no_close[fd] == false);
-    fds.no_close[fd] = true;
-    return core_fd(fd);
-}
 
 core_fd core_fd_dup(int fd)
 {
-    return fd >= 0 ? core_fd_adopt(core_fd_dup_unsafe(fd)) : core_fd();
+    return fd >= 0 ? core_fd(core_fd_dup_unsafe(fd)) : core_fd();
 }

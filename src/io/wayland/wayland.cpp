@@ -100,8 +100,7 @@ void io_wayland_start(io_context* ctx)
     // Second roundtrip ensure that all events expected in response to binding are received
     wl_display_roundtrip(wl->wl_display);
 
-    wl->wl_display_fd = core_fd_reference(wl_display_get_fd(wl->wl_display));
-    core_fd_add_listener(wl->wl_display_fd.get(), ctx->event_loop, core_fd_event_bit::readable,
+    core_event_loop_fd_listen(ctx->event_loop, wl_display_get_fd(wl->wl_display), core_fd_event_bit::readable,
         [ctx = weak(ctx)](int, flags<core_fd_event_bit> events) {
             if (ctx) display_read(ctx.get(), events);
         });
@@ -109,12 +108,16 @@ void io_wayland_start(io_context* ctx)
     io_add_output(ctx);
 }
 
+void io_wayland_deinit(io_context* ctx)
+{
+    core_event_loop_fd_unlisten(ctx->event_loop, wl_display_get_fd(ctx->wayland->wl_display));
+    ctx->wayland.destroy();
+}
+
 io_wayland::~io_wayland()
 {
     if (keyboard) keyboard = nullptr;
     if (pointer)  pointer = nullptr;
-
-    wl_display_fd = nullptr;
 
     outputs.clear();
 

@@ -3,7 +3,7 @@
 static
 void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, int fd, u32 size)
 {
-    auto _ = core_fd_adopt(fd);
+    auto _ = core_fd(fd);
     auto* ctx = static_cast<io_context*>(udata);
 
     struct entry {

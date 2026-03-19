@@ -4,7 +4,8 @@
 
 #define IO_BACKEND(Name) \
     struct Name; \
-    void Name##_init(io_context*)
+    void Name##_init(io_context*); \
+    void Name##_deinit(io_context*)
 
 IO_BACKEND(io_udev);
 IO_BACKEND(io_session);

@@ -8,3 +8,5 @@ void io_libinput_init(io_context*)
 {
     log_error("IO - libinput backend not implemented");
 }
+
+void io_libinput_deinit(io_context*) {}

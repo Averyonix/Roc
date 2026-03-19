@@ -43,6 +43,13 @@ constexpr auto ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
+auto core_count(auto&& range)
+{
+    return std::ranges::count_if(range, [](const auto&) { return true; });
+}
+
+// -----------------------------------------------------------------------------
+
 constexpr usz core_round_up_power2(usz v) noexcept
 {
     v--;

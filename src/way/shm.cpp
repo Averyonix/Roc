@@ -29,7 +29,7 @@ void create_pool(wl_client* client, wl_resource* resource, u32 id, int fd, i32 s
 {
     auto pool = core_create<way_shm_pool>();
     pool->server = way_get_userdata<way_server>(resource);
-    pool->fd = core_fd_adopt(fd);
+    pool->fd = core_fd(fd);
     pool->resource = way_resource_create_refcounted(wl_shm_pool, client, resource, id, pool.get());
     pool_map(pool.get(), size);
 }

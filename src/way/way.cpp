@@ -1,8 +1,14 @@
 #include "internal.hpp"
 
+static
+int get_loop_fd(wl_display* display)
+{
+    return wl_event_loop_get_fd(wl_display_get_event_loop(display));
+}
+
 way_server::~way_server()
 {
-    wl_event_loop_fd = nullptr;
+    core_event_loop_fd_unlisten(event_loop, get_loop_fd(wl_display));
     wl_display_terminate(wl_display);
     wl_display_destroy(wl_display);
 }
@@ -26,8 +32,7 @@ auto way_create(core_event_loop* event_loop, gpu_context* gpu, scene_context* sc
 
     server->socket_name = wl_display_add_socket_auto(server->wl_display);
 
-    server->wl_event_loop_fd = core_fd_reference(wl_event_loop_get_fd(wl_display_get_event_loop(server->wl_display)));
-    core_fd_add_listener(server->wl_event_loop_fd.get(), event_loop, core_fd_event_bit::readable,
+    core_event_loop_fd_listen(event_loop, get_loop_fd(server->wl_display), core_fd_event_bit::readable,
         [server = server.get()](int fd, flags<core_fd_event_bit> events) {
             unix_check<wl_event_loop_dispatch>(wl_display_get_event_loop(server->wl_display), 0);
             wl_display_flush_clients(server->wl_display);

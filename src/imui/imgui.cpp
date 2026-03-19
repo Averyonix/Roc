@@ -188,7 +188,7 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imctx) -> const char*
                 auto[read, write] = [] {
                     int fd[2] = {-1, -1};
                     unix_check<pipe>(fd);
-                    return std::pair { core_fd_adopt(fd[0]), core_fd_adopt(fd[1]) };
+                    return std::make_pair(core_fd(fd[0]), core_fd(fd[1]));
                 }();
                 scene_data_source_send(source, mime, write.get());
                 write.reset();
