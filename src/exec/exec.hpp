@@ -1,18 +1,12 @@
 #pragma once
 
-#include "debug.hpp"
-#include "object.hpp"
-#include "enum.hpp"
-#include "fd.hpp"
-
-u64  core_eventfd_read( int fd);
-void core_eventfd_signal(int fd, u64 inc);
+#include "core/debug.hpp"
+#include "core/object.hpp"
+#include "core/enum.hpp"
+#include "core/fd.hpp"
+#include "core/eventfd.hpp"
 
 // -----------------------------------------------------------------------------
-
-
-struct core_event_source;
-struct core_fd;
 
 struct core_task
 {

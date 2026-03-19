@@ -151,12 +151,13 @@ target_sources(core PUBLIC
     src/core/string.cpp
     src/core/object.cpp
     src/core/fd.cpp
-    src/core/event.cpp
     src/core/stacktrace.cpp
     src/core/process.cpp
     src/core/chrono.cpp
     src/core/debug.cpp
     src/core/memory.cpp
+
+    src/exec/exec.cpp
     )
 target_include_directories(core PUBLIC
     src
