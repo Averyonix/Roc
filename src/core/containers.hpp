@@ -138,6 +138,46 @@ class core_ref_vector
     using iterator = decltype(values)::iterator;
 
 public:
+    core_ref_vector() {}
+
+public:
+    core_ref_vector(const core_ref_vector& other)
+        : values(other.values)
+    {
+        for (auto* value : values) {
+            core_add_ref(value);
+        }
+    }
+
+    core_ref_vector& operator=(const core_ref_vector& other)
+    {
+        if (this != &other) {
+            clear();
+            values = other.values;
+            for (auto* value : values) {
+                core_add_ref(value);
+            }
+        }
+        return *this;
+    }
+
+    core_ref_vector(core_ref_vector&& other)
+        : values(std::move(other))
+    {
+        other.values.clear();
+    }
+
+    core_ref_vector& operator=(core_ref_vector&& other)
+    {
+        if (this != &other) {
+            clear();
+            values = std::move(other.values);
+            other.values.clear();
+        }
+        return *this;
+    }
+
+public:
     T* emplace_back(T* value)
     {
         return values.emplace_back(core_add_ref(value));
