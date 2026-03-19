@@ -65,7 +65,7 @@ struct scene_find_output_result
 };
 auto scene_find_output_for_point(scene_context*, vec2f32 point) -> scene_find_output_result;
 
-void scene_frame(scene_context* ctx, scene_output*, struct io_output* output, gpu_image_pool* pool);
+void scene_frame(scene_context* ctx, scene_output*);
 
 // -----------------------------------------------------------------------------
 

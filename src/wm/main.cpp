@@ -58,7 +58,26 @@ int main()
                 reflow_outputs();
             break;case io_event_type::output_frame: {
                 auto output = std::ranges::find_if(outputs, [&](auto& p) { return p.io == event->output.output; });
-                scene_frame(scene.get(), output->scene.get(), output->io, image_pool.get());
+                scene_frame(scene.get(), output->scene.get());
+
+                // TODO: Only redraw with damage
+
+                auto format = gpu_format_from_drm(DRM_FORMAT_ABGR8888);
+                auto usage = gpu_image_usage::render;
+
+                auto target = image_pool->acquire({
+                    .extent = output->io->info().size,
+                    .format = format,
+                    .usage = usage,
+                    .modifiers = ptr_to(gpu_intersect_format_modifiers({
+                        &gpu_get_format_properties(gpu.get(), format, usage)->mods,
+                        &output->io->info().formats->get(format),
+                    }))
+                });
+
+                auto done = scene_render(scene.get(), target.get(), scene_output_get_viewport(output->scene.get()));
+
+                output->io->commit(target.get(), done, io_output_commit_flag::vsync);
             }
         }
     });
