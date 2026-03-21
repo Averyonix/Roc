@@ -17,6 +17,8 @@ struct ui_context
     gpu_context*   gpu;
     scene_context* scene;
 
+    std::string ini_path;
+
     ref<gpu_sampler>  sampler;
     ref<scene_client> client;
     ImGuiContext*     context;
@@ -30,7 +32,7 @@ struct ui_context
     std::vector<texture> textures;
     ref<gpu_image> font_image;
 
-    std::vector<std::move_only_function<ui_frame_fn>> frame_handlers;
+    std::move_only_function<ui_frame_fn> frame_handler;
 
     scene_keyboard* keyboard;
     scene_pointer*  pointer;
@@ -42,7 +44,6 @@ struct ui_context
     ~ui_context();
 };
 
-void ui_init(ui_context*);
 void ui_frame(ui_context*);
 void ui_handle_key(ui_context*, scene_scancode, bool pressed);
 void ui_handle_mods(ui_context*);

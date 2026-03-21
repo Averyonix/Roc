@@ -4,14 +4,14 @@
 
 struct ui_context;
 
-auto ui_create(gpu_context*, scene_context*) -> ref<ui_context>;
+auto ui_create(gpu_context*, scene_context*, const std::filesystem::path&) -> ref<ui_context>;
 
 // -----------------------------------------------------------------------------
 
 using ui_frame_fn = void();
 
 void ui_request_frame(ui_context*);
-void ui_add_frame_handler(ui_context*, std::move_only_function<ui_frame_fn>&&);
+void ui_set_frame_handler(ui_context*, std::move_only_function<ui_frame_fn>&&);
 auto ui_get_texture(ui_context*, gpu_image*, gpu_sampler*, gpu_blend_mode) -> ImTextureID;
 
 auto ui_get_window(ImGuiWindow*) -> scene_window*;

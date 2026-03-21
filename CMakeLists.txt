@@ -52,6 +52,8 @@ add_subdirectory(${VENDOR_DIR}/glm EXCLUDE_FROM_ALL)
 
 add_library(imgui)
 target_include_directories(imgui PUBLIC ${VENDOR_DIR}/imgui)
+target_include_directories(imgui PRIVATE src)
+target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="ui/imconfig.h")
 target_sources(imgui PRIVATE
     ${VENDOR_DIR}/imgui/imgui.cpp
     ${VENDOR_DIR}/imgui/imgui_demo.cpp

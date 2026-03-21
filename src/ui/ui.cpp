@@ -2,6 +2,10 @@
 
 #include "core/stack.hpp"
 
+thread_local ImGuiContext* ui_imgui_ctx;
+
+// -----------------------------------------------------------------------------
+
 static auto imgui_cursor_to_xcursor(ImGuiMouseCursor) -> const char*;
 static auto imgui_key_from_xkb_sym(xkb_keysym_t) -> ImGuiKey;
 
@@ -204,9 +208,25 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imctx) -> const char*
 
 // -----------------------------------------------------------------------------
 
+struct ui_context_guard
+{
+    ImGuiContext* old;
+
+    ui_context_guard(ImGuiContext* ctx)
+        : old(ImGui::GetCurrentContext())
+    {
+        ImGui::SetCurrentContext(ctx);
+    }
+
+    ~ui_context_guard()
+    {
+        ImGui::SetCurrentContext(old);
+    }
+};
+
 ui_context::~ui_context()
 {
-    ImGui::SetCurrentContext(context);
+    ui_context_guard _{context};
     ImGui::DestroyPlatformWindows();
     ImGui::GetIO().BackendPlatformUserData = nullptr;
     ImGui::DestroyContext(context);
@@ -231,10 +251,11 @@ auto ui_get_texture(ui_context* ctx, gpu_image* image, gpu_sampler* sampler, gpu
 
 // -----------------------------------------------------------------------------
 
-void ui_init(ui_context* ctx)
+void ui_init(ui_context* ctx, const std::filesystem::path& path)
 {
     ctx->context = ImGui::CreateContext();
-    ImGui::SetCurrentContext(ctx->context);
+    ImGui::SetCurrentContext(nullptr);
+    ui_context_guard _{ctx->context};
 
     auto& style = ImGui::GetStyle();
     style.FrameRounding     = 3;
@@ -250,6 +271,10 @@ void ui_init(ui_context* ctx)
     io.BackendPlatformName  = PROJECT_NAME;
     io.BackendRendererName  = PROJECT_NAME;
     io.BackendPlatformUserData = ctx;
+
+    std::filesystem::create_directories(path);
+    ctx->ini_path = (path / "imgui.ini").string();
+    io.IniFilename = ctx->ini_path.c_str();
 
     {
         unsigned char* pixels;
@@ -366,7 +391,7 @@ void ui_frame(ui_context* ctx)
                                         gpu_blend_mode::postmultiplied));
 
     ImGui::NewFrame();
-    for (auto& handler : ctx->frame_handlers) handler();
+    ctx->frame_handler();
     ImGui::Render();
 
     if (ctx->pointer) {
@@ -407,7 +432,7 @@ void handle_close(ui_context* ctx, scene_window* window)
     }
 }
 
-auto ui_create(gpu_context* gpu, scene_context* scene) -> ref<ui_context>
+auto ui_create(gpu_context* gpu, scene_context* scene, const std::filesystem::path& path) -> ref<ui_context>
 {
     auto ctx = core_create<ui_context>();
     ctx->scene   = scene;
@@ -418,10 +443,10 @@ auto ui_create(gpu_context* gpu, scene_context* scene) -> ref<ui_context>
     });
     ctx->client  = scene_client_create(scene);
 
-    ui_init(ctx.get());
+    ui_init(ctx.get(), path);
 
     scene_client_set_event_handler(ctx->client.get(), [ctx = ctx.get()](scene_event* event) {
-        ImGui::SetCurrentContext(ctx->context);
+        ui_context_guard _{ctx->context};
         switch (event->type) {
             // keyboard
             break;case scene_event_type::keyboard_enter:
@@ -475,9 +500,9 @@ auto ui_create(gpu_context* gpu, scene_context* scene) -> ref<ui_context>
     return ctx;
 }
 
-void ui_add_frame_handler(ui_context* ctx, std::move_only_function<ui_frame_fn>&& handler)
+void ui_set_frame_handler(ui_context* ctx, std::move_only_function<ui_frame_fn>&& handler)
 {
-    ctx->frame_handlers.emplace_back(std::move(handler));
+    ctx->frame_handler = std::move(handler);
 }
 
 // -----------------------------------------------------------------------------

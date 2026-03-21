@@ -10,6 +10,11 @@
 
 int main()
 {
+    // Directories
+
+    auto home = std::filesystem::path(getenv("HOME"));
+    auto app_share = home / ".local/share" / PROGRAM_NAME;
+
     // Systems
 
     auto exec  = exec_create();
@@ -271,8 +276,8 @@ int main()
     // ImGui
 
     std::string ui_text_edit = "Hello, world!";
-    auto ui = ui_create(gpu.get(), scene.get());
-    ui_add_frame_handler(ui.get(), [&] {
+    auto ui = ui_create(gpu.get(), scene.get(), app_share / "ui");
+    ui_set_frame_handler(ui.get(), [&] {
         ImGui::ShowDemoWindow();
 
         defer { ImGui::End(); };
