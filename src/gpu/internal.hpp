@@ -100,12 +100,6 @@ struct gpu_commands
 
     u64 submitted_value;
 
-#if GPU_VALIDATION_COMPATIBILITY
-    struct {
-        VkFence fence;
-    } validation;
-#endif
-
     ~gpu_commands();
 };
 
@@ -114,13 +108,4 @@ auto gpu_get_commands(gpu_context*) -> gpu_commands*;
 
 // -----------------------------------------------------------------------------
 
-struct gpu_binary_semaphore
-{
-    gpu_context* gpu;
-
-    VkSemaphore semaphore;
-
-    ~gpu_binary_semaphore();
-};
-
-auto gpu_get_binary_semaphore(gpu_context*) -> ref<gpu_binary_semaphore>;
+VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint&);

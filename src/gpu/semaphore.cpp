@@ -1,5 +1,43 @@
 #include "internal.hpp"
 
+VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoint)
+{
+    auto[syncobj, value, stages] = syncpoint;
+
+    if (!syncobj->semaphore) {
+        auto* gpu = syncobj->gpu;
+
+        gpu_check(gpu->vk.CreateSemaphore(gpu->device, ptr_to(VkSemaphoreCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = ptr_to(VkSemaphoreTypeCreateInfo {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+                .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+            })
+        }), nullptr, &syncobj->semaphore));
+
+        int syncobj_fd;
+        unix_check<drmSyncobjHandleToFD>(gpu->drm.fd, syncobj->syncobj, &syncobj_fd);
+
+        if (gpu_check(gpu->vk.ImportSemaphoreFdKHR(gpu->device, ptr_to(VkImportSemaphoreFdInfoKHR {
+            .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+            .semaphore = syncobj->semaphore,
+            .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
+            .fd = syncobj_fd,
+        }))) != VK_SUCCESS) {
+            close(syncobj_fd);
+        };
+    }
+
+    return {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = syncobj->semaphore,
+        .value     = value,
+        .stageMask = stages,
+    };
+}
+
+// -----------------------------------------------------------------------------
+
 ref<gpu_syncobj> gpu_syncobj_create(gpu_context* gpu)
 {
     auto syncobj = core_create<gpu_syncobj>();
@@ -59,6 +97,8 @@ auto gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point) -> core
 
 gpu_syncobj::~gpu_syncobj()
 {
+    gpu->vk.DestroySemaphore(gpu->device, semaphore, nullptr);
+
     if (wait.fd) {
         exec_fd_unlisten(gpu->exec, wait.fd.get());
     }
@@ -86,6 +126,15 @@ void handle_waits(gpu_syncobj* syncobj)
 {
     eventfd_t count = {};
     unix_check<eventfd_read>(syncobj->wait.fd.get(), &count);
+
+#if GPU_VALIDATION_COMPATIBILITY
+    // Validation layers need to see the new semaphore value.
+    auto* gpu = syncobj->gpu;
+    if (syncobj->semaphore && gpu->features.contains(gpu_feature::validation)) {
+        u64 value = 0;
+        gpu_check(gpu->vk.GetSemaphoreCounterValue(gpu->device, syncobj->semaphore, &value));
+    }
+#endif
 
     if (count > syncobj->wait.skips) {
         count -= syncobj->wait.skips;
@@ -154,33 +203,4 @@ void gpu_syncobj_signal_value(gpu_syncobj* syncobj, u64 value)
     auto* gpu = syncobj->gpu;
 
     unix_check<drmSyncobjTimelineSignal>(gpu->drm.fd, &syncobj->syncobj, &value, 1);
-}
-
-// -----------------------------------------------------------------------------
-
-gpu_binary_semaphore::~gpu_binary_semaphore()
-{
-    gpu->free_binary_semaphores.emplace_back(semaphore);
-}
-
-auto gpu_get_binary_semaphore(gpu_context* gpu) -> ref<gpu_binary_semaphore>
-{
-    auto binary = core_create<gpu_binary_semaphore>();
-    binary->gpu = gpu;
-
-    if (gpu->free_binary_semaphores.empty()) {
-        log_warn("Allocating new binary semaphore");
-        gpu_check(gpu->vk.CreateSemaphore(gpu->device, ptr_to(VkSemaphoreCreateInfo {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            .pNext = ptr_to(VkExportSemaphoreCreateInfo {
-                .sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
-                .handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-            }),
-        }), nullptr, &binary->semaphore));
-    } else {
-        binary->semaphore = gpu->free_binary_semaphores.back();
-        gpu->free_binary_semaphores.pop_back();
-    }
-
-    return binary;
 }

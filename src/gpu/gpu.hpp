@@ -217,8 +217,6 @@ struct gpu_context
         u32 active_samplers;
     } stats;
 
-    std::vector<VkSemaphore> free_binary_semaphores;
-
     VkDescriptorSetLayout set_layout;
     VkPipelineLayout pipeline_layout;
     VkDescriptorPool pool;
@@ -257,6 +255,7 @@ struct gpu_syncobj
 {
     gpu_context* gpu;
 
+    VkSemaphore semaphore;
     u32 syncobj;
 
     struct {

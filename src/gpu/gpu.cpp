@@ -26,10 +26,6 @@ gpu_context::~gpu_context()
 
     vmaDestroyAllocator(vma);
 
-    for (auto* binary_sema : free_binary_semaphores) {
-        vk.DestroySemaphore(device, binary_sema, nullptr);
-    }
-
     vk.DestroyPipelineLayout(device, pipeline_layout, nullptr);
     vk.DestroyDescriptorSetLayout(device, set_layout, nullptr);
     vk.DestroyDescriptorPool(device, pool, nullptr);
@@ -442,6 +438,7 @@ ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
                     .descriptorBindingPartiallyBound = true,
                     .runtimeDescriptorArray = true,
                     .scalarBlockLayout = true,
+                    .timelineSemaphore = true,
                     .bufferDeviceAddress = true,
                 }),
                 ptr_to(VkPhysicalDeviceVulkan13Features {
