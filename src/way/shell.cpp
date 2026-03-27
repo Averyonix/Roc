@@ -36,15 +36,17 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 }
 
 static
-void ack_configure(wl_client* client, wl_resource* resource, u32 serial)
+void ack_configure(wl_client* client, wl_resource* resource, u32 _serial)
 {
     auto* surface = way_get_userdata<way_surface>(resource);
     auto* server = surface->client->server;
 
+    auto serial = way_serial(_serial);
+
     if (serial > surface->sent_serial) {
         way_post_error(server, surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
             "Client acked configure {} which is higher than latest sent configure serial {}",
-            serial, surface->sent_serial);
+            u32(serial), u32(surface->sent_serial));
         return;
     }
 
@@ -81,7 +83,7 @@ void way_xdg_surface_configure(way_surface* surface)
 {
     auto* server = surface->client->server;
     surface->sent_serial = way_next_serial(server);
-    way_send(server, xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial);
+    way_send(server, xdg_surface_send_configure, surface->xdg_surface, u32(surface->sent_serial));
 }
 
 // -----------------------------------------------------------------------------
@@ -106,27 +108,38 @@ void configure_toplevel(way_surface* surface, vec2u32 extent)
     );
 }
 
+static
+void reposition(way_surface* surface)
+{
+    vec2f32 extent = surface->current.xdg.geometry.extent;
+    rect2f32 anchor = surface->toplevel.anchor;
+
+    rect2f32 frame { anchor.origin, extent, core_xywh };
+
+    // Apply gravity
+    vec2f32 rel = 1.f - ((surface->toplevel.gravity + 1.f) * .5f);
+    frame.origin -= rel * (extent - anchor.extent);
+
+    scene_window_set_frame(surface->toplevel.window.get(), frame);
+    scene_tree_set_translation(surface->scene.tree.get(), -surface->current.xdg.geometry.origin);
+}
+
 void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gravity)
 {
-    if (surface->toplevel.anchor.extent == frame.extent) {
-        // Move
-        scene_window_set_frame(surface->toplevel.window.get(), {
-            frame.origin,
-            scene_window_get_frame(surface->toplevel.window.get()).extent,
-            core_xywh
-        });
-    } else {
-        // Resize
-        if (surface->toplevel.pending) {
+    bool resize = surface->toplevel.anchor.extent != frame.extent;
+    surface->toplevel.anchor = frame;
+    surface->toplevel.gravity = gravity;
+    if (resize) {
+        if (surface->toplevel.pending > surface->acked_serial) {
             surface->toplevel.queued = true;
         } else {
             configure_toplevel(surface, frame.extent);
             way_xdg_surface_configure(surface);
-            surface->toplevel.pending = true;
+            surface->toplevel.pending = surface->sent_serial;
         }
+    } else {
+        reposition(surface);
     }
-    surface->toplevel.anchor = frame;
-    surface->toplevel.gravity = gravity;
 }
 
 void way_toplevel_on_close(way_surface* surface)
@@ -157,24 +170,13 @@ void way_toplevel_apply(way_surface* surface, way_surface_state& from)
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.min_size, min_size);
 
     if (surface->mapped) {
-        vec2f32 extent = surface->current.xdg.geometry.extent;
-        rect2f32 anchor = surface->toplevel.anchor;
+        reposition(surface);
 
-        rect2f32 frame { anchor.origin, extent, core_xywh };
-
-        // Apply gravity
-        vec2f32 rel = 1.f - ((surface->toplevel.gravity + 1.f) * .5f);
-        frame.origin -= rel * (extent - anchor.extent);
-
-        scene_window_set_frame(surface->toplevel.window.get(), frame);
-        scene_tree_set_translation(surface->scene.tree.get(), -surface->current.xdg.geometry.origin);
-
-        surface->toplevel.pending = false;
         if (surface->toplevel.queued) {
-            configure_toplevel(surface, anchor.extent);
+            configure_toplevel(surface, surface->toplevel.anchor.extent);
             way_xdg_surface_configure(surface);
+            surface->toplevel.pending = surface->sent_serial;
             surface->toplevel.queued = false;
-            surface->toplevel.pending = true;
         }
     } else {
         log_info("toplevel surface committed but not mapped, sending configure");

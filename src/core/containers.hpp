@@ -4,6 +4,47 @@
 #include "object.hpp"
 
 // -----------------------------------------------------------------------------
+//      Unique Integer Type
+// -----------------------------------------------------------------------------
+
+template<typename T, typename Unique>
+struct core_unique_integer_type
+{
+private:
+    T value;
+
+public:
+    constexpr core_unique_integer_type() = default;
+
+    constexpr explicit core_unique_integer_type(T value)
+        : value(value)
+    {}
+
+    constexpr auto operator<=>(const core_unique_integer_type&) const = default;
+
+    constexpr core_unique_integer_type operator+(T other) const
+    {
+        return core_unique_integer_type{value + other};
+    }
+
+    constexpr explicit operator bool()
+    {
+        return bool(value);
+    }
+
+    constexpr explicit operator T()
+    {
+        return T(value);
+    }
+
+    constexpr core_unique_integer_type& operator++()
+    {
+        value++;
+        return *this;
+    }
+};
+
+// -----------------------------------------------------------------------------
 //      Enum Map
 // -----------------------------------------------------------------------------
 

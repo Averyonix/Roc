@@ -215,7 +215,13 @@ struct way_buffer;
 
 // -----------------------------------------------------------------------------
 
-using way_commit_id = u32;
+namespace detail { struct way_commit_id_fingerprint {}; }
+using way_commit_id = core_unique_integer_type<u32, detail::way_commit_id_fingerprint>;
+
+namespace detail { struct way_serial_fingerprint {}; }
+using way_serial = core_unique_integer_type<u32, detail::way_serial_fingerprint>;
+
+// -----------------------------------------------------------------------------
 
 enum class way_surface_role : u32
 {
@@ -367,7 +373,7 @@ struct way_surface_state : way_state<way_surface_committed_state>
 
     struct {
         rect2i32 geometry;
-        u32 acked_serial;
+        way_serial acked_serial;
     } xdg;
 
     struct {
@@ -408,8 +414,8 @@ struct way_surface : way_object
 
     // xdg_surface
     way_resource xdg_surface;
-    u32 sent_serial;
-    u32 acked_serial;
+    way_serial sent_serial;
+    way_serial acked_serial;
 
     // xdg_popup
     struct {
@@ -424,8 +430,8 @@ struct way_surface : way_object
         vec2f32 gravity = {1, 1};
         ref<scene_window> window;
 
-        bool pending; // commit response to resize configure is pending
-        bool queued;  // new reposition request received while pending
+        way_serial pending; // commit response to resize configure is pending
+        bool       queued;  // new reposition request received while pending
     } toplevel;
 
     // scene
@@ -548,7 +554,7 @@ struct way_shm_pool : way_object
 
 // -----------------------------------------------------------------------------
 
-u32 way_next_serial(way_server* server);
+auto way_next_serial(way_server* server) -> way_serial;
 
 void way_queue_client_flush(way_server* server);
 

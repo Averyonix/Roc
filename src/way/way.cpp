@@ -90,9 +90,9 @@ wl_resource* way_resource_create_(wl_client* client, const wl_interface* interfa
     return resource;
 }
 
-u32 way_next_serial(way_server* server)
+auto way_next_serial(way_server* server) -> way_serial
 {
-    return wl_display_next_serial(server->wl_display);
+    return way_serial(wl_display_next_serial(server->wl_display));
 }
 
 void way_queue_client_flush(way_server* server)
