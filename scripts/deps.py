@@ -1,10 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
-
-def run(cmds, cwd=None):
-    print(cmds)
-    subprocess.run(cmds, cwd=cwd)
+from .utils import *
 
 def stamp_path(vendor_dir: Path, name: str) -> Path:
     return vendor_dir / f"{name}.stamp"
@@ -14,28 +11,28 @@ def read_stamp(vendor_dir: Path, name: str) -> str | None:
     return p.read_text().strip() if p.exists() else None
 
 def write_stamp(vendor_dir: Path, name: str, commit: str):
-    vendor_dir.mkdir(parents=True, exist_ok=True)
-    p = stamp_path(vendor_dir, name)
-    if not p.exists() or p.read_text().strip() != commit:
-        p.write_text(commit)
+    write_file_lazy(ensure_parent(stamp_path(vendor_dir, name)), commit)
+
+def git(cmds, cwd=None):
+    print(f"git: {cmds}")
+    return subprocess.run(["git"] + cmds, cwd=cwd)
 
 def fetch_dep(dir: Path, repo: str, branch: str, commit: str) -> str:
 
     # Grab dependency if not exists
     if not dir.exists():
-        run(["git", "clone", repo, "--branch", branch, "--depth", "1", "--recursive", str(dir)])
+        git(["clone", repo, "--branch", branch, "--depth", "1", "--recursive", str(dir)])
 
     # Update to exact commit or latest on branch
     if commit:
-        run(["git", "fetch", "--depth", "1", "origin", commit], cwd=dir)
-        run(["git", "checkout", commit], cwd=dir)
+        git(["fetch", "--depth", "1", "origin", commit], cwd=dir)
+        git(["checkout", "--force", commit], cwd=dir)
     else:
-        run(["git", "fetch", "--depth", "1", "origin", branch], cwd=dir)
-        run(["git", "checkout", branch],  cwd=dir)
-        run(["git", "pull", "--ff-only"], cwd=dir)
+        git(["fetch", "--depth", "1", "origin", branch], cwd=dir)
+        git(["reset", "--hard", f"origin/{branch}"],  cwd=dir)
 
     # Update submodules
-    run(["git", "submodule", "update", "--init", "--recursive"], cwd=dir)
+    git(["submodule", "update", "--init", "--recursive"], cwd=dir)
 
     # Check actual commit
     return subprocess.run(
@@ -81,8 +78,6 @@ def fetch_deps(
         else:
             entry["commit"] = head
 
-    data = json.dumps(lock, indent=4, sort_keys=True)
-    if not build_data_path.exists() or build_data_path.read_text() != data:
-        build_data_path.write_text(data)
+    write_file_lazy(build_data_path, json.dumps(lock, indent=4, sort_keys=True))
 
     return dep_dirs

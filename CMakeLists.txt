@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 4.0)
 project(roc)
 
 # ------------------------------------------------------------------------------
+#       Helpers
+# ------------------------------------------------------------------------------
 
 function(target_generated_source target visibility generated_source_name)
     string(JOIN "\n" generated_content ${ARGN})
@@ -12,26 +14,70 @@ function(target_generated_source target visibility generated_source_name)
     target_sources(${target} ${visibility} "${CMAKE_CURRENT_BINARY_DIR}/${generated_source_name}")
 endfunction()
 
+function(init_target target_name)
+    target_compile_options(${target_name} PRIVATE
+        -std=c++26
+
+        -Wall
+        -Wextra
+        -Werror
+        -Wimplicit-fallthrough
+
+        -Wno-missing-field-initializers
+        -Wno-unknown-pragmas
+        -Wno-unused-parameter
+        )
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(${target_name} PRIVATE
+            -Wshadow # (only enabled for clang, as gcc complains on shadowing in constructors)
+
+            -Wno-missing-designated-field-initializers
+            -Wno-sometimes-uninitialized
+            -Wno-delete-non-abstract-non-virtual-dtor # doesn't allow for protected non-virtual destructors
+
+            # GNU Extensions
+            -Wpedantic
+            -Wno-gnu-case-range
+            -Wno-zero-length-array
+            -Wno-gnu-conditional-omitted-operand
+            -Wno-nested-anon-types
+            )
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target_name} PRIVATE
+            -Wno-changes-meaning # we use `foo* foo` a lot in wayland protocol bindings
+            -Wno-maybe-uninitialized
+            )
+    endif()
+    if(USE_ASAN)
+        target_compile_options(${target_name} PUBLIC -fsanitize=address)
+        target_link_libraries( ${target_name} PUBLIC asan)
+    endif()
+endfunction()
+
+function(init_library target_name)
+    add_library(${target_name})
+    init_target(${target_name})
+endfunction()
+
+function(init_executable target_name)
+    add_executable(${target_name})
+    init_target(${target_name})
+endfunction()
+
+# ------------------------------------------------------------------------------
+#       System Dependencies
+# ------------------------------------------------------------------------------
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(libevdev REQUIRED IMPORTED_TARGET libevdev)
+pkg_check_modules(libgio2  REQUIRED IMPORTED_TARGET gio-2.0 gio-unix-2.0 gobject-2.0 glib-2.0)
+pkg_check_modules(libdrm   REQUIRED IMPORTED_TARGET libdrm)
+
+# ------------------------------------------------------------------------------
+#       Git Dependencies
 # ------------------------------------------------------------------------------
 
 add_subdirectory(${VENDOR_DIR}/wayland EXCLUDE_FROM_ALL)
-
-# ------------------------------------------------------------------------------
-
-add_library(               libevdev INTERFACE)
-target_link_libraries(     libevdev INTERFACE evdev)
-target_include_directories(libevdev INTERFACE /usr/include/libevdev-1.0)
-
-# ------------------------------------------------------------------------------
-
-# TODO: Helper function for pkg config dependencies
-add_library(               libgio2 INTERFACE)
-target_include_directories(libgio2 INTERFACE /usr/include/glib-2.0
-                                             /usr/include/gio-unix-2.0
-                                             /usr/lib/glib-2.0/include)
-target_link_libraries(     libgio2 INTERFACE /usr/lib/libgio-2.0.so
-                                             /usr/lib/libglib-2.0.so
-                                             /usr/lib/libgobject-2.0.so)
 
 # ------------------------------------------------------------------------------
 
@@ -92,63 +138,13 @@ add_library(renderdoc-api INTERFACE)
 target_include_directories(renderdoc-api INTERFACE ${VENDOR_DIR}/renderdoc/renderdoc/api/app)
 
 # ------------------------------------------------------------------------------
-
-function(init_target target_name)
-    target_compile_options(${target_name} PRIVATE
-        -std=c++26
-
-        -Wall
-        -Wextra
-        -Werror
-        -Wimplicit-fallthrough
-
-        -Wno-missing-field-initializers
-        -Wno-unknown-pragmas
-        -Wno-unused-parameter
-        )
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(${target_name} PRIVATE
-            -Wshadow # (only enabled for clang, as gcc complains on shadowing in constructors)
-
-            -Wno-missing-designated-field-initializers
-            -Wno-sometimes-uninitialized
-            -Wno-delete-non-abstract-non-virtual-dtor # doesn't allow for protected non-virtual destructors
-
-            # GNU Extensions
-            -Wpedantic
-            -Wno-gnu-case-range
-            -Wno-zero-length-array
-            -Wno-gnu-conditional-omitted-operand
-            -Wno-nested-anon-types
-            )
-    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(${target_name} PRIVATE
-            -Wno-changes-meaning # we use `foo* foo` a lot in wayland protocol bindings
-            -Wno-maybe-uninitialized
-            )
-    endif()
-    if(USE_ASAN)
-        target_compile_options(${target_name} PUBLIC -fsanitize=address)
-        target_link_libraries( ${target_name} PUBLIC asan)
-    endif()
-endfunction()
-
-function(init_library target_name)
-    add_library(${target_name})
-    init_target(${target_name})
-endfunction()
-
-function(init_executable target_name)
-    add_executable(${target_name})
-    init_target(${target_name})
-endfunction()
-
+#       Core
 # ------------------------------------------------------------------------------
 
 init_library(core)
 target_precompile_headers(core PUBLIC src/core/pch.hpp)
 target_compile_definitions(core PUBLIC PROGRAM_NAME="roc" PROJECT_NAME="Roc")
-target_sources(core PUBLIC
+target_sources(core PRIVATE
     src/core/log.cpp
     src/core/string.cpp
     src/core/object.cpp
@@ -161,16 +157,13 @@ target_sources(core PUBLIC
 
     src/exec/exec.cpp
     )
-target_include_directories(core PUBLIC
-    src
-    /usr/include/drm
-    )
+target_include_directories(core PUBLIC src)
 target_link_libraries(core PUBLIC
     wayland-server
     wayland-client
     wayland-header
     xkbcommon
-    libevdev
+    PkgConfig::libevdev
     input
     stdc++exp
     magic_enum::magic_enum
@@ -182,21 +175,23 @@ target_link_libraries(core PUBLIC
     unordered_dense::unordered_dense
     concurrentqueue
     Xcursor
-    drm
+    PkgConfig::libdrm
     udev
     seat
     imgui
     cap
-    libgio2
+    PkgConfig::libgio2
     renderdoc-api
     )
 
+# ------------------------------------------------------------------------------
+#       GPU
 # ------------------------------------------------------------------------------
 
 add_subdirectory(.build/shaders)
 
 init_library(gpu)
-target_sources(gpu PUBLIC
+target_sources(gpu PRIVATE
     src/gpu/gpu.cpp
     src/gpu/functions.cpp
     src/gpu/buffer.cpp
@@ -211,9 +206,11 @@ target_sources(gpu PUBLIC
 target_link_libraries(gpu PUBLIC core shaders)
 
 # ------------------------------------------------------------------------------
+#       Session IO
+# ------------------------------------------------------------------------------
 
 init_library(io)
-target_sources(io PUBLIC
+target_sources(io PRIVATE
     src/io/io.cpp
     src/io/output.cpp
     src/io/input.cpp
@@ -229,13 +226,15 @@ target_sources(io PUBLIC
 target_link_libraries(io PUBLIC core gpu)
 
 init_executable(io-test)
-target_sources(io-test PUBLIC src/io/main.cpp)
+target_sources(io-test PRIVATE src/io/main.cpp)
 target_link_libraries(io-test PUBLIC io)
 
 # ------------------------------------------------------------------------------
+#       Scene Graph
+# ------------------------------------------------------------------------------
 
 init_library(scene)
-target_sources(scene PUBLIC
+target_sources(scene PRIVATE
     src/scene/scene.cpp
     src/scene/render.cpp
     src/scene/node.cpp
@@ -250,17 +249,21 @@ target_sources(scene PUBLIC
 target_link_libraries(scene PUBLIC io)
 
 # ------------------------------------------------------------------------------
+#       UI
+# ------------------------------------------------------------------------------
 
 init_library(ui)
-target_sources(ui PUBLIC
+target_sources(ui PRIVATE
     src/ui/ui.cpp
     )
 target_link_libraries(ui PUBLIC scene)
 
 # ------------------------------------------------------------------------------
+#       Wayland
+# ------------------------------------------------------------------------------
 
 init_library(way)
-target_sources(way PUBLIC
+target_sources(way PRIVATE
     src/way/way.cpp
     src/way/buffer.cpp
     src/way/surface.cpp
@@ -281,9 +284,11 @@ target_sources(way PUBLIC
 target_link_libraries(way PUBLIC scene)
 
 # ------------------------------------------------------------------------------
+#       Roc
+# ------------------------------------------------------------------------------
 
 init_executable(roc)
-target_sources(roc PUBLIC
+target_sources(roc PRIVATE
     src/wm/main.cpp
     src/wm/wm.cpp
     src/wm/movesize.cpp

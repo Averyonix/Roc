@@ -129,6 +129,7 @@ Builds on `scene` to implement opinionated window management, styling, and behav
 - ninja
 - wayland-protocols
 - xkbcommon
+- libgio2
 - mold (optional)
 - clang/gcc (C++26 capable version at minimum)
 
@@ -139,8 +140,6 @@ Build in release mode and install to `.local/bin/roc`
 ```
 $ python build.py -BIR
 ```
-
-**NOTE:** Currently this will also install a git version of `xwayland-satellite` to `.local/bin`
 
 ### Global Queue Priority
 

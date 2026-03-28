@@ -12,7 +12,7 @@
         },
         "imgui": {
             "branch": "docking",
-            "commit": "60d7fb207eeb46d6363dd4bde10b35991bae0ce7",
+            "commit": "148bd34a7e8106cd6e8dae8411a506a8e3e84f40",
             "repo": "https://github.com/ocornut/imgui.git"
         },
         "kde-protocols": {
@@ -27,17 +27,12 @@
         },
         "renderdoc": {
             "branch": "v1.x",
-            "commit": "ecfa3f2eb3bb52b3ae72996c8a9f04fda0ef3fb8",
+            "commit": "18e6d687721f1537e2dedc41ff4d508245e27e03",
             "repo": "https://github.com/baldurk/renderdoc.git"
-        },
-        "slang": {
-            "branch": "master",
-            "commit": "475396e4211a54ccef58a90785c0ad75eb5ab411",
-            "repo": "https://github.com/shader-slang/slang.git"
         },
         "stb": {
             "branch": "master",
-            "commit": "904aa67e1e2d1dec92959df63e700b166d5c1022",
+            "commit": "28d546d5eb77d4585506a20480f4de2e706dff4c",
             "repo": "https://github.com/nothings/stb.git"
         },
         "unordered-dense": {
@@ -47,7 +42,7 @@
         },
         "vulkan-headers": {
             "branch": "main",
-            "commit": "29184b98984f6169a5e83e97557a77cff1e5b0ca",
+            "commit": "f07ffc2cf2cd356927dee964fc0a35b5cfaeb789",
             "repo": "https://github.com/KhronosGroup/Vulkan-Headers.git"
         },
         "vulkan-memory-allocator": {
@@ -57,13 +52,8 @@
         },
         "vulkan-utility-libraries": {
             "branch": "main",
-            "commit": "c15a1ac31670cb2ce61c235f070fb40ec6e42612",
+            "commit": "5cbca997c1f916026670ffc8d6890ef9f1cd788d",
             "repo": "https://github.com/KhronosGroup/Vulkan-Utility-Libraries.git"
-        },
-        "xwayland-satellite": {
-            "branch": "main",
-            "commit": "309d8e2a29953f7465dc14c939e2afe4682c0aa9",
-            "repo": "https://github.com/Supreeeme/xwayland-satellite.git"
         }
     }
 }

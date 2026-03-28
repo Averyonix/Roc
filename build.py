@@ -1,12 +1,17 @@
 #!/bin/python
 
 import os
-import sys
 import shutil
 from pathlib import Path
 import subprocess
 import argparse
 import filecmp
+
+from scripts.utils import *
+
+# -----------------------------------------------------------------------------
+#       Build Flags
+# -----------------------------------------------------------------------------
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-U", "--update", action="store_true", help="Update")
@@ -15,31 +20,17 @@ parser.add_argument("-B", "--build", action="store_true", help="Build")
 parser.add_argument("-R", "--release", action="store_true", help="Release")
 parser.add_argument("-I", "--install", action="store_true", help="Install")
 parser.add_argument("--asan", action="store_true", help="Enable Address Sanitizer")
-parser.add_argument("--system-slangc", action="store_true", help="Use system slangc")
 parser.add_argument("--system-linker", action="store_true", help="Use system linker (even if mold is available)")
 parser.add_argument("--use-gcc", action="store_true", help="Use GCC instead of Clang")
 args = parser.parse_args()
 
 # -----------------------------------------------------------------------------
-
-def ensure_dir(path: Path | str) -> Path:
-    os.makedirs(path, exist_ok=True)
-    return Path(path)
+#       Build Flags
+# -----------------------------------------------------------------------------
 
 cwd = Path(".").absolute()
 build_dir  = ensure_dir(cwd / ".build")
 vendor_dir = ensure_dir(build_dir / "3rdparty")
-
-# -----------------------------------------------------------------------------
-
-def write_file_lazy(path: Path, data: str | bytes):
-    match data:
-        case bytes(b):
-            if not path.exists() or b != path.read_bytes():
-                path.write_bytes(b)
-        case str(t):
-            if not path.exists() or t != path.read_text():
-                path.write_text(t)
 
 # -----------------------------------------------------------------------------
 
@@ -49,46 +40,6 @@ dep_dirs = deps.fetch_deps(vendor_dir, cwd / "build.json", args.update)
 
 def dep_dir(name: str):
     return dep_dirs[name]
-
-# -----------------------------------------------------------------------------
-
-def cmake_build(src_dir: Path, build_dir: Path, install_dir, opts: list[str]):
-    if not build_dir.exists() or args.update:
-        cmd  = ["cmake", "-B", build_dir.absolute(), "-G", "Ninja"]
-        cmd += [f"-DCMAKE_INSTALL_PREFIX={install_dir.absolute()}"]
-        cmd += [ "-DCMAKE_INSTALL_MESSAGE=LAZY"]
-        cmd += opts
-        subprocess.run(cmd, cwd=src_dir)
-
-    if not install_dir.exists() or args.update:
-        cmd = ["cmake", "--build", build_dir.absolute(), "--target", "install"]
-        subprocess.run(cmd, cwd=src_dir)
-
-# -----------------------------------------------------------------------------
-
-def build_slang() -> Path:
-    source_dir  = dep_dir("slang")
-    build_dir   = vendor_dir / "slang-build"
-    install_dir = vendor_dir / "slang-install"
-
-    cmake_build(source_dir, build_dir, install_dir, [])
-    return install_dir / "bin/slangc"
-
-if args.system_slangc:
-    slangc = None
-else:
-    slangc = build_slang()
-
-# -----------------------------------------------------------------------------
-
-xwayland_satellite_dir = vendor_dir / "xwayland-satellite"
-xwayland_satellite_bin = xwayland_satellite_dir / "target/release/xwayland-satellite"
-
-def build_xwayland_satellite():
-    if not xwayland_satellite_bin.exists() or args.update:
-        subprocess.run(["cargo", "build", "--release"], cwd=xwayland_satellite_dir)
-
-build_xwayland_satellite()
 
 # -----------------------------------------------------------------------------
 
@@ -236,7 +187,7 @@ def build_shaders():
 
         cmd += [shader_src]
 
-        res = subprocess.run(cmd, executable=slangc)
+        res = subprocess.run(cmd)
         if res.returncode != 0 or not tmp_path.exists():
             print("Shader compilation failed")
             os._exit(1)
@@ -330,8 +281,3 @@ build(build_type  = "Release" if args.release else "Debug",
       compiler    = "gcc"     if args.use_gcc else "clang",
       linker_type = "MOLD"    if use_mold     else "SYSTEM",
       install     = "roc"     if args.install else None)
-
-# -----------------------------------------------------------------------------
-
-if args.install:
-    install_file(xwayland_satellite_bin, local_bin_dir / "xwayland-satellite")
