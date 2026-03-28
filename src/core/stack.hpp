@@ -5,7 +5,7 @@
 #include "types.hpp"
 #include "memory.hpp"
 
-struct core_thread_stack_storage
+struct ThreadStackStorage
 {
     byte* head;
 
@@ -14,7 +14,7 @@ struct core_thread_stack_storage
 
     static constexpr usz size = usz(1) * 1024 * 1024;
 
-    core_thread_stack_storage()
+    ThreadStackStorage()
         : head(static_cast<byte*>(unix_check<mmap>(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0).value))
         , start(head)
         , end(head + size)
@@ -24,7 +24,7 @@ struct core_thread_stack_storage
         log_warn("end: {}", (void*)end);
     }
 
-    ~core_thread_stack_storage()
+    ~ThreadStackStorage()
     {
         munmap(start, size);
     }
@@ -36,29 +36,29 @@ struct core_thread_stack_storage
 };
 
 inline
-core_thread_stack_storage& core_get_thread_stack_storage()
+ThreadStackStorage& get_thread_stack_storage()
 {
-    thread_local core_thread_stack_storage stack;
+    thread_local ThreadStackStorage stack;
     return stack;
 }
 
-class core_thread_stack
+class ThreadStack
 {
-    core_thread_stack_storage& stack;
+    ThreadStackStorage& stack;
     byte* old_head;
 
 public:
-    core_thread_stack()
-        : stack(core_get_thread_stack_storage())
+    ThreadStack()
+        : stack(get_thread_stack_storage())
         , old_head(stack.head)
     {}
 
-    ~core_thread_stack()
+    ~ThreadStack()
     {
         stack.head = old_head;
     }
 
-    CORE_DELETE_COPY_MOVE(core_thread_stack);
+    DELETE_COPY_MOVE(ThreadStack);
 
     void* get_head() noexcept
     {
@@ -67,7 +67,7 @@ public:
 
     void set_head(void* address) noexcept
     {
-        stack.head = core_align_up_power2(static_cast<byte*>(address), 16);
+        stack.head = align_up_power2(static_cast<byte*>(address), 16);
     }
 
     constexpr void* allocate(usz byte_size) noexcept

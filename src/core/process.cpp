@@ -1,7 +1,7 @@
 #include "util.hpp"
 #include "debug.hpp"
 
-bool core_process_has_cap(cap_value_t cap)
+bool process_has_cap(cap_value_t cap)
 {
     cap_t caps = unix_check<cap_get_proc>().value;
     if (!caps) return false;
@@ -11,7 +11,7 @@ bool core_process_has_cap(cap_value_t cap)
     return value == CAP_SET;
 }
 
-void core_process_drop_cap(cap_value_t cap)
+void process_drop_cap(cap_value_t cap)
 {
     cap_t caps = unix_check<cap_get_proc>().value;
     if (!caps) return;

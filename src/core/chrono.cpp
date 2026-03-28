@@ -4,7 +4,7 @@
 #include "string.hpp"
 #include "util.hpp"
 
-std::string core_to_string(std::chrono::system_clock::time_point time, core_time_format format)
+std::string to_string(std::chrono::system_clock::time_point time, TimeFormat format)
 {
     tm tm = {};
     gmtime_r(ptr_to(std::chrono::system_clock::to_time_t(time)), &tm);
@@ -48,27 +48,27 @@ std::string core_to_string(std::chrono::system_clock::time_point time, core_time
     };
 
     switch (format) {
-        break;case core_time_format::date_pretty:
+        break;case TimeFormat::date_pretty:
             return std::format("{}, {} {}{}", weekdays[tm.tm_wday], months[tm.tm_mon], tm.tm_mday, day_suffix(tm.tm_mday));
 
-        break;case core_time_format::iso8601:
+        break;case TimeFormat::iso8601:
             return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",      year, month, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        break;case core_time_format::datetime:
+        break;case TimeFormat::datetime:
             return std::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}",       year, month, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-        break;case core_time_format::datetime_ms:
+        break;case TimeFormat::datetime_ms:
             return std::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, msec);
 
-        break;case core_time_format::time:
+        break;case TimeFormat::time:
             return std::format("{:02}:{:02}:{:02}",       tm.tm_hour, tm.tm_min, tm.tm_sec);
-        break;case core_time_format::time_ms: {
+        break;case TimeFormat::time_ms: {
             return std::format("{:02}:{:02}:{:02}.{:03}", tm.tm_hour, tm.tm_min, tm.tm_sec, msec);
         }
     }
 
-    core_unreachable();
+    debug_unreachable();
 }
 
-std::string core_to_string(std::chrono::duration<f64, std::nano> dur)
+std::string to_string(std::chrono::duration<f64, std::nano> dur)
 {
     f64 nanos = dur.count();
 
@@ -87,16 +87,18 @@ std::string core_to_string(std::chrono::duration<f64, std::nano> dur)
         return std::format("{:.0f}m {:.1f}s", mins, secs);
     }
 
-#define CORE_DURATION_FORMAT_CASE(Size, Suffix) \
+#define DURATION_FORMAT_CASE(Size, Suffix) \
     if (nanos >= (Size)) { \
         f64 in_size = nanos / (Size); \
-        return core_format_with_suffix(Suffix, in_size, core_decimals_for_3sf(in_size)); \
+        return format_with_suffix(Suffix, in_size, decimals_for_3sf(in_size)); \
     }
 
-    CORE_DURATION_FORMAT_CASE(1e9, "s")
-    CORE_DURATION_FORMAT_CASE(1e6, "ms")
-    CORE_DURATION_FORMAT_CASE(1e3, "us")
-    CORE_DURATION_FORMAT_CASE(1,   "ns")
+    DURATION_FORMAT_CASE(1e9, "s")
+    DURATION_FORMAT_CASE(1e6, "ms")
+    DURATION_FORMAT_CASE(1e3, "us")
+    DURATION_FORMAT_CASE(1,   "ns")
+
+#undef DURATION_FORMAT_CASE
 
     return "0";
 }

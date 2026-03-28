@@ -6,7 +6,7 @@ int get_loop_fd(wl_display* display)
     return wl_event_loop_get_fd(wl_display_get_event_loop(display));
 }
 
-way_server::~way_server()
+WayServer::~WayServer()
 {
     seats.clear();
 
@@ -15,9 +15,9 @@ way_server::~way_server()
     wl_display_destroy(wl_display);
 }
 
-auto way_create(exec_context* exec, gpu_context* gpu, scene_context* scene) -> ref<way_server>
+auto way_create(ExecContext* exec, Gpu* gpu, Scene* scene) -> Ref<WayServer>
 {
-    auto server = core_create<way_server>();
+    auto server = ref_create<WayServer>();
 
     server->epoch = std::chrono::steady_clock::now();
 
@@ -32,8 +32,8 @@ auto way_create(exec_context* exec, gpu_context* gpu, scene_context* scene) -> r
 
     server->socket_name = wl_display_add_socket_auto(server->wl_display);
 
-    exec_fd_listen(exec, get_loop_fd(server->wl_display), exec_fd_event_bit::readable,
-        [server = server.get()](int fd, flags<exec_fd_event_bit> events) {
+    exec_fd_listen(exec, get_loop_fd(server->wl_display), FdEventBit::readable,
+        [server = server.get()](int fd, Flags<FdEventBit> events) {
             unix_check<wl_event_loop_dispatch>(wl_display_get_event_loop(server->wl_display), 0);
             wl_display_flush_clients(server->wl_display);
         });
@@ -65,24 +65,24 @@ auto way_create(exec_context* exec, gpu_context* gpu, scene_context* scene) -> r
     return server;
 }
 
-auto way_get_elapsed(way_server* server) -> std::chrono::steady_clock::duration
+auto way_get_elapsed(WayServer* server) -> std::chrono::steady_clock::duration
 {
     return std::chrono::steady_clock::now() - server->epoch;
 }
 
-wl_global* way_global_(way_server* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, way_object* data)
+wl_global* way_global_(WayServer* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, WayObject* data)
 {
-    core_assert(version <= interface->version);
+    debug_assert(version <= interface->version);
     return wl_global_create(server->wl_display, interface, version, data ?: server, bind);
 }
 
-wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, int version, int id, const void* impl, way_object* data, bool refcount)
+wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, int version, int id, const void* impl, WayObject* data, bool refcount)
 {
     auto resource = wl_resource_create(client, interface, version, id);
     if (refcount) {
-        core_object_add_ref(data);
+        object_add_ref(data);
         wl_resource_set_implementation(resource, impl, data, [](wl_resource* resource) {
-            core_object_remove_ref(wl_resource_get_user_data(resource));
+            object_remove_ref(wl_resource_get_user_data(resource));
         });
     } else {
         wl_resource_set_implementation(resource, impl, data, nullptr);
@@ -90,12 +90,12 @@ wl_resource* way_resource_create_(wl_client* client, const wl_interface* interfa
     return resource;
 }
 
-auto way_next_serial(way_server* server) -> way_serial
+auto way_next_serial(WayServer* server) -> WaySerial
 {
-    return way_serial(wl_display_next_serial(server->wl_display));
+    return WaySerial(wl_display_next_serial(server->wl_display));
 }
 
-void way_queue_client_flush(way_server* server)
+void way_queue_client_flush(WayServer* server)
 {
     // TODO: Queue to run at end of event
     wl_display_flush_clients(server->wl_display);

@@ -9,7 +9,7 @@
 #endif
 
 static
-auto get_enabled_tree_root(scene_tree* tree) -> scene_tree*
+auto get_enabled_tree_root(SceneTree* tree) -> SceneTree*
 {
     if (!tree->enabled) return nullptr;
 
@@ -17,10 +17,10 @@ auto get_enabled_tree_root(scene_tree* tree) -> scene_tree*
 }
 
 static
-auto is_enabled_in_scene(scene_node* node)
+auto is_enabled_in_scene(SceneNode* node)
 {
-    auto* tree = node->type == scene_node_type::tree
-        ? static_cast<scene_tree*>(node)
+    auto* tree = node->type == SceneNodeType::tree
+        ? static_cast<SceneTree*>(node)
         : node->parent;
 
     return tree && get_enabled_tree_root(tree) == tree->ctx->root_tree.get();
@@ -29,15 +29,15 @@ auto is_enabled_in_scene(scene_node* node)
 // -----------------------------------------------------------------------------
 
 static
-void dispatch_damage(scene_context* ctx)
+void dispatch_damage(Scene* ctx)
 {
     defer { ctx->damage.queued = {}; };
 
-    if (ctx->damage.queued.contains(scene_damage_type::input)) {
+    if (ctx->damage.queued.contains(SceneDamageType::input)) {
         scene_update_pointers(ctx);
     }
 
-    if (ctx->damage.queued.contains(scene_damage_type::visual)) {
+    if (ctx->damage.queued.contains(SceneDamageType::visual)) {
         for (auto* output : ctx->outputs) {
             scene_output_request_frame(output);
         }
@@ -45,14 +45,14 @@ void dispatch_damage(scene_context* ctx)
 }
 
 static
-void enqueue_damage(scene_context* ctx, scene_damage_type type)
+void enqueue_damage(Scene* ctx, SceneDamageType type)
 {
     auto enqueue = ctx->damage.queued.empty();
     ctx->damage.queued |= type;
 
     if (!enqueue) return;
 
-    exec_enqueue(ctx->exec, [ctx = weak(ctx)] {
+    exec_enqueue(ctx->exec, [ctx = Weak(ctx)] {
         if (ctx) dispatch_damage(ctx.get());
     });
 }
@@ -60,18 +60,18 @@ void enqueue_damage(scene_context* ctx, scene_damage_type type)
 // -----------------------------------------------------------------------------
 
 static
-void basic_damage(scene_node* node)
+void basic_damage(SceneNode* node)
 {
     if (node->parent) {
         // TODO: Damage affected regions only.
-        enqueue_damage(node->parent->ctx, scene_damage_type::visual);
+        enqueue_damage(node->parent->ctx, SceneDamageType::visual);
     }
 }
 
 // -----------------------------------------------------------------------------
 
 template<bool CheckInScene = true>
-void damage_node(scene_texture* texture)
+void damage_node(SceneTexture* texture)
 {
     if (CheckInScene && !is_enabled_in_scene(texture)) return;
 
@@ -79,7 +79,7 @@ void damage_node(scene_texture* texture)
 }
 
 template<bool CheckInScene = true>
-void damage_node(scene_mesh* mesh)
+void damage_node(SceneMesh* mesh)
 {
     if (CheckInScene && !is_enabled_in_scene(mesh)) return;
 
@@ -87,27 +87,27 @@ void damage_node(scene_mesh* mesh)
 }
 
 template<bool CheckInScene = true>
-void damage_node(scene_input_region* input)
+void damage_node(SceneInputRegion* input)
 {
     if (CheckInScene && !is_enabled_in_scene(input)) return;
 
     auto* ctx = input->client->ctx;
-    enqueue_damage(ctx, scene_damage_type::input);
+    enqueue_damage(ctx, SceneDamageType::input);
 }
 
 static
-void damage_node(scene_tree* tree)
+void damage_node(SceneTree* tree)
 {
     if (!is_enabled_in_scene(tree)) return;
 
-    scene_iterate<scene_iterate_direction::back_to_front>(tree,
+    scene_iterate<SceneIterateDirection::back_to_front>(tree,
         scene_iterate_default,
         [](auto* node) { damage_node<false>(node); },
         scene_iterate_default);
 }
 
 static
-void damage_node(scene_node* node)
+void damage_node(SceneNode* node)
 {
     if (!is_enabled_in_scene(node)) return;
 
@@ -116,30 +116,30 @@ void damage_node(scene_node* node)
 
 // -----------------------------------------------------------------------------
 
-scene_node::~scene_node()
+SceneNode::~SceneNode()
 {
-    core_assert(!parent);
+    debug_assert(!parent);
 }
 
 // -----------------------------------------------------------------------------
 
-scene_tree::~scene_tree()
+SceneTree::~SceneTree()
 {
     for (auto& child : children) {
         child->parent = nullptr;
     }
 }
 
-auto scene_tree_create(scene_context* ctx) -> ref<scene_tree>
+auto scene_tree_create(Scene* ctx) -> Ref<SceneTree>
 {
-    auto tree = core_create<scene_tree>();
-    tree->type = scene_node_type::tree;
+    auto tree = ref_create<SceneTree>();
+    tree->type = SceneNodeType::tree;
     tree->ctx = ctx;
     tree->enabled = true;
     return tree;
 }
 
-void scene_tree_set_enabled(scene_tree* tree, bool enabled)
+void scene_tree_set_enabled(SceneTree* tree, bool enabled)
 {
     if (tree->enabled == enabled) return;
 
@@ -154,7 +154,7 @@ void scene_tree_set_enabled(scene_tree* tree, bool enabled)
     }
 }
 
-void scene_node_unparent(scene_node* node)
+void scene_node_unparent(SceneNode* node)
 {
     if (!node->parent) return;
 
@@ -162,11 +162,11 @@ void scene_node_unparent(scene_node* node)
 
     damage_node(node);
     auto parent = std::exchange(node->parent, nullptr);
-    core_assert(parent->children.erase(node) == 1);
+    debug_assert(parent->children.erase(node) == 1);
 }
 
 static
-void reparent_unsafe(scene_node* node, scene_tree* tree)
+void reparent_unsafe(SceneNode* node, SceneTree* tree)
 {
     if (node->parent == tree) return;
     if (node->parent) {
@@ -176,7 +176,7 @@ void reparent_unsafe(scene_node* node, scene_tree* tree)
 }
 
 static
-void tree_place(scene_tree* tree, scene_node* sibling, scene_node* node, bool above)
+void tree_place(SceneTree* tree, SceneNode* sibling, SceneNode* node, bool above)
 {
     auto end = tree->children.end();
     auto cur =           std::ranges::find(tree->children, node);
@@ -204,20 +204,20 @@ void tree_place(scene_tree* tree, scene_node* sibling, scene_node* node, bool ab
     damage_node(tree);
 }
 
-void scene_tree_place_below(scene_tree* tree, scene_node* reference, scene_node* to_place)
+void scene_tree_place_below(SceneTree* tree, SceneNode* reference, SceneNode* to_place)
 {
     tree_place(tree, reference, to_place, false);
     reparent_unsafe(to_place, tree);
 
 }
 
-void scene_tree_place_above(scene_tree* tree, scene_node* reference, scene_node* to_place)
+void scene_tree_place_above(SceneTree* tree, SceneNode* reference, SceneNode* to_place)
 {
     tree_place(tree, reference, to_place, true);
     reparent_unsafe(to_place, tree);
 }
 
-void scene_tree_clear(scene_tree* tree)
+void scene_tree_clear(SceneTree* tree)
 {
     damage_node(tree);
 
@@ -228,11 +228,11 @@ void scene_tree_clear(scene_tree* tree)
     tree->children.clear();
 }
 
-void scene_tree_set_translation(scene_tree* tree, vec2f32 position)
+void scene_tree_set_translation(SceneTree* tree, vec2f32 position)
 {
     if (tree->translation == position) return;
 
-    NODE_LOG("scene.tree{{{}}}.set_translation{}", (void*)tree, core_to_string(position));
+    NODE_LOG("scene.tree{{{}}}.set_translation{}", (void*)tree, to_string(position));
 
     damage_node(tree);
     tree->translation = position;
@@ -241,17 +241,17 @@ void scene_tree_set_translation(scene_tree* tree, vec2f32 position)
 
 // -----------------------------------------------------------------------------
 
-auto scene_texture_create(scene_context*) -> ref<scene_texture>
+auto scene_texture_create(Scene*) -> Ref<SceneTexture>
 {
-    auto texture = core_create<scene_texture>();
-    texture->blend = gpu_blend_mode::postmultiplied;
-    texture->type = scene_node_type::texture;
+    auto texture = ref_create<SceneTexture>();
+    texture->blend = GpuBlendMode::postmultiplied;
+    texture->type = SceneNodeType::texture;
     texture->tint = {255, 255, 255, 255};
-    texture->src = {{}, {1, 1}, core_minmax};
+    texture->src = {{}, {1, 1}, minmax};
     return texture;
 }
 
-void scene_texture_set_image(scene_texture* texture, gpu_image* image, gpu_sampler* sampler, gpu_blend_mode blend)
+void scene_texture_set_image(SceneTexture* texture, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend)
 {
     bool damage = bool(texture->image.get())  != bool(texture)
                     || texture->sampler.get() !=      sampler
@@ -262,7 +262,7 @@ void scene_texture_set_image(scene_texture* texture, gpu_image* image, gpu_sampl
 #if SCENE_NOISY_NODES
     if (texture->image.get()   != image)   NODE_LOG("scene.texture{{{}}}.set_image({})",   (void*)texture, (void*)image);
     if (texture->sampler.get() != sampler) NODE_LOG("scene.texture{{{}}}.set_sampler({})", (void*)texture, (void*)sampler);
-    if (texture->blend         != blend)   NODE_LOG("scene.texture{{{}}}.set_blend({})",   (void*)texture, core_to_string(blend));
+    if (texture->blend         != blend)   NODE_LOG("scene.texture{{{}}}.set_blend({})",   (void*)texture, to_string(blend));
 #endif
 
     texture->image = image;
@@ -274,60 +274,60 @@ void scene_texture_set_image(scene_texture* texture, gpu_image* image, gpu_sampl
     }
 }
 
-void scene_texture_set_tint(scene_texture* texture, vec4u8 tint)
+void scene_texture_set_tint(SceneTexture* texture, vec4u8 tint)
 {
     if (texture->tint == tint) return;
 
-    NODE_LOG("scene.texture{{{}}}.set_tint{}", (void*)texture, core_to_string(tint));
+    NODE_LOG("scene.texture{{{}}}.set_tint{}", (void*)texture, to_string(tint));
 
     texture->tint = tint;
     damage_node(texture);
 }
 
-void scene_texture_set_src(scene_texture* texture, aabb2f32 source)
+void scene_texture_set_src(SceneTexture* texture, aabb2f32 source)
 {
     if (source == texture->src) return;
 
-    NODE_LOG("scene.texture{{{}}}.set_src{}", (void*)texture, core_to_string(source));
+    NODE_LOG("scene.texture{{{}}}.set_src{}", (void*)texture, to_string(source));
 
     texture->src = source;
     damage_node(texture);
 }
 
-void scene_texture_set_dst(scene_texture* texture, rect2f32 extent)
+void scene_texture_set_dst(SceneTexture* texture, rect2f32 extent)
 {
     if (extent == texture->dst) return;
 
-    NODE_LOG("scene.texture{{{}}}.set_dst{}", (void*)texture, core_to_string(extent));
+    NODE_LOG("scene.texture{{{}}}.set_dst{}", (void*)texture, to_string(extent));
 
     damage_node(texture);
     texture->dst = extent;
     damage_node(texture);
 }
 
-void scene_texture_damage(scene_texture* texture, aabb2i32 damage)
+void scene_texture_damage(SceneTexture* texture, aabb2i32 damage)
 {
-    NODE_LOG("scene.texture{{{}}}.damage{}", (void*)texture, core_to_string(rect2i32(damage)));
+    NODE_LOG("scene.texture{{{}}}.damage{}", (void*)texture, to_string(rect2i32(damage)));
 
     damage_node(texture);
 }
 
 // -----------------------------------------------------------------------------
 
-auto scene_mesh_create(scene_context* ctx) -> ref<scene_mesh>
+auto scene_mesh_create(Scene* ctx) -> Ref<SceneMesh>
 {
-    auto mesh = core_create<scene_mesh>();
-    mesh->type = scene_node_type::mesh;
+    auto mesh = ref_create<SceneMesh>();
+    mesh->type = SceneNodeType::mesh;
     return mesh;
 }
 
-void scene_mesh_update(scene_mesh* mesh, gpu_image* image, gpu_sampler* sampler, gpu_blend_mode blend, aabb2f32 clip, std::span<const scene_vertex> vertices, std::span<const u16> indices)
+void scene_mesh_update(SceneMesh* mesh, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend, aabb2f32 clip, std::span<const SceneVertex> vertices, std::span<const u16> indices)
 {
 #if SCENE_NOISY_NODES
     if (mesh->image.get()   != image)   NODE_LOG("scene.mesh{{{}}}.set_image({})",   (void*)mesh, (void*)image);
     if (mesh->sampler.get() != sampler) NODE_LOG("scene.mesh{{{}}}.set_sampler({})", (void*)mesh, (void*)sampler);
-    if (mesh->blend         != blend)   NODE_LOG("scene.mesh{{{}}}.set_blend({})",   (void*)mesh, core_to_string(blend));
-    if (mesh->clip          != clip)    NODE_LOG("scene.mesh{{{}}}.set_clip{}",      (void*)mesh, core_to_string(clip));
+    if (mesh->blend         != blend)   NODE_LOG("scene.mesh{{{}}}.set_blend({})",   (void*)mesh, to_string(blend));
+    if (mesh->clip          != clip)    NODE_LOG("scene.mesh{{{}}}.set_clip{}",      (void*)mesh, to_string(clip));
 
     NODE_LOG("scene.mesh{{{}}}.set_vertices({}, {})", (void*)mesh, (void*)vertices.data(), vertices.size());
     NODE_LOG("scene.mesh{{{}}}.set_indices({}, {})",  (void*)mesh, (void*)indices.data(),  indices.size());
@@ -345,7 +345,7 @@ void scene_mesh_update(scene_mesh* mesh, gpu_image* image, gpu_sampler* sampler,
 
 // -----------------------------------------------------------------------------
 
-scene_input_region::~scene_input_region()
+SceneInputRegion::~SceneInputRegion()
 {
     client->input_regions--;
 
@@ -362,24 +362,24 @@ scene_input_region::~scene_input_region()
     scene_update_pointers(client->ctx);
 }
 
-auto scene_input_region_create(scene_client* client, scene_window* window) -> ref<scene_input_region>
+auto scene_input_region_create(SceneClient* client, SceneWindow* window) -> Ref<SceneInputRegion>
 {
-    auto region = core_create<scene_input_region>();
-    region->type = scene_node_type::input_region;
+    auto region = ref_create<SceneInputRegion>();
+    region->type = SceneNodeType::input_region;
     region->client = client;
     region->window = window;
     client->input_regions++;
     return region;
 }
 
-void scene_input_region_set_region(scene_input_region* input_region, region2f32 region)
+void scene_input_region_set_region(SceneInputRegion* input_region, region2f32 region)
 {
     if (input_region->region == region) return;
 
 #if SCENE_NOISY_NODES
     NODE_LOG("scene.input_region{{{}}}.set_region([{:s}])", (void*)input_region,
         region.aabbs
-            | std::views::transform((std::string(&)(const aabb2f32&))core_to_string)
+            | std::views::transform((std::string(&)(const aabb2f32&))to_string)
             | std::views::join_with(", "sv));
 #endif
 
@@ -388,7 +388,7 @@ void scene_input_region_set_region(scene_input_region* input_region, region2f32 
     damage_node(input_region);
 }
 
-void scene_input_region_set_window(scene_input_region* input_region, scene_window* window)
+void scene_input_region_set_window(SceneInputRegion* input_region, SceneWindow* window)
 {
     input_region->window = window;
 }

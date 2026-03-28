@@ -3,7 +3,7 @@
 static
 void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
 {
-    auto* surface = way_get_userdata<way_surface>(wl_surface);
+    auto* surface = way_get_userdata<WaySurface>(wl_surface);
     surface->xdg_surface = way_resource_create_refcounted(xdg_surface, client, resource, id, surface);
 }
 
@@ -16,7 +16,7 @@ WAY_INTERFACE(xdg_wm_base) = {
 
 WAY_BIND_GLOBAL(xdg_wm_base, bind)
 {
-    way_resource_create_unsafe(xdg_wm_base, bind.client, bind.version, bind.id, way_get_userdata<way_server>(bind.data));
+    way_resource_create_unsafe(xdg_wm_base, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
 }
 
 // -----------------------------------------------------------------------------
@@ -24,8 +24,8 @@ WAY_BIND_GLOBAL(xdg_wm_base, bind)
 static
 void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* surface = way_get_userdata<way_surface>(resource);
-    surface->role = way_surface_role::xdg_toplevel;
+    auto* surface = way_get_userdata<WaySurface>(resource);
+    surface->role = WaySurfaceRole::xdg_toplevel;
     surface->toplevel.resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
 
     surface->toplevel.window = scene_window_create(surface->client->scene.get());
@@ -38,10 +38,10 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 static
 void ack_configure(wl_client* client, wl_resource* resource, u32 _serial)
 {
-    auto* surface = way_get_userdata<way_surface>(resource);
+    auto* surface = way_get_userdata<WaySurface>(resource);
     auto* server = surface->client->server;
 
-    auto serial = way_serial(_serial);
+    auto serial = WaySerial(_serial);
 
     if (serial > surface->sent_serial) {
         way_post_error(server, surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
@@ -56,7 +56,7 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 _serial)
     }
 
     surface->queue.pending->xdg.acked_serial = serial;
-    surface->queue.pending->set(way_surface_committed_state::acked_serial);
+    surface->queue.pending->set(WaySurfaceStateComponent::acked_serial);
 
     surface->acked_serial = serial;
 }
@@ -65,21 +65,21 @@ WAY_INTERFACE(xdg_surface) = {
     .destroy = way_role_destroy,
     .get_toplevel = get_toplevel,
     .get_popup = way_get_popup,
-    .set_window_geometry = WAY_ADDON_SIMPLE_STATE_REQUEST(way_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, core_xywh), i32 x, i32 y, i32 w, i32 h),
+    .set_window_geometry = WAY_ADDON_SIMPLE_STATE_REQUEST(way_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, xywh), i32 x, i32 y, i32 w, i32 h),
     .ack_configure = ack_configure,
 };
 
-void way_xdg_surface_apply(way_surface* surface, way_surface_state& from)
+void way_xdg_surface_apply(WaySurface* surface, WaySurfaceState& from)
 {
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.geometry,     geometry);
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.acked_serial, acked_serial);
 
-    if (!surface->current.is_set(way_surface_committed_state::geometry) && surface->mapped) {
-        surface->current.xdg.geometry = { {}, surface->current.buffer->extent, core_xywh };
+    if (!surface->current.is_set(WaySurfaceStateComponent::geometry) && surface->mapped) {
+        surface->current.xdg.geometry = { {}, surface->current.buffer->extent, xywh };
     }
 }
 
-void way_xdg_surface_configure(way_surface* surface)
+void way_xdg_surface_configure(WaySurface* surface)
 {
     auto* server = surface->client->server;
     surface->sent_serial = way_next_serial(server);
@@ -88,7 +88,7 @@ void way_xdg_surface_configure(way_surface* surface)
 
 // -----------------------------------------------------------------------------
 
-void way_toplevel_on_map_change(way_surface* surface, bool mapped)
+void way_toplevel_on_map_change(WaySurface* surface, bool mapped)
 {
     if (mapped) {
         scene_window_map(surface->toplevel.window.get());
@@ -98,7 +98,7 @@ void way_toplevel_on_map_change(way_surface* surface, bool mapped)
 }
 
 static
-void configure_toplevel(way_surface* surface, vec2u32 extent)
+void configure_toplevel(WaySurface* surface, vec2u32 extent)
 {
     way_send(surface->client->server, xdg_toplevel_send_configure, surface->toplevel.resource,
         extent.x, extent.y,
@@ -109,12 +109,12 @@ void configure_toplevel(way_surface* surface, vec2u32 extent)
 }
 
 static
-void reposition(way_surface* surface)
+void reposition(WaySurface* surface)
 {
     vec2f32 extent = surface->current.xdg.geometry.extent;
     rect2f32 anchor = surface->toplevel.anchor;
 
-    rect2f32 frame { anchor.origin, extent, core_xywh };
+    rect2f32 frame { anchor.origin, extent, xywh };
 
     // Apply gravity
     vec2f32 rel = 1.f - ((surface->toplevel.gravity + 1.f) * .5f);
@@ -124,7 +124,7 @@ void reposition(way_surface* surface)
     scene_tree_set_translation(surface->scene.tree.get(), -surface->current.xdg.geometry.origin);
 }
 
-void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gravity)
+void way_toplevel_on_reposition(WaySurface* surface, rect2f32 frame, vec2f32 gravity)
 {
     bool resize = surface->toplevel.anchor.extent != frame.extent;
     surface->toplevel.anchor = frame;
@@ -142,13 +142,13 @@ void way_toplevel_on_reposition(way_surface* surface, rect2f32 frame, vec2f32 gr
     }
 }
 
-void way_toplevel_on_close(way_surface* surface)
+void way_toplevel_on_close(WaySurface* surface)
 {
     way_send(surface->client->server, xdg_toplevel_send_close, surface->toplevel.resource);
 }
 
 static
-void send_premap_configure(way_surface* surface)
+void send_premap_configure(WaySurface* surface)
 {
     auto* server = surface->client->server;
 
@@ -162,7 +162,7 @@ void send_premap_configure(way_surface* surface)
     way_xdg_surface_configure(surface);
 }
 
-void way_toplevel_apply(way_surface* surface, way_surface_state& from)
+void way_toplevel_apply(WaySurface* surface, WaySurfaceState& from)
 {
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.title, title);
     WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.app_id, app_id);

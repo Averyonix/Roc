@@ -6,198 +6,198 @@
 
 // -----------------------------------------------------------------------------
 
-struct scene_output
+struct SceneOutput
 {
-    scene_client* client;
+    SceneClient* client;
     rect2f32      viewport;
 
-    flags<scene_output_flag> flags;
+    Flags<SceneOutputFlag> flags;
 
-    ~scene_output();
+    ~SceneOutput();
 };
 
 // -----------------------------------------------------------------------------
 
 struct scene_cursor_manager;
 
-void scene_cursor_manager_init(scene_context*);
+void scene_cursor_manager_init(Scene*);
 
-enum class scene_damage_type : u32
+enum class SceneDamageType : u32
 {
     visual = 1 << 0,
     input  = 1 << 1,
 };
 
-struct scene_context
+struct Scene
 {
-    exec_context* exec;
-    gpu_context*  gpu;
+    ExecContext* exec;
+    Gpu*  gpu;
 
     struct {
-        ref<gpu_shader> vertex;
-        ref<gpu_shader> fragment;
-        ref<gpu_image>    white;
-        ref<gpu_sampler>  sampler;
+        Ref<GpuShader> vertex;
+        Ref<GpuShader> fragment;
+        Ref<GpuImage>    white;
+        Ref<GpuSampler>  sampler;
     } render;
 
-    scene_system_id prev_system_id = {};
+    SceneSystemId prev_system_id = {};
 
-    ref<scene_tree> root_tree;
-    core_enum_map<scene_layer, ref<scene_tree>> layers;
+    Ref<SceneTree> root_tree;
+    EnumMap<SceneLayer, Ref<SceneTree>> layers;
 
-    std::vector<scene_output*> outputs;
+    std::vector<SceneOutput*> outputs;
 
-    std::vector<scene_client*> clients;
-    std::vector<scene_window*> windows;
-    scene_system_id            window_system;
+    std::vector<SceneClient*> clients;
+    std::vector<SceneWindow*> windows;
+    SceneSystemId            window_system;
 
-    core_ref_vector<scene_seat> seats;
+    RefVector<SceneSeat> seats;
 
     struct {
-        flags<scene_damage_type> queued;
+        Flags<SceneDamageType> queued;
     } damage;
 
-    ref<scene_cursor_manager> cursor_manager;
+    Ref<scene_cursor_manager> cursor_manager;
 
-    ~scene_context();
+    ~Scene();
 };
 
-void scene_broadcast_event(scene_context*, scene_event*);
+void scene_broadcast_event(Scene*, SceneEvent*);
 
-void scene_render_init(scene_context*);
+void scene_render_init(Scene*);
 
 // -----------------------------------------------------------------------------
 
-struct scene_seat
+struct SceneSeat
 {
-    scene_context* ctx;
+    Scene* ctx;
 
-    ref<scene_keyboard> keyboard;
-    ref<scene_pointer>  pointer;
-    std::vector<io_input_device*> led_devices;
+    Ref<SceneKeyboard> keyboard;
+    Ref<ScenePointer>  pointer;
+    std::vector<IoInputDevice*> led_devices;
 
-    ref<scene_data_source> selection;
+    Ref<SceneDataSource> selection;
 };
 
-void scene_seat_init(scene_context*);
+void scene_seat_init(Scene*);
 
-auto scene_get_exclusive_seat(scene_context*) -> scene_seat*;
+auto scene_get_exclusive_seat(Scene*) -> SceneSeat*;
 
 // -----------------------------------------------------------------------------
 
-struct scene_client
+struct SceneClient
 {
-    scene_context* ctx;
+    Scene* ctx;
 
-    std::move_only_function<scene_event_handler_fn> event_handler;
+    std::move_only_function<SceneEventHandlerFn> event_handler;
 
     u32 input_regions = 0;
 
-    ~scene_client();
+    ~SceneClient();
 };
 
-void scene_client_post_event(scene_client*, scene_event*);
+void scene_client_post_event(SceneClient*, SceneEvent*);
 
 // -----------------------------------------------------------------------------
 
-struct scene_window
+struct SceneWindow
 {
-    scene_client* client;
+    SceneClient* client;
 
     vec2f32 extent;
     bool mapped;
 
     std::string title;
 
-    ref<scene_tree> tree;
+    Ref<SceneTree> tree;
 
-    ~scene_window();
+    ~SceneWindow();
 };
 
 // -----------------------------------------------------------------------------
 
-struct scene_hotkey_press_state
+struct SceneHotkeyPressState
 {
-    flags<scene_modifier> modifiers;
-    scene_client*         client;
+    Flags<SceneModifier> modifiers;
+    SceneClient*         client;
 };
 
-struct scene_hotkey_map {
-    ankerl::unordered_dense::map<scene_hotkey, scene_client*> registered;
-    ankerl::unordered_dense::map<scene_scancode, scene_hotkey_press_state> pressed;
+struct SceneHotkeyMap {
+    ankerl::unordered_dense::map<SceneHotkey, SceneClient*> registered;
+    ankerl::unordered_dense::map<SceneScancode, SceneHotkeyPressState> pressed;
 };
 
-struct scene_input_device
+struct SceneInputDevice
 {
-    scene_input_device_type type;
-    scene_seat* seat;
+    SceneInputDeviceType type;
+    SceneSeat* seat;
 
-    scene_hotkey_map hotkeys;
-    scene_focus focus;
+    SceneHotkeyMap hotkeys;
+    SceneFocus focus;
 };
 
 // -----------------------------------------------------------------------------
 
-struct scene_keyboard : scene_input_device, scene_keyboard_info
+struct SceneKeyboard : SceneInputDevice, SceneKeyboardInfo
 {
-    core_counting_set<u32> pressed;
+    CountingSet<u32> pressed;
 
-    flags<scene_modifier> depressed;
-    flags<scene_modifier> latched;
-    flags<scene_modifier> locked;
+    Flags<SceneModifier> depressed;
+    Flags<SceneModifier> latched;
+    Flags<SceneModifier> locked;
 
-    core_enum_map<scene_modifier, xkb_mod_mask_t> mod_masks;
+    EnumMap<SceneModifier, xkb_mod_mask_t> mod_masks;
 
-    ~scene_keyboard();
+    ~SceneKeyboard();
 };
 
-auto scene_keyboard_create(scene_seat*) -> ref<scene_keyboard>;
+auto scene_keyboard_create(SceneSeat*) -> Ref<SceneKeyboard>;
 
 // -----------------------------------------------------------------------------
 
-struct scene_pointer : scene_input_device
+struct ScenePointer : SceneInputDevice
 {
-    core_counting_set<u32> pressed;
+    CountingSet<u32> pressed;
 
-    ref<scene_tree> tree;
+    Ref<SceneTree> tree;
 
-    std::move_only_function<scene_pointer_accel_fn> accel;
+    std::move_only_function<ScenePointerAccelFn> accel;
 };
 
-auto scene_pointer_create(scene_seat*) -> ref<scene_pointer>;
+auto scene_pointer_create(SceneSeat*) -> Ref<ScenePointer>;
 
-void scene_update_pointers(scene_context*);
-
-// -----------------------------------------------------------------------------
-
-auto scene_find_input_region_at(scene_tree* tree, vec2f32 pos) -> scene_input_region*;
+void scene_update_pointers(Scene*);
 
 // -----------------------------------------------------------------------------
 
-struct scene_data_source
+auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SceneInputRegion*;
+
+// -----------------------------------------------------------------------------
+
+struct SceneDataSource
 {
-    scene_client* client;
+    SceneClient* client;
 
     std::flat_set<std::string> offered;
 
-    scene_data_source_ops ops;
+    SceneDataSourceOps ops;
 
-    ~scene_data_source();
+    ~SceneDataSource();
 };
 
-void scene_offer_selection(scene_client*, scene_data_source*);
+void scene_offer_selection(SceneClient*, SceneDataSource*);
 
 // -----------------------------------------------------------------------------
 
-void scene_output_request_frame(scene_output*);
+void scene_output_request_frame(SceneOutput*);
 
 // -----------------------------------------------------------------------------
 
-void scene_handle_input_added(  scene_seat*, io_input_device*);
-void scene_handle_input_removed(scene_seat*, io_input_device*);
-void scene_handle_input(        scene_seat*, const io_input_event&);
+void scene_handle_input_added(  SceneSeat*, IoInputDevice*);
+void scene_handle_input_removed(SceneSeat*, IoInputDevice*);
+void scene_handle_input(        SceneSeat*, const IoInputEvent&);
 
 // -----------------------------------------------------------------------------
 
-void scene_keyboard_set_focus(scene_keyboard* keyboard, scene_focus new_focus);
-void scene_pointer_set_focus( scene_pointer*  pointer,  scene_focus new_focus);
+void scene_keyboard_set_focus(SceneKeyboard* keyboard, SceneFocus new_focus);
+void scene_pointer_set_focus( ScenePointer*  pointer,  SceneFocus new_focus);

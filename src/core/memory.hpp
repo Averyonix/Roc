@@ -2,34 +2,34 @@
 
 #include "types.hpp"
 
-struct core_byte_view
+inline
+auto as_bytes(const void* data, usz size) -> std::span<const byte>
 {
-    const void* data;
-    usz         size;
-};
+    return { reinterpret_cast<const byte*>(data), size };
+}
 
 inline
-auto core_view_bytes(auto&& object) -> core_byte_view
+auto view_bytes(auto&& object) -> std::span<const byte>
 {
-    return { &object, sizeof(object) };
+    return { reinterpret_cast<const byte*>(&object), sizeof(object) };
 }
 
 // -----------------------------------------------------------------------------
 
-struct core_fmt_bytes
+struct FmtBytes
 {
     u64 bytes;
 
-    core_fmt_bytes() = default;
-    core_fmt_bytes(u64 size): bytes(size) {}
+    FmtBytes() = default;
+    FmtBytes(u64 size): bytes(size) {}
 };
 
-std::string core_to_string(core_fmt_bytes size);
+std::string to_string(FmtBytes size);
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-T* core_byte_offset_pointer(void* source, isz offset)
+T* byte_offset_pointer(void* source, isz offset)
 {
     return reinterpret_cast<T*>(reinterpret_cast<byte*>(source) + offset);
 }
@@ -37,7 +37,7 @@ T* core_byte_offset_pointer(void* source, isz offset)
 // -----------------------------------------------------------------------------
 
 inline
-usz core_compute_geometric_growth(usz current_size, usz new_min_size)
+usz compute_geometric_growth(usz current_size, usz new_min_size)
 {
     usz geometric = current_size + (current_size >> 1);
     return std::max(geometric, new_min_size);
@@ -47,7 +47,7 @@ usz core_compute_geometric_growth(usz current_size, usz new_min_size)
 
 template<typename T>
 constexpr
-T core_align_up_power2(T v, u64 align) noexcept
+T align_up_power2(T v, u64 align) noexcept
 {
     return T((u64(v) + (align - 1)) &~ (align - 1));
 }

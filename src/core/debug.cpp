@@ -2,13 +2,13 @@
 #include "log.hpp"
 
 [[noreturn]] CORE_NOINLINE
-void core_assert_fail(std::string_view expr, std::string_view reason)
+void debug_assert_fail(std::string_view expr, std::string_view reason)
 {
     log_error("assert({}) failed{}{}", expr, reason.empty() ? "" : ": ", reason);
-    core_debugkill();
+    debug_kill();
 }
 
-void core_log_unix_error(std::string_view message, int err)
+void log_unix_error(std::string_view message, int err)
 {
     err = err ?: errno;
 

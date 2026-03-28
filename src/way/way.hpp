@@ -2,6 +2,6 @@
 
 #include "scene/scene.hpp"
 
-struct way_server;
+struct WayServer;
 
-auto way_create(exec_context*, gpu_context*, scene_context*) -> ref<way_server>;
+auto way_create(ExecContext*, Gpu*, Scene*) -> Ref<WayServer>;

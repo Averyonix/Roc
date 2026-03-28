@@ -3,25 +3,25 @@
 #include "types.hpp"
 
 template<typename T>
-struct core_region
+struct Region
 {
-    std::vector<core_aabb<T>> aabbs;
+    std::vector<Aabb<T>> aabbs;
 
 // -----------------------------------------------------------------------------
 
-    core_region() = default;
+    Region() = default;
 
-    core_region(core_aabb<T> aabb)
+    Region(Aabb<T> aabb)
         : aabbs{aabb}
     {}
 
 // -----------------------------------------------------------------------------
 
-    core_region(const core_region& other)
+    Region(const Region& other)
         : aabbs(other.aabbs)
     {}
 
-    core_region& operator=(const core_region& other)
+    Region& operator=(const Region& other)
     {
         if (this != &other) {
             aabbs = other.aabbs;
@@ -31,11 +31,11 @@ struct core_region
 
 // -----------------------------------------------------------------------------
 
-    core_region(core_region&& other)
+    Region(Region&& other)
         : aabbs(std::move(other.aabbs))
     {}
 
-    core_region& operator=(core_region&& other)
+    Region& operator=(Region&& other)
     {
         if (this != &other) {
             aabbs = std::move(other.aabbs);
@@ -45,7 +45,7 @@ struct core_region
 
 // -----------------------------------------------------------------------------
 
-    constexpr bool operator==(const core_region& other) const noexcept = default;
+    constexpr bool operator==(const Region& other) const noexcept = default;
 
 // -----------------------------------------------------------------------------
 
@@ -59,20 +59,20 @@ struct core_region
         return aabbs.empty();
     }
 
-    void add(core_aabb<T> aabb)
+    void add(Aabb<T> aabb)
     {
         aabbs.emplace_back(aabb);
     }
 
-    void subtract(core_aabb<T> subtrahend)
+    void subtract(Aabb<T> subtrahend)
     {
         usz prev_size = aabbs.size();
         usz inplace = 0;
 
         for (usz i = 0; i < prev_size; ++i) {
 
-            std::array<core_aabb<T>, 4> split;
-            u32 count = core_aabb_subtract(aabbs[i], subtrahend, split.data());
+            std::array<Aabb<T>, 4> split;
+            u32 count = aabb_subtract(aabbs[i], subtrahend, split.data());
 
             // Update first aabb in-place
             if (count > 0) {
@@ -96,10 +96,10 @@ struct core_region
     }
 
     template<typename T2>
-    bool contains(core_vec<2, T2> point) const
+    bool contains(Vec<2, T2> point) const
     {
         for (auto aabb : aabbs) {
-            if (core_aabb_contains<T2>(aabb, point)) {
+            if (aabb_contains<T2>(aabb, point)) {
                 return true;
             }
         }
@@ -107,24 +107,24 @@ struct core_region
     }
 
     template<typename T2>
-    bool contains(core_aabb<T2> needle) const
+    bool contains(Aabb<T2> needle) const
     {
         for (auto aabb : aabbs) {
-            core_aabb<T2> overlap;
-            core_aabb_intersects<T2>(aabb, needle, &overlap);
+            Aabb<T2> overlap;
+            aabb_intersects<T2>(aabb, needle, &overlap);
             if (overlap == needle) return true;
         }
         return false;
     }
 
     template<typename T2>
-    core_vec<2, T2> constrain(core_vec<2, T2> point) const
+    Vec<2, T2> constrain(Vec<2, T2> point) const
     {
         f64 closest_dist = INFINITY;
-        core_vec<2, T2> closest = {};
+        Vec<2, T2> closest = {};
 
         for (auto aabb : aabbs) {
-            auto pos = core_aabb_clamp_point<T2>(aabb, point);
+            auto pos = aabb_clamp_point<T2>(aabb, point);
             if (pos == point) return point;
 
             f64 dist = glm::distance(vec2f64(pos), vec2f64(point));
@@ -140,5 +140,5 @@ struct core_region
 
 // -----------------------------------------------------------------------------
 
-using region2i32 = core_region<i32>;
-using region2f32 = core_region<f32>;
+using region2i32 = Region<i32>;
+using region2f32 = Region<f32>;

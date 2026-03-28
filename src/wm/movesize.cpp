@@ -1,7 +1,7 @@
 #include "wm.hpp"
 
 static
-void begin_interaction(wm_context* wm, scene_pointer* pointer, wm_movesize_mode initial_mode)
+void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmMovesizeMode initial_mode)
 {
     scene_pointer_focus(pointer, wm->movesize.client.get());
     wm->movesize.pointer = pointer;
@@ -23,11 +23,11 @@ void begin_interaction(wm_context* wm, scene_pointer* pointer, wm_movesize_mode 
         dirs.y || !dirs.x,
     };
 
-    if (initial_mode == wm_movesize_mode::move && dirs.y < 0) {
+    if (initial_mode == WmMovesizeMode::move && dirs.y < 0) {
         wm->movesize.relative.x = 1;
-    } else if (initial_mode == wm_movesize_mode::size) {
+    } else if (initial_mode == WmMovesizeMode::size) {
         if (!dirs.x && !dirs.y) {
-            wm->movesize.mode = wm_movesize_mode::move;
+            wm->movesize.mode = WmMovesizeMode::move;
         } else {
             wm->movesize.relative = dirs;
         }
@@ -35,10 +35,10 @@ void begin_interaction(wm_context* wm, scene_pointer* pointer, wm_movesize_mode 
 }
 
 static
-void end_interaction(wm_context* wm)
+void end_interaction(WindowManager* wm)
 {
-    core_assert(!wm->movesize.pointer);
-    wm->movesize.mode = wm_movesize_mode::none;
+    debug_assert(!wm->movesize.pointer);
+    wm->movesize.mode = WmMovesizeMode::none;
 }
 
 // -----------------------------------------------------------------------------
@@ -47,22 +47,22 @@ static constexpr auto button_move = BTN_LEFT;
 static constexpr auto button_size = BTN_RIGHT;
 
 static
-void handle_hotkey(wm_context* wm, scene_hotkey_event event)
+void handle_hotkey(WindowManager* wm, SceneHotkeyEvent event)
 {
     auto* pointer = scene_input_device_get_pointer(event.input_device);
 
-    if (!event.pressed || wm->movesize.mode != wm_movesize_mode::none) {
+    if (!event.pressed || wm->movesize.mode != WmMovesizeMode::none) {
         return;
     }
 
     switch (event.hotkey.code) {
-        break;case button_move: begin_interaction(wm, pointer, wm_movesize_mode::move);
-        break;case button_size: begin_interaction(wm, pointer, wm_movesize_mode::size);
+        break;case button_move: begin_interaction(wm, pointer, WmMovesizeMode::move);
+        break;case button_size: begin_interaction(wm, pointer, WmMovesizeMode::size);
     }
 }
 
 static
-void handle_motion(wm_context* wm)
+void handle_motion(WindowManager* wm)
 {
     if (!wm->movesize.window) {
         scene_pointer_focus(wm->movesize.pointer, nullptr);
@@ -73,10 +73,10 @@ void handle_motion(wm_context* wm)
     auto delta = (pos - wm->movesize.grab) * wm->movesize.relative;
     auto frame = wm->movesize.frame;
 
-    if (wm->movesize.mode == wm_movesize_mode::move) {
+    if (wm->movesize.mode == WmMovesizeMode::move) {
         frame.origin += delta;
 
-    } else if (wm->movesize.mode == wm_movesize_mode::size) {
+    } else if (wm->movesize.mode == WmMovesizeMode::size) {
         delta = glm::max(delta, 100.f - frame.extent);
         frame.origin += glm::min(wm->movesize.relative, {0,0}) * delta;
         frame.extent += delta;
@@ -86,15 +86,15 @@ void handle_motion(wm_context* wm)
 }
 
 static
-void handle_event(wm_context* wm, scene_event* event)
+void handle_event(WindowManager* wm, SceneEvent* event)
 {
     switch (event->type) {
-        break;case scene_event_type::hotkey:
+        break;case SceneEventType::hotkey:
             handle_hotkey(wm, event->hotkey);
-        break;case scene_event_type::pointer_leave:
+        break;case SceneEventType::pointer_leave:
             wm->movesize.pointer = nullptr;
             end_interaction(wm);
-        break;case scene_event_type::pointer_motion:
+        break;case SceneEventType::pointer_motion:
             handle_motion(wm);
         break;default:
             ;
@@ -103,14 +103,14 @@ void handle_event(wm_context* wm, scene_event* event)
 
 // -----------------------------------------------------------------------------
 
-void wm_init_movesize(wm_context* wm)
+void wm_init_movesize(WindowManager* wm)
 {
     wm->movesize.client = scene_client_create(wm->scene);
 
-    core_assert(scene_client_hotkey_register(wm->movesize.client.get(), {wm->main_mod, button_move}));
-    core_assert(scene_client_hotkey_register(wm->movesize.client.get(), {wm->main_mod, button_size}));
+    debug_assert(scene_client_hotkey_register(wm->movesize.client.get(), {wm->main_mod, button_move}));
+    debug_assert(scene_client_hotkey_register(wm->movesize.client.get(), {wm->main_mod, button_size}));
 
-    scene_client_set_event_handler(wm->movesize.client.get(), [wm](scene_event* event) {
+    scene_client_set_event_handler(wm->movesize.client.get(), [wm](SceneEvent* event) {
         handle_event(wm, event);
     });
 }

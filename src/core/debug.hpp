@@ -1,43 +1,45 @@
 #pragma once
 
+#include "pch.hpp"
+
 CORE_NOINLINE inline
-void core_debugbreak()
+void debug_break()
 {
     std::cerr << std::stacktrace::current() << std::endl;
     raise(SIGTRAP);
 }
 
 [[noreturn]] CORE_NOINLINE inline
-void core_debugkill()
+void debug_kill()
 {
     std::cerr << std::stacktrace::current() << std::endl;
     std::terminate();
 }
 
 [[noreturn]] inline
-void core_unreachable()
+void debug_unreachable()
 {
 #ifdef NDEBUG
     std::unreachable();
 #else
-    core_debugkill();
+    debug_kill();
 #endif
 }
 
 [[noreturn]] CORE_NOINLINE
-void core_assert_fail(std::string_view expr, std::string_view reason = {});
+void debug_assert_fail(std::string_view expr, std::string_view reason = {});
 
-#define core_assert(Expr, ...) \
-    (static_cast<bool>(Expr) ? void() : core_assert_fail(#Expr __VA_OPT__(, std::format(__VA_ARGS__))))
+#define debug_assert(Expr, ...) \
+    (static_cast<bool>(Expr) ? void() : debug_assert_fail(#Expr __VA_OPT__(, std::format(__VA_ARGS__))))
 
 // -----------------------------------------------------------------------------
 //      Error Checking
 // -----------------------------------------------------------------------------
 
-void core_log_unix_error(std::string_view message, int err = 0);
+void log_unix_error(std::string_view message, int err = 0);
 
 template<typename T>
-struct core_unix_result
+struct UnixResult
 {
     T   value;
     int error;
@@ -46,7 +48,7 @@ struct core_unix_result
     bool err() const noexcept { return  error; }
 };
 
-enum class unix_error_behaviour
+enum class UnixErrorBehavior
 {
     negative_one,
     negative_errno,
@@ -56,48 +58,48 @@ enum class unix_error_behaviour
 };
 
 template<auto Function>
-struct unix_error_behaviour_helper { static_assert(false); };
+struct UnixErrorBehaviorHelper { static_assert(false); };
 
 template<auto Function, int... Quiet>
-auto unix_check(auto... args) -> core_unix_result<decltype(Function(args...))>
+auto unix_check(auto... args) -> UnixResult<decltype(Function(args...))>
 {
-    static constexpr auto behaviour = unix_error_behaviour_helper<Function>::behaviour;
+    static constexpr auto behaviour = UnixErrorBehaviorHelper<Function>::behaviour;
 
-    if constexpr (behaviour == unix_error_behaviour::check_errno) {
+    if constexpr (behaviour == UnixErrorBehavior::check_errno) {
         errno = 0;
     }
 
     auto res = Function(args...);
 
     int err;
-    if constexpr (behaviour == unix_error_behaviour::negative_one) {
+    if constexpr (behaviour == UnixErrorBehavior::negative_one) {
         if (res != decltype(res)(-1)) [[likely]] return { res };
         err = errno;
 
-    } else if constexpr (behaviour == unix_error_behaviour::negative_errno) {
+    } else if constexpr (behaviour == UnixErrorBehavior::negative_errno) {
         if (res >= 0) [[likely]] return { res };
         err = -res;
 
-    } else if constexpr (behaviour == unix_error_behaviour::positive_errno) {
+    } else if constexpr (behaviour == UnixErrorBehavior::positive_errno) {
         if (res <= 0) [[likely]] return { res };
         err = res;
 
-    } else if constexpr (behaviour == unix_error_behaviour::null) {
+    } else if constexpr (behaviour == UnixErrorBehavior::null) {
         if (res) [[likely]] return { res };
         err = errno;
 
-    } else if constexpr (behaviour == unix_error_behaviour::check_errno) {
+    } else if constexpr (behaviour == UnixErrorBehavior::check_errno) {
         if (!errno) [[likely]] return { res };
         err = errno;
     }
 
-    if (!(... || (err == Quiet))) core_log_unix_error("unix_check", err);
+    if (!(... || (err == Quiet))) log_unix_error("unix_check", err);
     return { res, err };
 }
 
-#define CORE_UNIX_ERROR_BEHAVIOUR(Function, Behaviour) \
-    template<> struct unix_error_behaviour_helper<Function> { \
-        static constexpr auto behaviour = unix_error_behaviour::Behaviour; \
+#define UNIX_ERROR_BEHAVIOUR(Function, Behaviour) \
+    template<> struct UnixErrorBehaviorHelper<Function> { \
+        static constexpr auto behaviour = UnixErrorBehavior::Behaviour; \
     };
 
 

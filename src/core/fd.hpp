@@ -4,49 +4,49 @@
 
 // -----------------------------------------------------------------------------
 
-static constexpr int core_fd_limit = 1024;
+static constexpr int fd_limit = 1024;
 
 // -----------------------------------------------------------------------------
 
-auto core_fd_are_same(int fd0, int fd1) -> bool;
-auto core_fd_dup_unsafe(int fd) -> int;
+auto fd_are_same(int fd0, int fd1) -> bool;
+auto fd_dup_unsafe(int fd) -> int;
 
 // -----------------------------------------------------------------------------
 
 inline
-bool core_fd_is_valid(int fd)
+bool fd_is_valid(int fd)
 {
-    return fd >= 0 && fd < core_fd_limit;
+    return fd >= 0 && fd < fd_limit;
 }
 
-auto core_fd_get_ref_count(int fd) -> u32;
+auto fd_get_ref_count(int fd) -> u32;
 
-auto core_fd_add_ref(   int fd) -> int;
-auto core_fd_remove_ref(int fd) -> int;
+auto fd_add_ref(   int fd) -> int;
+auto fd_remove_ref(int fd) -> int;
 
-auto core_fd_extract(int fd) -> int;
+auto fd_extract(int fd) -> int;
 
-struct core_fd
+struct Fd
 {
     int fd;
 
-    core_fd()
+    Fd()
         : fd(-1)
     {}
 
-    explicit core_fd(int fd)
+    explicit Fd(int fd)
         : fd(fd)
     {
-        core_fd_add_ref(fd);
+        fd_add_ref(fd);
     }
 
-    core_fd(const core_fd& other)
+    Fd(const Fd& other)
         : fd(other.fd)
     {
-        core_fd_add_ref(fd);
+        fd_add_ref(fd);
     }
 
-    core_fd& operator=(const core_fd& other)
+    Fd& operator=(const Fd& other)
     {
         if (this != &other) {
             reset(other.fd);
@@ -54,31 +54,31 @@ struct core_fd
         return *this;
     }
 
-    core_fd(core_fd&& other)
+    Fd(Fd&& other)
         : fd(std::exchange(other.fd, -1))
     {}
 
-    core_fd& operator=(core_fd&& other)
+    Fd& operator=(Fd&& other)
     {
         if (this != &other) {
-            core_fd_remove_ref(fd);
+            fd_remove_ref(fd);
             fd = std::exchange(other.fd, -1);
         }
         return *this;
     }
 
-    ~core_fd()
+    ~Fd()
     {
-        core_fd_remove_ref(fd);
+        fd_remove_ref(fd);
     }
 
     void reset(int new_fd = -1)
     {
-        core_fd_remove_ref(fd);
-        fd = core_fd_add_ref(new_fd);
+        fd_remove_ref(fd);
+        fd = fd_add_ref(new_fd);
     }
 
-    core_fd& operator=(std::nullptr_t)
+    Fd& operator=(std::nullptr_t)
     {
         reset();
         return *this;

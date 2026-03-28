@@ -5,7 +5,7 @@
 #include "render.h"
 #include "scene_render_shader.hpp"
 
-void scene_render_init(scene_context* ctx)
+void scene_render_init(Scene* ctx)
 {
     ctx->render.vertex   = gpu_shader_create(ctx->gpu, {
         .stage = VK_SHADER_STAGE_VERTEX_BIT,
@@ -21,10 +21,10 @@ void scene_render_init(scene_context* ctx)
     ctx->render.white = gpu_image_create(ctx->gpu, {
         .extent = {1, 1},
         .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-        .usage = gpu_image_usage::texture | gpu_image_usage::transfer_dst
+        .usage = GpuImageUsage::texture | GpuImageUsage::transfer_dst
     });
 
-    gpu_copy_memory_to_image(ctx->render.white.get(), {ptr_to(vec4u8{255, 255, 255, 255}), 4}, {{{1, 1}}});
+    gpu_copy_memory_to_image(ctx->render.white.get(), as_bytes(ptr_to(vec4u8{255, 255, 255, 255}), 4), {{{1, 1}}});
 
     ctx->render.sampler = gpu_sampler_create(ctx->gpu, {
         .mag = VK_FILTER_NEAREST,
@@ -32,38 +32,38 @@ void scene_render_init(scene_context* ctx)
     });
 }
 
-void scene_frame(scene_context* ctx, scene_output* output)
+void scene_frame(Scene* ctx, SceneOutput* output)
 {
-    scene_broadcast_event(ctx, ptr_to(scene_event {
-        .type = scene_event_type::output_frame,
+    scene_broadcast_event(ctx, ptr_to(SceneEvent {
+        .type = SceneEventType::output_frame,
         .redraw = { .output = output },
     }));
 }
 
-void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
+void scene_render(Scene* ctx, GpuImage* target, rect2f32 viewport)
 {
     auto& render = ctx->render;
 
-    struct scene_draw
+    struct Draw
     {
         u32 first_vertex;
         u32 first_index;
         u32 num_indices;
         aabb2f32 clip;
-        gpu_image* image;
-        gpu_sampler* sampler;
-        gpu_blend_mode blend;
+        GpuImage* image;
+        GpuSampler* sampler;
+        GpuBlendMode blend;
         vec2f32 position;
     };
 
-    std::vector<scene_vertex> vertices;
+    std::vector<SceneVertex> vertices;
     std::vector<u32> indices;
-    std::vector<scene_draw> draws;
+    std::vector<Draw> draws;
 
     aabb2f32 default_clip = viewport;
 
     auto get_draw = [&draws, &vertices, &indices](
-        aabb2f32 clip, gpu_image* image, gpu_sampler* sampler, gpu_blend_mode blend, vec2f32 position)
+        aabb2f32 clip, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend, vec2f32 position)
     {
         auto* draw = draws.empty() ? nullptr : &draws.back();
         if (  !draw
@@ -73,7 +73,7 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
             || draw->blend    != blend
             || draw->position != position)
         {
-            draw = &draws.emplace_back(scene_draw{
+            draw = &draws.emplace_back(Draw{
                 .first_vertex = u32(vertices.size()),
                 .first_index = u32(indices.size()),
                 .clip = clip,
@@ -86,17 +86,17 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
         return draw;
     };
 
-    auto draw_mesh = [&](scene_mesh* mesh) {
+    auto draw_mesh = [&](SceneMesh* mesh) {
         auto pos = scene_tree_get_position(mesh->parent);
 
-        draws.emplace_back(scene_draw {
+        draws.emplace_back(Draw {
             .first_vertex = u32(vertices.size()),
             .first_index = u32(indices.size()),
             .num_indices = u32(mesh->indices.size()),
-            .clip = core_aabb_inner(default_clip, {
+            .clip = aabb_inner(default_clip, {
                 pos + mesh->clip.min,
                 pos + mesh->clip.max,
-                core_minmax
+                minmax
             }),
             .image = mesh->image.get() ?: render.white.get(),
             .sampler = mesh->sampler.get() ?: render.sampler.get(),
@@ -108,7 +108,7 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
         indices.insert_range(indices.end(), mesh->indices);
     };
 
-    auto draw_texture = [&](scene_texture* texture) {
+    auto draw_texture = [&](SceneTexture* texture) {
         aabb2f32 src = texture->src;
         aabb2f32 dst = texture->dst;
 
@@ -131,7 +131,7 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
 
         auto translation = scene_tree_get_position(texture->parent);
         auto push_vtx = [&](vec2f32 pos, vec2f32 uv = {}) {
-            vertices.emplace_back(scene_vertex {
+            vertices.emplace_back(SceneVertex {
                 .pos = translation + pos,
                 .uv = uv,
                 .color = texture->tint
@@ -143,19 +143,19 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
         push_vtx({dst.max.x, dst.max.y}, {src.max.x, src.max.y});
     };
 
-    scene_iterate<scene_iterate_direction::back_to_front>(ctx->root_tree.get(),
+    scene_iterate<SceneIterateDirection::back_to_front>(ctx->root_tree.get(),
         scene_iterate_default,
-        core_overload_set {
+        OverloadSet {
             draw_mesh,
             draw_texture,
-            [](scene_input_region*) {},
+            [](SceneInputRegion*) {},
         },
         scene_iterate_default);
 
     auto gpu = ctx->gpu;
 
     auto make_gpu = [&]<typename T>(std::span<T> data) {
-        gpu_array<T> arr{gpu_buffer_create(gpu, data.size_bytes(), {}), 0};
+        GpuArray<T> arr{gpu_buffer_create(gpu, data.size_bytes(), {}), 0};
         std::memcpy(arr.host(), data.data(), data.size_bytes());
         return arr;
     };
@@ -178,8 +178,8 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
     gpu_render(gpu, {
         .target = target,
         .clear_color = {0,0,0,1},
-    }, [&](gpu_renderpass& pass) {
-        pass.set_viewports({{{}, target->extent(), core_xywh}});
+    }, [&](GpuRenderpass& pass) {
+        pass.set_viewports({{{}, target->extent(), xywh}});
         pass.bind_shaders({ctx->render.vertex.get(), ctx->render.fragment.get()});
         pass.bind_index_buffer(gpu_indices.buffer.get(), 0, VK_INDEX_TYPE_UINT32);
 
@@ -191,7 +191,7 @@ void scene_render(scene_context* ctx, gpu_image* target, rect2f32 viewport)
             pass.set_scissors({scissor});
 
             auto draw_scale = 2.f / viewport.extent;
-            pass.push_constants(0, core_view_bytes(scene_render_input {
+            pass.push_constants(0, view_bytes(SceneRenderInput {
                 .vertices = gpu_vertices.device(),
                 .scale = draw_scale,
                 .offset = (draw.position - viewport.origin) * draw_scale - 1.f,

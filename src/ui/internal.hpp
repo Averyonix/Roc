@@ -2,58 +2,58 @@
 
 #include "ui.hpp"
 
-struct ui_viewport_data {
-    ref<scene_window>       window;
-    ref<scene_tree>         draws;
-    ref<scene_input_region> input_plane;
+struct UiViewportData {
+    Ref<SceneWindow>       window;
+    Ref<SceneTree>         draws;
+    Ref<SceneInputRegion> input_plane;
 
     // Pending reposition request. Requests are double-buffered so that
     // resizes requested during ImGui frames are handled correctly.
     std::optional<rect2f32> reposition;
 };
 
-struct ui_context
+struct UiContext
 {
-    gpu_context*   gpu;
-    scene_context* scene;
+    Gpu* gpu;
+    Scene* scene;
 
     std::string ini_path;
 
-    ref<gpu_sampler>  sampler;
-    ref<scene_client> client;
-    ImGuiContext*     context;
+    Ref<GpuSampler> sampler;
+    Ref<SceneClient> client;
+    ImGuiContext* context;
     u32 frames_requested = 0;
 
     struct texture {
-        ref<gpu_image>   image;
-        ref<gpu_sampler> sampler;
-        gpu_blend_mode   blend;
+        Ref<GpuImage>   image;
+        Ref<GpuSampler> sampler;
+        GpuBlendMode    blend;
     };
     std::vector<texture> textures;
-    ref<gpu_image> font_image;
+    Ref<GpuImage> font_image;
 
-    std::move_only_function<ui_frame_fn> frame_handler;
+    std::move_only_function<UiFrameFn> frame_handler;
 
-    std::flat_set<scene_seat*> seats;
+    std::flat_set<SceneSeat*> seats;
 
-    scene_keyboard* keyboard;
-    scene_pointer*  pointer;
+    SceneKeyboard* keyboard;
+    ScenePointer*  pointer;
 
     struct {
         std::string text;
     } clipboard;
 
-    ~ui_context();
+    ~UiContext();
 };
 
-void ui_frame(ui_context*);
-void ui_handle_key(ui_context*, scene_scancode, bool pressed);
-void ui_handle_mods(ui_context*);
-void ui_handle_motion(ui_context*);
-void ui_handle_button(ui_context*, scene_scancode, bool pressed);
-void ui_handle_wheel(ui_context*, vec2f32 delta);
-void ui_handle_keyboard_enter(ui_context*, scene_keyboard*, scene_input_region*);
-void ui_handle_keyboard_leave(ui_context*);
-void ui_handle_pointer_enter(ui_context*, scene_pointer*, scene_input_region*);
-void ui_handle_pointer_leave(ui_context*);
-void ui_handle_output_layout(ui_context*);
+void ui_frame(UiContext*);
+void ui_handle_key(UiContext*, SceneScancode, bool pressed);
+void ui_handle_mods(UiContext*);
+void ui_handle_motion(UiContext*);
+void ui_handle_button(UiContext*, SceneScancode, bool pressed);
+void ui_handle_wheel(UiContext*, vec2f32 delta);
+void ui_handle_keyboard_enter(UiContext*, SceneKeyboard*, SceneInputRegion*);
+void ui_handle_keyboard_leave(UiContext*);
+void ui_handle_pointer_enter(UiContext*, ScenePointer*, SceneInputRegion*);
+void ui_handle_pointer_leave(UiContext*);
+void ui_handle_output_layout(UiContext*);

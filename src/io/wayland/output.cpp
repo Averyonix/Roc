@@ -3,8 +3,8 @@
 static
 void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, int fd, u32 size)
 {
-    auto _ = core_fd(fd);
-    auto* ctx = static_cast<io_context*>(udata);
+    auto _ = Fd(fd);
+    auto* ctx = static_cast<IoContext*>(udata);
 
     struct entry {
         u32 format;
@@ -12,10 +12,10 @@ void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_fe
         u64 modifier;
     };
 
-    core_assert(size % sizeof(entry) == 0);
+    debug_assert(size % sizeof(entry) == 0);
 
     auto mapped = static_cast<entry*>(unix_check<mmap>(nullptr, size, PROT_READ, MAP_SHARED, fd, 0).value);
-    core_assert(mapped);
+    debug_assert(mapped);
     defer { munmap(mapped, size); };
 
     auto count = size / sizeof(entry);
@@ -33,7 +33,7 @@ void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_fe
 static
 void tranche_formats(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, wl_array* indices)
 {
-    auto* ctx = static_cast<io_context*>(udata);
+    auto* ctx = static_cast<IoContext*>(udata);
 
     for (auto[i, idx] : io_to_span<u16>(indices) | std::views::enumerate) {
         auto[format, modifier] = ctx->wayland->format.table[idx];
@@ -46,7 +46,7 @@ void tranche_formats(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf
 static
 void configure(void* udata, xdg_surface* xdg_surface, u32 serial)
 {
-    auto* output = static_cast<io_wayland_output*>(udata);
+    auto* output = static_cast<IoWaylandOutput*>(udata);
 
     xdg_surface_ack_configure(xdg_surface, serial);
     wl_surface_commit(output->wl_surface);
@@ -77,7 +77,7 @@ IO_WL_LISTENER(zxdg_toplevel_decoration_v1) = {
 static
 void toplevel_configure(void* udata, xdg_toplevel* toplevel, i32 width, i32 height, wl_array* states)
 {
-    auto output = static_cast<io_wayland_output*>(udata);
+    auto output = static_cast<IoWaylandOutput*>(udata);
 
     output->configure.size = (width && height) ? vec2i32{width, height} : vec2i32{1920, 1080};
 }
@@ -85,11 +85,11 @@ void toplevel_configure(void* udata, xdg_toplevel* toplevel, i32 width, i32 heig
 static
 void toplevel_close(void* udata, xdg_toplevel*)
 {
-    auto* output = static_cast<io_wayland_output*>(udata);
+    auto* output = static_cast<IoWaylandOutput*>(udata);
     auto* ctx = output->ctx;
     ctx->wayland->outputs.erase(output);
     if (ctx->wayland->outputs.empty()) {
-        io_request_shutdown(ctx, io_shutdown_reason::no_more_outputs);
+        io_request_shutdown(ctx, IoShutdownReason::no_more_outputs);
     }
 }
 
@@ -114,14 +114,14 @@ IO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
 
 IO_WL_LISTENER(zwp_locked_pointer_v1) = {
     .locked   = [](void* udata, zwp_locked_pointer_v1*) {
-        static_cast<io_wayland_output*>(udata)->pointer_locked = true;
+        static_cast<IoWaylandOutput*>(udata)->pointer_locked = true;
     },
     .unlocked = [](void* udata, zwp_locked_pointer_v1*) {
-        static_cast<io_wayland_output*>(udata)->pointer_locked = false;
+        static_cast<IoWaylandOutput*>(udata)->pointer_locked = false;
     },
 };
 
-void io_add_output(io_context* ctx)
+void io_add_output(IoContext* ctx)
 {
     auto* wl = ctx->wayland.get();
     if (!wl) return;
@@ -129,7 +129,7 @@ void io_add_output(io_context* ctx)
     static u32 window_id = 0;
     auto title = std::format("WL-{}", ++window_id);
 
-    auto output = core_create<io_wayland_output>();
+    auto output = ref_create<IoWaylandOutput>();
     output->ctx = ctx;
 
     wl->outputs.emplace_back(output.get());
@@ -171,7 +171,7 @@ void io_add_output(io_context* ctx)
 // -----------------------------------------------------------------------------
 
 static
-wl_buffer* get_image_proxy(io_context* ctx, gpu_image* image)
+wl_buffer* get_image_proxy(IoContext* ctx, GpuImage* image)
 {
     auto* wl = ctx->wayland.get();
 
@@ -198,7 +198,7 @@ wl_buffer* get_image_proxy(io_context* ctx, gpu_image* image)
 }
 
 static
-wp_linux_drm_syncobj_timeline_v1* get_syncobj_proxy(io_context* ctx, gpu_syncobj* syncobj)
+wp_linux_drm_syncobj_timeline_v1* get_syncobj_proxy(IoContext* ctx, GpuSyncobj* syncobj)
 {
     auto* wl = ctx->wayland.get();
 
@@ -213,7 +213,7 @@ wp_linux_drm_syncobj_timeline_v1* get_syncobj_proxy(io_context* ctx, gpu_syncobj
 static
 void on_present_frame(void* udata, wl_callback*, u32 time)
 {
-    auto* output = static_cast<io_wayland_output*>(udata);
+    auto* output = static_cast<IoWaylandOutput*>(udata);
 
     wl_callback_destroy(output->frame_callback);
     output->frame_callback = nullptr;
@@ -224,9 +224,9 @@ void on_present_frame(void* udata, wl_callback*, u32 time)
     }
 }
 
-void io_wayland_output::commit(gpu_image* image, gpu_syncpoint done, flags<io_output_commit_flag> flags)
+void IoWaylandOutput::commit(GpuImage* image, GpuSyncpoint done, Flags<IoOutputCommitFlag> flags)
 {
-    core_assert(commit_available);
+    debug_assert(commit_available);
 
     auto release = std::ranges::find_if(release_slots, [](auto& s) { return !s.image; });
     if (release == release_slots.end()) {
@@ -238,7 +238,7 @@ void io_wayland_output::commit(gpu_image* image, gpu_syncpoint done, flags<io_ou
     release->point++;
     release->image = image;
 
-    gpu_wait({release->syncobj.get(), release->point}, [output = weak(this), syncobj = release->syncobj.get()](u64 point) {
+    gpu_wait({release->syncobj.get(), release->point}, [output = Weak(this), syncobj = release->syncobj.get()](u64 point) {
         if (!output) return;
         auto release = std::ranges::find_if(output->release_slots, [&](auto& s) { return s.syncobj.get() == syncobj; });
         release->image = nullptr;
@@ -260,7 +260,7 @@ void io_wayland_output::commit(gpu_image* image, gpu_syncpoint done, flags<io_ou
         wl_callback_add_listener(frame_callback, &listener, this);
     }
 
-    if (flags.contains(io_output_commit_flag::vsync)) {
+    if (flags.contains(IoOutputCommitFlag::vsync)) {
         commit_available = false;
     }
 
@@ -269,7 +269,7 @@ void io_wayland_output::commit(gpu_image* image, gpu_syncpoint done, flags<io_ou
 }
 
 
-io_wayland_output::~io_wayland_output()
+IoWaylandOutput::~IoWaylandOutput()
 {
     IO_WL_DESTROY(wp_linux_drm_syncobj_surface_v1);
 

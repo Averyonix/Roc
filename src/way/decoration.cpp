@@ -1,9 +1,9 @@
 #include "internal.hpp"
 
-struct way_decoration : way_object
+struct way_decoration : WayObject
 {
-    weak<way_surface> surface;
-    way_resource resource;
+    Weak<WaySurface> surface;
+    WayResource resource;
 };
 
 static
@@ -22,8 +22,8 @@ void send_mode(way_decoration* decoration)
 static
 void get_toplevel_decoration(wl_client* client, wl_resource* resource, u32 id, wl_resource* _toplevel)
 {
-    auto* surface = way_get_userdata<way_surface>(_toplevel);
-    auto decoration = core_create<way_decoration>();
+    auto* surface = way_get_userdata<WaySurface>(_toplevel);
+    auto decoration = ref_create<way_decoration>();
     decoration->surface = surface;
     decoration->resource = way_resource_create_refcounted(zxdg_toplevel_decoration_v1, client, resource, id, decoration.get());
 
@@ -37,7 +37,7 @@ WAY_INTERFACE(zxdg_decoration_manager_v1) = {
 
 WAY_BIND_GLOBAL(zxdg_decoration_manager_v1, bind)
 {
-    way_resource_create_unsafe(zxdg_decoration_manager_v1, bind.client, bind.version, bind.id, way_get_userdata<way_server>(bind.data));
+    way_resource_create_unsafe(zxdg_decoration_manager_v1, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
 }
 
 // -----------------------------------------------------------------------------
@@ -69,7 +69,7 @@ static constexpr auto kde_decoration_mode = ORG_KDE_KWIN_SERVER_DECORATION_MANAG
 static
 void kwin_decoration_manager_create(wl_client* client, wl_resource* resource, u32 id, wl_resource* surface)
 {
-    auto* server = way_get_userdata<way_server>(resource);
+    auto* server = way_get_userdata<WayServer>(resource);
     auto decoration = way_resource_create_unsafe(org_kde_kwin_server_decoration, client, resource, id, server);
 
     way_send(server, org_kde_kwin_server_decoration_send_mode, decoration, kde_decoration_mode);
@@ -81,7 +81,7 @@ WAY_INTERFACE(org_kde_kwin_server_decoration_manager) {
 
 WAY_BIND_GLOBAL(org_kde_kwin_server_decoration_manager, bind)
 {
-    auto* server = way_get_userdata<way_server>(bind.data);
+    auto* server = way_get_userdata<WayServer>(bind.data);
     auto resource = way_resource_create_unsafe(org_kde_kwin_server_decoration_manager, bind.client, bind.version, bind.id, server);
     way_send(server, org_kde_kwin_server_decoration_manager_send_default_mode, resource, kde_decoration_mode);
 }
@@ -91,7 +91,7 @@ void request_mode(wl_client* client, wl_resource* resource, u32 _mode)
 {
     auto mode = org_kde_kwin_server_decoration_manager_mode(_mode);
     if (mode != kde_decoration_mode) {
-        log_warn("org.kde.kwin-server-decoration :: client requested mode: {}", core_to_string(mode));
+        log_warn("org.kde.kwin-server-decoration :: client requested mode: {}", to_string(mode));
     }
 }
 

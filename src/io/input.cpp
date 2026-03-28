@@ -2,24 +2,24 @@
 
 #include "core/stack.hpp"
 
-void io_input_device_add(io_input_device_base* device)
+void io_input_device_add(IoInputDeviceBase* device)
 {
-    core_assert(!std::ranges::contains(device->ctx->input_devices, device));
+    debug_assert(!std::ranges::contains(device->ctx->input_devices, device));
     device->ctx->input_devices.emplace_back(device);
-    io_post_event(device->ctx, ptr_to(io_event {
-        .type = io_event_type::input_added,
-        .input = io_input_event {
+    io_post_event(device->ctx, ptr_to(IoEvent {
+        .type = IoEventType::input_added,
+        .input = IoInputEvent {
             .device = device,
         },
     }));
 }
 
-void io_input_device_remove(io_input_device_base* device)
+void io_input_device_remove(IoInputDeviceBase* device)
 {
     if (std::erase(device->ctx->input_devices, device)) {
-        io_post_event(device->ctx, ptr_to(io_event {
-            .type = io_event_type::input_removed,
-            .input = io_input_event {
+        io_post_event(device->ctx, ptr_to(IoEvent {
+            .type = IoEventType::input_removed,
+            .input = IoInputEvent {
                 .device = device,
             },
         }));
@@ -27,11 +27,11 @@ void io_input_device_remove(io_input_device_base* device)
 }
 
 static
-void post_input(io_input_device_base* device, bool quiet, std::span<const io_input_channel> channels)
+void post_input(IoInputDeviceBase* device, bool quiet, std::span<const IoInputChannel> channels)
 {
-    io_post_event(device->ctx, ptr_to(io_event {
-        .type = io_event_type::input_event,
-        .input = io_input_event {
+    io_post_event(device->ctx, ptr_to(IoEvent {
+        .type = IoEventType::input_event,
+        .input = IoInputEvent {
             .device = device,
             .quiet = quiet,
             .channels = channels,
@@ -39,10 +39,10 @@ void post_input(io_input_device_base* device, bool quiet, std::span<const io_inp
     }));
 }
 
-void io_input_device_leave(io_input_device_base* device)
+void io_input_device_leave(IoInputDeviceBase* device)
 {
-    core_thread_stack stack;
-    auto* events = stack.allocate<io_input_channel>(device->pressed.size());
+    ThreadStack stack;
+    auto* events = stack.allocate<IoInputChannel>(device->pressed.size());
     usz count = 0;
     for (auto key : device->pressed) {
         events[count++] = {EV_KEY, key, 0};
@@ -53,10 +53,10 @@ void io_input_device_leave(io_input_device_base* device)
     device->pressed.clear();
 }
 
-void io_input_device_key_enter(io_input_device_base* device, std::span<const u32> keys)
+void io_input_device_key_enter(IoInputDeviceBase* device, std::span<const u32> keys)
 {
-    core_thread_stack stack;
-    auto* events = stack.allocate<io_input_channel>(keys.size());
+    ThreadStack stack;
+    auto* events = stack.allocate<IoInputChannel>(keys.size());
     usz count = 0;
     for (auto key : keys) {
         if (device->pressed.insert(key).second) {
@@ -68,14 +68,14 @@ void io_input_device_key_enter(io_input_device_base* device, std::span<const u32
     }
 }
 
-void io_input_device_key_press(io_input_device_base* device, u32 key)
+void io_input_device_key_press(IoInputDeviceBase* device, u32 key)
 {
     if (device->pressed.insert(key).second) {
         post_input(device, false, {{EV_KEY, key, 1}});
     }
 }
 
-void io_input_device_key_release(io_input_device_base* device, u32 key)
+void io_input_device_key_release(IoInputDeviceBase* device, u32 key)
 {
     if (device->pressed.erase(key)) {
         post_input(device, false, {{EV_KEY, key, 0}});
@@ -83,21 +83,21 @@ void io_input_device_key_release(io_input_device_base* device, u32 key)
 }
 
 static
-void post_rel2(io_input_device_base* device, vec2u32 code, vec2f32 delta)
+void post_rel2(IoInputDeviceBase* device, vec2u32 code, vec2f32 delta)
 {
-    io_input_channel events[2];
+    IoInputChannel events[2];
     u32 count = 0;
     if (delta.x) events[count++] = {EV_REL, code.x, delta.x};
     if (delta.y) events[count++] = {EV_REL, code.y, delta.y};
     post_input(device, false, std::span(events, count));
 }
 
-void io_input_device_pointer_motion(io_input_device_base* device, vec2f32 delta)
+void io_input_device_pointer_motion(IoInputDeviceBase* device, vec2f32 delta)
 {
     post_rel2(device, {REL_X, REL_Y}, delta);
 }
 
-void io_input_device_pointer_scroll(io_input_device_base* device, vec2f32 delta)
+void io_input_device_pointer_scroll(IoInputDeviceBase* device, vec2f32 delta)
 {
     post_rel2(device, {REL_HWHEEL, REL_WHEEL}, delta);
 }

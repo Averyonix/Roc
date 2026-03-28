@@ -7,90 +7,90 @@
 
 // -----------------------------------------------------------------------------
 
-using core_allocation_version = u32;
+using AllocationVersion = u32;
 
-struct alignas(16) core_allocation
+struct alignas(16) Allocation
 {
-    void(*free)(core_allocation*);
-    core_allocation_version version;
+    void(*free)(Allocation*);
+    AllocationVersion version;
     u32 ref_count;
 };
 
 inline
-auto core_allocation_from(const void* v) -> core_allocation*
+auto allocation_from(const void* v) -> Allocation*
 {
-    // `const_cast` is safe as the `core_allocation_header` is always mutable
-    return static_cast<core_allocation*>(const_cast<void*>(v)) - 1;
+    // `const_cast` is safe as the `Allocation` is always mutable
+    return static_cast<Allocation*>(const_cast<void*>(v)) - 1;
 }
 
 inline
-void* core_allocation_get_data(core_allocation* header)
+void* allocation_get_data(Allocation* header)
 {
     return header + 1;
 }
 
 // -----------------------------------------------------------------------------
 
-struct core_registry_stats
+struct RegistryStats
 {
     u32 active_allocations;
     u32 inactive_allocations;
 };
 
-auto core_registry_get_stats() -> core_registry_stats;
+auto registry_get_stats() -> RegistryStats;
 
-auto core_registry_allocate(u8 bin) -> core_allocation*;
-void core_registry_free(core_allocation*, u8 bin);
+auto registry_allocate(u8 bin) -> Allocation*;
+void registry_free(Allocation*, u8 bin);
 
 constexpr
-u8   core_registry_get_bin_index(usz size)
+u8   registry_get_bin_index(usz size)
 {
-    return std::countr_zero(core_round_up_power2(size + sizeof(core_allocation)));
+    return std::countr_zero(round_up_power2(size + sizeof(Allocation)));
 }
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-T* core_object_create_uninitialized()
+T* object_create_uninitialized()
 {
-    static constexpr auto bin = core_registry_get_bin_index(sizeof(T));
-    auto header = core_registry_allocate(bin);
-    header->free = [](core_allocation* header) {
+    static constexpr auto bin = registry_get_bin_index(sizeof(T));
+    auto header = registry_allocate(bin);
+    header->free = [](Allocation* header) {
         if constexpr (!std::is_trivially_destructible_v<T>) {
-            static_cast<T*>(core_allocation_get_data(header))->~T();
+            static_cast<T*>(allocation_get_data(header))->~T();
         }
-        core_registry_free(header, bin);
+        registry_free(header, bin);
     };
-    return static_cast<T*>(core_allocation_get_data(header));
+    return static_cast<T*>(allocation_get_data(header));
 }
 
 template<typename T>
-T* core_object_create_unsafe(auto&&... args)
+T* object_create_unsafe(auto&&... args)
 {
-    return new (core_object_create_uninitialized<T>()) T(std::forward<decltype(args)>(args)...);
+    return new (object_create_uninitialized<T>()) T(std::forward<decltype(args)>(args)...);
 }
 
 inline
-void core_object_destroy(void* v)
+void object_destroy(void* v)
 {
-    auto header = core_allocation_from(v);
+    auto header = allocation_from(v);
     header->free(header);
 }
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-T* core_object_add_ref(T* t)
+T* object_add_ref(T* t)
 {
-    if (t) core_allocation_from(t)->ref_count++;
+    if (t) allocation_from(t)->ref_count++;
     return t;
 }
 
 template<typename T>
-T* core_object_remove_ref(T* t)
+T* object_remove_ref(T* t)
 {
     if (!t) return nullptr;
-    auto header = core_allocation_from(t);
+    auto header = allocation_from(t);
     if (!--header->ref_count) {
         header->free(header);
         return nullptr;
@@ -100,76 +100,76 @@ T* core_object_remove_ref(T* t)
 
 // -----------------------------------------------------------------------------
 
-struct core_ref_adopt_tag {};
+struct RefAdoptTag {};
 
 template<typename T>
-struct core_ref
+struct Ref
 {
     T* value;
 
     // Destruction
 
-    ~core_ref()
+    ~Ref()
     {
-        core_object_remove_ref(value);
+        object_remove_ref(value);
     }
 
     void destroy()
     {
         if (value) {
-            core_assert(core_allocation_from(value)->ref_count == 1);
+            debug_assert(allocation_from(value)->ref_count == 1);
             reset();
         }
     }
 
     // Construction + Assignment
 
-    core_ref() = default;
+    Ref() = default;
 
-    core_ref(T* t)
+    Ref(T* t)
         : value(t)
     {
-        core_object_add_ref(value);
+        object_add_ref(value);
     }
 
-    core_ref(T* t, core_ref_adopt_tag)
+    Ref(T* t, RefAdoptTag)
         : value(t)
     {}
 
     void reset(T* t = nullptr)
     {
         if (t == value) return;
-        core_object_remove_ref(value);
-        value = core_object_add_ref(t);
+        object_remove_ref(value);
+        value = object_add_ref(t);
     }
 
-    core_ref& operator=(T* t)
+    Ref& operator=(T* t)
     {
         reset(t);
         return *this;
     }
 
-    core_ref(const core_ref& other)
-        : value(core_object_add_ref(other.value))
+    Ref(const Ref& other)
+        : value(object_add_ref(other.value))
     {}
 
-    core_ref& operator=(const core_ref& other)
+    Ref& operator=(const Ref& other)
     {
         if (value != other.value) {
-            core_object_remove_ref(value);
-            value = core_object_add_ref(other.value);
+            object_remove_ref(value);
+            value = object_add_ref(other.value);
         }
         return *this;
     }
 
-    core_ref(core_ref&& other)
+    Ref(Ref&& other)
         : value(std::exchange(other.value, nullptr))
     {}
 
-    core_ref& operator=(core_ref&& other)
+    Ref& operator=(Ref&& other)
     {
         if (value != other.value) {
-            core_object_remove_ref(value);
+            object_remove_ref(value);
             value = std::exchange(other.value, nullptr);
         }
         return *this;
@@ -178,7 +178,7 @@ struct core_ref
     // Queries
 
     template<typename T2>
-    bool operator==(const core_ref<T2>& other) const { return value == other.value; };
+    bool operator==(const Ref<T2>& other) const { return value == other.value; };
 
     explicit operator bool() const { return value; }
     T*                 get() const { return value; }
@@ -187,34 +187,34 @@ struct core_ref
     // Conversions
 
     template<typename T2>
-    operator core_ref<T2>() { return core_ref<T2>(value); }
+    operator Ref<T2>() { return Ref<T2>(value); }
 };
 
 template<typename T>
-auto core_ref_adopt(T* t) -> core_ref<T>
+auto ref_adopt(T* t) -> Ref<T>
 {
-    return {t, core_ref_adopt_tag{}};
+    return {t, RefAdoptTag{}};
 }
 
 template<typename T>
-auto core_create(auto&&... args) -> core_ref<T>
+auto ref_create(auto&&... args) -> Ref<T>
 {
-    return core_ref_adopt(core_object_create_unsafe<T>(std::forward<decltype(args)>(args)...));
+    return ref_adopt(object_create_unsafe<T>(std::forward<decltype(args)>(args)...));
 }
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct core_weak
+struct Weak
 {
     T* value;
-    core_allocation_version version;
+    AllocationVersion version;
 
     // Construction + Assignment
 
-    core_weak() = default;
+    Weak() = default;
 
-    core_weak(T* t)
+    Weak(T* t)
     {
         reset(t);
     }
@@ -222,10 +222,10 @@ struct core_weak
     void reset(T* t = nullptr)
     {
         value = t;
-        version = value ? core_allocation_from(value)->version : 0;
+        version = value ? allocation_from(value)->version : 0;
     }
 
-    core_weak& operator=(T* t)
+    Weak& operator=(T* t)
     {
         reset(t);
         return *this;
@@ -233,25 +233,17 @@ struct core_weak
 
     // Queries
 
-    bool operator==(const core_weak& other) const = default;
+    bool operator==(const Weak& other) const = default;
 
     template<typename T2>
-    bool operator==(const core_weak<T2>& other) const { return value == other.value && version == other.version; };
+    bool operator==(const Weak<T2>& other) const { return value == other.value && version == other.version; };
 
-    explicit operator bool() const { return value && core_allocation_from(value)->version == version; }
+    explicit operator bool() const { return value && allocation_from(value)->version == version; }
     T*                 get() const { return *this ? value : nullptr; }
     T*          operator->() const { return value; }
 
     // Conversions
 
     template<typename T2>
-    operator core_weak<T2>() { return core_weak<T2>{get()}; }
+    operator Weak<T2>() { return Weak<T2>{get()}; }
 };
-
-// -----------------------------------------------------------------------------
-
-template<typename T>
-using ref = core_ref<T>;
-
-template<typename T>
-using weak = core_weak<T>;

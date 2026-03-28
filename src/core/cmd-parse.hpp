@@ -2,7 +2,7 @@
 
 #include "types.hpp"
 
-struct core_command_parser
+struct CommandParser
 {
     std::span<const std::string_view> args;
     u32 index;

@@ -3,7 +3,7 @@
 #include "core/enum.hpp"
 #include "core/stack.hpp"
 
-void gpu_queue_init(gpu_context* gpu)
+void gpu_queue_init(Gpu* gpu)
 {
     gpu->vk.GetDeviceQueue(gpu->device, gpu->queue.family, 0, &gpu->queue.queue);
 
@@ -18,16 +18,16 @@ void gpu_queue_init(gpu_context* gpu)
 
 // -----------------------------------------------------------------------------
 
-gpu_commands::~gpu_commands()
+GpuCommands::~GpuCommands()
 {
     gpu->vk.FreeCommandBuffers(gpu->device, gpu->queue.pool, 1, &buffer);
 }
 
-auto gpu_get_commands(gpu_context* gpu) -> gpu_commands*
+auto gpu_get_commands(Gpu* gpu) -> GpuCommands*
 {
     if (gpu->queue.commands) return gpu->queue.commands.get();
 
-    auto commands = core_create<gpu_commands>();
+    auto commands = ref_create<GpuCommands>();
     commands->gpu = gpu;
 
     gpu_check(gpu->vk.AllocateCommandBuffers(gpu->device, ptr_to(VkCommandBufferAllocateInfo {
@@ -48,7 +48,7 @@ auto gpu_get_commands(gpu_context* gpu) -> gpu_commands*
 
 // -----------------------------------------------------------------------------
 
-void gpu_protect(gpu_context* gpu, ref<void> object)
+void gpu_protect(Gpu* gpu, Ref<void> object)
 {
     if (!object) return;
     gpu_get_commands(gpu)->objects.emplace_back(std::move(object));
@@ -56,7 +56,7 @@ void gpu_protect(gpu_context* gpu, ref<void> object)
 
 // -----------------------------------------------------------------------------
 
-gpu_syncpoint gpu_flush(gpu_context* gpu)
+GpuSyncpoint gpu_flush(Gpu* gpu)
 {
     auto* commands = gpu->queue.commands.get();
 
@@ -64,7 +64,7 @@ gpu_syncpoint gpu_flush(gpu_context* gpu)
 
     commands->submitted_value = ++gpu->queue.submitted;
 
-    gpu_syncpoint target {
+    GpuSyncpoint target {
         .syncobj = gpu->queue.syncobj.get(),
         .value = commands->submitted_value,
     };
@@ -82,7 +82,7 @@ gpu_syncpoint gpu_flush(gpu_context* gpu)
         }),
         nullptr));
 
-    gpu_wait({gpu->queue.syncobj.get(), gpu->queue.submitted}, [commands = ref(commands)](u64) {});
+    gpu_wait({gpu->queue.syncobj.get(), gpu->queue.submitted}, [commands = Ref(commands)](u64) {});
 
     gpu->queue.commands = nullptr;
 

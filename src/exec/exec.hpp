@@ -7,28 +7,28 @@
 
 // -----------------------------------------------------------------------------
 
-struct exec_task
+struct ExecTask
 {
     std::move_only_function<void()> callback;
     std::atomic_flag* sync;
 };
 
-struct exec_fd_listener;
+struct ExecFdListener;
 
-struct exec_context
+struct ExecContext
 {
     bool stopped = false;
 
-    std::array<ref<exec_fd_listener>, core_fd_limit> listeners  = {};
+    std::array<Ref<ExecFdListener>, fd_limit> listeners  = {};
 
     std::thread::id os_thread;
 
-    moodycamel::ConcurrentQueue<exec_task> queue;
+    moodycamel::ConcurrentQueue<ExecTask> queue;
 
     u64 tasks_available;
-    core_fd task_fd;
+    Fd task_fd;
 
-    core_fd timer_fd;
+    Fd timer_fd;
     struct timed_event
     {
         std::chrono::steady_clock::time_point expiration;
@@ -37,30 +37,30 @@ struct exec_context
     std::deque<timed_event> timed_events;
     std::optional<std::chrono::steady_clock::time_point> current_wakeup;
 
-    core_fd epoll_fd;
+    Fd epoll_fd;
 
     struct {
         u64 events_handled;
         u64 poll_waits;
     } stats;
 
-    ~exec_context();
+    ~ExecContext();
 };
 
-auto exec_create() -> ref<exec_context>;
+auto exec_create() -> Ref<ExecContext>;
 
-void exec_set_thread_context(exec_context*);
-auto exec_get_thread_context() -> exec_context*;
+void exec_set_thread_context(ExecContext*);
+auto exec_get_thread_context() -> ExecContext*;
 
-void exec_run( exec_context*);
-void exec_stop(exec_context*);
+void exec_run( ExecContext*);
+void exec_stop(ExecContext*);
 
-void exec_add_timer_wakeup(exec_context*, std::chrono::steady_clock::time_point exp);
+void exec_add_timer_wakeup(ExecContext*, std::chrono::steady_clock::time_point exp);
 
 template<typename Lambda>
-void exec_enqueue_timed(exec_context* exec, std::chrono::steady_clock::time_point exp, Lambda&& task)
+void exec_enqueue_timed(ExecContext* exec, std::chrono::steady_clock::time_point exp, Lambda&& task)
 {
-    core_assert(std::this_thread::get_id() == exec->os_thread);
+    debug_assert(std::this_thread::get_id() == exec->os_thread);
 
     exec->timed_events.emplace_back(exp, std::move(task));
 
@@ -68,7 +68,7 @@ void exec_enqueue_timed(exec_context* exec, std::chrono::steady_clock::time_poin
 }
 
 template<typename Lambda>
-void exec_enqueue(exec_context* exec, Lambda&& task)
+void exec_enqueue(ExecContext* exec, Lambda&& task)
 {
     exec->queue.enqueue({ .callback = std::move(task) });
     if (std::this_thread::get_id() == exec->os_thread) {
@@ -79,9 +79,9 @@ void exec_enqueue(exec_context* exec, Lambda&& task)
 }
 
 template<typename Lambda>
-void exec_enqueue_and_wait(exec_context* exec, Lambda&& task)
+void exec_enqueue_and_wait(ExecContext* exec, Lambda&& task)
 {
-    core_assert(std::this_thread::get_id() != exec->os_thread);
+    debug_assert(std::this_thread::get_id() != exec->os_thread);
 
     std::atomic_flag done = false;
     // We can avoid moving `task` entirely since its lifetime is guaranteed
@@ -92,46 +92,46 @@ void exec_enqueue_and_wait(exec_context* exec, Lambda&& task)
 
 // -----------------------------------------------------------------------------
 
-enum class exec_fd_event_bit : u32
+enum class FdEventBit : u32
 {
     readable = 1 << 0,
     writable = 1 << 1,
 };
 
-enum class exec_fd_listen_flag : u32
+enum class ExecListenFlag : u32
 {
     oneshot = 1 << 0,
 };
 
-struct exec_fd_listener
+struct ExecFdListener
 {
-    flags<exec_fd_event_bit> events;
-    flags<exec_fd_listen_flag> flags;
+    Flags<FdEventBit> events;
+    Flags<ExecListenFlag> flags;
 
-    virtual void handle(int fd, ::flags<exec_fd_event_bit> events) = 0;
+    virtual void handle(int fd, Flags<FdEventBit> events) = 0;
 };
 
 // -----------------------------------------------------------------------------
 
-void exec_fd_listen(  exec_context*, int fd, exec_fd_listener*);
-void exec_fd_unlisten(exec_context*, int fd);
+void exec_fd_listen(  ExecContext*, int fd, ExecFdListener*);
+void exec_fd_unlisten(ExecContext*, int fd);
 
 template<typename Fn>
 void exec_fd_listen(
-    exec_context* exec,
+    ExecContext* exec,
     int fd,
-    flags<exec_fd_event_bit> events,
+    Flags<FdEventBit> events,
     Fn&& callback,
-    flags<exec_fd_listen_flag> flags = {})
+    Flags<ExecListenFlag> flags = {})
 {
-    struct lambda_listener : exec_fd_listener
+    struct Listener : ExecFdListener
     {
         Fn lambda;
-        lambda_listener(Fn&& lambda): lambda(std::move(lambda)) {}
-        virtual void handle(int fd, ::flags<exec_fd_event_bit> events) { lambda(fd, events); }
+        Listener(Fn&& lambda): lambda(std::move(lambda)) {}
+        virtual void handle(int fd, Flags<FdEventBit> events) { lambda(fd, events); }
     };
 
-    auto listener = core_create<lambda_listener>(std::move(callback));
+    auto listener = ref_create<Listener>(std::move(callback));
     listener->events = events;
     listener->flags = flags;
     exec_fd_listen(exec, fd, listener.get());

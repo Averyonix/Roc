@@ -30,9 +30,9 @@ auto to_span(ImVector<T>& v) -> std::span<T>
 }
 
 static
-auto get_context(ImGuiContext* ctx = ImGui::GetCurrentContext()) -> ui_context*
+auto get_context(ImGuiContext* ctx = ImGui::GetCurrentContext()) -> UiContext*
 {
-    return static_cast<ui_context*>(ctx->IO.BackendPlatformUserData);
+    return static_cast<UiContext*>(ctx->IO.BackendPlatformUserData);
 }
 
 static
@@ -42,15 +42,15 @@ auto get_viewports() -> std::span<ImGuiViewport* const>
 }
 
 static
-auto get_data(ImGuiViewport* vp) -> ui_viewport_data*
+auto get_data(ImGuiViewport* vp) -> UiViewportData*
 {
-    return static_cast<ui_viewport_data*>(vp->PlatformUserData);
+    return static_cast<UiViewportData*>(vp->PlatformUserData);
 }
 
 // -----------------------------------------------------------------------------
 
 static
-auto find_viewport_for_input_region(ui_context* ctx, scene_input_region* region) -> ImGuiViewport*
+auto find_viewport_for_input_region(UiContext* ctx, SceneInputRegion* region) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->input_plane.get() == region) {
@@ -58,11 +58,11 @@ auto find_viewport_for_input_region(ui_context* ctx, scene_input_region* region)
         }
     }
 
-    core_assert_fail("find_viewport_for_input_plane", "Failed to find viewport for region");
+    debug_assert_fail("find_viewport_for_input_plane", "Failed to find viewport for region");
 }
 
 static
-auto find_viewport_for_window(scene_window* window) -> ImGuiViewport*
+auto find_viewport_for_window(SceneWindow* window) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->window.get() == window) {
@@ -73,7 +73,7 @@ auto find_viewport_for_window(scene_window* window) -> ImGuiViewport*
     return nullptr;
 }
 
-auto ui_get_window(ImGuiWindow* window) -> scene_window*
+auto ui_get_window(ImGuiWindow* window) -> SceneWindow*
 {
     if (!window->Viewport) return nullptr;
     if (auto* data = get_data(window->Viewport)) return data->window.get();
@@ -86,7 +86,7 @@ static
 void Platform_CreateWindow(ImGuiViewport* vp)
 {
     auto* ctx = get_context();
-    auto* data = new ui_viewport_data();
+    auto* data = new UiViewportData();
 
     data->window = scene_window_create(ctx->client.get());
 
@@ -196,7 +196,7 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imctx) -> const char*
                     auto[read, write] = [] {
                         int fd[2] = {-1, -1};
                         unix_check<pipe>(fd);
-                        return std::make_pair(core_fd(fd[0]), core_fd(fd[1]));
+                        return std::make_pair(Fd(fd[0]), Fd(fd[1]));
                     }();
                     scene_data_source_receive(source, mime, write.get());
                     write.reset();
@@ -229,7 +229,7 @@ struct ui_context_guard
     }
 };
 
-ui_context::~ui_context()
+UiContext::~UiContext()
 {
     ui_context_guard _{context};
     ImGui::DestroyPlatformWindows();
@@ -240,14 +240,14 @@ ui_context::~ui_context()
 // -----------------------------------------------------------------------------
 
 static
-void reset_frame_textures(ui_context* ctx)
+void reset_frame_textures(UiContext* ctx)
 {
     ctx->textures.clear();
     // Leave 0 as an invalid texture id
     ctx->textures.emplace_back();
 }
 
-auto ui_get_texture(ui_context* ctx, gpu_image* image, gpu_sampler* sampler, gpu_blend_mode blend) -> ImTextureID
+auto ui_get_texture(UiContext* ctx, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend) -> ImTextureID
 {
     auto idx = ctx->textures.size();
     ctx->textures.emplace_back(image, sampler, blend);
@@ -256,7 +256,7 @@ auto ui_get_texture(ui_context* ctx, gpu_image* image, gpu_sampler* sampler, gpu
 
 // -----------------------------------------------------------------------------
 
-void ui_init(ui_context* ctx, const std::filesystem::path& path)
+void ui_init(UiContext* ctx, const std::filesystem::path& path)
 {
     ctx->context = ImGui::CreateContext();
     ImGui::SetCurrentContext(nullptr);
@@ -289,9 +289,9 @@ void ui_init(ui_context* ctx, const std::filesystem::path& path)
         ctx->font_image = gpu_image_create(ctx->gpu, {
             .extent = {width, height},
             .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-            .usage = gpu_image_usage::texture | gpu_image_usage::transfer
+            .usage = GpuImageUsage::texture | GpuImageUsage::transfer
         });
-        gpu_copy_memory_to_image(ctx->font_image.get(), {pixels, usz(width * height * 4)}, {{{width, height}}});
+        gpu_copy_memory_to_image(ctx->font_image.get(), as_bytes(pixels, width * height * 4), {{{width, height}}});
     }
 
     auto& platform_io = ImGui::GetPlatformIO();
@@ -311,12 +311,12 @@ void ui_init(ui_context* ctx, const std::filesystem::path& path)
     // Create dummy main viewport.
     // This will never be used to draw anything as it will be zero sized, but
     // it needs to exist until ImGui removes the requirement for a main viewport.
-    ImGui::GetMainViewport()->PlatformUserData = new ui_viewport_data();
+    ImGui::GetMainViewport()->PlatformUserData = new UiViewportData();
 }
 
 // -----------------------------------------------------------------------------
 
-void ui_request_frame(ui_context* ctx)
+void ui_request_frame(UiContext* ctx)
 {
     // Double-pump frames: ImGui always works based on last frame state,
     // so input needs a second frame to react against the updated state.
@@ -325,7 +325,7 @@ void ui_request_frame(ui_context* ctx)
 }
 
 static
-void render_viewport(ui_context* ctx, ImGuiViewport* vp)
+void render_viewport(UiContext* ctx, ImGuiViewport* vp)
 {
     auto* data = get_data(vp);
     if (!data || !vp->DrawData) return;
@@ -339,18 +339,18 @@ void render_viewport(ui_context* ctx, ImGuiViewport* vp)
             auto indices = to_span(list->IdxBuffer).subspan(cmd.IdxOffset, cmd.ElemCount);
             auto vtx_count = std::ranges::max(indices) + 1;
 
-            core_thread_stack stack;
+            ThreadStack stack;
 
-            auto* vertices = stack.allocate<scene_vertex>(vtx_count);
+            auto* vertices = stack.allocate<SceneVertex>(vtx_count);
             for (auto[i, imvert] : to_span(list->VtxBuffer).subspan(cmd.VtxOffset, vtx_count) | std::views::enumerate) {
-                vertices[i] = scene_vertex {
+                vertices[i] = SceneVertex {
                     .pos = from_imvec(imvert.pos) - translation,
                     .uv  = from_imvec(imvert.uv),
                     .color = std::bit_cast<vec4u8>(imvert.col),
                 };
             }
 
-            rect2f32 clip = {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, core_minmax};
+            rect2f32 clip = {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, minmax};
             clip.origin -= translation;
 
             auto[image, sampler, blend] = ctx->textures[cmd.GetTexID()];
@@ -363,9 +363,9 @@ void render_viewport(ui_context* ctx, ImGuiViewport* vp)
     // Update visual frame
 
     {
-        rect2f32 rect {translation, from_imvec(vp->Size), core_xywh};
+        rect2f32 rect {translation, from_imvec(vp->Size), xywh};
         if (rect != scene_window_get_frame(data->window.get())) {
-            scene_input_region_set_region(data->input_plane.get(), {{{}, rect.extent, core_xywh}});
+            scene_input_region_set_region(data->input_plane.get(), {{{}, rect.extent, xywh}});
             scene_window_set_frame(data->window.get(), rect);
         }
     }
@@ -381,7 +381,7 @@ void render_viewport(ui_context* ctx, ImGuiViewport* vp)
     }
 }
 
-void ui_frame(ui_context* ctx)
+void ui_frame(UiContext* ctx)
 {
     if (!ctx->frames_requested) return;
     ctx->frames_requested--;
@@ -393,7 +393,7 @@ void ui_frame(ui_context* ctx)
 
     reset_frame_textures(ctx);
     io.Fonts->SetTexID(ui_get_texture(ctx, ctx->font_image.get(), ctx->sampler.get(),
-                                      gpu_blend_mode::postmultiplied));
+                                      GpuBlendMode::postmultiplied));
 
     ImGui::NewFrame();
     ctx->frame_handler();
@@ -420,7 +420,7 @@ void ui_frame(ui_context* ctx)
 // -----------------------------------------------------------------------------
 
 static
-void handle_reposition(ui_context* ctx, scene_window* window, rect2f32 frame)
+void handle_reposition(UiContext* ctx, SceneWindow* window, rect2f32 frame)
 {
     if (auto* vp = find_viewport_for_window(window)) {
         get_data(vp)->reposition = frame;
@@ -429,7 +429,7 @@ void handle_reposition(ui_context* ctx, scene_window* window, rect2f32 frame)
 }
 
 static
-void handle_close(ui_context* ctx, scene_window* window)
+void handle_close(UiContext* ctx, SceneWindow* window)
 {
     if (auto* vp = find_viewport_for_window(window)) {
         vp->PlatformRequestClose = true;
@@ -437,9 +437,9 @@ void handle_close(ui_context* ctx, scene_window* window)
     }
 }
 
-auto ui_create(gpu_context* gpu, scene_context* scene, const std::filesystem::path& path) -> ref<ui_context>
+auto ui_create(Gpu* gpu, Scene* scene, const std::filesystem::path& path) -> Ref<UiContext>
 {
-    auto ctx = core_create<ui_context>();
+    auto ctx = ref_create<UiContext>();
     ctx->scene   = scene;
     ctx->gpu     = gpu;
     ctx->sampler = gpu_sampler_create(ctx->gpu, {
@@ -450,60 +450,60 @@ auto ui_create(gpu_context* gpu, scene_context* scene, const std::filesystem::pa
 
     ui_init(ctx.get(), path);
 
-    scene_client_set_event_handler(ctx->client.get(), [ctx = ctx.get()](scene_event* event) {
+    scene_client_set_event_handler(ctx->client.get(), [ctx = ctx.get()](SceneEvent* event) {
         ui_context_guard _{ctx->context};
         switch (event->type) {
             // seat
-            break;case scene_event_type::seat_add:
-                  case scene_event_type::seat_configure:
-                  case scene_event_type::seat_remove:
+            break;case SceneEventType::seat_add:
+                  case SceneEventType::seat_configure:
+                  case SceneEventType::seat_remove:
                 ;
 
             // keyboard
-            break;case scene_event_type::keyboard_enter:
+            break;case SceneEventType::keyboard_enter:
                 ui_handle_keyboard_enter(ctx, event->keyboard.keyboard, event->keyboard.focus.region);
-            break;case scene_event_type::keyboard_leave:
+            break;case SceneEventType::keyboard_leave:
                 ui_handle_keyboard_leave(ctx);
-            break;case scene_event_type::keyboard_key:
+            break;case SceneEventType::keyboard_key:
                 ui_handle_key(ctx, event->keyboard.key.code, event->keyboard.key.pressed);
-            break;case scene_event_type::keyboard_modifier:
+            break;case SceneEventType::keyboard_modifier:
                 ui_handle_mods(ctx);
 
             // pointer
-            break;case scene_event_type::pointer_enter:
+            break;case SceneEventType::pointer_enter:
                 ui_handle_pointer_enter(ctx, event->pointer.pointer, event->pointer.focus.region);
-            break;case scene_event_type::pointer_leave:
+            break;case SceneEventType::pointer_leave:
                 ui_handle_pointer_leave(ctx);
-            break;case scene_event_type::pointer_motion:
+            break;case SceneEventType::pointer_motion:
                 ui_handle_motion(ctx);
-            break;case scene_event_type::pointer_button:
+            break;case SceneEventType::pointer_button:
                 ui_handle_button(ctx, event->pointer.button.code, event->pointer.button.pressed);
-            break;case scene_event_type::pointer_scroll:
+            break;case SceneEventType::pointer_scroll:
                 ui_handle_wheel(ctx, event->pointer.scroll.delta);
 
             // window
-            break;case scene_event_type::window_reposition:
+            break;case SceneEventType::window_reposition:
                 handle_reposition(ctx, event->window.window, event->window.reposition.frame);
-            break;case scene_event_type::window_close:
+            break;case SceneEventType::window_close:
                 handle_close(ctx, event->window.window);
 
             // output
-            break;case scene_event_type::output_added:
-                  case scene_event_type::output_configured:
-                  case scene_event_type::output_removed:
-                  case scene_event_type::output_frame_request:
+            break;case SceneEventType::output_added:
+                  case SceneEventType::output_configured:
+                  case SceneEventType::output_removed:
+                  case SceneEventType::output_frame_request:
                 ;
-            break;case scene_event_type::output_frame:
+            break;case SceneEventType::output_frame:
                 ui_frame(ctx);
-            break;case scene_event_type::output_layout:
+            break;case SceneEventType::output_layout:
                 ui_handle_output_layout(ctx);
 
             // hotkey
-            break;case scene_event_type::hotkey:
+            break;case SceneEventType::hotkey:
                 ;
 
             // selection
-            break;case scene_event_type::selection:
+            break;case SceneEventType::selection:
                 ;
         }
     });
@@ -511,14 +511,14 @@ auto ui_create(gpu_context* gpu, scene_context* scene, const std::filesystem::pa
     return ctx;
 }
 
-void ui_set_frame_handler(ui_context* ctx, std::move_only_function<ui_frame_fn>&& handler)
+void ui_set_frame_handler(UiContext* ctx, std::move_only_function<UiFrameFn>&& handler)
 {
     ctx->frame_handler = std::move(handler);
 }
 
 // -----------------------------------------------------------------------------
 
-void ui_handle_keyboard_enter(ui_context* ctx, scene_keyboard* keyboard, scene_input_region* region)
+void ui_handle_keyboard_enter(UiContext* ctx, SceneKeyboard* keyboard, SceneInputRegion* region)
 {
     ctx->keyboard = keyboard;
 
@@ -534,7 +534,7 @@ void ui_handle_keyboard_enter(ui_context* ctx, scene_keyboard* keyboard, scene_i
     ui_request_frame(ctx);
 }
 
-void ui_handle_keyboard_leave(ui_context* ctx)
+void ui_handle_keyboard_leave(UiContext* ctx)
 {
     ctx->seats.emplace(scene_keyboard_get_seat(ctx->keyboard));
 
@@ -546,7 +546,7 @@ void ui_handle_keyboard_leave(ui_context* ctx)
     ui_request_frame(ctx);
 }
 
-void ui_handle_key(ui_context* ctx, scene_scancode code, bool pressed)
+void ui_handle_key(UiContext* ctx, SceneScancode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
@@ -556,21 +556,21 @@ void ui_handle_key(ui_context* ctx, scene_scancode code, bool pressed)
     ui_request_frame(ctx);
 }
 
-void ui_handle_mods(ui_context* ctx)
+void ui_handle_mods(UiContext* ctx)
 {
     auto& io = ImGui::GetIO();
 
     auto mods = scene_keyboard_get_modifiers(ctx->keyboard);
 
-    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(scene_modifier::shift));
-    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(scene_modifier::ctrl));
-    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(scene_modifier::alt));
-    io.AddKeyEvent(ImGuiMod_Super, mods.contains(scene_modifier::super));
+    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(SceneModifier::shift));
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(SceneModifier::ctrl));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(SceneModifier::alt));
+    io.AddKeyEvent(ImGuiMod_Super, mods.contains(SceneModifier::super));
 
     ui_request_frame(ctx);
 }
 
-void ui_handle_motion(ui_context* ctx)
+void ui_handle_motion(UiContext* ctx)
 {
     auto& io = ImGui::GetIO();
 
@@ -580,7 +580,7 @@ void ui_handle_motion(ui_context* ctx)
     ui_request_frame(ctx);
 }
 
-void ui_handle_button(ui_context* ctx, scene_scancode code, bool pressed)
+void ui_handle_button(UiContext* ctx, SceneScancode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
@@ -596,7 +596,7 @@ void ui_handle_button(ui_context* ctx, scene_scancode code, bool pressed)
     ui_request_frame(ctx);
 }
 
-void ui_handle_wheel(ui_context* ctx, vec2f32 delta)
+void ui_handle_wheel(UiContext* ctx, vec2f32 delta)
 {
     auto& io = ImGui::GetIO();
 
@@ -604,7 +604,7 @@ void ui_handle_wheel(ui_context* ctx, vec2f32 delta)
     ui_request_frame(ctx);
 }
 
-void ui_handle_pointer_enter(ui_context* ctx, scene_pointer* pointer, scene_input_region* region)
+void ui_handle_pointer_enter(UiContext* ctx, ScenePointer* pointer, SceneInputRegion* region)
 {
     ctx->pointer = pointer;
 
@@ -620,7 +620,7 @@ void ui_handle_pointer_enter(ui_context* ctx, scene_pointer* pointer, scene_inpu
     ui_request_frame(ctx);
 }
 
-void ui_handle_pointer_leave(ui_context* ctx)
+void ui_handle_pointer_leave(UiContext* ctx)
 {
     auto& io = ImGui::GetIO();
 
@@ -636,7 +636,7 @@ void ui_handle_pointer_leave(ui_context* ctx)
     ui_request_frame(ctx);
 }
 
-void ui_handle_output_layout(ui_context* ctx)
+void ui_handle_output_layout(UiContext* ctx)
 {
     auto& platform_io = ImGui::GetPlatformIO();
 
@@ -674,7 +674,7 @@ auto imgui_cursor_to_xcursor(ImGuiMouseCursor cursor) -> const char*
         break;case ImGuiMouseCursor_NotAllowed: return "not-allowed";
     }
 
-    core_unreachable();
+    debug_unreachable();
 }
 
 static

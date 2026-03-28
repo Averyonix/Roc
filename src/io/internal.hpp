@@ -2,52 +2,63 @@
 
 #include "io.hpp"
 
-#define IO_BACKEND(Name) \
-    struct Name; \
-    void Name##_init(io_context*); \
-    void Name##_deinit(io_context*)
+struct IoUdev;
+void io_udev_init(  IoContext*);
+void io_udev_deinit(IoContext*);
 
-IO_BACKEND(io_udev);
-IO_BACKEND(io_session);
-IO_BACKEND(io_libinput);
-IO_BACKEND(io_evdev);
-IO_BACKEND(io_drm);
-IO_BACKEND(io_wayland);
+struct IoSession;
+void io_session_init(  IoContext*);
+void io_session_deinit(IoContext*);
 
-void io_wayland_start(io_context*);
+struct IoLibinput;
+void io_libinput_init(  IoContext*);
+void io_libinput_deinit(IoContext*);
 
-struct io_input_device_base;
-struct io_output_base;
+struct IoEvdev;
+void io_evdev_init(  IoContext*);
+void io_evdev_deinit(IoContext*);
 
-struct io_context
+struct IoDrm;
+void io_drm_init(  IoContext*);
+void io_drm_deinit(IoContext*);
+
+struct IoWayland;
+void io_wayland_init(  IoContext*);
+void io_wayland_deinit(IoContext *);
+void io_wayland_start( IoContext*);
+
+struct IoInputDeviceBase;
+struct IoOutputBase;
+
+struct IoContext
 {
-    std::move_only_function<io_event_handler> event_handler;
+    std::move_only_function<IoEventHandler> event_handler;
 
     bool stop_requested = false;
 
-    exec_context* exec;
-    gpu_context*  gpu;
+    ExecContext* exec;
+    Gpu* gpu;
 
-    std::vector<io_input_device_base*> input_devices;
-    std::vector<io_output_base*>       outputs;
+    std::vector<IoInputDeviceBase*> input_devices;
+    std::vector<IoOutputBase*>       outputs;
 
-    ref<io_udev>     udev;
-    ref<io_session>  session;
-    ref<io_libinput> libinput; // input_device
-    ref<io_evdev>    evdev;    // input_device
-    ref<io_drm>      drm;      // output
-    ref<io_wayland>  wayland;  // output | input_device
+    Ref<IoUdev>     udev;
+    Ref<IoSession>  session;
+    Ref<IoLibinput> libinput; // input_device
+    Ref<IoEvdev>    evdev;    // input_device
+    Ref<IoDrm>      drm;      // output
+    Ref<IoWayland>  wayland;  // output | input_device
 
-    ~io_context();
+    ~IoContext();
 };
 
-void io_request_shutdown(io_context* ctx, io_shutdown_reason reason);
+void io_request_shutdown(IoContext* ctx, IoShutdownReason reason);
 
 // -----------------------------------------------------------------------------
 
-struct io_output_base : io_output
+struct IoOutputBase : IoOutput
 {
-    io_context* ctx;
+    IoContext* ctx;
 
     bool frame_requested;
 
@@ -58,15 +69,15 @@ struct io_output_base : io_output
 
     virtual void request_frame() final override;
 
-    virtual ~io_output_base();
+    virtual ~IoOutputBase();
 };
 
-void io_output_try_redraw(io_output_base*);
-void io_output_try_redraw_later(io_output_base*);
-void io_output_post_configure(io_output_base*);
+void io_output_try_redraw(IoOutputBase*);
+void io_output_try_redraw_later(IoOutputBase*);
+void io_output_post_configure(IoOutputBase*);
 
-void io_output_add(   io_output_base*);
-void io_output_remove(io_output_base*);
+void io_output_add(   IoOutputBase*);
+void io_output_remove(IoOutputBase*);
 
 // -----------------------------------------------------------------------------
 
@@ -76,29 +87,29 @@ void io_output_remove(io_output_base*);
  * 2. wayland  - Handles the above devices when running in a nested Wayland session.
  * 3. evdev    - Handles all remaining input devices (gamepad/joystick/etc...) that do not require privileged seat access.
  */
-struct io_input_device_base : io_input_device
+struct IoInputDeviceBase : IoInputDevice
 {
-    io_context* ctx;
+    IoContext* ctx;
 
-    flags<io_input_device_capability> capabilities;
+    Flags<IoInputDeviceCapability> capabilities;
 
     std::flat_set<u32> pressed;
 
-    auto info() -> io_input_device_info
+    auto info() -> IoInputDeviceInfo
     {
         return { .capabilities = capabilities };
     }
 
-    virtual ~io_input_device_base() = default;
+    virtual ~IoInputDeviceBase() = default;
 };
 
-void io_post_event(io_context*, io_event*);
+void io_post_event(IoContext*, IoEvent*);
 
-void io_input_device_add(           io_input_device_base*);
-void io_input_device_remove(        io_input_device_base*);
-void io_input_device_leave(         io_input_device_base*);
-void io_input_device_key_enter(     io_input_device_base*, std::span<const u32> keys);
-void io_input_device_key_press(     io_input_device_base*, u32 key);
-void io_input_device_key_release(   io_input_device_base*, u32 key);
-void io_input_device_pointer_motion(io_input_device_base*, vec2f32 delta);
-void io_input_device_pointer_scroll(io_input_device_base*, vec2f32 delta);
+void io_input_device_add(           IoInputDeviceBase*);
+void io_input_device_remove(        IoInputDeviceBase*);
+void io_input_device_leave(         IoInputDeviceBase*);
+void io_input_device_key_enter(     IoInputDeviceBase*, std::span<const u32> keys);
+void io_input_device_key_press(     IoInputDeviceBase*, u32 key);
+void io_input_device_key_release(   IoInputDeviceBase*, u32 key);
+void io_input_device_pointer_motion(IoInputDeviceBase*, vec2f32 delta);
+void io_input_device_pointer_scroll(IoInputDeviceBase*, vec2f32 delta);

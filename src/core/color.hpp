@@ -4,28 +4,27 @@
 #include "debug.hpp"
 
 constexpr
-u8 core_hex_to_value(char digit)
-{
-    switch (digit) {
-        break;case 'a' ... 'f': return 10 + digit - 'a';
-        break;case 'A' ... 'F': return 10 + digit - 'A';
-        break;case '0' ... '9': return digit - '0';
-        break;default:
-            core_unreachable();
-    }
-}
-
-constexpr
-vec4u8 core_color_from_hex(std::string_view str)
+vec4u8 color_from_hex(std::string_view str)
 {
     vec4u8 color;
     if (str.starts_with("#")) str.remove_prefix(1);
 
-    auto hex_pair_to_value = [&](u32 i) -> u8 {
-        return core_hex_to_value(str[i]) * 16 + core_hex_to_value(str[i + 1]);
+    static constexpr
+    auto hex_to_value = [](char digit) -> u8 {
+        switch (digit) {
+            break;case 'a' ... 'f': return 10 + digit - 'a';
+            break;case 'A' ... 'F': return 10 + digit - 'A';
+            break;case '0' ... '9': return digit - '0';
+            break;default:
+                debug_unreachable();
+        }
     };
 
-    core_assert(str.size() >= 6);
+    auto hex_pair_to_value = [&](u32 i) -> u8 {
+        return hex_to_value(str[i]) * 16 + hex_to_value(str[i + 1]);
+    };
+
+    debug_assert(str.size() >= 6);
 
     color.x = hex_pair_to_value(0);
     color.y = hex_pair_to_value(2);

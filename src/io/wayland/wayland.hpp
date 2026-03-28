@@ -11,22 +11,22 @@
 #include <wayland/client/linux-dmabuf-v1.h>
 #include <wayland/client/linux-drm-syncobj-v1.h>
 
-CORE_UNIX_ERROR_BEHAVIOUR(wl_display_dispatch_timeout, negative_one)
+UNIX_ERROR_BEHAVIOUR(wl_display_dispatch_timeout, negative_one)
 
 // -----------------------------------------------------------------------------
 
-struct io_wayland;
-struct io_wayland_output;
-struct io_wayland_keyboard;
-struct io_wayland_pointer;
+struct IoWayland;
+struct IoWaylandOutput;
+struct IoWaylandKeyboard;
+struct IoWaylandPointer;
 
 // -----------------------------------------------------------------------------
 
 template<typename K, typename V>
-struct io_wl_proxy_cache
+struct IoWaylandProxyCache
 {
     using Vptr = std::unique_ptr<V, void(*)(V*)>;
-    struct entry { weak<K> key; Vptr value; };
+    struct entry { Weak<K> key; Vptr value; };
 
     void(*destroy)(V*);
     std::vector<entry> entries;
@@ -64,7 +64,7 @@ std::span<T> io_to_span(wl_array* array)
 #define IO_WL_STUB_QUIET(Name) \
     .Name = [](auto...) {}
 
-struct io_wayland
+struct IoWayland
 {
     IO_WL_INTERFACE(wl_display);
     IO_WL_INTERFACE(wl_registry);
@@ -78,28 +78,28 @@ struct io_wayland
     IO_WL_INTERFACE(wp_linux_drm_syncobj_manager_v1);
 
     struct {
-        std::vector<std::pair<gpu_format, gpu_drm_modifier>> table;
-        gpu_format_set set;
+        std::vector<std::pair<GpuFormat, GpuDrmModifier>> table;
+        GpuFormatSet set;
     } format;
 
-    core_ref_vector<io_wayland_output> outputs;
+    RefVector<IoWaylandOutput> outputs;
 
     std::chrono::steady_clock::time_point current_dispatch_time;
 
-    ref<io_wayland_keyboard> keyboard;
-    ref<io_wayland_pointer>  pointer;
+    Ref<IoWaylandKeyboard> keyboard;
+    Ref<IoWaylandPointer>  pointer;
 
     bool in_keyboard_enter;
 
-    io_wl_proxy_cache<gpu_syncobj, wp_linux_drm_syncobj_timeline_v1> syncobj_cache { wp_linux_drm_syncobj_timeline_v1_destroy };
-    io_wl_proxy_cache<gpu_image, wl_buffer> buffer_cache  { wl_buffer_destroy };
+    IoWaylandProxyCache<GpuSyncobj, wp_linux_drm_syncobj_timeline_v1> syncobj_cache { wp_linux_drm_syncobj_timeline_v1_destroy };
+    IoWaylandProxyCache<GpuImage, wl_buffer> buffer_cache  { wl_buffer_destroy };
 
-    ~io_wayland();
+    ~IoWayland();
 };
 
 // -----------------------------------------------------------------------------
 
-struct io_wayland_output : io_output_base
+struct IoWaylandOutput : IoOutputBase
 {
     IO_WL_INTERFACE(wl_surface);
     IO_WL_INTERFACE(xdg_surface);
@@ -115,7 +115,7 @@ struct io_wayland_output : io_output_base
         vec2u32 size;
     } configure;
 
-    virtual auto info() -> io_output_info final override
+    virtual auto info() -> IoOutputInfo final override
     {
         return {
             .size = size,
@@ -125,42 +125,42 @@ struct io_wayland_output : io_output_base
 
     struct release_slot
     {
-        ref<gpu_image>   image;
-        ref<gpu_syncobj> syncobj;
-        u64              point;
+        Ref<GpuImage>   image;
+        Ref<GpuSyncobj> syncobj;
+        u64             point;
     };
 
     std::vector<release_slot> release_slots;
 
-    virtual void commit(gpu_image*, gpu_syncpoint done, flags<io_output_commit_flag>) final override;
+    virtual void commit(GpuImage*, GpuSyncpoint done, Flags<IoOutputCommitFlag>) final override;
 
-    ~io_wayland_output();
+    ~IoWaylandOutput();
 };
 
 inline
-auto get_impl(io_output* output) -> io_wayland_output*
+auto get_impl(IoOutput* output) -> IoWaylandOutput*
 {
-    return dynamic_cast<io_wayland_output*>(output);
+    return dynamic_cast<IoWaylandOutput*>(output);
 }
 
 // -----------------------------------------------------------------------------
 
-struct io_wayland_keyboard : io_input_device_base
+struct IoWaylandKeyboard : IoInputDeviceBase
 {
     IO_WL_INTERFACE(wl_keyboard);
 
-    ~io_wayland_keyboard();
+    ~IoWaylandKeyboard();
 };
 
-struct io_wayland_pointer : io_input_device_base
+struct IoWaylandPointer : IoInputDeviceBase
 {
     IO_WL_INTERFACE(wl_pointer);
     IO_WL_INTERFACE(zwp_relative_pointer_v1);
 
-    weak<io_output> current_output;
+    Weak<IoOutput> current_output;
     u32 last_serial;
 
-    ~io_wayland_pointer();
+    ~IoWaylandPointer();
 };
 
 // -----------------------------------------------------------------------------

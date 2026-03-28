@@ -12,15 +12,15 @@ const char* gpu_result_to_string(VkResult res)
     return string_VkResult(res);
 }
 
-gpu_context::~gpu_context()
+Gpu::~Gpu()
 {
     log_info("GPU context destroyed");
 
-    core_assert(stats.active_images == 0);
-    core_assert(stats.active_buffers == 0);
-    core_assert(stats.active_samplers == 0);
+    debug_assert(stats.active_images == 0);
+    debug_assert(stats.active_buffers == 0);
+    debug_assert(stats.active_samplers == 0);
 
-    core_assert(!queue.commands, "Unflushed commands");
+    debug_assert(!queue.commands, "Unflushed commands");
     vk.DestroyCommandPool(device, queue.pool, nullptr);
     queue.syncobj = nullptr;
 
@@ -40,7 +40,7 @@ gpu_context::~gpu_context()
 }
 
 static
-void load_renderdoc(gpu_context* gpu)
+void load_renderdoc(Gpu* gpu)
 {
     log_debug("Loading RenderDoc API");
 
@@ -84,7 +84,7 @@ std::array required_device_extensions = {
 };
 
 static
-bool open_drm(gpu_context* gpu, drmDevice* device)
+bool open_drm(Gpu* gpu, drmDevice* device)
 {
     // Prefer to open the render node for normal render operations,
     // even the requested drm was opened from a primary node
@@ -116,7 +116,7 @@ bool open_drm(gpu_context* gpu, drmDevice* device)
 }
 
 static
-bool try_physical_device(gpu_context* gpu, VkPhysicalDevice phdev)
+bool try_physical_device(Gpu* gpu, VkPhysicalDevice phdev)
 {
     {
         VkPhysicalDeviceProperties2 props { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
@@ -237,21 +237,21 @@ VkBool32 VKAPI_CALL debug_callback(
 {
     if (!data->pMessage) return VK_FALSE;
 
-    core_log_level level;
+    LogLevel level;
     switch (severity) {
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: level = core_log_level::trace;
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:    level = core_log_level::info;
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: level = core_log_level::warn;
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:   level = core_log_level::error;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: level = LogLevel::trace;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:    level = LogLevel::info;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: level = LogLevel::warn;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:   level = LogLevel::error;
         break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
-            core_unreachable();
+            debug_unreachable();
     }
 
-    if (!core_log_is_enabled(level)) return VK_FALSE;
+    if (!log_is_enabled(level)) return VK_FALSE;
 
     if (data->messageIdNumber) {
         auto message = std::format("Validation {}: [ {} ] | MessageID = {:#x}\n",
-            level == core_log_level::error ? "Error" : "Warning",
+            level == LogLevel::error ? "Error" : "Warning",
             data->pMessageIdName,
             data->messageIdNumber);
         message += data->pMessage;
@@ -277,21 +277,21 @@ VkBool32 VKAPI_CALL debug_callback(
                 std::make_format_args(i, max_index_width, type_name, type_width, object.objectHandle));
         }
 
-        core_log(level, message);
+        log(level, message);
     } else {
-        core_log(level, data->pMessage);
+        log(level, data->pMessage);
     }
 
     if (severity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        core_debugkill();
+        debug_kill();
     }
 
     return VK_FALSE;
 }
 
-ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
+Ref<Gpu> gpu_create(ExecContext* exec, Flags<GpuFeature> _features)
 {
-    auto gpu = core_create<gpu_context>();
+    auto gpu = ref_create<Gpu>();
     gpu->features = _features;
 
     gpu->exec = exec;
@@ -377,7 +377,7 @@ ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
         for (auto& tool : tools) {
             if (tool.layer == "VK_LAYER_KHRONOS_validation"sv) {
                 log_warn("Detected validation layers, enabling validation support");
-                gpu->features |= gpu_feature::validation;
+                gpu->features |= GpuFeature::validation;
 
             } else if (tool.name == "RenderDoc"sv) {
                 load_renderdoc(gpu.get());
@@ -386,7 +386,7 @@ ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
     }
 
 #if !GPU_VALIDATION_COMPATIBILITY
-    core_assert(!gpu->features.contains(gpu_feature::validation), PROJECT_NAME " was not compiled with validation compatibility");
+    debug_assert(!gpu->features.contains(GpuFeature::validation), PROJECT_NAME " was not compiled with validation compatibility");
 #endif
 
     // Queue selection
@@ -404,7 +404,7 @@ ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
             }
         }
 
-        core_assert(found);
+        debug_assert(found);
     }
 
     // Device creation
@@ -491,7 +491,7 @@ ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
         }), nullptr, &gpu->device), VK_ERROR_NOT_PERMITTED);
     };
 
-    if (core_process_has_cap(CAP_SYS_NICE)) {
+    if (process_has_cap(CAP_SYS_NICE)) {
         log_debug("NICE system capability detected, requesting high global queue priority");
         if (create_device(true) == VK_ERROR_NOT_PERMITTED) {
             log_warn("Failed to acquire global queue priority, falling back to normal queue priorities");
@@ -499,7 +499,7 @@ ref<gpu_context> gpu_create(exec_context* exec, flags<gpu_feature> _features)
         } else {
             log_info("Sucessfully created device with high global queue priority");
         }
-        core_process_drop_cap(CAP_SYS_NICE);
+        process_drop_cap(CAP_SYS_NICE);
     } else {
         create_device(false);
     }

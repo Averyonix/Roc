@@ -5,18 +5,18 @@ struct scene_cursor_manager
     const char* theme = "breeze_cursors";
     i32         size = 24;
 
-    ankerl::unordered_dense::map<std::string_view, ref<scene_node>> cache;
+    ankerl::unordered_dense::map<std::string_view, Ref<SceneNode>> cache;
 };
 
-void scene_cursor_manager_init(scene_context* ctx)
+void scene_cursor_manager_init(Scene* ctx)
 {
-    ctx->cursor_manager = core_create<scene_cursor_manager>();
+    ctx->cursor_manager = ref_create<scene_cursor_manager>();
 }
 
 static
-auto get_visual(scene_pointer* pointer) -> scene_node*
+auto get_visual(ScenePointer* pointer) -> SceneNode*
 {
-    core_assert(pointer->tree->children.size() <= 1);
+    debug_assert(pointer->tree->children.size() <= 1);
 
     return pointer->tree->children.empty()
         ? nullptr
@@ -24,9 +24,9 @@ auto get_visual(scene_pointer* pointer) -> scene_node*
 }
 
 static
-void set_visual(scene_pointer* pointer, scene_node* visual)
+void set_visual(ScenePointer* pointer, SceneNode* visual)
 {
-    core_assert(get_visual(pointer) != visual);
+    debug_assert(get_visual(pointer) != visual);
 
     while (!pointer->tree->children.empty()) {
         scene_node_unparent(*pointer->tree->children.begin());
@@ -37,7 +37,7 @@ void set_visual(scene_pointer* pointer, scene_node* visual)
     }
 }
 
-void scene_pointer_set_cursor(scene_pointer* pointer, scene_node* visual)
+void scene_pointer_set_cursor(ScenePointer* pointer, SceneNode* visual)
 {
     if (visual != get_visual(pointer)) {
         log_trace("scene.pointer.set_cursor({})", visual ? std::format("{}", (void*)visual) : "nullptr");
@@ -46,7 +46,7 @@ void scene_pointer_set_cursor(scene_pointer* pointer, scene_node* visual)
 }
 
 static
-auto get_xcursor(scene_context* ctx, const char* semantic) -> scene_node*
+auto get_xcursor(Scene* ctx, const char* semantic) -> SceneNode*
 {
     auto* manager = ctx->cursor_manager.get();
 
@@ -60,7 +60,7 @@ auto get_xcursor(scene_context* ctx, const char* semantic) -> scene_node*
     auto* cursor = XcursorLibraryLoadImage(semantic, manager->theme, manager->size);
 
     if (!cursor) {
-        core_assert("default"sv != semantic);
+        debug_assert("default"sv != semantic);
         log_error("XCursor icon \"{}\" not found, falling back to \"default\"", semantic);
         auto fallback = get_xcursor(ctx, "default");
         manager->cache.insert({semantic, fallback});
@@ -71,20 +71,20 @@ auto get_xcursor(scene_context* ctx, const char* semantic) -> scene_node*
     auto image = gpu_image_create(ctx->gpu, {
         .extent = {cursor->width, cursor->height},
         .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-        .usage = gpu_image_usage::texture | gpu_image_usage::transfer
+        .usage = GpuImageUsage::texture | GpuImageUsage::transfer
     });
-    gpu_copy_memory_to_image(image.get(), {cursor->pixels, cursor->width * cursor->height * 4}, {{image->extent()}});
+    gpu_copy_memory_to_image(image.get(), as_bytes(cursor->pixels, cursor->width * cursor->height * 4), {{image->extent()}});
 
     auto visual = scene_texture_create(ctx);
-    scene_texture_set_image(visual.get(), image.get(), ctx->render.sampler.get(), gpu_blend_mode::premultiplied);
-    scene_texture_set_dst(visual.get(), {-vec2f32{cursor->xhot, cursor->yhot}, {cursor->width, cursor->height}, core_xywh});
+    scene_texture_set_image(visual.get(), image.get(), ctx->render.sampler.get(), GpuBlendMode::premultiplied);
+    scene_texture_set_dst(visual.get(), {-vec2f32{cursor->xhot, cursor->yhot}, {cursor->width, cursor->height}, xywh});
 
     manager->cache.insert({semantic, visual});
 
     return visual.get();
 }
 
-void scene_pointer_set_xcursor(scene_pointer* pointer, const char* semantic)
+void scene_pointer_set_xcursor(ScenePointer* pointer, const char* semantic)
 {
     auto visual = semantic ? get_xcursor(pointer->seat->ctx, semantic) : nullptr;
 

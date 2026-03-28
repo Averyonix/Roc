@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoint)
+VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const GpuSyncpoint& syncpoint)
 {
     auto[syncobj, value, stages] = syncpoint;
 
@@ -38,9 +38,9 @@ VkSemaphoreSubmitInfo gpu_syncpoint_to_submit_info(const gpu_syncpoint& syncpoin
 
 // -----------------------------------------------------------------------------
 
-ref<gpu_syncobj> gpu_syncobj_create(gpu_context* gpu)
+Ref<GpuSyncobj> gpu_syncobj_create(Gpu* gpu)
 {
-    auto syncobj = core_create<gpu_syncobj>();
+    auto syncobj = ref_create<GpuSyncobj>();
     syncobj->gpu = gpu;
 
     unix_check<drmSyncobjCreate>(gpu->drm.fd, 0, &syncobj->syncobj);
@@ -48,9 +48,9 @@ ref<gpu_syncobj> gpu_syncobj_create(gpu_context* gpu)
     return syncobj;
 }
 
-ref<gpu_syncobj> gpu_syncobj_import(gpu_context* gpu, int syncobj_fd)
+Ref<GpuSyncobj> gpu_syncobj_import(Gpu* gpu, int syncobj_fd)
 {
-    auto syncobj = core_create<gpu_syncobj>();
+    auto syncobj = ref_create<GpuSyncobj>();
     syncobj->gpu = gpu;
 
     unix_check<drmSyncobjFDToHandle>(gpu->drm.fd, syncobj_fd, &syncobj->syncobj);
@@ -58,14 +58,14 @@ ref<gpu_syncobj> gpu_syncobj_import(gpu_context* gpu, int syncobj_fd)
     return syncobj;
 }
 
-auto gpu_syncobj_export(gpu_syncobj* syncobj) -> core_fd
+auto gpu_syncobj_export(GpuSyncobj* syncobj) -> Fd
 {
     int fd = -1;
     unix_check<drmSyncobjHandleToFD>(syncobj->gpu->drm.fd, syncobj->syncobj, &fd);
-    return core_fd(fd);
+    return Fd(fd);
 }
 
-void gpu_syncobj_import_syncfile(gpu_syncobj* syncobj, u64 target_point, int sync_fd)
+void gpu_syncobj_import_syncfile(GpuSyncobj* syncobj, u64 target_point, int sync_fd)
 {
     auto* gpu = syncobj->gpu;
 
@@ -81,7 +81,7 @@ void gpu_syncobj_import_syncfile(gpu_syncobj* syncobj, u64 target_point, int syn
     unix_check<drmSyncobjTransfer>(gpu->drm.fd, syncobj->syncobj, target_point, gpu->drm.syncobj, 0, 0);
 }
 
-auto gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point) -> core_fd
+auto gpu_syncobj_export_syncfile(GpuSyncobj* syncobj, u64 source_point) -> Fd
 {
     auto* gpu = syncobj->gpu;
 
@@ -92,10 +92,10 @@ auto gpu_syncobj_export_syncfile(gpu_syncobj* syncobj, u64 source_point) -> core
     int sync_fd = -1;
     unix_check<drmSyncobjExportSyncFile>(gpu->drm.fd, gpu->drm.syncobj, &sync_fd);
 
-    return core_fd(sync_fd);
+    return Fd(sync_fd);
 }
 
-gpu_syncobj::~gpu_syncobj()
+GpuSyncobj::~GpuSyncobj()
 {
     gpu->vk.DestroySemaphore(gpu->device, semaphore, nullptr);
 
@@ -111,7 +111,7 @@ gpu_syncobj::~gpu_syncobj()
     unix_check<drmSyncobjDestroy>(gpu->drm.fd, syncobj);
 }
 
-u64 gpu_syncobj_get_value(gpu_syncobj* syncobj)
+u64 gpu_syncobj_get_value(GpuSyncobj* syncobj)
 {
     auto* gpu = syncobj->gpu;
 
@@ -122,7 +122,7 @@ u64 gpu_syncobj_get_value(gpu_syncobj* syncobj)
 }
 
 static
-void handle_waits(gpu_syncobj* syncobj)
+void handle_waits(GpuSyncobj* syncobj)
 {
     eventfd_t count = {};
     unix_check<eventfd_read>(syncobj->wait.fd.get(), &count);
@@ -130,7 +130,7 @@ void handle_waits(gpu_syncobj* syncobj)
 #if GPU_VALIDATION_COMPATIBILITY
     // Validation layers need to see the new semaphore value.
     auto* gpu = syncobj->gpu;
-    if (syncobj->semaphore && gpu->features.contains(gpu_feature::validation)) {
+    if (syncobj->semaphore && gpu->features.contains(GpuFeature::validation)) {
         u64 value = 0;
         gpu_check(gpu->vk.GetSemaphoreCounterValue(gpu->device, syncobj->semaphore, &value));
     }
@@ -146,7 +146,7 @@ void handle_waits(gpu_syncobj* syncobj)
         // of the order that events are actually signalled in.
         for (u32 i = 0; i < count; ++i) {
             auto w = syncobj->wait.list.first();
-            core_assert(w != syncobj->wait.list.end());
+            debug_assert(w != syncobj->wait.list.end());
             w.remove()->handle(w->point);
             delete w.get();
         }
@@ -155,15 +155,15 @@ void handle_waits(gpu_syncobj* syncobj)
     }
 }
 
-void gpu_syncobj_wait(gpu_syncobj* syncobj, gpu_wait_fn* wait)
+void gpu_syncobj_wait(GpuSyncobj* syncobj, GpuWaitFn* wait)
 {
     auto* gpu = syncobj->gpu;
 
     if (!syncobj->wait.fd) {
-        syncobj->wait.fd = core_fd(eventfd(0, EFD_CLOEXEC));
+        syncobj->wait.fd = Fd(eventfd(0, EFD_CLOEXEC));
 
-        exec_fd_listen(gpu->exec, syncobj->wait.fd.get(), exec_fd_event_bit::readable,
-            [syncobj](int, flags<exec_fd_event_bit>) {
+        exec_fd_listen(gpu->exec, syncobj->wait.fd.get(), FdEventBit::readable,
+            [syncobj](int, Flags<FdEventBit>) {
                 handle_waits(syncobj);
             });
     }
@@ -180,7 +180,7 @@ void gpu_syncobj_wait(gpu_syncobj* syncobj, gpu_wait_fn* wait)
     }));
 }
 
-void gpu_wait(gpu_syncpoint syncpoint)
+void gpu_wait(GpuSyncpoint syncpoint)
 {
     auto[syncobj, value, stages] = syncpoint;
     auto* gpu = syncobj->gpu;
@@ -198,7 +198,7 @@ void gpu_wait(gpu_syncpoint syncpoint)
     }
 }
 
-void gpu_syncobj_signal_value(gpu_syncobj* syncobj, u64 value)
+void gpu_syncobj_signal_value(GpuSyncobj* syncobj, u64 value)
 {
     auto* gpu = syncobj->gpu;
 

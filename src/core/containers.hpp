@@ -8,23 +8,23 @@
 // -----------------------------------------------------------------------------
 
 template<typename T, typename Unique>
-struct core_unique_integer_type
+struct UniqueInteger
 {
 private:
     T value;
 
 public:
-    constexpr core_unique_integer_type() = default;
+    constexpr UniqueInteger() = default;
 
-    constexpr explicit core_unique_integer_type(T value)
+    constexpr explicit UniqueInteger(T value)
         : value(value)
     {}
 
-    constexpr auto operator<=>(const core_unique_integer_type&) const = default;
+    constexpr auto operator<=>(const UniqueInteger&) const = default;
 
-    constexpr core_unique_integer_type operator+(T other) const
+    constexpr UniqueInteger operator+(T other) const
     {
-        return core_unique_integer_type{value + other};
+        return UniqueInteger{value + other};
     }
 
     constexpr explicit operator bool()
@@ -37,7 +37,7 @@ public:
         return T(value);
     }
 
-    constexpr core_unique_integer_type& operator++()
+    constexpr UniqueInteger& operator++()
     {
         value++;
         return *this;
@@ -49,7 +49,7 @@ public:
 // -----------------------------------------------------------------------------
 
 template<typename E, typename T>
-struct core_enum_map
+struct EnumMap
 {
     T _data[magic_enum::enum_count<E>()];
 
@@ -64,7 +64,7 @@ struct core_enum_map
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct core_counting_set
+struct CountingSet
 {
     using value_type = T;
 
@@ -78,7 +78,7 @@ struct core_counting_set
     bool dec(auto&& t)
     {
         auto iter = counts.find(t);
-        core_assert(iter != counts.end());
+        debug_assert(iter != counts.end());
         if (!--iter->second) {
             counts.erase(iter);
             return true;
@@ -99,7 +99,7 @@ struct core_counting_set
 // -----------------------------------------------------------------------------
 
 template<typename T, u32 Max>
-struct core_fixed_array {
+struct FixedArray {
     std::array<T, Max> data = {};
     u32 count = 0;
 
@@ -114,18 +114,18 @@ struct core_fixed_array {
 // -----------------------------------------------------------------------------
 
 template<typename Base>
-struct core_intrusive_list_base
+struct IntrusiveListBase
 {
-    core_intrusive_list_base* next = this;
-    core_intrusive_list_base* prev = this;
+    IntrusiveListBase* next = this;
+    IntrusiveListBase* prev = this;
 };
 
 template<typename Base>
-struct core_intrusive_list_iterator
+struct IntrusiveListIterator
 {
-    core_intrusive_list_base<Base>* cur;
+    IntrusiveListBase<Base>* cur;
 
-    void insert_after(core_intrusive_list_base<Base>* base)
+    void insert_after(IntrusiveListBase<Base>* base)
     {
         base->prev = cur;
         base->next = cur->next;
@@ -134,7 +134,7 @@ struct core_intrusive_list_iterator
         cur->next = base;
     }
 
-    core_intrusive_list_iterator remove()
+    IntrusiveListIterator remove()
     {
         cur->next->prev = cur->prev;
         cur->prev->next = cur->next;
@@ -148,18 +148,18 @@ struct core_intrusive_list_iterator
     Base* operator->() { return get(); }
     Base* get() { return static_cast<Base*>(cur); }
 
-    bool operator==(const core_intrusive_list_iterator&) const noexcept = default;
+    bool operator==(const IntrusiveListIterator&) const noexcept = default;
 
-    core_intrusive_list_iterator next() { return {cur->next}; }
-    core_intrusive_list_iterator prev() { return {cur->prev}; }
+    IntrusiveListIterator next() { return {cur->next}; }
+    IntrusiveListIterator prev() { return {cur->prev}; }
 };
 
 template<typename Base>
-struct core_intrusive_list
+struct IntrusiveList
 {
-    using iterator = core_intrusive_list_iterator<Base>;
+    using iterator = IntrusiveListIterator<Base>;
 
-    core_intrusive_list_base<Base> root;
+    IntrusiveListBase<Base> root;
 
     iterator first() { return {root.next}; }
     iterator last()  { return {root.prev}; }
@@ -171,7 +171,7 @@ struct core_intrusive_list
 // -----------------------------------------------------------------------------
 
 template<typename T>
-class core_ref_vector
+class RefVector
 {
     std::vector<T*> values;
 
@@ -179,36 +179,36 @@ class core_ref_vector
     using iterator = decltype(values)::iterator;
 
 public:
-    core_ref_vector() {}
+    RefVector() {}
 
 public:
-    core_ref_vector(const core_ref_vector& other)
+    RefVector(const RefVector& other)
         : values(other.values)
     {
         for (auto* value : values) {
-            core_object_add_ref(value);
+            object_add_ref(value);
         }
     }
 
-    core_ref_vector& operator=(const core_ref_vector& other)
+    RefVector& operator=(const RefVector& other)
     {
         if (this != &other) {
             clear();
             values = other.values;
             for (auto* value : values) {
-                core_object_add_ref(value);
+                object_add_ref(value);
             }
         }
         return *this;
     }
 
-    core_ref_vector(core_ref_vector&& other)
+    RefVector(RefVector&& other)
         : values(std::move(other))
     {
         other.values.clear();
     }
 
-    core_ref_vector& operator=(core_ref_vector&& other)
+    RefVector& operator=(RefVector&& other)
     {
         if (this != &other) {
             clear();
@@ -221,10 +221,10 @@ public:
 public:
     T* emplace_back(T* value)
     {
-        return values.emplace_back(core_object_add_ref(value));
+        return values.emplace_back(object_add_ref(value));
     }
 
-    T* emplace_back(ref<T>&& value)
+    T* emplace_back(Ref<T>&& value)
     {
         return values.emplace_back(std::exchange(value.value, nullptr));
     }
@@ -234,7 +234,7 @@ public:
     {
         return std::erase_if(values, [&](auto* c) {
             if (fn(c)) {
-                core_object_remove_ref(c);
+                object_remove_ref(c);
                 return true;
             }
             return false;
@@ -253,35 +253,35 @@ public:
 
     void clear()
     {
-        for (auto* v : values) core_object_remove_ref(v);
+        for (auto* v : values) object_remove_ref(v);
         values.clear();
     }
 
-    auto pop_front() -> ref<T>
+    auto pop_front() -> Ref<T>
     {
-        auto value = core_ref_adopt(values.front());
+        auto value = ref_adopt(values.front());
         values.pop_front();
         return value;
     }
 
-    auto pop_back() -> ref<T>
+    auto pop_back() -> Ref<T>
     {
-        auto value = core_ref_adopt(values.back());
+        auto value = ref_adopt(values.back());
         values.pop_back();
         return value;
     }
 
     auto insert(const_iterator i, T* v)
     {
-        core_object_add_ref(v);
+        object_add_ref(v);
         return values.insert(i, v);
     }
 
     auto begin(this auto&& self) { return self.values.begin(); }
     auto   end(this auto&& self) { return self.values.end();   }
 
-    ~core_ref_vector()
+    ~RefVector()
     {
-        for (auto* v : values) core_object_remove_ref(v);
+        for (auto* v : values) object_remove_ref(v);
     }
 };

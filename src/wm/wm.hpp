@@ -2,33 +2,33 @@
 
 #include "scene/scene.hpp"
 
-enum class wm_movesize_mode
+enum class WmMovesizeMode
 {
     none,
     move,
     size,
 };
 
-struct wm_context
+struct WindowManager
 {
-    scene_context* scene;
+    Scene* scene;
 
-    scene_modifier main_mod;
+    SceneModifier main_mod;
 
     struct {
-        scene_pointer* pointer;
+        ScenePointer* pointer;
 
-        ref<scene_client> client;
-        weak<scene_window> window;
+        Ref<SceneClient> client;
+        Weak<SceneWindow> window;
 
         vec2f32  grab;
         rect2f32 frame;
         vec2f32  relative;
 
-        wm_movesize_mode mode;
+        WmMovesizeMode mode;
     } movesize;
 };
 
-auto wm_create(scene_context*) -> ref<wm_context>;
+auto wm_create(Scene*) -> Ref<WindowManager>;
 
-void wm_init_movesize(wm_context*);
+void wm_init_movesize(WindowManager*);

@@ -5,19 +5,19 @@
 // -----------------------------------------------------------------------------
 
 constexpr
-u32 core_decimals_for_3sf(f64 value)
+u32 decimals_for_3sf(f64 value)
 {
     if (value < 10) return 2;
     if (value < 100) return 1;
     return 0;
 }
 
-std::string core_format_with_suffix(std::string_view suffix, f64 amount, u32 decimals);
+std::string format_with_suffix(std::string_view suffix, f64 amount, u32 decimals);
 
 // -----------------------------------------------------------------------------
 
 constexpr
-std::string core_ascii_to_upper(std::string_view in)
+std::string ascii_to_upper(std::string_view in)
 {
     std::string out(in);
     for (char& c : out) c = std::toupper(c);
@@ -27,13 +27,13 @@ std::string core_ascii_to_upper(std::string_view in)
 // -----------------------------------------------------------------------------
 
 inline
-std::string core_replace_suffix(std::string_view in, std::string_view old_suffix, std::string_view new_suffix)
+std::string replace_suffix(std::string_view in, std::string_view old_suffix, std::string_view new_suffix)
 {
     return std::format("{}{}", in.substr(0, in.size() - old_suffix.size()), new_suffix);
 }
 
 inline
-std::string core_escape_utf8(std::string_view in)
+std::string escape_utf8(std::string_view in)
 {
     std::string out;
     for (char c : in) {

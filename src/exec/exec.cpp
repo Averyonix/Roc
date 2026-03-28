@@ -6,43 +6,38 @@
 // -----------------------------------------------------------------------------
 
 static
-u32 to_epoll_events(flags<exec_fd_event_bit> events)
+u32 to_epoll_events(Flags<FdEventBit> events)
 {
     u32 out = 0;
-    if (events.contains(exec_fd_event_bit::readable)) out |= EPOLLIN;
-    if (events.contains(exec_fd_event_bit::writable)) out |= EPOLLOUT;
+    if (events.contains(FdEventBit::readable)) out |= EPOLLIN;
+    if (events.contains(FdEventBit::writable)) out |= EPOLLOUT;
     return out;
 }
 
 static
-flags<exec_fd_event_bit> from_epoll_events(u32 events)
+Flags<FdEventBit> from_epoll_events(u32 events)
 {
-    flags<exec_fd_event_bit> out = {};
-    if (events & EPOLLIN)  out |= exec_fd_event_bit::readable;
-    if (events & EPOLLOUT) out |= exec_fd_event_bit::writable;
+    Flags<FdEventBit> out = {};
+    if (events & EPOLLIN)  out |= FdEventBit::readable;
+    if (events & EPOLLOUT) out |= FdEventBit::writable;
     return out;
 }
 
-void exec_add_timer_wakeup(exec_context* ctx, std::chrono::steady_clock::time_point exp)
+void exec_add_timer_wakeup(ExecContext* ctx, std::chrono::steady_clock::time_point exp)
 {
     if (ctx->current_wakeup && exp > *ctx->current_wakeup) {
-        // log_error("Earlier timer wakeup already set");
-        // log_error("  current expiration: {}", core_duration_to_string(*ctx->current_wakeup - std::chrono::steady_clock::now()));
-        // log_error("  new expiration: {}", core_duration_to_string(exp - std::chrono::steady_clock::now()));
         return;
     }
 
     ctx->current_wakeup = exp;
 
-    // log_trace("Next timeout in {}", core_duration_to_string(exp - std::chrono::steady_clock::now()));
-
     unix_check<timerfd_settime>(ctx->timer_fd.get(), TFD_TIMER_ABSTIME, ptr_to(itimerspec {
-        .it_value = core_steady_clock_to_timespec<CLOCK_MONOTONIC>(exp),
+        .it_value = steady_clock_to_timespec<CLOCK_MONOTONIC>(exp),
     }), nullptr);
 }
 
 static
-void handle_timer(exec_context* ctx, int fd)
+void handle_timer(ExecContext* ctx, int fd)
 {
     u64 expirations;
     if (unix_check<read>(fd, &expirations, sizeof(expirations)).value != sizeof(expirations)) return;
@@ -73,16 +68,16 @@ void handle_timer(exec_context* ctx, int fd)
     }
 }
 
-ref<exec_context> exec_create()
+Ref<ExecContext> exec_create()
 {
-    auto ctx = core_create<exec_context>();
+    auto ctx = ref_create<ExecContext>();
 
     ctx->os_thread = std::this_thread::get_id();
 
-    ctx->epoll_fd = core_fd(unix_check<epoll_create1>(EPOLL_CLOEXEC).value);
+    ctx->epoll_fd = Fd(unix_check<epoll_create1>(EPOLL_CLOEXEC).value);
 
-    ctx->task_fd = core_fd(unix_check<eventfd>(0, EFD_CLOEXEC | EFD_NONBLOCK).value);
-    exec_fd_listen(ctx.get(), ctx->task_fd.get(), exec_fd_event_bit::readable, [ctx = ctx.get()](int fd, flags<exec_fd_event_bit> events) {
+    ctx->task_fd = Fd(unix_check<eventfd>(0, EFD_CLOEXEC | EFD_NONBLOCK).value);
+    exec_fd_listen(ctx.get(), ctx->task_fd.get(), FdEventBit::readable, [ctx = ctx.get()](int fd, Flags<FdEventBit> events) {
         eventfd_t tasks = {};
         unix_check<eventfd_read>(fd, &tasks);
         ctx->tasks_available += tasks;
@@ -91,8 +86,8 @@ ref<exec_context> exec_create()
         ctx->stats.events_handled--;
     });
 
-    ctx->timer_fd = core_fd(unix_check<timerfd_create>(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC).value);
-    exec_fd_listen(ctx.get(), ctx->timer_fd.get(), exec_fd_event_bit::readable, [ctx = ctx.get()](int fd, flags<exec_fd_event_bit> events) {
+    ctx->timer_fd = Fd(unix_check<timerfd_create>(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC).value);
+    exec_fd_listen(ctx.get(), ctx->timer_fd.get(), FdEventBit::readable, [ctx = ctx.get()](int fd, Flags<FdEventBit> events) {
         handle_timer(ctx, fd);
 
         // Don't double dip timer event stats
@@ -102,39 +97,39 @@ ref<exec_context> exec_create()
     return ctx;
 }
 
-thread_local exec_context* exec_thread_context;
+thread_local ExecContext* exec_thread_context;
 
-void exec_set_thread_context(exec_context* ctx)
+void exec_set_thread_context(ExecContext* ctx)
 {
     exec_thread_context = ctx;
 }
 
-auto exec_get_thread_context() -> exec_context*
+auto exec_get_thread_context() -> ExecContext*
 {
     return exec_thread_context;
 }
 
-#define CORE_EVENT_LOOP_CHECK_LISTENERS 1
+#define EXEC_CHECK_LISTENERS 1
 
-exec_context::~exec_context()
+ExecContext::~ExecContext()
 {
-    core_assert(stopped);
+    debug_assert(stopped);
 
     exec_fd_unlisten(this, task_fd.get());
     exec_fd_unlisten(this, timer_fd.get());
 
-#if CORE_EVENT_LOOP_CHECK_LISTENERS
+#if EXEC_CHECK_LISTENERS
     for (auto[i, listener] : listeners | std::views::enumerate) {
-        core_assert(!listener, "Listener for ({}) still registered", i);
+        debug_assert(!listener, "Listener for ({}) still registered", i);
     }
 #endif
 }
 
-void exec_stop(exec_context* ctx)
+void exec_stop(ExecContext* ctx)
 {
     ctx->stopped = true;
 
-#if CORE_EVENT_LOOP_CHECK_LISTENERS
+#if EXEC_CHECK_LISTENERS
     auto user_listeners = ctx->listeners
         | std::views::enumerate
         | std::views::filter([&](auto e) {
@@ -142,7 +137,7 @@ void exec_stop(exec_context* ctx)
             return l && fd != ctx->timer_fd.get() && fd != ctx->task_fd.get();
         });
 
-    if (u32 listeners = core_count(user_listeners)) {
+    if (u32 listeners = range_count(user_listeners)) {
         // Just log an error for now, in the future we will be more strict and
         // assert if any user registered listeners are still attached at this point.
         log_error("Stopping event loop with {} registered listeners remaining!", listeners);
@@ -154,9 +149,9 @@ void exec_stop(exec_context* ctx)
 #endif
 }
 
-void exec_run(exec_context* ctx)
+void exec_run(ExecContext* ctx)
 {
-    core_assert(!exec_get_thread_context());
+    debug_assert(!exec_get_thread_context());
     exec_set_thread_context(ctx);
 
     ctx->os_thread = std::this_thread::get_id();
@@ -181,7 +176,7 @@ void exec_run(exec_context* ctx)
                 // At this point, we can't assume that we'll receive any future FD events.
                 // Since this includes all user input, the only safe thing to do is
                 // immediately terminate to avoid locking out the user's system.
-                core_debugkill();
+                debug_kill();
             }
         }
 
@@ -196,8 +191,8 @@ void exec_run(exec_context* ctx)
                 ctx->stats.events_handled++;
 
                 auto event_bits = from_epoll_events(events[i].events);
-                if (l->flags.contains(exec_fd_listen_flag::oneshot)) {
-                    ref listener = l;
+                if (l->flags.contains(ExecListenFlag::oneshot)) {
+                    Ref listener = l;
                     exec_fd_unlisten(ctx, fd);
                     listener->handle(fd, event_bits);
                 } else {
@@ -213,7 +208,7 @@ void exec_run(exec_context* ctx)
 
             ctx->stats.events_handled += available;
             for (u64 i = 0; i < available; ++i) {
-                exec_task task;
+                ExecTask task;
                 while (!ctx->queue.try_dequeue(task));
 
                 task.callback();
@@ -230,16 +225,16 @@ void exec_run(exec_context* ctx)
 // -----------------------------------------------------------------------------
 
 void exec_fd_listen(
-    exec_context* ctx,
+    ExecContext* ctx,
     int fd,
-    exec_fd_listener* listener)
+    ExecFdListener* listener)
 {
     auto events = listener->events;
 
-    core_assert(core_fd_is_valid(fd));
+    debug_assert(fd_is_valid(fd));
 
-    core_assert(events);
-    core_assert(!ctx->listeners[fd]);
+    debug_assert(events);
+    debug_assert(!ctx->listeners[fd]);
 
     ctx->listeners[fd] = listener;
 
@@ -251,16 +246,16 @@ void exec_fd_listen(
     }));
 }
 
-void exec_fd_unlisten(exec_context* ctx, int fd)
+void exec_fd_unlisten(ExecContext* ctx, int fd)
 {
-    core_assert(core_fd_is_valid(fd));
+    debug_assert(fd_is_valid(fd));
 
     if (!ctx->listeners[fd]) {
         log_warn("fd does not have registered listener");
     }
 
     auto res = unix_check<epoll_ctl>(ctx->epoll_fd.get(), EPOLL_CTL_DEL, fd, nullptr);
-    core_assert(res.ok());
+    debug_assert(res.ok());
 
     ctx->listeners[fd] = nullptr;
 }

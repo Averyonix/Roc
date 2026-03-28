@@ -3,13 +3,13 @@
 // -----------------------------------------------------------------------------
 
 static
-auto get_keymap_file(xkb_keymap* keymap) -> way_keymap
+auto get_keymap_file(xkb_keymap* keymap) -> WayKeymap
 {
     auto string = xkb_keymap_get_as_string(keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
     defer { free(string); };
     u32 size = strlen(string) + 1;
 
-    auto fd = core_fd(unix_check<memfd_create>(PROGRAM_NAME "-keymap", MFD_ALLOW_SEALING | MFD_CLOEXEC).value);
+    auto fd = Fd(unix_check<memfd_create>(PROGRAM_NAME "-keymap", MFD_ALLOW_SEALING | MFD_CLOEXEC).value);
     unix_check<ftruncate>(fd.get(), size);
 
     auto mapped = unix_check<mmap>(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0).value;
@@ -23,37 +23,37 @@ auto get_keymap_file(xkb_keymap* keymap) -> way_keymap
 }
 
 static
-void init_seat(way_server* server, scene_seat* scene_seat)
+void init_seat(WayServer* server, SceneSeat* SceneSeat)
 {
-    auto seat = core_create<way_seat>();
+    auto seat = ref_create<WaySeat>();
     seat->server = server;
-    seat->scene_seat = scene_seat;
+    seat->SceneSeat = SceneSeat;
 
     server->seats.emplace_back(seat.get());
 
-    auto& kb_info = scene_keyboard_get_info(scene_seat_get_keyboard(scene_seat));
+    auto& kb_info = scene_keyboard_get_info(scene_seat_get_keyboard(SceneSeat));
 
     seat->keyboard.keymap = get_keymap_file(kb_info.keymap);
 
     seat->global = way_global(server, wl_seat, seat.get());
 }
 
-way_seat::~way_seat()
+WaySeat::~WaySeat()
 {
     wl_global_remove(global);
 }
 
-void way_seat_init(way_server* server)
+void way_seat_init(WayServer* server)
 {
     server->seat_listener = scene_client_create(server->scene);
-    scene_client_set_event_handler(server->seat_listener.get(), [server](scene_event* event) {
+    scene_client_set_event_handler(server->seat_listener.get(), [server](SceneEvent* event) {
         switch (event->type) {
-            break;case scene_event_type::seat_add:
+            break;case SceneEventType::seat_add:
                 init_seat(server, event->seat);
-            break;case scene_event_type::seat_configure:
+            break;case SceneEventType::seat_configure:
                 log_error("TODO(way): seat_configure");
-            break;case scene_event_type::seat_remove:
-                server->seats.erase_if([&](way_seat* seat) { return seat->scene_seat == event->seat; });
+            break;case SceneEventType::seat_remove:
+                server->seats.erase_if([&](WaySeat* seat) { return seat->SceneSeat == event->seat; });
 
             break;default:
                 ;
@@ -66,7 +66,7 @@ void way_seat_init(way_server* server)
 static
 void get_keyboard(wl_client* wl_client, wl_resource* resource, u32 id)
 {
-    auto* seat_client = way_get_userdata<way_seat_client>(resource);
+    auto* seat_client = way_get_userdata<WaySeatClient>(resource);
     auto* seat = seat_client->seat;
     auto* server = seat_client->client->server;
 
@@ -77,7 +77,7 @@ void get_keyboard(wl_client* wl_client, wl_resource* resource, u32 id)
         WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
         seat->keyboard.keymap.fd.get(), seat->keyboard.keymap.size);
 
-    auto& kb_info = scene_keyboard_get_info(scene_seat_get_keyboard(seat_client->seat->scene_seat));
+    auto& kb_info = scene_keyboard_get_info(scene_seat_get_keyboard(seat_client->seat->SceneSeat));
 
     if (wl_resource_get_version(kb) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION) {
         way_send(server, wl_keyboard_send_repeat_info, kb, kb_info.rate, kb_info.delay);
@@ -93,7 +93,7 @@ WAY_INTERFACE(wl_keyboard) = {
 static
 void get_pointer(wl_client* wl_client, wl_resource* resource, u32 id)
 {
-    auto* seat_client = way_get_userdata<way_seat_client>(resource);
+    auto* seat_client = way_get_userdata<WaySeatClient>(resource);
 
     seat_client->pointers.emplace_back(way_resource_create_refcounted(wl_pointer, wl_client, resource, id, seat_client));
 }
@@ -101,15 +101,15 @@ void get_pointer(wl_client* wl_client, wl_resource* resource, u32 id)
 static
 void set_cursor(wl_client* wl_client, wl_resource* resource, u32 serial, wl_resource* wl_surface, int hot_x, int hot_y)
 {
-    auto* seat_client = way_get_userdata<way_seat_client>(resource);
+    auto* seat_client = way_get_userdata<WaySeatClient>(resource);
     auto* seat = seat_client->seat;
-    auto* surface = wl_surface ? way_get_userdata<way_surface>(wl_surface) : nullptr;
+    auto* surface = wl_surface ? way_get_userdata<WaySurface>(wl_surface) : nullptr;
 
     if (surface) {
         scene_tree_set_translation(surface->scene.tree.get(), {-hot_x, -hot_y});
 
-        if (surface->role != way_surface_role::cursor) {
-            surface->role = way_surface_role::cursor;
+        if (surface->role != WaySurfaceRole::cursor) {
+            surface->role = WaySurfaceRole::cursor;
             scene_node_unparent(surface->scene.input_region.get());
         }
     }
@@ -135,11 +135,11 @@ WAY_INTERFACE(wl_seat) = {
 
 WAY_BIND_GLOBAL(wl_seat, bind)
 {
-    auto* seat = way_get_userdata<way_seat>(bind.data);
+    auto* seat = way_get_userdata<WaySeat>(bind.data);
     auto* server = seat->server;
     auto* client = way_client_from(server, bind.client);
 
-    auto seat_client = core_create<way_seat_client>();
+    auto seat_client = ref_create<WaySeatClient>();
     seat_client->seat = seat;
     seat_client->client = client;
 
@@ -158,7 +158,7 @@ WAY_BIND_GLOBAL(wl_seat, bind)
     way_data_offer_selection(seat_client.get());
 }
 
-way_seat_client::~way_seat_client()
+WaySeatClient::~WaySeatClient()
 {
     std::erase(client->seat_clients, this);
 }
@@ -166,7 +166,7 @@ way_seat_client::~way_seat_client()
 // -----------------------------------------------------------------------------
 
 static
-auto find_surface(way_client* client, scene_input_region* region) -> way_surface*
+auto find_surface(WayClient* client, SceneInputRegion* region) -> WaySurface*
 {
     if (!region) return nullptr;
     if (region->client != client->scene.get()) return nullptr;
@@ -177,7 +177,7 @@ auto find_surface(way_client* client, scene_input_region* region) -> way_surface
 }
 
 static
-auto elapsed_ms(way_server* server) -> u32
+auto elapsed_ms(WayServer* server) -> u32
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(way_get_elapsed(server)).count();
 }
@@ -185,7 +185,7 @@ auto elapsed_ms(way_server* server) -> u32
 // -----------------------------------------------------------------------------
 
 static
-void keyboard_leave(way_seat_client* seat_client)
+void keyboard_leave(WaySeatClient* seat_client)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -201,24 +201,24 @@ void keyboard_leave(way_seat_client* seat_client)
         }
     }
 
-    core_assert(seat->focus.keyboard.get() == surface, "Keyboard left surface that did not have focus");
+    debug_assert(seat->focus.keyboard.get() == surface, "Keyboard left surface that did not have focus");
     seat->focus.keyboard = nullptr;
 }
 
-void way_seat_on_keyboard_leave(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_keyboard_leave(WaySeatClient* seat_client, SceneEvent* event)
 {
     keyboard_leave(seat_client);
 }
 
 static
-auto find_root_toplevel(way_surface* surface) -> way_surface*
+auto find_root_toplevel(WaySurface* surface) -> WaySurface*
 {
-    if (surface->role == way_surface_role::xdg_toplevel) return surface;
-    core_assert(surface->parent);
+    if (surface->role == WaySurfaceRole::xdg_toplevel) return surface;
+    debug_assert(surface->parent);
     return find_root_toplevel(surface->parent.get());
 }
 
-void way_seat_on_keyboard_enter(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -257,7 +257,7 @@ void way_seat_on_keyboard_enter(way_seat_client* seat_client, scene_event* event
 // -----------------------------------------------------------------------------
 
 static
-auto get_fixed_pos(way_surface* surface, scene_pointer* pointer) -> std::pair<wl_fixed_t, wl_fixed_t>
+auto get_fixed_pos(WaySurface* surface, ScenePointer* pointer) -> std::pair<wl_fixed_t, wl_fixed_t>
 {
     auto local = scene_pointer_get_position(pointer) - scene_tree_get_position(surface->scene.tree.get());
 
@@ -265,7 +265,7 @@ auto get_fixed_pos(way_surface* surface, scene_pointer* pointer) -> std::pair<wl
 }
 
 static
-void pointer_leave_surface(way_seat_client* seat_client, way_surface* surface, way_serial serial)
+void pointer_leave_surface(WaySeatClient* seat_client, WaySurface* surface, WaySerial serial)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -276,7 +276,7 @@ void pointer_leave_surface(way_seat_client* seat_client, way_surface* surface, w
     }
 }
 
-void way_seat_on_pointer_leave(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_pointer_leave(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
 
@@ -288,7 +288,7 @@ void way_seat_on_pointer_leave(way_seat_client* seat_client, scene_event* event)
     seat->pointer.scene = nullptr;
 }
 
-void way_seat_on_pointer_enter(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_pointer_enter(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -315,7 +315,7 @@ void way_seat_on_pointer_enter(way_seat_client* seat_client, scene_event* event)
 
 // -----------------------------------------------------------------------------
 
-void way_seat_on_key(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_key(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -330,7 +330,7 @@ void way_seat_on_key(way_seat_client* seat_client, scene_event* event)
     }
 }
 
-void way_seat_on_modifier(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_modifier(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -350,14 +350,14 @@ void way_seat_on_modifier(way_seat_client* seat_client, scene_event* event)
 // -----------------------------------------------------------------------------
 
 static
-void pointer_frame(way_server* server, wl_resource* resource)
+void pointer_frame(WayServer* server, wl_resource* resource)
 {
     if (wl_resource_get_version(resource) >= WL_POINTER_FRAME_SINCE_VERSION) {
         way_send(server, wl_pointer_send_frame, resource);
     }
 }
 
-void way_seat_on_motion(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_motion(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -374,7 +374,7 @@ void way_seat_on_motion(way_seat_client* seat_client, scene_event* event)
     }
 }
 
-void way_seat_on_button(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_button(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;
@@ -390,7 +390,7 @@ void way_seat_on_button(way_seat_client* seat_client, scene_event* event)
     }
 }
 
-void way_seat_on_scroll(way_seat_client* seat_client, scene_event* event)
+void way_seat_on_scroll(WaySeatClient* seat_client, SceneEvent* event)
 {
     auto* seat = seat_client->seat;
     auto* server = seat->server;

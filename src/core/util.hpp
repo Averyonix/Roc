@@ -7,24 +7,24 @@
 // -----------------------------------------------------------------------------
 
 template<typename Fn>
-struct core_defer_guard
+struct DeferGuard
 {
     Fn fn;
 
-    core_defer_guard(Fn&& fn): fn(std::move(fn)) {}
-    ~core_defer_guard() { fn(); };
+    DeferGuard(Fn&& fn): fn(std::move(fn)) {}
+    ~DeferGuard() { fn(); };
 };
 
-#define defer core_defer_guard _ = [&]
+#define defer DeferGuard _ = [&]
 
 // -----------------------------------------------------------------------------
 
 template<typename... Ts>
-struct core_overload_set : Ts... {
+struct OverloadSet : Ts... {
     using Ts::operator()...;
 };
 
-template<typename... Ts> core_overload_set(Ts...) -> core_overload_set<Ts...>;
+template<typename... Ts> OverloadSet(Ts...) -> OverloadSet<Ts...>;
 
 // -----------------------------------------------------------------------------
 
@@ -32,25 +32,25 @@ constexpr auto ptr_to(auto&& value) { return &value; }
 
 // -----------------------------------------------------------------------------
 
-#define CORE_DELETE_COPY(Type) \
+#define DELETE_COPY(Type) \
                Type(const Type& ) = delete; \
     Type& operator=(const Type& ) = delete; \
 
-#define CORE_DELETE_COPY_MOVE(Type)         \
-    CORE_DELETE_COPY(Type)                  \
-               Type(      Type&&) = delete; \
-    Type& operator=(      Type&&) = delete;
+#define DELETE_COPY_MOVE(Type) \
+    DELETE_COPY(Type) \
+               Type(Type&&) = delete; \
+    Type& operator=(Type&&) = delete;
 
 // -----------------------------------------------------------------------------
 
-auto core_count(auto&& range)
+auto range_count(auto&& range)
 {
     return std::ranges::count_if(range, [](const auto&) { return true; });
 }
 
 // -----------------------------------------------------------------------------
 
-constexpr usz core_round_up_power2(usz v) noexcept
+constexpr usz round_up_power2(usz v) noexcept
 {
     v--;
     v |= v >> 1;

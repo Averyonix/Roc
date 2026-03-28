@@ -29,101 +29,101 @@ using f64 = double;
 // -----------------------------------------------------------------------------
 
 template<glm::length_t L, typename T>
-using core_vec = glm::vec<L, T>;
+using Vec = glm::vec<L, T>;
 
-using vec2u32 = core_vec<2, u32>;
-using vec2i32 = core_vec<2, i32>;
-using vec2f32 = core_vec<2, f32>;
-using vec2f64 = core_vec<2, f64>;
+using vec2u32 = Vec<2, u32>;
+using vec2i32 = Vec<2, i32>;
+using vec2f32 = Vec<2, f32>;
+using vec2f64 = Vec<2, f64>;
 
-using vec3f32 = core_vec<3, f32>;
+using vec3f32 = Vec<3, f32>;
 
-using vec4f32 = core_vec<4, f32>;
-using vec4u8  = core_vec<4,  u8>;
+using vec4f32 = Vec<4, f32>;
+using vec4u8  = Vec<4,  u8>;
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct core_aabb;
+struct Aabb;
 
 // -----------------------------------------------------------------------------
 
 namespace detail {
-    struct core_xywh_tag   {};
-    struct core_minmax_tag {};
+    struct XywhTag   {};
+    struct MinmaxTag {};
 }
 
-static constexpr detail::core_xywh_tag   core_xywh;
-static constexpr detail::core_minmax_tag core_minmax;
+static constexpr detail::XywhTag   xywh;
+static constexpr detail::MinmaxTag minmax;
 
 template<typename T>
-struct core_rect
+struct Rect
 {
-    core_vec<2, T> origin, extent;
+    Vec<2, T> origin, extent;
 
-    constexpr core_rect() = default;
+    constexpr Rect() = default;
 
-    constexpr core_rect(core_vec<2, T> origin, core_vec<2, T> extent, detail::core_xywh_tag)
+    constexpr Rect(Vec<2, T> origin, Vec<2, T> extent, detail::XywhTag)
         : origin(origin)
         , extent(extent)
     {}
 
-    constexpr core_rect(core_vec<2, T> min, core_vec<2, T> max, detail::core_minmax_tag)
+    constexpr Rect(Vec<2, T> min, Vec<2, T> max, detail::MinmaxTag)
         : origin(min)
         , extent(max - min)
     {}
 
     template<typename T2>
         requires (!std::same_as<T2, T>)
-    constexpr core_rect(const core_rect<T2>& other)
-        : core_rect(other.origin, other.extent, core_xywh)
+    constexpr Rect(const Rect<T2>& other)
+        : Rect(other.origin, other.extent, xywh)
     {}
 
     template<typename T2>
-    constexpr core_rect(const core_aabb<T2>& other)
-        : core_rect(other.min, other.max, core_minmax)
+    constexpr Rect(const Aabb<T2>& other)
+        : Rect(other.min, other.max, minmax)
     {}
 
-    constexpr bool operator==(const core_rect<T>& other) const = default;
+    constexpr bool operator==(const Rect<T>& other) const = default;
 };
 
-using rect2i32 = core_rect<i32>;
-using rect2f32 = core_rect<f32>;
-using rect2f64 = core_rect<f64>;
+using rect2i32 = Rect<i32>;
+using rect2f32 = Rect<f32>;
+using rect2f64 = Rect<f64>;
 
 // -----------------------------------------------------------------------------
 
 template<typename T>
-struct core_aabb
+struct Aabb
 {
-    core_vec<2, T> min, max;
+    Vec<2, T> min, max;
 
-    constexpr core_aabb() = default;
+    constexpr Aabb() = default;
 
-    constexpr core_aabb(core_vec<2, T> origin, core_vec<2, T> extent, detail::core_xywh_tag)
+    constexpr Aabb(Vec<2, T> origin, Vec<2, T> extent, detail::XywhTag)
         : min(origin)
         , max(origin + extent)
     {}
 
-    constexpr core_aabb(core_vec<2, T> min, core_vec<2, T> max, detail::core_minmax_tag)
+    constexpr Aabb(Vec<2, T> min, Vec<2, T> max, detail::MinmaxTag)
         : min(min)
         , max(max)
     {}
 
     template<typename T2>
         requires (!std::same_as<T2, T>)
-    constexpr core_aabb(const core_aabb<T2>& other)
-        : core_aabb(other.min, other.max, core_minmax)
+    constexpr Aabb(const Aabb<T2>& other)
+        : Aabb(other.min, other.max, minmax)
     {}
 
     template<typename T2>
-    constexpr core_aabb(const core_rect<T2>& other)
-        : core_aabb(other.origin, other.extent, core_xywh)
+    constexpr Aabb(const Rect<T2>& other)
+        : Aabb(other.origin, other.extent, xywh)
     {}
 
-    constexpr bool operator==(const core_aabb<T>& other) const = default;
+    constexpr bool operator==(const Aabb<T>& other) const = default;
 };
 
-using aabb2i32 = core_aabb<i32>;
-using aabb2f32 = core_aabb<f32>;
-using aabb2f64 = core_aabb<f64>;
+using aabb2i32 = Aabb<i32>;
+using aabb2f32 = Aabb<f32>;
+using aabb2f64 = Aabb<f64>;

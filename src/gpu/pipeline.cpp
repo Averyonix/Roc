@@ -2,28 +2,28 @@
 
 #include "core/stack.hpp"
 
-struct gpu_shader
+struct GpuShader
 {
-    gpu_context* gpu;
+    Gpu* gpu;
 
     VkShaderStageFlagBits stage;
     VkShaderEXT shader = {};
 
-    ~gpu_shader();
+    ~GpuShader();
 };
 
-gpu_shader::~gpu_shader()
+GpuShader::~GpuShader()
 {
     gpu->vk.DestroyShaderEXT(gpu->device, shader, nullptr);
 }
 
-auto gpu_shader_create(gpu_context* gpu, const gpu_shader_create_info& info) -> ref<gpu_shader>
+auto gpu_shader_create(Gpu* gpu, const GpuShaderCreateInfo& info) -> Ref<GpuShader>
 {
-    auto shader = core_create<gpu_shader>();
+    auto shader = ref_create<GpuShader>();
     shader->gpu = gpu;
     shader->stage = info.stage;
 
-    flags<VkShaderStageFlagBits> next_stages = {};
+    Flags<VkShaderStageFlagBits> next_stages = {};
     switch (info.stage) {
         break;case VK_SHADER_STAGE_VERTEX_BIT:
             next_stages = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -53,15 +53,15 @@ auto gpu_shader_create(gpu_context* gpu, const gpu_shader_create_info& info) -> 
 
 // -----------------------------------------------------------------------------
 
-void gpu_renderpass::push_constants(u32 offset, core_byte_view data)
+void GpuRenderpass::push_constants(u32 offset, std::span<const byte> data)
 {
-    core_assert(offset + data.size <= gpu_push_constant_size, "{} > {}", offset + data.size, gpu_push_constant_size);
-    gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, offset, data.size, data.data);
+    debug_assert(offset + data.size() <= gpu_push_constant_size, "{} > {}", offset + data.size(), gpu_push_constant_size);
+    gpu->vk.CmdPushConstants(cmd, gpu->pipeline_layout, VK_SHADER_STAGE_ALL, offset, data.size(), data.data());
 }
 
-void gpu_renderpass::set_scissors(std::span<const rect2i32> scissors)
+void GpuRenderpass::set_scissors(std::span<const rect2i32> scissors)
 {
-    core_thread_stack stack;
+    ThreadStack stack;
 
     auto* vk_scissors = stack.allocate<VkRect2D>(scissors.size());
     for (u32 i = 0; i < scissors.size(); ++i) {
@@ -76,9 +76,9 @@ void gpu_renderpass::set_scissors(std::span<const rect2i32> scissors)
     gpu->vk.CmdSetScissorWithCount(cmd, u32(scissors.size()), vk_scissors);
 }
 
-void gpu_renderpass::set_viewports(std::span<const rect2f32> viewports)
+void GpuRenderpass::set_viewports(std::span<const rect2f32> viewports)
 {
-    core_thread_stack stack;
+    ThreadStack stack;
 
     auto* vk_viewports = stack.allocate<VkViewport>(viewports.size());
     for (u32 i = 0; i < viewports.size(); ++i) {
@@ -94,31 +94,31 @@ void gpu_renderpass::set_viewports(std::span<const rect2f32> viewports)
     gpu->vk.CmdSetViewportWithCount(cmd, u32(viewports.size()), vk_viewports);
 }
 
-void gpu_renderpass::set_polygon_state(VkPrimitiveTopology topology, VkPolygonMode polygon_mode, f32 line_width)
+void GpuRenderpass::set_polygon_state(VkPrimitiveTopology topology, VkPolygonMode polygon_mode, f32 line_width)
 {
     gpu->vk.CmdSetPrimitiveTopology(cmd, topology);
     gpu->vk.CmdSetPolygonModeEXT(   cmd, polygon_mode);
     gpu->vk.CmdSetLineWidth(        cmd, line_width);
 }
 
-void gpu_renderpass::set_cull_state(VkCullModeFlagBits cull_mode, VkFrontFace front_face)
+void GpuRenderpass::set_cull_state(VkCullModeFlagBits cull_mode, VkFrontFace front_face)
 {
     gpu->vk.CmdSetCullMode( cmd, cull_mode);
     gpu->vk.CmdSetFrontFace(cmd, front_face);
 }
 
-void gpu_renderpass::set_depth_state(flags<gpu_depth_enable> enabled, VkCompareOp compare_op)
+void GpuRenderpass::set_depth_state(Flags<GpuDepthEnable> enabled, VkCompareOp compare_op)
 {
-    gpu->vk.CmdSetDepthTestEnable( cmd, enabled.contains(gpu_depth_enable::test));
-    gpu->vk.CmdSetDepthWriteEnable(cmd, enabled.contains(gpu_depth_enable::write));
+    gpu->vk.CmdSetDepthTestEnable( cmd, enabled.contains(GpuDepthEnable::test));
+    gpu->vk.CmdSetDepthWriteEnable(cmd, enabled.contains(GpuDepthEnable::write));
     gpu->vk.CmdSetDepthCompareOp(  cmd, compare_op);
 }
 
-void gpu_renderpass::set_blend_state(std::span<const gpu_blend_mode> blends)
+void GpuRenderpass::set_blend_state(std::span<const GpuBlendMode> blends)
 {
     auto count = u32(blends.size());
 
-    core_thread_stack stack;
+    ThreadStack stack;
 
     auto* components         = stack.allocate<VkColorComponentFlags>(  count);
     auto* blend_enable_bools = stack.allocate<VkBool32>(               count);
@@ -127,10 +127,10 @@ void gpu_renderpass::set_blend_state(std::span<const gpu_blend_mode> blends)
     for (u32 i = 0; i < count; ++i) {
         components[i] = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
             | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        blend_enable_bools[i] = blends[i] != gpu_blend_mode::none;
+        blend_enable_bools[i] = blends[i] != GpuBlendMode::none;
 
         switch (blends[i]) {
-            break;case gpu_blend_mode::none:
+            break;case GpuBlendMode::none:
                 blend_equations[i] = {
                     .srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
                     .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
@@ -139,7 +139,7 @@ void gpu_renderpass::set_blend_state(std::span<const gpu_blend_mode> blends)
                     .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
                     .alphaBlendOp = VK_BLEND_OP_ADD,
                 };
-            break;case gpu_blend_mode::postmultiplied:
+            break;case GpuBlendMode::postmultiplied:
                 blend_equations[i] = {
                     .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
                     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -148,7 +148,7 @@ void gpu_renderpass::set_blend_state(std::span<const gpu_blend_mode> blends)
                     .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .alphaBlendOp = VK_BLEND_OP_ADD,
                 };
-            break;case gpu_blend_mode::premultiplied:
+            break;case GpuBlendMode::premultiplied:
                 blend_equations[i] = {
                     .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
                     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -165,11 +165,11 @@ void gpu_renderpass::set_blend_state(std::span<const gpu_blend_mode> blends)
     gpu->vk.CmdSetColorBlendEquationEXT(cmd, 0, count, blend_equations);
 }
 
-void gpu_renderpass::bind_shaders(std::span<gpu_shader* const> shaders)
+void GpuRenderpass::bind_shaders(std::span<GpuShader* const> shaders)
 {
     u32 count = u32(shaders.size());
 
-    core_thread_stack stack;
+    ThreadStack stack;
 
     auto* stage_flags    = stack.allocate<VkShaderStageFlagBits>(count);
     auto* shader_objects = stack.allocate<VkShaderEXT>(count);
@@ -182,18 +182,18 @@ void gpu_renderpass::bind_shaders(std::span<gpu_shader* const> shaders)
     gpu->vk.CmdBindShadersEXT(cmd, count, stage_flags, shader_objects);
 }
 
-void gpu_renderpass::bind_index_buffer(gpu_buffer* buffer, u32 offset, VkIndexType type)
+void GpuRenderpass::bind_index_buffer(GpuBuffer* buffer, u32 offset, VkIndexType type)
 {
     gpu->vk.CmdBindIndexBuffer(cmd, buffer->buffer, offset, type);
 }
 
-void gpu_renderpass::draw_indexed(const gpu_draw_info& info)
+void GpuRenderpass::draw_indexed(const GpuDrawInfo& info)
 {
     gpu->vk.CmdDrawIndexed(cmd, info.index_count, info.instance_count, info.first_index, info.vertex_offset, info.first_instance);
 }
 
 static
-void reset_graphics_state(gpu_renderpass& pass)
+void reset_graphics_state(GpuRenderpass& pass)
 {
     auto[gpu, cmd] = pass;
 
@@ -222,13 +222,13 @@ void reset_graphics_state(gpu_renderpass& pass)
     pass.set_depth_state(  {}, VK_COMPARE_OP_ALWAYS);
 }
 
-auto gpu_renderpass_begin(gpu_context* gpu, const gpu_renderpass_info& info) -> gpu_renderpass
+auto gpu_renderpass_begin(Gpu* gpu, const GpuRenderpassInfo& info) -> GpuRenderpass
 {
     auto cmd = gpu_get_commands(gpu)->buffer;
 
     gpu_protect(gpu, info.target);
 
-    gpu_renderpass pass{gpu, cmd};
+    GpuRenderpass pass{gpu, cmd};
 
     reset_graphics_state(pass);
 
@@ -263,7 +263,7 @@ auto gpu_renderpass_begin(gpu_context* gpu, const gpu_renderpass_info& info) -> 
     return pass;
 }
 
-void gpu_renderpass_end(gpu_renderpass& pass)
+void gpu_renderpass_end(GpuRenderpass& pass)
 {
     auto[gpu, cmd] = pass;
 

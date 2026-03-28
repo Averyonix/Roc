@@ -1,11 +1,11 @@
 #include "wm.hpp"
 
-auto wm_create(scene_context* scene) -> ref<wm_context>
+auto wm_create(Scene* scene) -> Ref<WindowManager>
 {
-    auto wm = core_create<wm_context>();
+    auto wm = ref_create<WindowManager>();
     wm->scene = scene;
 
-    wm->main_mod = scene_modifier::alt;
+    wm->main_mod = SceneModifier::alt;
 
     wm_init_movesize(wm.get());
 

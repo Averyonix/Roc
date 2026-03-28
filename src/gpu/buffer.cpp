@@ -1,8 +1,8 @@
 #include "internal.hpp"
 
-ref<gpu_buffer> gpu_buffer_create(gpu_context* gpu, usz size, flags<gpu_buffer_flag> flags)
+Ref<GpuBuffer> gpu_buffer_create(Gpu* gpu, usz size, Flags<GpuBufferFlag> flags)
 {
-    auto buffer = core_create<gpu_buffer>();
+    auto buffer = ref_create<GpuBuffer>();
     buffer->gpu = gpu;
 
     buffer->size = size;
@@ -20,7 +20,7 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* gpu, usz size, flags<gpu_buffer_f
                    | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         }),
-        flags.contains(gpu_buffer_flag::host)
+        flags.contains(GpuBufferFlag::host)
             ? ptr_to(VmaAllocationCreateInfo {
                 .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
                 .usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -44,7 +44,7 @@ ref<gpu_buffer> gpu_buffer_create(gpu_context* gpu, usz size, flags<gpu_buffer_f
     return buffer;
 }
 
-gpu_buffer::~gpu_buffer()
+GpuBuffer::~GpuBuffer()
 {
     gpu->stats.active_buffers--;
 

@@ -19,143 +19,143 @@
 #include <wayland/server/cursor-shape-v1.h>
 #include <wayland/server/linux-drm-syncobj-v1.h>
 
-CORE_UNIX_ERROR_BEHAVIOUR(wl_event_loop_dispatch, negative_one)
+UNIX_ERROR_BEHAVIOUR(wl_event_loop_dispatch, negative_one)
 
-struct way_client;
-struct way_surface;
-struct way_data_offer;
-struct way_seat;
+struct WayClient;
+struct WaySurface;
+struct WayDataOffer;
+struct WaySeat;
 
 // -----------------------------------------------------------------------------
 
-struct way_keymap
+struct WayKeymap
 {
-    core_fd fd;
-    u32     size;
+    Fd fd;
+    u32 size;
 };
 
 // -----------------------------------------------------------------------------
 
-struct way_server : way_object
+struct WayServer : WayObject
 {
-    exec_context* exec;
+    ExecContext* exec;
 
     std::chrono::steady_clock::time_point epoch;
 
-    gpu_context* gpu;
-    scene_context*  scene;
-    scene_system_id scene_system;
+    Gpu* gpu;
+    Scene*  scene;
+    SceneSystemId scene_system;
 
-    ref<scene_client> seat_listener;
+    Ref<SceneClient> seat_listener;
 
     wl_display* wl_display;
     std::string socket_name;
 
-    ref<gpu_sampler> sampler;
+    Ref<GpuSampler> sampler;
 
-    core_ref_vector<way_seat> seats;
+    RefVector<WaySeat> seats;
 
     struct {
-        way_listener created;
+        WayListener created;
     } client;
 
     struct {
-        core_fd format_table;
+        Fd  format_table;
         usz format_table_size;
         std::vector<u16> tranche_formats;
     } dmabuf;
 
-    ~way_server();
+    ~WayServer();
 };
 
-auto way_get_elapsed(way_server*) -> std::chrono::steady_clock::duration;
+auto way_get_elapsed(WayServer*) -> std::chrono::steady_clock::duration;
 
 // -----------------------------------------------------------------------------
 
-struct way_seat : way_object
+struct WaySeat : WayObject
 {
-    way_server* server;
-    scene_seat* scene_seat;
+    WayServer* server;
+    SceneSeat* SceneSeat;
 
     wl_global* global;
 
     struct {
-        scene_keyboard* scene;
-        way_keymap keymap;
+        SceneKeyboard* scene;
+        WayKeymap keymap;
     } keyboard;
 
     struct {
-        scene_pointer* scene;
+        ScenePointer* scene;
     } pointer;
 
     struct {
-        weak<way_surface> pointer;
-        weak<way_surface> keyboard;
+        Weak<WaySurface> pointer;
+        Weak<WaySurface> keyboard;
     } focus;
 
-    ~way_seat();
+    ~WaySeat();
 };
 
-struct way_seat_client : way_object
+struct WaySeatClient : WayObject
 {
-    way_seat* seat;
-    way_client* client;
+    WaySeat* seat;
+    WayClient* client;
 
-    way_resource_list keyboards;
-    way_resource_list pointers;
-    way_resource_list data_devices;
+    WayResourceList keyboards;
+    WayResourceList pointers;
+    WayResourceList data_devices;
 
     struct {
-        ref<way_data_offer> offer;
+        Ref<WayDataOffer> offer;
     } drag;
 
-    ~way_seat_client();
+    ~WaySeatClient();
 };
 
 // -----------------------------------------------------------------------------
 
-void way_seat_init(way_server*);
+void way_seat_init(WayServer*);
 
-void way_seat_on_keyboard_enter(way_seat_client*, scene_event*);
-void way_seat_on_keyboard_leave(way_seat_client*, scene_event*);
-void way_seat_on_key(           way_seat_client*, scene_event*);
-void way_seat_on_modifier(      way_seat_client*, scene_event*);
+void way_seat_on_keyboard_enter(WaySeatClient*, SceneEvent*);
+void way_seat_on_keyboard_leave(WaySeatClient*, SceneEvent*);
+void way_seat_on_key(           WaySeatClient*, SceneEvent*);
+void way_seat_on_modifier(      WaySeatClient*, SceneEvent*);
 
-void way_seat_on_pointer_enter(way_seat_client*, scene_event*);
-void way_seat_on_pointer_leave(way_seat_client*, scene_event*);
-void way_seat_on_motion(       way_seat_client*, scene_event*);
-void way_seat_on_button(       way_seat_client*, scene_event*);
-void way_seat_on_scroll(       way_seat_client*, scene_event*);
+void way_seat_on_pointer_enter(WaySeatClient*, SceneEvent*);
+void way_seat_on_pointer_leave(WaySeatClient*, SceneEvent*);
+void way_seat_on_motion(       WaySeatClient*, SceneEvent*);
+void way_seat_on_button(       WaySeatClient*, SceneEvent*);
+void way_seat_on_scroll(       WaySeatClient*, SceneEvent*);
 
 // -----------------------------------------------------------------------------
 
-struct way_client : way_object
+struct WayClient : WayObject
 {
-    way_server* server;
+    WayServer* server;
 
     wl_client* wl_client;
 
-    ref<scene_client> scene;
+    Ref<SceneClient> scene;
 
-    std::vector<way_surface*> surfaces;
-    std::vector<way_seat_client*> seat_clients;
+    std::vector<WaySurface*> surfaces;
+    std::vector<WaySeatClient*> seat_clients;
 };
 
 void way_on_client_create(wl_listener*, void* data);
 
-way_client* way_client_from(way_server*, const wl_client*);
+WayClient* way_client_from(WayServer*, const wl_client*);
 
-auto way_client_is_behind(way_client*) -> bool;
-
-// -----------------------------------------------------------------------------
-
-void way_dmabuf_init(way_server*);
+auto way_client_is_behind(WayClient*) -> bool;
 
 // -----------------------------------------------------------------------------
 
-struct way_region : way_object
+void way_dmabuf_init(WayServer*);
+
+// -----------------------------------------------------------------------------
+
+struct WayRegion : WayObject
 {
-    way_resource resource;
+    WayResource resource;
 
     region2f32 region;
 };
@@ -172,9 +172,9 @@ struct way_region : way_object
  * and reduces the number of copies on transfer and clip regions during rendering; while remaining
  * optimal or near optimal for all realistic scenarios.
  */
-struct way_damage_region
+struct WayDamageRegion
 {
-    static constexpr aabb2i32 Empty = {{INT_MAX, INT_MAX}, {INT_MIN, INT_MIN}, core_minmax};
+    static constexpr aabb2i32 Empty = {{INT_MAX, INT_MAX}, {INT_MIN, INT_MIN}, minmax};
 
 private:
     aabb2i32 region = Empty;
@@ -182,12 +182,12 @@ private:
 public:
     void damage(aabb2i32 damage)
     {
-        region = core_aabb_outer(region, damage);
+        region = aabb_outer(region, damage);
     }
 
     void clip_to(aabb2i32 limit)
     {
-        region = core_aabb_inner(region, limit);
+        region = aabb_inner(region, limit);
     }
 
     void clear()
@@ -203,27 +203,27 @@ public:
 
     aabb2i32 bounds()
     {
-        core_assert(*this);
+        debug_assert(*this);
         return region;
     }
 };
 
 // -----------------------------------------------------------------------------
 
-struct way_surface;
-struct way_buffer;
+struct WaySurface;
+struct WayBuffer;
 
 // -----------------------------------------------------------------------------
 
-namespace detail { struct way_commit_id_fingerprint {}; }
-using way_commit_id = core_unique_integer_type<u32, detail::way_commit_id_fingerprint>;
+namespace detail { struct WayCommitIdFingerprint {}; }
+using WayCommitId = UniqueInteger<u32, detail::WayCommitIdFingerprint>;
 
-namespace detail { struct way_serial_fingerprint {}; }
-using way_serial = core_unique_integer_type<u32, detail::way_serial_fingerprint>;
+namespace detail { struct WaySerialFingerprint {}; }
+using WaySerial = UniqueInteger<u32, detail::WaySerialFingerprint>;
 
 // -----------------------------------------------------------------------------
 
-enum class way_surface_role : u32
+enum class WaySurfaceRole : u32
 {
     none,
     cursor,
@@ -236,9 +236,9 @@ enum class way_surface_role : u32
 // -----------------------------------------------------------------------------
 
 template<typename Enum>
-struct way_state
+struct WayState
 {
-    way_commit_id commit;
+    WayCommitId commit;
 
     struct {
         u32 set   = 0;
@@ -267,17 +267,17 @@ struct way_state
 };
 
 template<typename T>
-struct way_state_queue
+struct WayStateQueue
 {
-    ref<T> pending;
-    std::deque<ref<T>> cached;
+    Ref<T> pending;
+    std::deque<Ref<T>> cached;
 
-    way_state_queue()
+    WayStateQueue()
     {
-        pending = core_create<T>();
+        pending = ref_create<T>();
     }
 
-    T* commit(way_commit_id id)
+    T* commit(WayCommitId id)
     {
         if (pending->empty()) {
             return nullptr;
@@ -285,12 +285,12 @@ struct way_state_queue
         pending->id = id;
         auto* prev_pending = pending.get();
         cached.emplace_back(std::move(pending));
-        pending = core_create<T>();
+        pending = ref_create<T>();
         return prev_pending;
     }
 
     template<typename ApplyFn>
-    void apply(way_commit_id id, ApplyFn&& apply_fn)
+    void apply(WayCommitId id, ApplyFn&& apply_fn)
     {
         while (cached.empty()) {
             auto& packet = cached.front();
@@ -303,7 +303,7 @@ struct way_state_queue
 
 // -----------------------------------------------------------------------------
 
-enum class way_surface_committed_state : u32
+enum class WaySurfaceStateComponent : u32
 {
     // wl_surface
     buffer,
@@ -331,54 +331,54 @@ enum class way_surface_committed_state : u32
     max_size,
 };
 
-struct way_subsurface_place
+struct WaySubsurfacePlace
 {
-    ref<way_surface> reference;
-    ref<way_surface> subsurface;
+    Ref<WaySurface> reference;
+    Ref<WaySurface> subsurface;
     bool above;
 };
 
-struct way_subsurface_move
+struct WaySubsurfaceMove
 {
-    ref<way_surface> subsurface;
+    Ref<WaySurface> subsurface;
     vec2i32 position;
 };
 
-static constexpr aabb2f32 way_infinite_aabb = {{-INFINITY, -INFINITY}, {INFINITY, INFINITY}, core_minmax};
+static constexpr aabb2f32 way_infinite_aabb = {{-INFINITY, -INFINITY}, {INFINITY, INFINITY}, minmax};
 
-struct way_positioner;
+struct WayPositioner;
 
-struct way_surface_state : way_state<way_surface_committed_state>
+struct WaySurfaceState : WayState<WaySurfaceStateComponent>
 {
     struct {
-        way_commit_id commit;
+        WayCommitId commit;
     } parent;
 
     struct {
-        way_resource_list frame_callbacks;
+        WayResourceList frame_callbacks;
         vec2i32 offset;
         region2f32 opaque_region;
         region2f32 input_region;
-        way_damage_region damage;
+        WayDamageRegion damage;
     } surface;
 
 
-    ref<way_buffer>     buffer;
-    ref<gpu_image>      image;
+    Ref<WayBuffer>     buffer;
+    Ref<GpuImage>      image;
     wl_output_transform buffer_transform;
     i32                 buffer_scale = 1;
     rect2f32            buffer_source;
     vec2i32             buffer_destination;
-    way_damage_region   buffer_damage;
+    WayDamageRegion   buffer_damage;
 
     struct {
         rect2i32 geometry;
-        way_serial acked_serial;
+        WaySerial acked_serial;
     } xdg;
 
     struct {
-        std::vector<way_subsurface_place> places;
-        std::vector<way_subsurface_move>  moves;
+        std::vector<WaySubsurfacePlace> places;
+        std::vector<WaySubsurfaceMove>  moves;
     } subsurface;
 
     struct {
@@ -388,86 +388,86 @@ struct way_surface_state : way_state<way_surface_committed_state>
         std::string app_id;
     } toplevel;
 
-    ~way_surface_state();
+    ~WaySurfaceState();
 };
 
-struct way_surface : way_object
+struct WaySurface : WayObject
 {
-    way_client* client;
+    WayClient* client;
 
-    weak<way_surface> parent;
+    Weak<WaySurface> parent;
 
     // core
-    way_resource wl_surface;
-    way_surface_role role = way_surface_role::none;
+    WayResource wl_surface;
+    WaySurfaceRole role = WaySurfaceRole::none;
 
     // state tracking
-    way_commit_id last_commit_id;
-    way_state_queue<way_surface_state> queue;
-    way_surface_state current;
+    WayCommitId last_commit_id;
+    WayStateQueue<WaySurfaceState> queue;
+    WaySurfaceState current;
 
     // wl_subsurface
     struct {
-        way_resource resource;
+        WayResource resource;
         bool synchronized;
     } subsurface;
 
     // xdg_surface
-    way_resource xdg_surface;
-    way_serial sent_serial;
-    way_serial acked_serial;
+    WayResource xdg_surface;
+    WaySerial sent_serial;
+    WaySerial acked_serial;
 
     // xdg_popup
     struct {
-        way_resource resource;
+        WayResource resource;
         vec2f32      position;
     } popup;
 
     // xdg_toplevel
     struct {
-        way_resource resource;
+        WayResource resource;
         rect2f32 anchor;
         vec2f32 gravity = {1, 1};
-        ref<scene_window> window;
+        Ref<SceneWindow> window;
 
-        way_serial pending; // commit response to resize configure is pending
+        WaySerial pending; // commit response to resize configure is pending
         bool       queued;  // new reposition request received while pending
     } toplevel;
 
     // scene
     struct {
-        ref<scene_tree>         tree;
-        ref<scene_texture>      texture;
-        ref<scene_input_region> input_region;
+        Ref<SceneTree>         tree;
+        Ref<SceneTexture>      texture;
+        Ref<SceneInputRegion> input_region;
     } scene;
 
     bool mapped;
 
-    ~way_surface();
+    ~WaySurface();
 };
 
 void way_role_destroy(wl_client*, wl_resource*);
 
-void way_surface_on_redraw(way_surface*);
+void way_surface_on_redraw(WaySurface*);
 
-void way_viewport_apply(way_surface*, way_surface_state& from);
-
-// -----------------------------------------------------------------------------
-
-void way_subsurface_commit(way_surface*, way_surface_state&);
-void way_subsurface_apply( way_surface*, way_surface_state&);
+void way_viewport_apply(WaySurface*, WaySurfaceState& from);
 
 // -----------------------------------------------------------------------------
 
-void way_xdg_surface_apply(way_surface*, way_surface_state&);
-void way_xdg_surface_configure(way_surface*);
+void way_subsurface_commit(WaySurface*, WaySurfaceState&);
+void way_subsurface_apply( WaySurface*, WaySurfaceState&);
 
 // -----------------------------------------------------------------------------
 
-void way_toplevel_apply(        way_surface*, way_surface_state&);
-void way_toplevel_on_map_change(way_surface*, bool mapped);
-void way_toplevel_on_reposition(way_surface*, rect2f32 frame, vec2f32 gravity);
-void way_toplevel_on_close(     way_surface*);
+void way_xdg_surface_apply(WaySurface*, WaySurfaceState&);
+void way_xdg_surface_configure(WaySurface*);
+
+// -----------------------------------------------------------------------------
+
+void way_toplevel_apply(        WaySurface*, WaySurfaceState&);
+void way_toplevel_on_map_change(WaySurface*, bool mapped);
+void way_toplevel_on_reposition(WaySurface*, rect2f32 frame, vec2f32 gravity);
+void way_toplevel_on_close(     WaySurface*);
 
 // -----------------------------------------------------------------------------
 
@@ -475,71 +475,71 @@ void way_create_positioner(wl_client*, wl_resource*, u32 id);
 void way_get_popup(        wl_client*, wl_resource*, u32 id,
 			               wl_resource* parent, wl_resource* positioner);
 
-void way_popup_apply(way_surface*, way_surface_state&);
+void way_popup_apply(WaySurface*, WaySurfaceState&);
 
 // -----------------------------------------------------------------------------
 
-void way_output_init(way_server*);
+void way_output_init(WayServer*);
 
 // -----------------------------------------------------------------------------
 
-struct way_data_source : way_object
+struct WayDataSource : WayObject
 {
-    way_seat_client* seat_client;
+    WaySeatClient* seat_client;
 
-    way_resource resource;
+    WayResource resource;
 
-    ref<scene_data_source> source;
+    Ref<SceneDataSource> source;
 };
 
-struct way_data_offer : way_object
+struct WayDataOffer : WayObject
 {
-    way_seat_client* seat_client;
+    WaySeatClient* seat_client;
 
-    way_resource resource;
+    WayResource resource;
 
-    ref<scene_data_source> source;
+    Ref<SceneDataSource> source;
 };
 
-void way_data_offer_selection(way_seat_client*);
+void way_data_offer_selection(WaySeatClient*);
 
 // -----------------------------------------------------------------------------
 
-struct way_buffer : way_object
+struct WayBuffer : WayObject
 {
     vec2u32 extent;
 
-    // Sent on apply, should return a gpu_image when the buffer is ready to display
-    [[nodiscard]] virtual auto acquire(way_surface*, way_surface_state& from) -> ref<gpu_image> = 0;
+    // Sent on apply, should return a GpuImage when the buffer is ready to display
+    [[nodiscard]] virtual auto acquire(WaySurface*, WaySurfaceState& from) -> Ref<GpuImage> = 0;
 
 protected:
-    ~way_buffer() = default;
+    ~WayBuffer() = default;
 };
 
 // -----------------------------------------------------------------------------
 
-struct way_shm_pool;
+struct WayShmPool;
 
-struct way_shm_pool : way_object
+struct WayShmPool : WayObject
 {
-    way_server* server;
+    WayServer* server;
 
-    way_resource resource;
+    WayResource resource;
 
-    core_fd fd;
-    void*   data;
-    usz     size;
+    Fd    fd;
+    void* data;
+    usz   size;
 
-    ~way_shm_pool();
+    ~WayShmPool();
 };
 
 // -----------------------------------------------------------------------------
 
 #define WAY_ADDON_SIMPLE_STATE_REQUEST(Type, Field, Name, Expr, ...) \
     [](wl_client* client, wl_resource* resource, __VA_ARGS__) { \
-        auto* surface = way_get_userdata<way_surface>(resource); \
+        auto* surface = way_get_userdata<WaySurface>(resource); \
         surface->queue.pending->Field = Expr; \
-        surface->queue.pending->set(way_surface_committed_state::Name); \
+        surface->queue.pending->set(WaySurfaceStateComponent::Name); \
     }
 
 /**
@@ -547,18 +547,18 @@ struct way_shm_pool : way_object
  */
 #define WAY_ADDON_SIMPLE_STATE_APPLY(From, To, Field, Name) \
     do { \
-        if ((From).is_set(way_surface_committed_state::Name)) { \
+        if ((From).is_set(WaySurfaceStateComponent::Name)) { \
             (To).Field = std::move((From).Field); \
         } \
     } while (false)
 
 // -----------------------------------------------------------------------------
 
-auto way_next_serial(way_server* server) -> way_serial;
+auto way_next_serial(WayServer* server) -> WaySerial;
 
-void way_queue_client_flush(way_server* server);
+void way_queue_client_flush(WayServer* server);
 
-void way_send_(way_server* server, const char* fn_name, auto fn, auto&& resource, auto&&... args)
+void way_send_(WayServer* server, const char* fn_name, auto fn, auto&& resource, auto&&... args)
 {
     if (resource) {
         fn(resource, args...);
@@ -572,7 +572,7 @@ void way_send_(way_server* server, const char* fn_name, auto fn, auto&& resource
     way_send_(Server, #Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
 
 template<typename ...Args>
-void way_post_error(way_server* server, wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
+void way_post_error(WayServer* server, wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
 {
     if (!resource) return;
     auto message = std::vformat(fmt.get(), std::make_format_args(args...));
@@ -587,7 +587,7 @@ void way_simple_destroy(wl_client* client, wl_resource* resource);
 
 // -----------------------------------------------------------------------------
 
-wl_global* way_global_(way_server*, const wl_interface*, i32 version, wl_global_bind_func_t, way_object* data = nullptr);
+wl_global* way_global_(WayServer*, const wl_interface*, i32 version, wl_global_bind_func_t, WayObject* data = nullptr);
 #define way_global(Server, Interface, ...) \
     way_global_(Server, &Interface##_interface, way_##Interface##_version, way_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)
 
@@ -603,7 +603,7 @@ wl_global* way_global_(way_server*, const wl_interface*, i32 version, wl_global_
 #define WAY_INTERFACE(Name) \
     const struct Name##_interface way_##Name##_impl
 
-struct way_bind_global_data
+struct WayBindGlobalData
 {
     wl_client* client;
     void*      data;
@@ -612,12 +612,12 @@ struct way_bind_global_data
 };
 
 #define WAY_BIND_GLOBAL(Name, Data) \
-    static void way_##Name##_bind_global_impl(const way_bind_global_data& Data); \
+    static void way_##Name##_bind_global_impl(const WayBindGlobalData& Data); \
            void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id) \
     { \
         way_##Name##_bind_global_impl({client, data, version, id}); \
     } \
-    static void way_##Name##_bind_global_impl(const way_bind_global_data& Data)
+    static void way_##Name##_bind_global_impl(const WayBindGlobalData& Data)
 
 #define WAY_INTERFACE_DECLARE(Name, ...) \
     extern WAY_INTERFACE(Name) \
@@ -629,10 +629,10 @@ struct way_bind_global_data
 
 // -----------------------------------------------------------------------------
 
-wl_resource* way_resource_create_(wl_client*, const wl_interface*, int version, int id, const void* impl, way_object*, bool refcount);
+wl_resource* way_resource_create_(wl_client*, const wl_interface*, int version, int id, const void* impl, WayObject*, bool refcount);
 
 inline
-wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, wl_resource* parent, int id, const void* impl, way_object* object, bool refcount)
+wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, wl_resource* parent, int id, const void* impl, WayObject* object, bool refcount)
 {
     return way_resource_create_(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
 }

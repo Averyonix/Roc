@@ -8,18 +8,18 @@
 
 // -----------------------------------------------------------------------------
 
-struct io_context;
+struct IoContext;
 
 // -----------------------------------------------------------------------------
 
-enum class io_input_device_capability : u32
+enum class IoInputDeviceCapability : u32
 {
     libinput_led = 1 << 0,
 };
 
-struct io_input_device_info
+struct IoInputDeviceInfo
 {
-    flags<io_input_device_capability> capabilities;
+    Flags<IoInputDeviceCapability> capabilities;
 };
 
 /**
@@ -27,23 +27,23 @@ struct io_input_device_info
  *
  * These input devices are modelled based on libinput and evdev, with normalized channel values.
  */
-struct io_input_device
+struct IoInputDevice
 {
-    virtual auto info() -> io_input_device_info = 0;
-    virtual void update_leds(flags<libinput_led>) {}
+    virtual auto info() -> IoInputDeviceInfo = 0;
+    virtual void update_leds(Flags<libinput_led>) {}
 };
 
 // -----------------------------------------------------------------------------
 
-enum class io_output_commit_flag : u32
+enum class IoOutputCommitFlag : u32
 {
     vsync = 1 << 0,
 };
 
-struct io_output_info
+struct IoOutputInfo
 {
     vec2u32 size;
-    const gpu_format_set* formats;
+    const GpuFormatSet* formats;
 };
 
 /**
@@ -55,16 +55,16 @@ struct io_output_info
  *       We'll also likely want to share swapchain logic (from `io/output.cpp`)
  *       with other systems - most notably screen video capture.
  */
-struct io_output
+struct IoOutput
 {
-    virtual auto info() -> io_output_info = 0;
+    virtual auto info() -> IoOutputInfo = 0;
     virtual void request_frame() = 0;
-    virtual void commit(gpu_image*, gpu_syncpoint done, flags<io_output_commit_flag>) = 0;
+    virtual void commit(GpuImage*, GpuSyncpoint done, Flags<IoOutputCommitFlag>) = 0;
 };
 
 // -----------------------------------------------------------------------------
 
-enum class io_event_type
+enum class IoEventType
 {
     shutdown_requested,
 
@@ -80,21 +80,21 @@ enum class io_event_type
 
 // -----------------------------------------------------------------------------
 
-enum class io_shutdown_reason
+enum class IoShutdownReason
 {
     no_more_outputs,        // Sent when no more outputs will be opened by the backend
     terminate_received,    // Sent when SIGTERM is received
     interrupt_received,    // Sent when SIGINT  is received
 };
 
-struct io_shutdown_event
+struct IoShutdownEvent
 {
-    io_shutdown_reason reason;
+    IoShutdownReason reason;
 };
 
 // -----------------------------------------------------------------------------
 
-struct io_input_channel
+struct IoInputChannel
 {
     u32 type;   // evdev type
     u32 code;   // evdev code
@@ -106,7 +106,7 @@ struct io_input_channel
  * This event reuses evdev codes for simplicity, with some minor changes:
  * - Values are sent as normalized floating point quantities.
  * - `REL_(H)WHEEL` events are sent with fractional detent deltas (~15 degrees / detent), instead of `REL_(H)WHEEL_HI_RES`.
- * - No `SYN_*` events are sent, instead `io_input_event` contains *all* events since the last report, and
+ * - No `SYN_*` events are sent, instead `IoInputEvent` contains *all* events since the last report, and
  *   io always re-synchronizes internally.
  *
  * The `quiet` flag denotes that actions should not be taken in response to this event. E.g. on input
@@ -114,41 +114,41 @@ struct io_input_channel
  *
  * Event design for touch, tablet and gesture controls is still pending.
  */
-struct io_input_event
+struct IoInputEvent
 {
-    io_input_device* device;
+    IoInputDevice* device;
     bool quiet;
-    std::span<const io_input_channel> channels;
+    std::span<const IoInputChannel> channels;
 };
 
 // -----------------------------------------------------------------------------
 
-struct io_output_event
+struct IoOutputEvent
 {
-    io_output* output;
+    IoOutput* output;
 };
 
 // -----------------------------------------------------------------------------
 
-struct io_event
+struct IoEvent
 {
-    io_event_type type;
+    IoEventType type;
 
     union {
-        io_shutdown_event shutdown;
-        io_input_event    input;
-        io_output_event   output;
+        IoShutdownEvent shutdown;
+        IoInputEvent    input;
+        IoOutputEvent   output;
     };
 };
 
-using io_event_handler = void(io_event*);
+using IoEventHandler = void(IoEvent*);
 
 // -----------------------------------------------------------------------------
 
-auto io_create(exec_context*, gpu_context*) -> ref<io_context>;
-void io_set_event_handler(io_context*, std::move_only_function<io_event_handler>&&);
-void io_run( io_context*);
-void io_stop(io_context*);
+auto io_create(ExecContext*, Gpu*) -> Ref<IoContext>;
+void io_set_event_handler(IoContext*, std::move_only_function<IoEventHandler>&&);
+void io_run( IoContext*);
+void io_stop(IoContext*);
 
-void io_add_output(  io_context*);
-void io_close_output(io_output*);
+void io_add_output(  IoContext*);
+void io_close_output(IoOutput*);

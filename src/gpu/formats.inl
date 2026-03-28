@@ -1,14 +1,14 @@
 #include "internal.hpp"
 
-using enum gpu_vk_format_flag;
+using enum GpuVulkanFormatFlag;
 
-struct gpu_drm_vk_format_pair {
-    gpu_drm_format  drm;
+struct GpuDrmVulkanFormatPair {
+    GpuDrmFormat  drm;
     VkFormat         vk;
-    flags<gpu_vk_format_flag> flags;
+    Flags<GpuVulkanFormatFlag> flags;
 };
 
-gpu_drm_vk_format_pair drm_to_vk[] {
+GpuDrmVulkanFormatPair drm_to_vk[] {
     // Vulkan non-packed 8-bits-per-channel formats have an inverted channel
     // order compared to the DRM formats, because DRM format channel order
     // is little-endian while Vulkan format channel order is in memory byte

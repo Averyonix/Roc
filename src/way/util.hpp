@@ -26,20 +26,20 @@ wl_array way_to_wl_array(std::span<T> span)
 
 // -----------------------------------------------------------------------------
 
-struct way_object
+struct WayObject
 {
-    virtual ~way_object() = default;
+    virtual ~WayObject() = default;
 };
 
 template<typename T>
 T* way_get_userdata(void* data)
 {
-    auto* base = static_cast<way_object*>(data);
+    auto* base = static_cast<WayObject*>(data);
     if (!base) return nullptr;
     auto* derived = dynamic_cast<T*>(base);
     if (!derived) {
         log_error("way_get_userdata<{}> failed, got {}", typeid(T).name(), typeid(*base).name());
-        core_debugkill();
+        debug_kill();
     }
     return derived;
 }
@@ -52,7 +52,7 @@ T* way_get_userdata(wl_resource* resource)
 
 // -----------------------------------------------------------------------------
 
-class way_resource
+class WayResource
 {
     wl_resource* resource = {};
     wl_listener destroy_listener {
@@ -60,12 +60,12 @@ class way_resource
     };
 
 public:
-    way_resource()
+    WayResource()
     {
         wl_list_init(&destroy_listener.link);
     }
 
-    way_resource(wl_resource* resource)
+    WayResource(wl_resource* resource)
         : resource(resource)
     {
         wl_resource_add_destroy_listener(resource, &destroy_listener);
@@ -84,7 +84,7 @@ public:
         }
     }
 
-    way_resource& operator=(wl_resource* other)
+    WayResource& operator=(wl_resource* other)
     {
         reset(other);
         return *this;
@@ -92,42 +92,40 @@ public:
 
     static void on_destroy(wl_listener* listener, void* data)
     {
-        way_resource* self = wl_container_of(listener, self, destroy_listener);
+        WayResource* self = wl_container_of(listener, self, destroy_listener);
         self->resource = nullptr;
         wl_list_init(&self->destroy_listener.link);
-
-        // log_debug("core_resource<{}>: resource destroyed, clearing..", (void*)self);
     }
 
-    ~way_resource()
+    ~WayResource()
     {
         wl_list_remove(&destroy_listener.link);
     }
 
-    CORE_DELETE_COPY_MOVE(way_resource)
+    DELETE_COPY_MOVE(WayResource)
 
     operator wl_resource*() const { return resource; }
 };
 
 // -----------------------------------------------------------------------------
 
-class way_resource_list
+class WayResourceList
 {
-    struct list_node
+    struct ListNode
     {
         wl_resource* resource = nullptr;
         wl_listener destroy_listener {
             .notify = on_destroy,
         };
-        list_node* prev = nullptr;
-        list_node* next = nullptr;
+        ListNode* prev = nullptr;
+        ListNode* next = nullptr;
 
-        list_node()
+        ListNode()
         {
             wl_list_init(&destroy_listener.link);
         }
 
-        list_node(wl_resource* resource)
+        ListNode(wl_resource* resource)
             : resource(resource)
         {
             wl_resource_add_destroy_listener(resource, &destroy_listener);
@@ -135,9 +133,9 @@ class way_resource_list
 
         static void on_destroy(wl_listener* listener, void* data)
         {
-            list_node* self = wl_container_of(listener, self, destroy_listener);
+            ListNode* self = wl_container_of(listener, self, destroy_listener);
 
-            // log_debug("cleaning up list_node: {}", (void*)self);
+            // log_debug("cleaning up ListNode: {}", (void*)self);
             wl_list_init(&self->destroy_listener.link);
 
             if (self->prev) self->prev->next = self->next;
@@ -146,21 +144,21 @@ class way_resource_list
             delete self;
         }
 
-        ~list_node()
+        ~ListNode()
         {
             // log_debug("List node destroyed: {}", (void*)this);
 
             wl_list_remove(&destroy_listener.link);
         }
 
-        CORE_DELETE_COPY_MOVE(list_node)
+        DELETE_COPY_MOVE(ListNode)
     };
 
-    list_node root;
+    ListNode root;
 
     struct iterator
     {
-        const list_node* current;
+        const ListNode* current;
 
         iterator& operator++()
         {
@@ -180,7 +178,7 @@ class way_resource_list
     };
 
 public:
-    way_resource_list()
+    WayResourceList()
     {
         root.next = &root;
         root.prev = &root;
@@ -190,7 +188,7 @@ public:
     {
         if (!resource) return;
 
-        auto* node = new list_node{resource};
+        auto* node = new ListNode{resource};
 
         node->next = &root;
         node->prev = root.prev;
@@ -201,7 +199,7 @@ public:
 
     void clear()
     {
-        list_node* next = nullptr;
+        ListNode* next = nullptr;
         for (auto* node = root.next; node != &root; node = next) {
             next = node->next;
             delete node;
@@ -210,7 +208,7 @@ public:
         root.prev = &root;
     }
 
-    void take_and_append_all(way_resource_list&& other)
+    void take_and_append_all(WayResourceList&& other)
     {
         if (other.root.next == &other.root) return;
 
@@ -239,26 +237,26 @@ public:
         return iterator{&root};
     }
 
-    ~way_resource_list()
+    ~WayResourceList()
     {
         clear();
     }
 
-    CORE_DELETE_COPY_MOVE(way_resource_list)
+    DELETE_COPY_MOVE(WayResourceList)
 };
 
 // -----------------------------------------------------------------------------
 
-struct way_listener
+struct WayListener
 {
     void* data;
     wl_listener listener;
 
-    way_listener() = default;
+    WayListener() = default;
 
-    CORE_DELETE_COPY_MOVE(way_listener);
+    DELETE_COPY_MOVE(WayListener);
 
-    ~way_listener()
+    ~WayListener()
     {
         wl_list_remove(&listener.link);
     }
@@ -270,15 +268,15 @@ struct way_listener
     }
 
     static
-    way_listener& from(wl_listener* listener)
+    WayListener& from(wl_listener* listener)
     {
-        way_listener* way_listener = wl_container_of(listener, way_listener, listener);
-        return *way_listener;
+        WayListener* WayListener = wl_container_of(listener, WayListener, listener);
+        return *WayListener;
     }
 };
 
 template<typename T>
 T* way_get_userdata(wl_listener* listener)
 {
-    return way_listener::from(listener).get<T>();
+    return WayListener::from(listener).get<T>();
 }

@@ -5,7 +5,7 @@
 static
 void registry_global(void* data, wl_registry*, u32 name, const char* interface, u32 version)
 {
-    auto* ctx = static_cast<io_context*>(data);
+    auto* ctx = static_cast<IoContext*>(data);
     auto* wl = ctx->wayland.get();
 
     auto match_interface = [&](const wl_interface* wl_interface, auto member) -> bool {
@@ -15,7 +15,7 @@ void registry_global(void* data, wl_registry*, u32 name, const char* interface, 
 
         u32 bound_version = std::min(version, u32(wl_interface->version));
 
-        core_assert(!(wl->*member), "Interface <{}> already bound", interface);
+        debug_assert(!(wl->*member), "Interface <{}> already bound", interface);
         wl->*member = static_cast<std::remove_cvref_t<decltype(wl->*member)>>(
             wl_registry_bind(wl->wl_registry, name, wl_interface, bound_version));
 
@@ -25,7 +25,7 @@ void registry_global(void* data, wl_registry*, u32 name, const char* interface, 
     };
 
 #define BIND_BEGIN                if (false) {}
-#define BIND_INTERFACE(Interface) else if (match_interface(&Interface##_interface, &io_wayland::Interface))
+#define BIND_INTERFACE(Interface) else if (match_interface(&Interface##_interface, &IoWayland::Interface))
 #define BIND_END                  else log_trace("wl_global[{:2} : {:41}], version = {}", name, interface, version);
 
     BIND_BEGIN
@@ -67,27 +67,27 @@ IO_WL_LISTENER(xdg_wm_base) = {
 // -----------------------------------------------------------------------------
 
 static
-void display_read(io_context* ctx, flags<exec_fd_event_bit> events)
+void display_read(IoContext* ctx, Flags<FdEventBit> events)
 {
     ctx->wayland->current_dispatch_time = std::chrono::steady_clock::now();
 
     timespec timeout = {};
     if (unix_check<wl_display_dispatch_timeout>(ctx->wayland->wl_display, &timeout).err()) {
-        core_debugkill();
+        debug_kill();
     }
 
     wl_display_flush(ctx->wayland->wl_display);
 }
 
-void io_wayland_init(io_context* ctx)
+void io_wayland_init(IoContext* ctx)
 {
-    ctx->wayland = core_create<io_wayland>();
+    ctx->wayland = ref_create<IoWayland>();
     auto* wl = ctx->wayland.get();
 
     wl->wl_display = wl_display_connect(nullptr);
 }
 
-void io_wayland_start(io_context* ctx)
+void io_wayland_start(IoContext* ctx)
 {
     auto* wl = ctx->wayland.get();
 
@@ -100,22 +100,22 @@ void io_wayland_start(io_context* ctx)
     // Second roundtrip ensure that all events expected in response to binding are received
     wl_display_roundtrip(wl->wl_display);
 
-    exec_fd_listen(ctx->exec, wl_display_get_fd(wl->wl_display), exec_fd_event_bit::readable,
-        [ctx = weak(ctx)](int, flags<exec_fd_event_bit> events) {
+    exec_fd_listen(ctx->exec, wl_display_get_fd(wl->wl_display), FdEventBit::readable,
+        [ctx = Weak(ctx)](int, Flags<FdEventBit> events) {
             if (ctx) display_read(ctx.get(), events);
         });
 
     io_add_output(ctx);
 }
 
-void io_wayland_deinit(io_context* ctx)
+void io_wayland_deinit(IoContext* ctx)
 {
     exec_fd_unlisten(ctx->exec, wl_display_get_fd(ctx->wayland->wl_display));
 
     ctx->wayland.destroy();
 }
 
-io_wayland::~io_wayland()
+IoWayland::~IoWayland()
 {
     if (keyboard) keyboard = nullptr;
     if (pointer)  pointer = nullptr;

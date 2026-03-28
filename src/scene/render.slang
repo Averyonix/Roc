@@ -1,8 +1,8 @@
 #include "render.h"
 
-[vk::push_constant] scene_render_input si;
+[vk::push_constant] SceneRenderInput si;
 
-struct vertex_output
+struct VertexOutput
 {
     vec4f32 pos : SV_Position;
     vec2f32 uv;
@@ -10,18 +10,18 @@ struct vertex_output
 };
 
 [shader("vertex")]
-vertex_output vertex(u32 id : SV_VulkanVertexID)
+VertexOutput vertex(u32 id : SV_VulkanVertexID)
 {
     var v = si.vertices[id];
-    vertex_output out;
+    VertexOutput out;
     out.pos = vec4f32(fma(v.pos, si.scale, si.offset), 0, 1);
     out.uv = v.uv;
-    out.color = core_unpack_unorm4u8(v.color);
+    out.color = unpack_unorm4u8(v.color);
     return out;
 }
 
 [shader("fragment")]
-vec4f32 fragment(in vertex_output vout)
+vec4f32 fragment(in VertexOutput vout)
 {
     return si.texture.sample(vout.uv) * vout.color;
 }

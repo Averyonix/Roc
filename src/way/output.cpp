@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-void way_output_init(way_server* server)
+void way_output_init(WayServer* server)
 {
     way_global(server, wl_output);
 }
@@ -11,7 +11,7 @@ WAY_INTERFACE(wl_output) = {
 
 WAY_BIND_GLOBAL(wl_output, bind)
 {
-    auto* server = way_get_userdata<way_server>(bind.data);
+    auto* server = way_get_userdata<WayServer>(bind.data);
     auto resource = way_resource_create_unsafe(wl_output, bind.client, bind.version, bind.id, server);
 
     // TODO: This is just a temporary output to satisfy clients that need (but

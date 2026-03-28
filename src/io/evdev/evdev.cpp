@@ -1,12 +1,12 @@
 #include "../internal.hpp"
 
-struct io_evdev
+struct IoEvdev
 {
 };
 
-void io_evdev_init(io_context*)
+void io_evdev_init(IoContext*)
 {
     log_error("IO - evdev backend not implemented");
 }
 
-void io_evdev_deinit(io_context*) {}
+void io_evdev_deinit(IoContext*) {}

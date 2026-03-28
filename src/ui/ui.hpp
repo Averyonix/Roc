@@ -2,19 +2,19 @@
 
 #include "scene/scene.hpp"
 
-struct ui_context;
+struct UiContext;
 
-auto ui_create(gpu_context*, scene_context*, const std::filesystem::path&) -> ref<ui_context>;
+auto ui_create(Gpu*, Scene*, const std::filesystem::path&) -> Ref<UiContext>;
 
 // -----------------------------------------------------------------------------
 
-using ui_frame_fn = void();
+using UiFrameFn = void();
 
-void ui_request_frame(ui_context*);
-void ui_set_frame_handler(ui_context*, std::move_only_function<ui_frame_fn>&&);
-auto ui_get_texture(ui_context*, gpu_image*, gpu_sampler*, gpu_blend_mode) -> ImTextureID;
+void ui_request_frame(UiContext*);
+void ui_set_frame_handler(UiContext*, std::move_only_function<UiFrameFn>&&);
+auto ui_get_texture(UiContext*, GpuImage*, GpuSampler*, GpuBlendMode) -> ImTextureID;
 
-auto ui_get_window(ImGuiWindow*) -> scene_window*;
+auto ui_get_window(ImGuiWindow*) -> SceneWindow*;
 
 // -----------------------------------------------------------------------------
 

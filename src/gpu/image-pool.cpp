@@ -1,48 +1,48 @@
 #include "internal.hpp"
 
-struct gpu_image_pattern;
+struct GpuImagePattern;
 
-struct gpu_image_pool_default : gpu_image_pool
+struct GpuDefaultImagePool : GpuImagePool
 {
-    gpu_context* gpu;
+    Gpu* gpu;
 
-    std::vector<gpu_image_pattern*> patterns;
+    std::vector<GpuImagePattern*> patterns;
 
-    virtual auto acquire(const gpu_image_create_info&) -> ref<gpu_image> final override;
+    virtual auto acquire(const GpuImageCreateInfo&) -> Ref<GpuImage> final override;
 
-    ~gpu_image_pool_default();
+    ~GpuDefaultImagePool();
 };
 
-struct gpu_image_pattern
+struct GpuImagePattern
 {
-    gpu_image_pool_default* pool;
+    GpuDefaultImagePool* pool;
 
-    gpu_format_modifier_set    modifiers;
-    gpu_image_create_info      info;
-    core_ref_vector<gpu_image> images;
+    GpuFormatModifierSet    modifiers;
+    GpuImageCreateInfo      info;
+    RefVector<GpuImage> images;
 
-    ~gpu_image_pattern()
+    ~GpuImagePattern()
     {
         if (pool) std::erase(pool->patterns, this);
     }
 };
 
-gpu_image_pool_default::~gpu_image_pool_default()
+GpuDefaultImagePool::~GpuDefaultImagePool()
 {
     for (auto* pattern : patterns) {
         pattern->pool = nullptr;
     }
 }
 
-auto gpu_image_pool_create(gpu_context* gpu) -> ref<gpu_image_pool>
+auto gpu_image_pool_create(Gpu* gpu) -> Ref<GpuImagePool>
 {
-    auto pool = core_create<gpu_image_pool_default>();
+    auto pool = ref_create<GpuDefaultImagePool>();
     pool->gpu = gpu;
     return pool;
 }
 
 static
-auto find_pattern(gpu_image_pool_default* pool, const gpu_image_create_info& info) -> ref<gpu_image_pattern>
+auto find_pattern(GpuDefaultImagePool* pool, const GpuImageCreateInfo& info) -> Ref<GpuImagePattern>
 {
     for (auto& pattern : pool->patterns) {
         if (pattern->info.extent != info.extent) continue;
@@ -54,7 +54,7 @@ auto find_pattern(gpu_image_pool_default* pool, const gpu_image_create_info& inf
         return pattern;
     }
 
-    auto pattern = core_create<gpu_image_pattern>();
+    auto pattern = ref_create<GpuImagePattern>();
     pattern->pool = pool;
     pattern->info = info;
     if (info.modifiers) {
@@ -67,14 +67,14 @@ auto find_pattern(gpu_image_pool_default* pool, const gpu_image_create_info& inf
 }
 
 static
-auto make_lease(gpu_image_pattern* pattern, ref<gpu_image> image)
+auto make_lease(GpuImagePattern* pattern, Ref<GpuImage> image)
 {
-    return gpu_lease_image(std::move(image), [pattern = ref(pattern)](ref<gpu_image> image) {
+    return gpu_lease_image(std::move(image), [pattern = Ref(pattern)](Ref<GpuImage> image) {
         pattern->images.emplace_back(std::move(image));
     });
 }
 
-auto gpu_image_pool_default::acquire(const gpu_image_create_info& info) -> ref<gpu_image>
+auto GpuDefaultImagePool::acquire(const GpuImageCreateInfo& info) -> Ref<GpuImage>
 {
     auto pattern = find_pattern(this, info);
 

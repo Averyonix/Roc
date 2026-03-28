@@ -3,7 +3,7 @@
 #include "debug.hpp"
 #include "log.hpp"
 
-bool core_fd_are_same(int fd0, int fd1)
+bool fd_are_same(int fd0, int fd1)
 {
     struct stat st0 = {};
     if (unix_check<fstat>(fd0, &st0).err()) return false;
@@ -14,7 +14,7 @@ bool core_fd_are_same(int fd0, int fd1)
     return st0.st_ino == st1.st_ino;
 }
 
-int core_fd_dup_unsafe(int fd)
+int fd_dup_unsafe(int fd)
 {
     if (fd < 0) return {};
 
@@ -23,28 +23,28 @@ int core_fd_dup_unsafe(int fd)
 
 // -----------------------------------------------------------------------------
 
-#define CORE_FD_LEAK_CHECK 1
+#define FD_LEAK_CHECK 1
 
-struct core_fd_data
+struct FdRegistry
 {
-    std::array<u32,  core_fd_limit> ref_counts = {};
-#if CORE_FD_LEAK_CHECK
-    std::array<bool, core_fd_limit> inherited  = {};
+    std::array<u32,  fd_limit> ref_counts = {};
+#if FD_LEAK_CHECK
+    std::array<bool, fd_limit> inherited  = {};
 #endif
 
-#if CORE_FD_LEAK_CHECK
-    core_fd_data()
+#if FD_LEAK_CHECK
+    FdRegistry()
     {
-        for (int fd = 0; fd < core_fd_limit; ++fd) {
+        for (int fd = 0; fd < fd_limit; ++fd) {
             if (fcntl(fd, F_GETFD) == 0) {
                 inherited[fd] = true;
             }
         }
     }
 
-    ~core_fd_data()
+    ~FdRegistry()
     {
-        for (int fd = 0; fd < core_fd_limit; ++fd) {
+        for (int fd = 0; fd < fd_limit; ++fd) {
             if (inherited[fd]) continue;
             if (fcntl(fd, F_GETFD) == -1) continue;
 
@@ -55,28 +55,28 @@ struct core_fd_data
 };
 
 static
-core_fd_data fds;
+FdRegistry fds;
 
-auto core_fd_get_ref_count(int fd) -> u32
+auto fd_get_ref_count(int fd) -> u32
 {
-    if (!core_fd_is_valid(fd)) return 0;
+    if (!fd_is_valid(fd)) return 0;
 
     return fds.ref_counts[fd];
 }
 
-#define CORE_NOISY_FDS 0
+#define NOISY_FDS 0
 
-#if CORE_NOISY_FDS
+#if NOISY_FDS
 #define FD_LOG(...) log_debug(__VA_ARGS__)
 #else
 #define FD_LOG(...)
 #endif
 
-auto core_fd_add_ref(int fd) -> int
+auto fd_add_ref(int fd) -> int
 {
-    if (!core_fd_is_valid(fd)) return -1;
+    if (!fd_is_valid(fd)) return -1;
 
-    FD_LOG("core_fd_add_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] + 1);
+    FD_LOG("fd_add_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] + 1);
     fds.ref_counts[fd]++;
     return fd;
 }
@@ -89,11 +89,11 @@ void destroy_fd(int fd)
     unix_check<close>(fd);
 }
 
-auto core_fd_remove_ref(int fd) -> int
+auto fd_remove_ref(int fd) -> int
 {
-    if (!core_fd_is_valid(fd)) return -1;
+    if (!fd_is_valid(fd)) return -1;
 
-    FD_LOG("core_fd_remove_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] - 1);
+    FD_LOG("fd_remove_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] - 1);
     if (!--fds.ref_counts[fd]) {
         destroy_fd(fd);
         return -1;
@@ -102,15 +102,15 @@ auto core_fd_remove_ref(int fd) -> int
     return fd;
 }
 
-auto core_fd_extract(int fd) -> int
+auto fd_extract(int fd) -> int
 {
-    core_assert(core_fd_is_valid(fd));
-    core_assert(core_fd_get_ref_count(fd) == 1);
+    debug_assert(fd_is_valid(fd));
+    debug_assert(fd_get_ref_count(fd) == 1);
     fds.ref_counts[fd] = 0;
     return fd;
 }
 
-int core_fd::extract() noexcept
+int Fd::extract() noexcept
 {
-    return core_fd_extract(std::exchange(fd, -1));
+    return fd_extract(std::exchange(fd, -1));
 }
