@@ -8,7 +8,7 @@
 
 #include "ui/ui.hpp"
 #include "way/way.hpp"
-#include "way/internal.hpp"
+#include "way/surface/surface.hpp"
 
 struct WmLinearAccel
 {

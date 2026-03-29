@@ -1,4 +1,4 @@
-#include "internal.hpp"
+#include "buffer.hpp"
 
 WAY_INTERFACE(wl_buffer) = {
     .destroy = way_simple_destroy,

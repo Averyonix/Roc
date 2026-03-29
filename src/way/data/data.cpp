@@ -1,4 +1,8 @@
-#include "internal.hpp"
+#include "data.hpp"
+
+#include "../seat/seat.hpp"
+#include "../surface/surface.hpp"
+#include "../client.hpp"
 
 static
 void create_data_source(wl_client* wl_client, wl_resource* resource, u32 id)

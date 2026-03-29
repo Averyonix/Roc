@@ -1,4 +1,12 @@
-#include "internal.hpp"
+#include "server.hpp"
+
+#include "buffer/buffer.hpp"
+#include "data/data.hpp"
+#include "output/output.hpp"
+#include "seat/seat.hpp"
+#include "shell/shell.hpp"
+#include "surface/surface.hpp"
+#include "client.hpp"
 
 static
 int get_loop_fd(wl_display* display)
@@ -70,24 +78,10 @@ auto way_get_elapsed(WayServer* server) -> std::chrono::steady_clock::duration
     return std::chrono::steady_clock::now() - server->epoch;
 }
 
-wl_global* way_global_(WayServer* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, WayObject* data)
+wl_global* way_global_interface(WayServer* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, WayObject* data)
 {
     debug_assert(version <= interface->version);
     return wl_global_create(server->wl_display, interface, version, data ?: server, bind);
-}
-
-wl_resource* way_resource_create_(wl_client* client, const wl_interface* interface, int version, int id, const void* impl, WayObject* data, bool refcount)
-{
-    auto resource = wl_resource_create(client, interface, version, id);
-    if (refcount) {
-        object_add_ref(data);
-        wl_resource_set_implementation(resource, impl, data, [](wl_resource* resource) {
-            object_remove_ref(wl_resource_get_user_data(resource));
-        });
-    } else {
-        wl_resource_set_implementation(resource, impl, data, nullptr);
-    }
-    return resource;
 }
 
 auto way_next_serial(WayServer* server) -> WaySerial
@@ -99,9 +93,4 @@ void way_queue_client_flush(WayServer* server)
 {
     // TODO: Queue to run at end of event
     wl_display_flush_clients(server->wl_display);
-}
-
-void way_simple_destroy(wl_client* client, wl_resource* resource)
-{
-    wl_resource_destroy(resource);
 }

@@ -1,4 +1,8 @@
-#include "internal.hpp"
+#include "shell.hpp"
+
+#include "../buffer/buffer.hpp"
+#include "../surface/surface.hpp"
+#include "../client.hpp"
 
 static
 void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)

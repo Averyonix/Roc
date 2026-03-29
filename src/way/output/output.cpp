@@ -1,4 +1,8 @@
-#include "internal.hpp"
+#include "output.hpp"
+
+#include "../server.hpp"
+
+#include <wayland-server-protocol.h>
 
 void way_output_init(WayServer* server)
 {

@@ -1,4 +1,7 @@
-#include "internal.hpp"
+#include "shell.hpp"
+
+#include "../surface/surface.hpp"
+#include "../client.hpp"
 
 struct WayAxisRegion
 {

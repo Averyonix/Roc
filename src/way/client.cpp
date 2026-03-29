@@ -1,4 +1,9 @@
-#include "internal.hpp"
+#include "client.hpp"
+
+#include "surface/surface.hpp"
+#include "shell/shell.hpp"
+#include "data/data.hpp"
+#include "seat/seat.hpp"
 
 static
 auto find_surface(WayClient* client, SceneWindow* window) -> WaySurface*

@@ -1,4 +1,8 @@
-#include "internal.hpp"
+#include "buffer.hpp"
+
+#include "../server.hpp"
+
+#include "../surface/region.hpp"
 
 static
 void create_params(wl_client* client, wl_resource* resource, u32 params_id);
@@ -221,7 +225,7 @@ struct WayDmaBuffer : WayBuffer
 
     std::optional<GpuDmaParams> params;
 
-    virtual auto acquire(WaySurface*, WaySurfaceState& from) -> Ref<GpuImage> final override;
+    virtual auto acquire(WaySurface*, WayDamageRegion) -> Ref<GpuImage> final override;
 };
 
 static
@@ -299,7 +303,7 @@ WAY_INTERFACE(zwp_linux_buffer_params_v1) = {
 
 // -----------------------------------------------------------------------------
 
-auto WayDmaBuffer::acquire(WaySurface* surface, WaySurfaceState& packet) -> Ref<GpuImage>
+auto WayDmaBuffer::acquire(WaySurface* surface, WayDamageRegion) -> Ref<GpuImage>
 {
     if (!params) {
         params = gpu_image_export(image.get());

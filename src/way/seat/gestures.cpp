@@ -1,4 +1,4 @@
-#include "internal.hpp"
+#include "seat.hpp"
 
 static
 void get_swipe_gesture(wl_client* client, wl_resource* resource, u32 id, wl_resource* pointer)

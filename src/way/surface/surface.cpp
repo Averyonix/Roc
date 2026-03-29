@@ -1,4 +1,8 @@
-#include "internal.hpp"
+#include "surface.hpp"
+
+#include "../shell/shell.hpp"
+#include "../buffer/buffer.hpp"
+#include "../client.hpp"
 
 WAY_INTERFACE(wl_region) = {
     .destroy = way_simple_destroy,
@@ -105,7 +109,7 @@ void frame(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
 
-    auto callback = way_resource_create_(client, &wl_callback_interface, resource, id, nullptr, nullptr, false);
+    auto callback = way_resource_create(client, &wl_callback_interface, resource, id, nullptr, nullptr, false);
 
     surface->queue.pending->surface.frame_callbacks.emplace_back(callback);
 }
@@ -313,7 +317,7 @@ void flush(WaySurface* surface)
         // Check for buffer ready
 
         debug_assert(!packet.image);
-        if (packet.buffer && !(packet.image = packet.buffer->acquire(surface, packet))) {
+        if (packet.buffer && !(packet.image = packet.buffer->acquire(surface, packet.buffer_damage))) {
             debug_kill();
         }
 

@@ -261,22 +261,29 @@ target_link_libraries(ui PUBLIC scene)
 
 init_library(way)
 target_sources(way PRIVATE
-    src/way/way.cpp
-    src/way/buffer.cpp
-    src/way/surface.cpp
-    src/way/subsurface.cpp
-    src/way/shell.cpp
-    src/way/popup.cpp
-    src/way/shm.cpp
-    src/way/dmabuf.cpp
     src/way/client.cpp
-    src/way/seat.cpp
-    src/way/output.cpp
-    src/way/data.cpp
-    src/way/viewport.cpp
-    src/way/gestures.cpp
-    src/way/cursor-shape.cpp
-    src/way/decoration.cpp
+    src/way/server.cpp
+    src/way/util.cpp
+
+    src/way/buffer/buffer.cpp
+    src/way/buffer/dmabuf.cpp
+    src/way/buffer/shm.cpp
+
+    src/way/data/data.cpp
+
+    src/way/output/output.cpp
+
+    src/way/seat/cursor-shape.cpp
+    src/way/seat/gestures.cpp
+    src/way/seat/seat.cpp
+
+    src/way/shell/popup.cpp
+    src/way/shell/shell.cpp
+
+    src/way/surface/decoration.cpp
+    src/way/surface/subsurface.cpp
+    src/way/surface/surface.cpp
+    src/way/surface/viewport.cpp
     )
 target_link_libraries(way PUBLIC scene)
 

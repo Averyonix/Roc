@@ -156,17 +156,17 @@ class WayResourceList
 
     ListNode root;
 
-    struct iterator
+    struct Iterator
     {
         const ListNode* current;
 
-        iterator& operator++()
+        Iterator& operator++()
         {
             current = current->next;
             return *this;
         }
 
-        bool operator==(const iterator& other) const
+        bool operator==(const Iterator& other) const
         {
             return current == other.current;
         }
@@ -227,14 +227,14 @@ public:
         return root.next ? root.next->resource : nullptr;
     }
 
-    iterator begin() const
+    Iterator begin() const
     {
-        return iterator{root.next};
+        return Iterator{root.next};
     }
 
-    iterator end() const
+    Iterator end() const
     {
-        return iterator{&root};
+        return Iterator{&root};
     }
 
     ~WayResourceList()
@@ -280,3 +280,59 @@ T* way_get_userdata(wl_listener* listener)
 {
     return WayListener::from(listener).get<T>();
 }
+
+// -----------------------------------------------------------------------------
+
+void way_simple_destroy(wl_client* client, wl_resource* resource);
+
+// -----------------------------------------------------------------------------
+
+#define WAY_STUB(Name) \
+    .Name = [](wl_client*, wl_resource* resource, auto...) { \
+        log_error("TODO - {}{{{}}}::" #Name, wl_resource_get_interface(resource)->name, (void*)resource); \
+    }
+#define WAY_STUB_QUIET(Name) \
+    .Name = [](auto...) {}
+
+#define WAY_INTERFACE(Name) \
+    const struct Name##_interface way_##Name##_impl
+
+struct WayBindGlobalData
+{
+    wl_client* client;
+    void*      data;
+    u32        version;
+    u32        id;
+};
+
+#define WAY_BIND_GLOBAL(Name, Data) \
+    static void way_##Name##_bind_global_impl(const WayBindGlobalData& Data); \
+           void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id) \
+    { \
+        way_##Name##_bind_global_impl({client, data, version, id}); \
+    } \
+    static void way_##Name##_bind_global_impl(const WayBindGlobalData& Data)
+
+#define WAY_INTERFACE_DECLARE(Name, ...) \
+    extern WAY_INTERFACE(Name) \
+    __VA_OPT__(; \
+        static_assert(std::same_as<decltype(__VA_ARGS__), int>); \
+        constexpr u32 way_##Name##_version = __VA_ARGS__; \
+        void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id) \
+    )
+
+// -----------------------------------------------------------------------------
+
+wl_resource* way_resource_create(wl_client*, const wl_interface*, int version, int id, const void* impl, WayObject*, bool refcount);
+
+inline
+wl_resource* way_resource_create(wl_client* client, const wl_interface* interface, wl_resource* parent, int id, const void* impl, WayObject* object, bool refcount)
+{
+    return way_resource_create(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
+}
+
+#define way_resource_create_unsafe(Name, Client, Version, IdOrResource, Object) \
+    way_resource_create(Client, &Name##_interface, Version, IdOrResource, &way_##Name##_impl, Object, false)
+
+#define way_resource_create_refcounted(Name, Client, Version, IdOrResource, Object) \
+    way_resource_create(Client, &Name##_interface, Version, IdOrResource, &way_##Name##_impl, Object, true)

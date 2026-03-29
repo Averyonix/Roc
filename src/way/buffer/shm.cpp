@@ -1,4 +1,6 @@
-#include "internal.hpp"
+#include "buffer.hpp"
+
+#include "../surface/surface.hpp"
 
 static
 void pool_unmap(WayShmPool* pool)
@@ -82,7 +84,7 @@ struct WayShmBuffer : WayBuffer
     i32 stride;
     GpuFormat format;
 
-    virtual auto acquire(WaySurface*, WaySurfaceState& from) -> Ref<GpuImage> final override;
+    virtual auto acquire(WaySurface*, WayDamageRegion) -> Ref<GpuImage> final override;
 };
 
 static
@@ -150,11 +152,9 @@ auto try_steal(WayShmBuffer* buffer, WaySurface* surface) -> GpuImage*
     return candidate;
 }
 
-auto WayShmBuffer::acquire(WaySurface* surface, WaySurfaceState& packet) -> Ref<GpuImage>
+auto WayShmBuffer::acquire(WaySurface* surface, WayDamageRegion damage) -> Ref<GpuImage>
 {
     Ref image = try_steal(this, surface);
-
-    auto damage = packet.buffer_damage;
 
     auto* server = pool->server;
 
@@ -181,18 +181,13 @@ auto WayShmBuffer::acquire(WaySurface* surface, WaySurfaceState& packet) -> Ref<
         log_trace("  damage {}", rect);
 #endif
 
-        auto* gpu = server->gpu;
-
         auto& info = format->info;
         auto read_start = gpu_image_compute_linear_offset(format, aabb.min,     stride);
         auto read_end   = gpu_image_compute_linear_offset(format, aabb.max - 1, stride) + info.texel_block_size;
 
-        auto size = read_end - read_start;
-        auto staging = gpu_buffer_create(gpu, size, GpuBufferFlag::host);
         debug_assert((offset + read_end) <= pool->size, "accessed {} > available {}", offset + read_end, pool->size);
-        std::memcpy(staging->host_address, byte_offset_pointer<void>(pool->data, offset + read_start), size);
-
-        gpu_copy_buffer_to_image(image.get(), staging.get(),
+        gpu_copy_memory_to_image(image.get(),
+            as_bytes(byte_offset_pointer<void>(pool->data, offset + read_start), read_end - read_start),
             {{
                 .image_extent = rect.extent,
                 .image_offset = rect.origin,

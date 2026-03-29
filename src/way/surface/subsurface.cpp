@@ -1,4 +1,4 @@
-#include "internal.hpp"
+#include "surface.hpp"
 
 static
 void get_subsurface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface, wl_resource* wl_parent)

@@ -1,4 +1,6 @@
-#include "internal.hpp"
+#include "seat.hpp"
+
+#include "../server.hpp"
 
 static
 void get_pointer(wl_client* client, wl_resource* cursor_shape_manager, u32 id, wl_resource* wl_pointer)

@@ -9,7 +9,7 @@
 struct SceneOutput
 {
     SceneClient* client;
-    rect2f32      viewport;
+    rect2f32 viewport;
 
     Flags<SceneOutputFlag> flags;
 
@@ -31,13 +31,13 @@ enum class SceneDamageType : u32
 struct Scene
 {
     ExecContext* exec;
-    Gpu*  gpu;
+    Gpu* gpu;
 
     struct {
         Ref<GpuShader> vertex;
         Ref<GpuShader> fragment;
-        Ref<GpuImage>    white;
-        Ref<GpuSampler>  sampler;
+        Ref<GpuImage> white;
+        Ref<GpuSampler> sampler;
     } render;
 
     SceneSystemId prev_system_id = {};
@@ -49,7 +49,8 @@ struct Scene
 
     std::vector<SceneClient*> clients;
     std::vector<SceneWindow*> windows;
-    SceneSystemId            window_system;
+
+    SceneSystemId window_system;
 
     RefVector<SceneSeat> seats;
 
@@ -73,7 +74,7 @@ struct SceneSeat
     Scene* ctx;
 
     Ref<SceneKeyboard> keyboard;
-    Ref<ScenePointer>  pointer;
+    Ref<ScenePointer> pointer;
     std::vector<IoInputDevice*> led_devices;
 
     Ref<SceneDataSource> selection;
@@ -119,7 +120,7 @@ struct SceneWindow
 struct SceneHotkeyPressState
 {
     Flags<SceneModifier> modifiers;
-    SceneClient*         client;
+    SceneClient* client;
 };
 
 struct SceneHotkeyMap {
@@ -170,7 +171,7 @@ void scene_update_pointers(Scene*);
 
 // -----------------------------------------------------------------------------
 
-auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SceneInputRegion*;
+auto scene_find_input_region_at(SceneTree*, vec2f32 pos) -> SceneInputRegion*;
 
 // -----------------------------------------------------------------------------
 
@@ -199,5 +200,5 @@ void scene_handle_input(        SceneSeat*, const IoInputEvent&);
 
 // -----------------------------------------------------------------------------
 
-void scene_keyboard_set_focus(SceneKeyboard* keyboard, SceneFocus new_focus);
-void scene_pointer_set_focus( ScenePointer*  pointer,  SceneFocus new_focus);
+void scene_keyboard_set_focus(SceneKeyboard*, SceneFocus new_focus);
+void scene_pointer_set_focus( ScenePointer*,  SceneFocus new_focus);

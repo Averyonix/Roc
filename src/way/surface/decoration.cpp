@@ -1,4 +1,7 @@
-#include "internal.hpp"
+#include "surface.hpp"
+
+#include "../shell/shell.hpp"
+#include "../client.hpp"
 
 struct way_decoration : WayObject
 {
