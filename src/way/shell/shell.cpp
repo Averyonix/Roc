@@ -50,7 +50,7 @@ void ack_configure(wl_client* client, wl_resource* resource, u32 _serial)
     if (serial > surface->sent_serial) {
         way_post_error(server, surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
             "Client acked configure {} which is higher than latest sent configure serial {}",
-            u32(serial), u32(surface->sent_serial));
+            serial.value, surface->sent_serial.value);
         return;
     }
 
@@ -87,7 +87,7 @@ void way_xdg_surface_configure(WaySurface* surface)
 {
     auto* server = surface->client->server;
     surface->sent_serial = way_next_serial(server);
-    way_send(server, xdg_surface_send_configure, surface->xdg_surface, u32(surface->sent_serial));
+    way_send(server, xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial.value);
 }
 
 // -----------------------------------------------------------------------------

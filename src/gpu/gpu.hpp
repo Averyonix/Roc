@@ -24,13 +24,14 @@ enum class GpuImageUsage : u32;
 
 // -----------------------------------------------------------------------------
 
-enum class GpuDescriptorId : u16 { invalid = 0 };
+namespace detail { struct GpuDescriptorIdFingerprint {}; }
+using GpuDescriptorId = UniqueInteger<u16, detail::GpuDescriptorIdFingerprint>;
 
 struct GpuDescriptorIdAllocator
 {
     std::vector<GpuDescriptorId> freelist;
-    u16 next_id;
-    u16 capacity;
+    GpuDescriptorId last_id;
+    GpuDescriptorId max_id;
 
     GpuDescriptorIdAllocator() = default;
     GpuDescriptorIdAllocator(u32 count);
@@ -559,14 +560,14 @@ auto gpu_image_export(GpuImage*) -> GpuDmaParams;
 
 struct GpuImageHandle
 {
-    u16 image   = 0;
-    u16 sampler = 0;
+    GpuDescriptorId image;
+    GpuDescriptorId sampler;
 
     GpuImageHandle() = default;
 
     GpuImageHandle(GpuImage* image, GpuSampler* sampler)
-        : image  (std::to_underlying(image->descriptor()))
-        , sampler(sampler ? std::to_underlying(sampler->id) : 0)
+        : image  (image->descriptor())
+        , sampler(sampler ? sampler->id : GpuDescriptorId{})
     {}
 };
 

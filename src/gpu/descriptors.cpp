@@ -78,10 +78,10 @@ void gpu_init_descriptors(Gpu* gpu)
 // -----------------------------------------------------------------------------
 
 GpuDescriptorIdAllocator::GpuDescriptorIdAllocator(u32 count)
-    : next_id(1)
-    , capacity(count)
+    : last_id(0)
+    , max_id(count)
 {
-    debug_assert(count <= UINT16_MAX);
+    debug_assert(count <= std::numeric_limits<GpuDescriptorId::underlying_type>::max());
 }
 
 GpuDescriptorId GpuDescriptorIdAllocator::allocate()
@@ -92,14 +92,14 @@ GpuDescriptorId GpuDescriptorIdAllocator::allocate()
         return id;
     }
 
-    if (next_id >= capacity) return GpuDescriptorId::invalid;
+    debug_assert(last_id < max_id);
 
-    return GpuDescriptorId(next_id++);
+    return GpuDescriptorId(++last_id);
 }
 
 void GpuDescriptorIdAllocator::free(GpuDescriptorId id)
 {
-    if (id != GpuDescriptorId::invalid) {
+    if (id) {
         freelist.emplace_back(id);
     }
 }
@@ -112,10 +112,6 @@ void gpu_allocate_image_descriptor(GpuImageBase* image)
     auto& vk = gpu->vk;
 
     auto id = gpu->image_descriptor_allocator.allocate();
-    if (id == GpuDescriptorId::invalid) {
-        log_error("No more available image descriptors ids");
-        return;
-    }
 
     image->data.id = id;
 
@@ -127,7 +123,7 @@ void gpu_allocate_image_descriptor(GpuImageBase* image)
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = gpu->set,
                 .dstBinding = 0,
-                .dstArrayElement = std::to_underlying(id),
+                .dstArrayElement = id.value,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                 .pImageInfo = ptr_to(VkDescriptorImageInfo {
@@ -144,7 +140,7 @@ void gpu_allocate_image_descriptor(GpuImageBase* image)
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = gpu->set,
                 .dstBinding = 1,
-                .dstArrayElement = std::to_underlying(id),
+                .dstArrayElement = id.value,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 .pImageInfo = ptr_to(VkDescriptorImageInfo {
@@ -164,21 +160,17 @@ void gpu_allocate_sampler_descriptor(GpuSampler* sampler)
     auto& vk = gpu->vk;
 
     auto id = gpu->sampler_descriptor_allocator.allocate();
-    if (id == GpuDescriptorId::invalid) {
-        log_error("No more available image descriptors ids");
-        return;
-    }
 
     sampler->id = id;
 
-    log_debug("Sampler allocated ID: {}", std::to_underlying(sampler->id));
+    log_debug("Sampler allocated ID: {}", sampler->id.value);
 
     vk.UpdateDescriptorSets(gpu->device, 1, std::array {
         VkWriteDescriptorSet {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = gpu->set,
             .dstBinding = 2,
-            .dstArrayElement = std::to_underlying(sampler->id),
+            .dstArrayElement = sampler->id.value,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
             .pImageInfo = ptr_to(VkDescriptorImageInfo {

@@ -201,7 +201,7 @@ void keyboard_leave(WaySeatClient* seat_client)
 
     if (surface->wl_surface) {
         for (auto* resource : seat_client->keyboards) {
-            way_send(server, wl_keyboard_send_leave, resource, u32(serial), surface->wl_surface);
+            way_send(server, wl_keyboard_send_leave, resource, serial.value, surface->wl_surface);
         }
     }
 
@@ -247,7 +247,7 @@ void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SceneEvent* event)
     if (surface->wl_surface) {
         auto pressed = way_to_wl_array<const u32>(scene_keyboard_get_pressed(seat->keyboard.scene));
         for (auto* resource : seat_client->keyboards) {
-            way_send(server, wl_keyboard_send_enter, resource, u32(serial), surface->wl_surface, &pressed);
+            way_send(server, wl_keyboard_send_enter, resource, serial.value, surface->wl_surface, &pressed);
         }
     } else {
         log_error("Keyboard enter failed: wl_surface is destroyed for {}", (void*)surface);
@@ -276,7 +276,7 @@ void pointer_leave_surface(WaySeatClient* seat_client, WaySurface* surface, WayS
 
     if (!surface->wl_surface) return;
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_leave, resource, u32(serial), surface->wl_surface);
+        way_send(server, wl_pointer_send_leave, resource, serial.value, surface->wl_surface);
     }
 }
 
@@ -313,7 +313,7 @@ void way_seat_on_pointer_enter(WaySeatClient* seat_client, SceneEvent* event)
     if (!new_surface->wl_surface) return;
     auto[x, y] = get_fixed_pos(new_surface, seat->pointer.scene);
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_enter, resource, u32(serial), new_surface->wl_surface, x, y);
+        way_send(server, wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, x, y);
     }
 }
 
@@ -330,7 +330,7 @@ void way_seat_on_key(WaySeatClient* seat_client, SceneEvent* event)
     auto state = key.pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED;
 
     for (auto* resource : seat_client->keyboards) {
-        way_send(server, wl_keyboard_send_key, resource, u32(serial), time, key.code, state);
+        way_send(server, wl_keyboard_send_key, resource, serial.value, time, key.code, state);
     }
 }
 
@@ -343,7 +343,7 @@ void way_seat_on_modifier(WaySeatClient* seat_client, SceneEvent* event)
     auto kb = scene_keyboard_get_info(seat->keyboard.scene);
 
     for (auto* resource : seat_client->keyboards) {
-        way_send(server, wl_keyboard_send_modifiers, resource, u32(serial),
+        way_send(server, wl_keyboard_send_modifiers, resource, serial.value,
             xkb_state_serialize_mods(  kb.state, XKB_STATE_MODS_DEPRESSED),
             xkb_state_serialize_mods(  kb.state, XKB_STATE_MODS_LATCHED),
             xkb_state_serialize_mods(  kb.state, XKB_STATE_MODS_LOCKED),
@@ -389,7 +389,7 @@ void way_seat_on_button(WaySeatClient* seat_client, SceneEvent* event)
     auto state = button.pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED;
 
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_button, resource, u32(serial), time, button.code, state);
+        way_send(server, wl_pointer_send_button, resource, serial.value, time, button.code, state);
         pointer_frame(server, resource);
     }
 }

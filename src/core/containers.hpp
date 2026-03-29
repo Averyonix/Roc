@@ -10,10 +10,10 @@
 template<typename T, typename Unique>
 struct UniqueInteger
 {
-private:
+    using underlying_type = T;
+
     T value;
 
-public:
     constexpr UniqueInteger() = default;
 
     constexpr explicit UniqueInteger(T value)
@@ -30,11 +30,6 @@ public:
     constexpr explicit operator bool()
     {
         return bool(value);
-    }
-
-    constexpr explicit operator T()
-    {
-        return T(value);
     }
 
     constexpr UniqueInteger& operator++()
