@@ -75,6 +75,10 @@ void io_run(IoContext* ctx)
         io_wayland_start(ctx);
     }
 
+    if (ctx->drm) {
+        io_drm_start(ctx);
+    }
+
     exec_run(ctx->exec);
 
     signal_context = nullptr;

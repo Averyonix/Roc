@@ -302,6 +302,11 @@ int main()
 
         defer { ImGui::End(); };
         if (ImGui::Begin("Roc")) {
+
+            if (ImGui::Button("Shutdown")) {
+                io_stop(io.get());
+            }
+
             if (ImGui::Button("New Output")) {
                 io_add_output(io.get());
             }

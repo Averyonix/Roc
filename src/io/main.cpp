@@ -1,6 +1,7 @@
 #include "io.hpp"
 
 #include "core/math.hpp"
+#include "gpu/internal.hpp"
 
 static
 void render(Gpu* gpu, IoOutput* output, GpuImagePool* pool)
@@ -17,10 +18,11 @@ void render(Gpu* gpu, IoOutput* output, GpuImagePool* pool)
         })),
     });
 
-    gpu_render(gpu, {
-        .target = image.get(),
-        .clear_color = {1, 0, 0, 1},
-    }, [](GpuRenderpass&) {});
+    auto* cmd = gpu_get_commands(gpu);
+    gpu->vk.CmdClearColorImage(cmd->buffer, image->handle(),
+        VK_IMAGE_LAYOUT_GENERAL,
+        ptr_to(VkClearColorValue{.float32={1, 1, 1, 1}}),
+        1, ptr_to(VkImageSubresourceRange{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}));
 
     output->commit(image.get(), gpu_flush(gpu), IoOutputCommitFlag::vsync);
 }

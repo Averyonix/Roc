@@ -20,6 +20,7 @@ void io_evdev_deinit(IoContext*);
 struct IoDrm;
 void io_drm_init(  IoContext*);
 void io_drm_deinit(IoContext*);
+void io_drm_start( IoContext*);
 
 struct IoWayland;
 void io_wayland_init(  IoContext*);
