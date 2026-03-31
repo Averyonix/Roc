@@ -1,9 +1,9 @@
 #include "wm.hpp"
 
 static
-void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmMovesizeMode initial_mode)
+void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmInteractionMode initial_mode)
 {
-    scene_pointer_focus(pointer, wm->movesize.client.get());
+    scene_pointer_focus(pointer, wm->client.get());
     wm->movesize.pointer = pointer;
 
     auto pos = scene_pointer_get_position(pointer);
@@ -11,7 +11,7 @@ void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmMovesizeMode 
     if (!window) return;
     auto frame = scene_window_get_frame(window);
 
-    wm->movesize.mode = initial_mode;
+    wm->mode = initial_mode;
     wm->movesize.window = window;
     wm->movesize.frame = frame;
     wm->movesize.grab = pos;
@@ -23,11 +23,11 @@ void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmMovesizeMode 
         dirs.y || !dirs.x,
     };
 
-    if (initial_mode == WmMovesizeMode::move && dirs.y < 0) {
+    if (initial_mode == WmInteractionMode::move && dirs.y < 0) {
         wm->movesize.relative.x = 1;
-    } else if (initial_mode == WmMovesizeMode::size) {
+    } else if (initial_mode == WmInteractionMode::size) {
         if (!dirs.x && !dirs.y) {
-            wm->movesize.mode = WmMovesizeMode::move;
+            wm->mode = WmInteractionMode::move;
         } else {
             wm->movesize.relative = dirs;
         }
@@ -38,26 +38,23 @@ static
 void end_interaction(WindowManager* wm)
 {
     debug_assert(!wm->movesize.pointer);
-    wm->movesize.mode = WmMovesizeMode::none;
+    wm->mode = WmInteractionMode::none;
 }
 
 // -----------------------------------------------------------------------------
-
-static constexpr auto button_move = BTN_LEFT;
-static constexpr auto button_size = BTN_RIGHT;
 
 static
 void handle_hotkey(WindowManager* wm, SceneHotkeyEvent event)
 {
     auto* pointer = scene_input_device_get_pointer(event.input_device);
 
-    if (!event.pressed || wm->movesize.mode != WmMovesizeMode::none) {
+    if (!event.pressed || wm->mode != WmInteractionMode::none) {
         return;
     }
 
     switch (event.hotkey.code) {
-        break;case button_move: begin_interaction(wm, pointer, WmMovesizeMode::move);
-        break;case button_size: begin_interaction(wm, pointer, WmMovesizeMode::size);
+        break;case BTN_LEFT: begin_interaction(wm, pointer, WmInteractionMode::move);
+        break;case BTN_RIGHT: begin_interaction(wm, pointer, WmInteractionMode::size);
     }
 }
 
@@ -73,10 +70,10 @@ void handle_motion(WindowManager* wm)
     auto delta = (pos - wm->movesize.grab) * wm->movesize.relative;
     auto frame = wm->movesize.frame;
 
-    if (wm->movesize.mode == WmMovesizeMode::move) {
+    if (wm->mode == WmInteractionMode::move) {
         frame.origin += delta;
 
-    } else if (wm->movesize.mode == WmMovesizeMode::size) {
+    } else if (wm->mode == WmInteractionMode::size) {
         delta = glm::max(delta, 100.f - frame.extent);
         frame.origin += glm::min(wm->movesize.relative, {0,0}) * delta;
         frame.extent += delta;
@@ -85,8 +82,7 @@ void handle_motion(WindowManager* wm)
     scene_window_request_reposition(wm->movesize.window.get(), frame, wm->movesize.relative);
 }
 
-static
-void handle_event(WindowManager* wm, SceneEvent* event)
+void wm_movesize_handle_event(WindowManager* wm, SceneEvent* event)
 {
     switch (event->type) {
         break;case SceneEventType::hotkey:
@@ -99,18 +95,4 @@ void handle_event(WindowManager* wm, SceneEvent* event)
         break;default:
             ;
     }
-}
-
-// -----------------------------------------------------------------------------
-
-void wm_init_movesize(WindowManager* wm)
-{
-    wm->movesize.client = scene_client_create(wm->scene);
-
-    debug_assert(scene_client_hotkey_register(wm->movesize.client.get(), {wm->main_mod, button_move}));
-    debug_assert(scene_client_hotkey_register(wm->movesize.client.get(), {wm->main_mod, button_size}));
-
-    scene_client_set_event_handler(wm->movesize.client.get(), [wm](SceneEvent* event) {
-        handle_event(wm, event);
-    });
 }

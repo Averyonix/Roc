@@ -297,6 +297,8 @@ init_executable(roc)
 target_sources(roc PRIVATE
     src/wm/main.cpp
     src/wm/wm.cpp
+    src/wm/interaction.cpp
     src/wm/movesize.cpp
+    src/wm/zone.cpp
     )
 target_link_libraries(roc PUBLIC scene way ui)

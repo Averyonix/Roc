@@ -7,7 +7,8 @@ auto wm_create(Scene* scene) -> Ref<WindowManager>
 
     wm->main_mod = SceneModifier::alt;
 
-    wm_init_movesize(wm.get());
+    wm_interaction_init(wm.get());
+    wm_zone_init(       wm.get());
 
     return wm;
 }
