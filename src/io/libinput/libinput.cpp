@@ -1,11 +1,6 @@
-#include "../internal.hpp"
+#include "libinput.hpp"
 
 #include "../session/session.hpp"
-
-struct IoLibinput
-{
-    struct libinput* libinput;
-};
 
 static constexpr libinput_interface io_libinput_interface {
 
@@ -26,7 +21,7 @@ int handle_libinput_readable(IoContext* ctx)
 
     libinput_event* event;
     while ((event = libinput_get_event(ctx->libinput->libinput))) {
-        log_trace("libinput event");
+        io_libinput_handle_event(ctx, event);
         libinput_event_destroy(event);
     }
 

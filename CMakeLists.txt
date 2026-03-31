@@ -212,8 +212,10 @@ target_sources(io PRIVATE
     src/io/output.cpp
     src/io/input.cpp
     src/io/drm/drm.cpp
+    src/io/drm/properties.cpp
     src/io/evdev/evdev.cpp
     src/io/libinput/libinput.cpp
+    src/io/libinput/events.cpp
     src/io/session/session.cpp
     src/io/udev/udev.cpp
     src/io/wayland/wayland.cpp
