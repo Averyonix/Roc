@@ -4,6 +4,8 @@
 
 #include "ui/ui.hpp"
 
+#include "way/way.hpp"
+
 enum class WmInteractionMode
 {
     none,
@@ -12,10 +14,14 @@ enum class WmInteractionMode
     zone,
 };
 
+struct WmLauncher;
+
 struct WindowManager
 {
-    Gpu* gpu;
-    Scene* scene;
+    Gpu*       gpu;
+    Scene*     scene;
+    WayServer* way;
+
     Ref<Ui> ui;
 
     SceneModifier main_mod;
@@ -23,6 +29,8 @@ struct WindowManager
     WmInteractionMode mode;
     Ref<SceneClient> client;
     Ref<SceneInputRegion> focus;
+
+    Ref<WmLauncher> launcher;
 
     struct {
         ScenePointer* pointer;
@@ -53,7 +61,7 @@ struct WindowManager
     } log;
 };
 
-auto wm_create(Gpu*, Scene*, std::filesystem::path app_share) -> Ref<WindowManager>;
+auto wm_create(Gpu*, Scene*, WayServer*, std::filesystem::path app_share) -> Ref<WindowManager>;
 
 void wm_interaction_init(WindowManager*);
 void wm_zone_init(       WindowManager*);
@@ -63,3 +71,6 @@ void wm_zone_handle_event(    WindowManager*, SceneEvent*);
 
 void wm_log_frame(WindowManager*);
 void wm_log_init( WindowManager*);
+
+void wm_launcher_init(WindowManager*);
+void wm_launcher_frame(WindowManager*);

@@ -301,5 +301,6 @@ target_sources(roc PRIVATE
     src/wm/movesize.cpp
     src/wm/zone.cpp
     src/wm/log.cpp
+    src/wm/launcher.cpp
     )
 target_link_libraries(roc PUBLIC scene way ui)

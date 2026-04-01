@@ -49,7 +49,8 @@ int main()
     auto gpu   = gpu_create(  exec.get(), {});
     auto io    = io_create(   exec.get(), gpu.get());
     auto scene = scene_create(exec.get(), gpu.get());
-    auto wm    = wm_create(gpu.get(), scene.get(), app_share);
+    auto way   = way_create(exec.get(), gpu.get(), scene.get());
+    auto wm    = wm_create(gpu.get(), scene.get(), way.get(), app_share);
 
     // I/O event plumbing
 
@@ -288,10 +289,6 @@ int main()
     });
 
     scene_window_map(window.get());
-
-    // Wayland
-
-    auto way = way_create(exec.get(), gpu.get(), scene.get());
 
     // ImGui
 
