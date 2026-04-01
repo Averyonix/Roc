@@ -323,25 +323,41 @@ auto scene_mesh_create(Scene* ctx) -> Ref<SceneMesh>
     return mesh;
 }
 
-void scene_mesh_update(SceneMesh* mesh, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend, aabb2f32 clip, std::span<const SceneVertex> vertices, std::span<const u16> indices)
+void scene_mesh_update(SceneMesh* mesh, std::span<const SceneVertex>      vertices,
+                                        std::span<const u16>              indices,
+                                        std::span<const SceneMeshSegment> segments,
+                                        vec2f32 offset)
 {
-#if SCENE_NOISY_NODES
-    if (mesh->image.get()   != image)   NODE_LOG("scene.mesh{{{}}}.set_image({})",   (void*)mesh, (void*)image);
-    if (mesh->sampler.get() != sampler) NODE_LOG("scene.mesh{{{}}}.set_sampler({})", (void*)mesh, (void*)sampler);
-    if (mesh->blend         != blend)   NODE_LOG("scene.mesh{{{}}}.set_blend({})",   (void*)mesh, blend);
-    if (mesh->clip          != clip)    NODE_LOG("scene.mesh{{{}}}.set_clip{}",      (void*)mesh, clip);
+    static constexpr auto changed = [](auto& a, auto& b) {
+        return a.size() != b.size() || memcmp(a.data(), b.data(), b.size_bytes()) != 0;
+    };
 
-    NODE_LOG("scene.mesh{{{}}}.set_vertices({}, {})", (void*)mesh, (void*)vertices.data(), vertices.size());
-    NODE_LOG("scene.mesh{{{}}}.set_indices({}, {})",  (void*)mesh, (void*)indices.data(),  indices.size());
-#endif
+    bool segments_dirty = changed(mesh->segments, segments);
+    bool vertices_dirty = changed(mesh->vertices, vertices);
+    bool indices_dirty  = changed(mesh->indices,  indices);
+
+    if (!segments_dirty && !vertices_dirty && !indices_dirty && mesh->offset == offset) return;
 
     damage_node(mesh);
-    mesh->image = image;
-    mesh->sampler = sampler;
-    mesh->blend = blend;
-    mesh->clip = clip;
-    mesh->vertices.assign_range(vertices);
-    mesh->indices.assign_range(indices);
+
+    mesh->offset = offset;
+
+    static constexpr auto update = [](auto& a, auto& b) {
+        a.resize(b.size());
+        memcpy(a.data(), b.data(), b.size_bytes());
+    };
+
+    if (segments_dirty) {
+        mesh->segments.resize(segments.size());
+        std::ranges::copy(segments, mesh->segments.data());
+    }
+    if (vertices_dirty) update(mesh->vertices, vertices);
+    if (indices_dirty)  update(mesh->indices,  indices);
+
+#if SCENE_NOISY_NODES
+    NODE_LOG("scene.mesh{{{}}}.damage()", (void*)mesh);
+#endif
+
     damage_node(mesh);
 }
 

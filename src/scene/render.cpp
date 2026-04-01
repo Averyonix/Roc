@@ -46,9 +46,9 @@ void scene_render(Scene* ctx, GpuImage* target, rect2f32 viewport)
 
     struct Draw
     {
-        u32 first_vertex;
+        u32 vertex_offset;
         u32 first_index;
-        u32 num_indices;
+        u32 index_count;
         aabb2f32 clip;
         GpuImage* image;
         GpuSampler* sampler;
@@ -74,7 +74,7 @@ void scene_render(Scene* ctx, GpuImage* target, rect2f32 viewport)
             || draw->position != position)
         {
             draw = &draws.emplace_back(Draw{
-                .first_vertex = u32(vertices.size()),
+                .vertex_offset = u32(vertices.size()),
                 .first_index = u32(indices.size()),
                 .clip = clip,
                 .image = image,
@@ -89,20 +89,22 @@ void scene_render(Scene* ctx, GpuImage* target, rect2f32 viewport)
     auto draw_mesh = [&](SceneMesh* mesh) {
         auto pos = scene_tree_get_position(mesh->parent);
 
-        draws.emplace_back(Draw {
-            .first_vertex = u32(vertices.size()),
-            .first_index = u32(indices.size()),
-            .num_indices = u32(mesh->indices.size()),
-            .clip = aabb_inner(default_clip, {
-                pos + mesh->clip.min,
-                pos + mesh->clip.max,
-                minmax
-            }),
-            .image = mesh->image.get() ?: render.white.get(),
-            .sampler = mesh->sampler.get() ?: render.sampler.get(),
-            .blend = mesh->blend,
-            .position = pos,
-        });
+        for (auto& segment : mesh->segments) {
+            draws.emplace_back(Draw {
+                .vertex_offset = u32(vertices.size()) + segment.vertex_offset,
+                .first_index = u32(indices.size()) + segment.first_index,
+                .index_count = u32(segment.index_count),
+                .clip = aabb_inner(default_clip, {
+                    pos + segment.clip.min,
+                    pos + segment.clip.max,
+                    minmax
+                }),
+                .image = segment.image.get() ?: render.white.get(),
+                .sampler = segment.sampler.get() ?: render.sampler.get(),
+                .blend = segment.blend,
+                .position = pos + mesh->offset,
+            });
+        }
 
         vertices.insert_range(vertices.end(), mesh->vertices);
         indices.insert_range(indices.end(), mesh->indices);
@@ -123,8 +125,8 @@ void scene_render(Scene* ctx, GpuImage* target, rect2f32 viewport)
             texture->blend,
             {});
 
-        auto base_vtx = vertices.size() - draw->first_vertex;
-        draw->num_indices += 6;
+        auto base_vtx = vertices.size() - draw->vertex_offset;
+        draw->index_count += 6;
         for (auto idx : {0, 2, 1, 1, 2, 3}) {
             indices.emplace_back(base_vtx + idx);
         }
@@ -205,10 +207,10 @@ void scene_render(Scene* ctx, GpuImage* target, rect2f32 viewport)
             }));
 
             pass.draw_indexed({
-                .index_count = draw.num_indices,
+                .index_count = draw.index_count,
                 .instance_count = 1,
                 .first_index = draw.first_index,
-                .vertex_offset = draw.first_vertex,
+                .vertex_offset = draw.vertex_offset,
                 .first_instance = 0
             });
         }

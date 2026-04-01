@@ -246,6 +246,11 @@ public:
     T*   front() const { return values.front(); }
     T*   back()  const { return values.back();  }
 
+    T* operator[](usz index) const
+    {
+        return values[index];
+    }
+
     void clear()
     {
         for (auto* v : values) object_remove_ref(v);

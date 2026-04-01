@@ -93,9 +93,6 @@ void Platform_CreateWindow(ImGuiViewport* vp)
     data->input_plane = scene_input_region_create(ctx->client.get(), data->window.get());
     scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->input_plane.get());
 
-    data->draws = scene_tree_create(ctx->scene);
-    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->draws.get());
-
     vp->PlatformUserData = data;
 }
 
@@ -330,34 +327,53 @@ void render_viewport(UiContext* ctx, ImGuiViewport* vp)
     auto* data = get_data(vp);
     if (!data || !vp->DrawData) return;
 
-    scene_tree_clear(data->draws.get());
-
     auto translation = from_imvec(vp->Pos);
 
-    for (auto* list : to_span(vp->DrawData->CmdLists)) {
-        for (auto& cmd : to_span(list->CmdBuffer)) {
-            auto indices = to_span(list->IdxBuffer).subspan(cmd.IdxOffset, cmd.ElemCount);
-            auto vtx_count = std::ranges::max(indices) + 1;
+    if (usz lists = vp->DrawData->CmdListsCount; lists != data->meshes.size()) {
+        while (lists > data->meshes.size()) {
+            auto mesh = scene_mesh_create(ctx->scene);
+            data->meshes.emplace_back(mesh.get());
+            scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, mesh.get());
+        }
+        while (lists < data->meshes.size()) {
+            scene_node_unparent(data->meshes.pop_back().get());
+        }
+    }
 
-            ThreadStack stack;
+    for (auto[i, list] : to_span(vp->DrawData->CmdLists) | std::views::enumerate) {
 
-            auto* vertices = stack.allocate<SceneVertex>(vtx_count);
-            for (auto[i, imvert] : to_span(list->VtxBuffer).subspan(cmd.VtxOffset, vtx_count) | std::views::enumerate) {
-                vertices[i] = SceneVertex {
-                    .pos = from_imvec(imvert.pos) - translation,
-                    .uv  = from_imvec(imvert.uv),
-                    .color = std::bit_cast<vec4u8>(imvert.col),
-                };
-            }
+        // Require that ImDrawVert and SceneVertex are layout-compatible
+        static_assert(  sizeof(ImDrawVert)      ==   sizeof(SceneVertex));
+        static_assert(offsetof(ImDrawVert, pos) == offsetof(SceneVertex, pos));
+        static_assert(offsetof(ImDrawVert, col) == offsetof(SceneVertex, color));
+        static_assert(offsetof(ImDrawVert, uv)  == offsetof(SceneVertex, uv));
+
+        // Create segment list
+        std::vector<SceneMeshSegment> segments(list->CmdBuffer.size());
+        for (auto[j, cmd] : to_span(list->CmdBuffer) | std::views::enumerate) {
+
+            auto& segment = segments[j];
+
+            segment.vertex_offset = cmd.VtxOffset;
+            segment.first_index = cmd.IdxOffset;
+            segment.index_count = cmd.ElemCount;
 
             rect2f32 clip = {{cmd.ClipRect.x, cmd.ClipRect.y}, {cmd.ClipRect.z, cmd.ClipRect.w}, minmax};
             clip.origin -= translation;
+            segment.clip = clip;
 
             auto[image, sampler, blend] = ctx->textures[cmd.GetTexID()];
-            auto mesh = scene_mesh_create(ctx->scene);
-            scene_mesh_update(mesh.get(), image.get(), sampler.get(), blend, clip, {vertices, usz(vtx_count)}, indices);
-            scene_tree_place_above(data->draws.get(), nullptr, mesh.get());
+            segment.image = image;
+            segment.sampler = sampler;
+            segment.blend = blend;
         }
+
+        // Update mesh content
+        scene_mesh_update(data->meshes[i],
+            {reinterpret_cast<const SceneVertex*>(list->VtxBuffer.Data), usz(list->VtxBuffer.Size)},
+            to_span(list->IdxBuffer),
+            segments,
+            -translation);
     }
 
     // Update visual frame

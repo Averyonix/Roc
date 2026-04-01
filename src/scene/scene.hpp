@@ -255,20 +255,33 @@ void scene_texture_set_src(  SceneTexture*, aabb2f32 src);
 void scene_texture_set_dst(  SceneTexture*, rect2f32 dst);
 void scene_texture_damage(   SceneTexture*, aabb2i32 damage);
 
-struct SceneMesh : SceneNode
+struct SceneMeshSegment
 {
+    u32 vertex_offset;
+    u32 first_index;
+    u32 index_count;
+
+    GpuBlendMode    blend;
     Ref<GpuImage>   image;
     Ref<GpuSampler> sampler;
-    GpuBlendMode    blend;
 
     aabb2f32 clip;
+};
 
-    std::vector<SceneVertex> vertices;
-    std::vector<u16>         indices;
+struct SceneMesh : SceneNode
+{
+    vec2f32 offset;
+
+    std::vector<SceneVertex>      vertices;
+    std::vector<u16>              indices;
+    std::vector<SceneMeshSegment> segments;
 };
 
 auto scene_mesh_create(Scene*) -> Ref<SceneMesh>;
-void scene_mesh_update(SceneMesh*, GpuImage*, GpuSampler*, GpuBlendMode, aabb2f32 clip, std::span<const SceneVertex> vertices, std::span<const u16> indices);
+void scene_mesh_update(SceneMesh*, std::span<const SceneVertex>      vertices,
+                                   std::span<const u16>              indices,
+                                   std::span<const SceneMeshSegment> segments,
+                                   vec2f32 offset);
 
 struct SceneInputRegion : SceneNode
 {

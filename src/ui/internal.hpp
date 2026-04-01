@@ -3,8 +3,8 @@
 #include "ui.hpp"
 
 struct UiViewportData {
-    Ref<SceneWindow>       window;
-    Ref<SceneTree>         draws;
+    Ref<SceneWindow> window;
+    RefVector<SceneMesh> meshes;
     Ref<SceneInputRegion> input_plane;
 
     // Pending reposition request. Requests are double-buffered so that
