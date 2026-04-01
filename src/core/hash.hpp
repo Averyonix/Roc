@@ -50,6 +50,14 @@ usz hash_range(auto start, auto end)
     return seed;
 }
 
+inline
+usz hash_range(auto&& range)
+{
+    usz seed = 0;
+    hash_range(seed, std::begin(range), std::end(range));
+    return seed;
+}
+
 #define MAKE_RANGE_HASHABLE(Type) \
     template<> struct std::hash<Type> { \
         usz operator()(const Type& v) { return hash_range(v.begin(), v.end()); } \

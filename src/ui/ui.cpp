@@ -395,6 +395,12 @@ void ui_frame(UiContext* ctx)
     io.Fonts->SetTexID(ui_get_texture(ctx, ctx->font_image.get(), ctx->sampler.get(),
                                       GpuBlendMode::postmultiplied));
 
+    auto now = std::chrono::steady_clock::now();
+    if (ctx->last_frame != std::chrono::steady_clock::time_point{}) {
+        io.DeltaTime = std::chrono::duration_cast<std::chrono::duration<f32>>(now - ctx->last_frame).count();
+    }
+    ctx->last_frame = now;
+
     ImGui::NewFrame();
     ctx->frame_handler();
     ImGui::Render();
