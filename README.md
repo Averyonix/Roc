@@ -32,7 +32,7 @@ Roc is currently tested on the following:
 
 # Architecture
 
-Roc is built around an internal protocol-independent "display server", with a separate "window manager" component providing high-level behaviours and styling.
+Roc is built around an internal protocol-independent "**display server**", with a separate "**window manager**" providing layout and styling.
 
 The Wayland protocol is then implemented as a set of internal clients, alongside other GUI shell components.
 
@@ -40,7 +40,7 @@ The Wayland protocol is then implemented as a set of internal clients, alongside
 >
 > Points marked as **❗** have not been implemented in the rewrite yet.
 
-### Core Utillities - `core`
+### Core Utillities — `core`
 
 A collection of reusable components and helpers used throughout the project.
 
@@ -51,27 +51,27 @@ A collection of reusable components and helpers used throughout the project.
 - Logging (level-based filtering, with full stacktrace contexts)
 - Linear algebra (vectors, aabbs, rects)
 
-### GPU Control - `gpu`
+### GPU — `gpu`
 
-Small layer wrapping GPU  allocation, synchronization, and command execution.
+Small layer wrapping GPU allocation, synchronization, and command execution.
 
 - Vulkan object wrappers
 - Event based completion handlers
 - DMABUF / DRM syncobj interop
 
-### Session I/O - `io`
+### Session I/O — `io`
 
 Manages I/O, including input devices and display outputs; implemented as a set of subsystems:
 
 - `process`  (child process management) **❗**
-- `udev`     (device discovery, hotplug events) **❗**
-- `session`  (VT switching, restricted device access) **❗**
-- `libinput` (raw keyboard / mouse input) **❗**
-- `evdev`    (raw gamepad / joystick input) **❗**
-- `drm`      (atomic KMS display control) **❗**
+- `udev`     (device discovery, hotplug events)
+- `session`  (VT switching, restricted device access)
+- `libinput` (raw keyboard / mouse input)
+- `evdev`    (raw gamepad / joystick input)
+- `drm`      (atomic KMS display control)
 - `wayland`  (nested emulation of `libinput`, `drm`)
 
-### Scene Compositor - `scene`
+### Scene Compositor — `scene`
 
 An internal protocol-independent "display server".
 
@@ -87,16 +87,16 @@ An internal protocol-independent "display server".
    - Selection buffers
    - Drag and drop **❗**
 
-### Immediate Mode UI - `ui`
+### User Interface — `ui`
 
 An internal layer for writing in-process GUI clients.
 
 - ImGui multi-viewport backend
    - First-class window layout integration
 - Double-pumped event based frames
-- Lazy per-`ImViewport` redraw on `ImDrawData` change **❗**
+- Lazy scene mesh damage on `ImDrawData` change
 
-### Wayland Protocols - `way`
+### Wayland Protocols — `way`
 
 A thin layer adapting relevant Wayland protocols to `scene`'s internal API.
 
@@ -105,7 +105,7 @@ A thin layer adapting relevant Wayland protocols to `scene`'s internal API.
 - Builds surface trees out of `scene.texture` and `scene.input_region`
 - Toplevels supplemented with `scene.window` for layout behaviour
 
-### Window Manager - `wm`
+### Window Manager — `wm`
 
 Builds on `scene` to implement opinionated window management, styling, and behaviours.
 
@@ -116,7 +116,7 @@ Builds on `scene` to implement opinionated window management, styling, and behav
 - Window decorations **❗**
 - High-level window layout policy
    - Drag move/size
-   - Grid based window placement **❗**
+   - Grid based window placement
 - Native shell components (launcher, system tray, notifications, etc..) **❗**
 - Common keybindings (media keys, application launch, etc..) **❗**
 
@@ -158,6 +158,5 @@ Roc can take advantage of higher queue scheduling priority when given the NICE s
 - `-C` : Force reconfigure and clean build
 - `-U` : Check and update dependencies (updates `build.json`)
 - `--asan` : Enable address sanitizer
-- `--system-slangc` : Look for `slangc` on path
 
 Build artifacts are placed into `.build/[debug|release](-asan)` depending on build parameters.
