@@ -115,20 +115,10 @@ void toggle_selecting(WindowManager* wm)
 }
 
 static
-void handle_hotkey(WindowManager* wm, SceneHotkeyEvent event)
+void begin_zone(WindowManager* wm, ScenePointer* pointer)
 {
-    auto* pointer = scene_input_device_get_pointer(event.input_device);
-
-    if (!event.pressed) return;
-
-    if (event.hotkey.code == BTN_RIGHT) {
-        toggle_selecting(wm);
-        return;
-    }
-
     wm->mode = WmInteractionMode::zone;
 
-    scene_pointer_focus(pointer, wm->focus.get());
     wm->zone.pointer = pointer;
 
     auto window = scene_find_window_at(wm->scene, scene_pointer_get_position(pointer));
@@ -142,12 +132,11 @@ void handle_hotkey(WindowManager* wm, SceneHotkeyEvent event)
 }
 
 static
-void handle_leave(WindowManager* wm)
+void end_zone(WindowManager* wm)
 {
     wm->zone.pointer = nullptr;
     update_rectangle(wm);
 
-    if (wm->mode != WmInteractionMode::zone) return;
     wm->mode = WmInteractionMode::none;
 
     if (!wm->zone.selecting) return;
@@ -158,27 +147,63 @@ void handle_leave(WindowManager* wm)
 }
 
 static
-void handle_button(WindowManager* wm, auto button)
-{
-    if (button.code == BTN_RIGHT && button.pressed) {
-        toggle_selecting(wm);
-    }
-}
-
-void wm_zone_handle_event(WindowManager* wm, SceneEvent* event)
+auto filter_event_zone(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
 {
     switch (event->type) {
-        break;case SceneEventType::hotkey:
-            handle_hotkey(wm, event->hotkey);
-        break;case SceneEventType::pointer_button:
-            handle_button(wm, event->pointer.button);
-        break;case SceneEventType::pointer_leave:
-            handle_leave(wm);
         break;case SceneEventType::pointer_motion:
-            zone_update_regions(wm);
+            if (event->pointer.pointer == wm->zone.pointer) zone_update_regions(wm);
+        break;case SceneEventType::pointer_button:
+            if (event->pointer.pointer == wm->zone.pointer) {
+                if (event->pointer.button.pressed) {
+                    if (event->pointer.button.code == BTN_RIGHT) {
+                        toggle_selecting(wm);
+                    }
+                    return SceneEventFilterResult::capture;
+                }
+                if (scene_pointer_get_pressed(wm->zone.pointer).empty()) {
+                    end_zone(wm);
+                }
+            }
+        break;case SceneEventType::pointer_scroll:
+            if (event->pointer.pointer == wm->zone.pointer) return SceneEventFilterResult::capture;
         break;default:
             ;
     }
+
+    return {};
+}
+
+static
+auto filter_event_default(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+{
+    if (event->type != SceneEventType::pointer_button) return {};
+
+    auto button = event->pointer.button;
+    if (!button.pressed) return {};
+
+    if (button.code != BTN_LEFT) return {};
+
+    auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(scene_pointer_get_base(event->pointer.pointer)));
+    if (!mods.contains(wm->main_mod)) return {};
+    if (mods.contains(SceneModifier::shift)) return {}; // Avoid conflicts with movesize interaction
+
+    begin_zone(wm, event->pointer.pointer);
+    return SceneEventFilterResult::capture;
+}
+
+static
+auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+{
+    switch (wm->mode) {
+        break;case WmInteractionMode::none:
+            return filter_event_default(wm, event);
+        break;case WmInteractionMode::zone:
+            return filter_event_zone(wm, event);
+        break;default:
+            ;
+    }
+
+    return SceneEventFilterResult::passthrough;
 }
 
 // -----------------------------------------------------------------------------
@@ -186,4 +211,7 @@ void wm_zone_handle_event(WindowManager* wm, SceneEvent* event)
 void wm_init_zone(WindowManager* wm)
 {
     wm->zone.texture = scene_texture_create(wm->scene);
+    wm->zone.filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) {
+        return filter_event(wm, event);
+    });
 }

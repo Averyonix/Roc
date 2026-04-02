@@ -31,7 +31,7 @@ auto get_seat_client(WayClient* client, SceneSeat* seat) -> WaySeatClient*
 static
 void handle_keyboard_event(WayClient* client, SceneEvent* event, auto&& fn)
 {
-    if (auto* seat_client = get_seat_client(client, scene_keyboard_get_seat(event->keyboard.keyboard))) {
+    if (auto* seat_client = get_seat_client(client, scene_input_device_get_seat(scene_keyboard_get_base(event->keyboard.keyboard)))) {
         fn(seat_client, event);
     }
 }
@@ -39,7 +39,7 @@ void handle_keyboard_event(WayClient* client, SceneEvent* event, auto&& fn)
 static
 void handle_pointer_event(WayClient* client, SceneEvent* event, auto&& fn)
 {
-    if (auto* seat_client = get_seat_client(client, scene_pointer_get_seat(event->pointer.pointer))) {
+    if (auto* seat_client = get_seat_client(client, scene_input_device_get_seat(scene_pointer_get_base(event->pointer.pointer)))) {
         fn(seat_client, event);
     }
 }
@@ -83,9 +83,6 @@ void handle_event(WayClient* client, SceneEvent* event)
               case SceneEventType::output_configured:
               case SceneEventType::output_layout:
               case SceneEventType::output_frame_request:
-            ;
-
-        break;case SceneEventType::hotkey:
             ;
 
         break;case SceneEventType::selection:

@@ -1,39 +1,48 @@
 #include "internal.hpp"
 
 static
-void close_focused(SceneEvent* event)
+auto close_focused(WindowManager* wm, SceneInputDevice* input_device) -> SceneEventFilterResult
 {
-    if (!event->hotkey.pressed) return;
-    auto focus = scene_input_device_get_focus(event->hotkey.input_device);
+    auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(input_device));
+    if (!mods.contains(wm->main_mod)) return {};
+
+    auto focus = scene_input_device_get_focus(input_device);
     if (focus && focus->window) {
         scene_window_request_close(focus->window.get());
     }
+    return SceneEventFilterResult::capture;
 }
 
 static
-void unfocus(SceneEvent* event)
+auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
 {
-    if (!event->hotkey.pressed) return;
-    auto keyboard = scene_input_device_get_keyboard(event->hotkey.input_device);
-    if (!keyboard) return;
-    scene_keyboard_focus(keyboard, nullptr);
+    switch (event->type) {
+        break;case SceneEventType::keyboard_key:
+            if (!event->keyboard.key.pressed) return {};
+            if (event->keyboard.key.code == KEY_Q) {
+                return close_focused(wm, scene_keyboard_get_base(event->keyboard.keyboard));
+            }
+            if (event->keyboard.key.code == KEY_S) {
+                auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(scene_keyboard_get_base(event->keyboard.keyboard)));
+                if (mods.contains(wm->main_mod)) {
+                    scene_keyboard_focus(event->keyboard.keyboard, nullptr);
+                }
+            }
+        break;case SceneEventType::pointer_button:
+            if (!event->pointer.button.pressed) return {};
+            if (event->pointer.button.code == BTN_MIDDLE) {
+                return close_focused(wm, scene_pointer_get_base(event->pointer.pointer));
+            }
+        break;default:
+            ;
+    }
+
+    return {};
 }
 
 void wm_init_hotkeys(WindowManager* wm)
 {
-    wm->hotkeys.client = scene_client_create(wm->scene);
-    ankerl::unordered_dense::map<SceneHotkey, void(*)(SceneEvent*)> hotkeys;
-
-    hotkeys[{ wm->main_mod, KEY_Q      }] = close_focused;
-    hotkeys[{ wm->main_mod, BTN_MIDDLE }] = close_focused;
-    hotkeys[{ wm->main_mod, KEY_S }]      = unfocus;
-
-    for (auto&[hotkey, _] : hotkeys) {
-        debug_assert(scene_client_hotkey_register(wm->hotkeys.client.get(), hotkey));
-    }
-    scene_client_set_event_handler(wm->hotkeys.client.get(), [hotkeys](SceneEvent* event) {
-        if (event->type == SceneEventType::hotkey) {
-            hotkeys.at(event->hotkey.hotkey)(event);
-        }
+    wm->hotkeys.filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) {
+        return filter_event(wm, event);
     });
 }

@@ -526,10 +526,6 @@ auto ui_create(Gpu* gpu, Scene* scene, const std::filesystem::path& path) -> Ref
             break;case SceneEventType::output_layout:
                 ui_handle_output_layout(ui);
 
-            // hotkey
-            break;case SceneEventType::hotkey:
-                ;
-
             // selection
             break;case SceneEventType::selection:
                 ;
@@ -550,7 +546,7 @@ void ui_handle_keyboard_enter(Ui* ui, SceneKeyboard* keyboard, SceneInputRegion*
 {
     ui->keyboard = keyboard;
 
-    ui->seats.emplace(scene_keyboard_get_seat(keyboard));
+    ui->seats.emplace(scene_input_device_get_seat(scene_keyboard_get_base(keyboard)));
 
     if (auto* vp = find_viewport_for_input_region(ui, region)) {
         scene_window_raise(get_data(vp)->window.get());
@@ -564,7 +560,7 @@ void ui_handle_keyboard_enter(Ui* ui, SceneKeyboard* keyboard, SceneInputRegion*
 
 void ui_handle_keyboard_leave(Ui* ui)
 {
-    ui->seats.emplace(scene_keyboard_get_seat(ui->keyboard));
+    ui->seats.emplace(scene_input_device_get_seat(scene_keyboard_get_base(ui->keyboard)));
 
     ui->keyboard = nullptr;
 

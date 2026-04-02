@@ -104,23 +104,23 @@ enum class SceneInputDeviceType
 struct SceneInputDevice;
 struct SceneKeyboard;
 struct ScenePointer;
+struct SceneSeat;
 
 auto scene_input_device_get_type(    SceneInputDevice*) -> SceneInputDeviceType;
 auto scene_input_device_get_pointer( SceneInputDevice*) -> ScenePointer*;
 auto scene_input_device_get_keyboard(SceneInputDevice*) -> SceneKeyboard*;
 auto scene_input_device_get_focus(   SceneInputDevice*) -> SceneInputRegion*;
+auto scene_input_device_get_seat(    SceneInputDevice*)  -> SceneSeat*;
 
 // -----------------------------------------------------------------------------
-
-struct SceneSeat;
 
 auto scene_get_seats(Scene*) -> std::span<SceneSeat* const>;
 
 auto scene_seat_get_pointer( SceneSeat*) -> ScenePointer*;
 auto scene_seat_get_keyboard(SceneSeat*) -> SceneKeyboard*;
 
-auto scene_pointer_get_seat( ScenePointer*)  -> SceneSeat*;
-auto scene_keyboard_get_seat(SceneKeyboard*) -> SceneSeat*;
+auto scene_pointer_get_base( ScenePointer*)  -> SceneInputDevice*;
+auto scene_keyboard_get_base(SceneKeyboard*) -> SceneInputDevice*;
 
 auto scene_seat_get_modifiers(SceneSeat*, Flags<SceneModifierFlag> = {}) -> Flags<SceneModifier>;
 
@@ -403,25 +403,8 @@ auto scene_iterate(SceneTree* tree, Pre&& pre, Leaf&& leaf, Post&& post) -> Scen
 
 // -----------------------------------------------------------------------------
 
-struct SceneHotkey
-{
-    Flags<SceneModifier> mod;
-    SceneScancode        code;
-
-    constexpr bool operator==(const SceneHotkey&) const noexcept = default;
-};
-
-MAKE_STRUCT_HASHABLE(SceneHotkey, v.mod, v.code)
-
-auto scene_client_hotkey_register(  SceneClient*, SceneHotkey) -> bool;
-void scene_client_hotkey_unregister(SceneClient*, SceneHotkey);
-
-// -----------------------------------------------------------------------------
-
 enum class SceneEventType
 {
-    hotkey,
-
     seat_add,
     seat_configure,
     seat_remove,
@@ -457,14 +440,6 @@ enum class SceneEventType
     output_frame,
 
     selection,
-};
-
-struct SceneHotkeyEvent
-{
-    SceneInputDevice* input_device;
-
-    SceneHotkey hotkey;
-    bool        pressed;
 };
 
 struct SceneKeyboardEvent
@@ -528,7 +503,6 @@ struct SceneEvent
 
     union {
         SceneSeat*         seat;
-        SceneHotkeyEvent   hotkey;
         SceneWindowEvent   window;
         SceneKeyboardEvent keyboard;
         ScenePointerEvent  pointer;
@@ -541,3 +515,13 @@ struct SceneEvent
 using SceneEventHandlerFn = void(SceneEvent*);
 
 void scene_client_set_event_handler(SceneClient*, std::move_only_function<SceneEventHandlerFn>&&);
+
+enum class SceneEventFilterResult
+{
+    passthrough,
+    capture,
+};
+
+struct SceneEventFilter;
+
+auto scene_add_input_event_filter(Scene*, std::move_only_function<SceneEventFilterResult(SceneEvent*)>) -> Ref<SceneEventFilter>;

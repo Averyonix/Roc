@@ -6,11 +6,13 @@ struct WmLauncher
 {
     WindowManager* wm;
 
+    Ref<Ui> ui;
+
     std::vector<struct WmLauncherApp> apps;
     std::string filter;
     const WmLauncherApp* selected = 0;
 
-    Ref<SceneClient> client;
+    Ref<SceneEventFilter> event_filter;
 
     bool show = false;
     bool grab_focus = false;
@@ -137,28 +139,37 @@ void show(WindowManager* wm)
     wm->launcher->show = true;
     wm->launcher->grab_focus = true;
     wm->launcher->filter = {};
-    ui_request_frame(wm->ui.get());
+    ui_request_frame(wm->launcher->ui.get());
 
     scan_apps(wm->launcher.get());
 }
 
-void wm_init_launcher(WindowManager* wm)
+static
+void frame(WindowManager* wm);
+
+void wm_init_launcher(WindowManager* wm, const WindowManagerCreateInfo& info)
 {
     wm->launcher = ref_create<WmLauncher>();
     wm->launcher->wm = wm;
 
     auto* launcher = wm->launcher.get();
 
-    launcher->client = scene_client_create(wm->scene);
+    launcher->ui = ui_create(wm->gpu, wm->scene, info.app_share / "launcher");
+    ui_set_frame_handler(launcher->ui.get(), [wm] {
+        frame(wm);
+    });
 
-    debug_assert(scene_client_hotkey_register(launcher->client.get(), {wm->main_mod, KEY_D}));
+    launcher->event_filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) -> SceneEventFilterResult {
+        if (event->type != SceneEventType::keyboard_key) return {};
 
-    scene_client_set_event_handler(launcher->client.get(), [wm](SceneEvent* event) {
-        if (event->type == SceneEventType::hotkey) {
-            if (event->hotkey.pressed && event->hotkey.hotkey.code == KEY_D) {
-                show(wm);
-            }
-        }
+        auto key = event->keyboard.key;
+        if (!key.pressed || key.code != KEY_D) return {};
+
+        auto mods = scene_keyboard_get_modifiers(event->keyboard.keyboard);
+        if (!mods.contains(wm->main_mod)) return {};
+
+        show(wm);
+        return SceneEventFilterResult::capture;
     });
 }
 
@@ -184,7 +195,8 @@ void launch(WmLauncher* launcher, WmLauncherApp& app)
     launcher->show = false;
 }
 
-void wm_launcher_frame(WindowManager* wm)
+static
+void frame(WindowManager* wm)
 {
     auto* launcher = wm->launcher.get();
 

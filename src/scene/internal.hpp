@@ -60,6 +60,8 @@ struct Scene
 
     Ref<scene_cursor_manager> cursor_manager;
 
+    std::vector<SceneEventFilter*> input_event_filters;
+
     ~Scene();
 };
 
@@ -117,23 +119,11 @@ struct SceneWindow
 
 // -----------------------------------------------------------------------------
 
-struct SceneHotkeyPressState
-{
-    Flags<SceneModifier> modifiers;
-    SceneClient* client;
-};
-
-struct SceneHotkeyMap {
-    ankerl::unordered_dense::map<SceneHotkey, SceneClient*> registered;
-    ankerl::unordered_dense::map<SceneScancode, SceneHotkeyPressState> pressed;
-};
-
 struct SceneInputDevice
 {
     SceneInputDeviceType type;
     SceneSeat* seat;
 
-    SceneHotkeyMap hotkeys;
     SceneInputRegion* focus;
 };
 
@@ -203,3 +193,14 @@ void scene_output_request_frame(SceneOutput*);
 void scene_handle_input_added(  SceneSeat*, IoInputDevice*);
 void scene_handle_input_removed(SceneSeat*, IoInputDevice*);
 void scene_handle_input(        SceneSeat*, const IoInputEvent&);
+
+// -----------------------------------------------------------------------------
+
+struct SceneEventFilter
+{
+    Weak<Scene> scene;
+
+    std::move_only_function<SceneEventFilterResult(SceneEvent*)> filter;
+
+    ~SceneEventFilter();
+};

@@ -2,6 +2,7 @@
 
 #include "core/object.hpp"
 
+struct ExecContext;
 struct Gpu;
 struct Scene;
 struct WayServer;
@@ -10,10 +11,11 @@ struct IoContext;
 
 struct WindowManagerCreateInfo
 {
-    Gpu*       gpu;
-    IoContext* io;
-    Scene*     scene;
-    WayServer* way;
+    ExecContext* exec;
+    Gpu*         gpu;
+    IoContext*   io;
+    Scene*       scene;
+    WayServer*   way;
 
     std::filesystem::path app_share;
     std::filesystem::path wallpaper;

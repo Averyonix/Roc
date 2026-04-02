@@ -25,6 +25,7 @@ int main()
     auto scene = scene_create(exec.get(), gpu.get());
     auto way   = way_create(exec.get(), gpu.get(), scene.get());
     auto wm    = wm_create({
+        .exec = exec.get(),
         .gpu = gpu.get(),
         .io = io.get(),
         .scene = scene.get(),
@@ -108,8 +109,6 @@ int main()
                   case SceneEventType::output_configured:
                   case SceneEventType::output_frame_request:
                   case SceneEventType::output_layout:
-                ;
-            break;case SceneEventType::hotkey:
                 ;
             break;case SceneEventType::selection:
                 log_trace("selection({})", (void*)event->data.source);

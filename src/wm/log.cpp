@@ -4,19 +4,33 @@
 #include "core/color.hpp"
 #include "core/stacktrace.hpp"
 
-void wm_init_log_viewer(WindowManager* wm)
+static
+void frame(WindowManager*);
+
+void wm_init_log_viewer(WindowManager* wm, const WindowManagerCreateInfo& info)
 {
     log_history_enable(true);
 
     log_history_add_listener([wm = Weak(wm)](LogEntry*) {
-        if (wm) {
-            ui_request_frame(wm->ui.get());
-        }
+        if (std::exchange(wm->log.requested, true)) return;
+        exec_enqueue(wm->exec, [wm] {
+            if (wm) {
+                ui_request_frame(wm->log.ui.get());
+            }
+        });
+    });
+
+    wm->log.ui = ui_create(wm->gpu, wm->scene, info.app_share / "log-viewer");
+    ui_set_frame_handler(wm->log.ui.get(), [wm] {
+        frame(wm);
     });
 }
 
-void wm_log_frame(WindowManager* wm)
+static
+void frame(WindowManager* wm)
 {
+    wm->log.requested = false;
+
     auto history = log_history_get();
 
     bool show_log_window = true;

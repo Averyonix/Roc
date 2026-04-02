@@ -31,19 +31,19 @@ void update_backgrounds(WindowManager* wm)
         }
 }
 
-void wm_init_background(WindowManager* wm, const std::filesystem::path& path)
+void wm_init_background(WindowManager* wm, const WindowManagerCreateInfo& info)
 {
     wm->background.sampler = gpu_sampler_create(wm->gpu, {
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
     });
 
-    wm->background.image = [wm, path = path] {
+    wm->background.image = [&] {
         int w, h;
         int num_channels;
-        stbi_uc* data = stbi_load(path.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
+        stbi_uc* data = stbi_load(info.wallpaper.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
         defer { stbi_image_free(data); };
-        log_info("Loaded background ({}, width = {}, height = {})", path.c_str(), w, h);
+        log_info("Loaded background ({}, width = {}, height = {})", info.wallpaper.c_str(), w, h);
 
         // Create background texture node
         auto image = gpu_image_create(wm->gpu, {

@@ -79,3 +79,21 @@ auto scene_register_system(Scene* scene) -> SceneSystemId
     scene->prev_system_id = SceneSystemId(std::to_underlying(scene->prev_system_id) + 1);
     return scene->prev_system_id;
 }
+
+// -----------------------------------------------------------------------------
+
+auto scene_add_input_event_filter(Scene* scene, std::move_only_function<SceneEventFilterResult(SceneEvent*)> fn) -> Ref<SceneEventFilter>
+{
+    auto filter = ref_create<SceneEventFilter>();
+    filter->scene = scene;
+    filter->filter = std::move(fn);
+    scene->input_event_filters.emplace_back(filter.get());
+    return filter;
+}
+
+SceneEventFilter::~SceneEventFilter()
+{
+    if (scene) {
+        std::erase(scene->input_event_filters, this);
+    }
+}

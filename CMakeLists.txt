@@ -298,9 +298,8 @@ target_sources(wm PRIVATE
     src/wm/wm.cpp
     src/wm/io.cpp
     src/wm/seat.cpp
-    src/wm/hotkeys.cpp
-    src/wm/interaction.cpp
     src/wm/movesize.cpp
+    src/wm/hotkeys.cpp
     src/wm/zone.cpp
     src/wm/log.cpp
     src/wm/launcher.cpp

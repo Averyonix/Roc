@@ -3,7 +3,6 @@
 static
 void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmInteractionMode initial_mode)
 {
-    scene_pointer_focus(pointer, wm->focus.get());
     wm->movesize.pointer = pointer;
 
     auto pos = scene_pointer_get_position(pointer);
@@ -37,32 +36,16 @@ void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmInteractionMo
 static
 void end_interaction(WindowManager* wm)
 {
-    debug_assert(!wm->movesize.pointer);
+    wm->movesize.pointer = nullptr;
     wm->mode = WmInteractionMode::none;
 }
 
 // -----------------------------------------------------------------------------
 
 static
-void handle_hotkey(WindowManager* wm, SceneHotkeyEvent event)
-{
-    auto* pointer = scene_input_device_get_pointer(event.input_device);
-
-    if (!event.pressed || wm->mode != WmInteractionMode::none) {
-        return;
-    }
-
-    switch (event.hotkey.code) {
-        break;case BTN_LEFT: begin_interaction(wm, pointer, WmInteractionMode::move);
-        break;case BTN_RIGHT: begin_interaction(wm, pointer, WmInteractionMode::size);
-    }
-}
-
-static
 void handle_motion(WindowManager* wm)
 {
     if (!wm->movesize.window) {
-        scene_pointer_focus(wm->movesize.pointer, nullptr);
         return;
     }
 
@@ -82,17 +65,70 @@ void handle_motion(WindowManager* wm)
     scene_window_request_reposition(wm->movesize.window.get(), frame, wm->movesize.relative);
 }
 
-void wm_movesize_handle_event(WindowManager* wm, SceneEvent* event)
+static
+auto filter_event_movesize(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
 {
     switch (event->type) {
-        break;case SceneEventType::hotkey:
-            handle_hotkey(wm, event->hotkey);
-        break;case SceneEventType::pointer_leave:
-            wm->movesize.pointer = nullptr;
-            end_interaction(wm);
         break;case SceneEventType::pointer_motion:
-            handle_motion(wm);
+            if (event->pointer.pointer == wm->movesize.pointer) handle_motion(wm);
+        break;case SceneEventType::pointer_button:
+            if (event->pointer.pointer == wm->movesize.pointer) {
+                if (event->pointer.button.pressed) return SceneEventFilterResult::capture;
+                if (scene_pointer_get_pressed(wm->movesize.pointer).empty()) {
+                    end_interaction(wm);
+                }
+            }
+        break;case SceneEventType::pointer_scroll:
+            if (event->pointer.pointer == wm->movesize.pointer) return SceneEventFilterResult::capture;
         break;default:
             ;
     }
+
+    return {};
+}
+
+static
+auto filter_event_default(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+{
+    if (event->type != SceneEventType::pointer_button) return {};
+
+    auto button = event->pointer.button;
+    if (!button.pressed) return {};
+
+    auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(scene_pointer_get_base(event->pointer.pointer)));
+    if (!mods.contains(wm->main_mod)) return {};
+
+    if (button.code == BTN_LEFT && mods.contains(SceneModifier::shift)) {
+        begin_interaction(wm, event->pointer.pointer, WmInteractionMode::move);
+        return SceneEventFilterResult::capture;
+
+    } else if (button.code == BTN_RIGHT) {
+        begin_interaction(wm, event->pointer.pointer, WmInteractionMode::size);
+        return SceneEventFilterResult::capture;
+    }
+
+    return {};
+}
+static
+
+auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+{
+    switch (wm->mode) {
+        break;case WmInteractionMode::none:
+            return filter_event_default(wm, event);
+        break;case WmInteractionMode::move:
+              case WmInteractionMode::size:
+            return filter_event_movesize(wm, event);
+        break;default:
+            ;
+    }
+
+    return SceneEventFilterResult::passthrough;
+}
+
+void wm_init_movesize(WindowManager* wm)
+{
+    wm->movesize.filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) {
+        return filter_event(wm, event);
+    });
 }
