@@ -1,22 +1,15 @@
 # Wayland Roc
 
-An experiment in writing a simple opinionated independent Wayland compositor.
-
-## Goals
-
-The following are guiding principals and goals in the development of Roc. **Not** a list of currently supported features.
+An experiment in writing a simple opinionated independent Wayland compositor, with a few simple principals and goals:
 
 - Independence from Wayland frameworks / libraries
    - Only relies on the `libwayland` wire protocol implementation
-- Unified Vulkan compositing
+- Modern Vulkan based compositing
    - Consolidating on a single graphics API and modern kernel simplifies GPU allocation, buffer sharing and synchronization code paths
-- Protocol-independent display server
+- Protocol-independent window manager interface
    - Open to additional protocol support
-   - Minimal Wayland code to map protocol objects on to internal display server objects
-   - Internal clients to implement in-process shell components / behaviours
-      - Removes overhead of cross-process buffer sharing and synchronization
+   - Minimal Wayland code to map protocol objects on to internal ones
 - Live configuration through native code
-   - Extensions can be written to allow any preferred form of configuration
 
 ## Non-Goals
 
@@ -24,23 +17,20 @@ The following are guiding principals and goals in the development of Roc. **Not*
  - Support every Wayland protocol
     - A lot of Wayland protocol functionality can be replaced with compositor plugins that provide more integration and simpler communication.
 
-# Support
-
-Roc is currently tested on the following:
-
-- Arch Linux + AMD Mesa (RADV)
-
 # Architecture
 
-Roc is built around an internal protocol-independent "**display server**", with a separate "**window manager**" providing layout and styling.
+Roc is organized roughly into three primary strata:
 
-The Wayland protocol is then implemented as a set of internal clients, alongside other GUI shell components.
+ - A collection of reusable components providing critical functionality. (`core`, `exec`, `gpu`, `io`, `scene`, `seat`)
+ - A protocol independent window manager interface `wm`, and a simple internal UI framework `ui`.
+ - A Wayland server implemented as a series of internal clients `way`, along with configuration and high-level shell components `roc`.
 
-> The project is currently in a state of rewriting the old monolothic compositor implementation into a more more modular layered approach.
->
-> Points marked as **❗** have not been implemented in the rewrite yet.
+```
+core ─ exec ─ gpu ┬ scene ── seat ┬ wm ─ ui ─ way ─ roc
+                  └────── io ─────┘
+```
 
-### Core Utillities — `core`
+### `core` ─ Common Utilities
 
 A collection of reusable components and helpers used throughout the project.
 
@@ -51,19 +41,28 @@ A collection of reusable components and helpers used throughout the project.
 - Logging (level-based filtering, with full stacktrace contexts)
 - Linear algebra (vectors, aabbs, rects)
 
-### GPU — `gpu`
+### `exec` ─ Execution Contexts
+
+A lightweight execution framework that manages messaging, event dispatch, and file descriptor listening.
+
+- Separate execution context "threads"
+- File descriptor listeners
+- Event dispatch
+- Timed dispatch
+
+### `gpu` ─ GPU
 
 Small layer wrapping GPU allocation, synchronization, and command execution.
 
-- Vulkan object wrappers
 - Event based completion handlers
 - DMABUF / DRM syncobj interop
+- Buffered command submission
 
-### Session I/O — `io`
+### `io` ─ Session I/O
 
 Manages I/O, including input devices and display outputs; implemented as a set of subsystems:
 
-- `process`  (child process management) **❗**
+- `process`  (child process management)
 - `udev`     (device discovery, hotplug events)
 - `session`  (VT switching, restricted device access)
 - `libinput` (raw keyboard / mouse input)
@@ -71,23 +70,39 @@ Manages I/O, including input devices and display outputs; implemented as a set o
 - `drm`      (atomic KMS display control)
 - `wayland`  (nested emulation of `libinput`, `drm`)
 
-### Scene Compositor — `scene`
+### `scene` ─ Scene Graph
 
-An internal protocol-independent "display server".
+A spatial hierarchy providing hit-testing, damage tracking, and rendering logic.
 
 - Scene graph
-- Viewports
-   - Per-viewport damage events **❗**
-- Internal display server API
-   - Virtual clients
-- Per-client input routing
-   - Implicit pointer focus based on input region nodes
-   - Explicit keyboard/pointer focus based on client grabs
+- Damage listeners
+- Core node types (tree, texture, mesh)
+
+### `seat` ─ Seat
+
+- Focus based nput routing
+- Cursor theme management
 - Data management
    - Selection buffers
-   - Drag and drop **❗**
+   - Drag and drop
 
-### User Interface — `ui`
+### `wm` ─ Window Manager Interface
+
+Builds on `scene` and `seat` to tie together a higher level window management API, configured at runtime.
+
+- Output layout
+- Mouse
+   - Acceleration
+   - Constraints
+- Window decorations
+   - CSD clipping
+   - Focus borders
+- Interactions
+   - Drag move/size
+   - Drag grid window placement
+   - Focus cycling
+
+### `ui` ─ UI Framework
 
 An internal layer for writing in-process GUI clients.
 
@@ -96,29 +111,19 @@ An internal layer for writing in-process GUI clients.
 - Double-pumped event based frames
 - Lazy scene mesh damage on `ImDrawData` change
 
-### Wayland Protocols — `way`
+### `way` ─ Wayland Server
 
 A thin layer adapting relevant Wayland protocols to `scene`'s internal API.
 
-- Isolates compositor logic from Wayland "protocol plumbing"
-- Maps `wl_client` to `scene.client`
-- Builds surface trees out of `scene.texture` and `scene.input_region`
-- Toplevels supplemented with `scene.window` for layout behaviour
+- Isolates compositor and window management logic from Wayland "protocol plumbing"
 
-### Window Manager — `wm`
+### `roc` ─ Roc
 
-Builds on `scene` to implement opinionated window management, styling, and behaviours.
+High level entry point for the compositor.
 
-- Output layout
-- Mouse driver
-   - Acceleration
-   - Constraints **❗**
-- Window decorations **❗**
-- High-level window layout policy
-   - Drag move/size
-   - Grid based window placement
-- Native shell components (launcher, system tray, notifications, etc..) **❗**
-- Common keybindings (media keys, application launch, etc..) **❗**
+- Ties together and provides configuration for all previous layers
+- Native shell components (launcher, system tray, notifications, etc..)
+- Common keybindings (media keys, application launch, etc..)
 
 # Building
 
