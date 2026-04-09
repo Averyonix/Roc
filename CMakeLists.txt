@@ -151,6 +151,7 @@ target_sources(core PRIVATE
     src/core/stacktrace.cpp
     src/core/process.cpp
     src/core/debug.cpp
+    src/core/id.cpp
 
     src/exec/exec.cpp
     )
@@ -236,8 +237,12 @@ init_library(scene)
 target_sources(scene PRIVATE
     src/scene/scene.cpp
     src/scene/render.cpp
-    src/scene/node.cpp
-    src/scene/window.cpp
+    src/scene/node/input-region.cpp
+    src/scene/node/mesh.cpp
+    src/scene/node/node.cpp
+    src/scene/node/texture.cpp
+    src/scene/node/tree.cpp
+    src/scene/damage.cpp
     src/scene/seat.cpp
     src/scene/input.cpp
     src/scene/cursor.cpp
@@ -256,6 +261,7 @@ target_sources(wm PRIVATE
     src/wm/wm.cpp
     src/wm/io.cpp
     src/wm/seat.cpp
+    src/wm/window.cpp
     src/wm/movesize.cpp
     src/wm/hotkeys.cpp
     src/wm/zone.cpp

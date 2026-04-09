@@ -152,7 +152,7 @@ auto roc_init_launcher(Roc* roc) -> Ref<void>
     auto launcher = ref_create<RocLauncher>();
     launcher->roc = roc;
 
-    launcher->ui = ui_create(roc->gpu, roc->scene, roc->app_share / "launcher");
+    launcher->ui = ui_create(roc->gpu, roc->wm, roc->app_share / "launcher");
     ui_set_frame_handler(launcher->ui.get(), [launcher = launcher.get()] {
         frame(launcher);
     });

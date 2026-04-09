@@ -2,6 +2,7 @@
 
 #include "core/region.hpp"
 #include "core/object.hpp"
+#include "core/id.hpp"
 #include "gpu/gpu.hpp"
 
 #include "shader/render.h"
@@ -13,7 +14,6 @@ struct SceneNode;
 struct SceneTree;
 struct SceneTexture;
 struct SceneInputRegion;
-struct SceneWindow;
 
 struct Scene;
 
@@ -38,11 +38,6 @@ void scene_push_io_event(Scene* scene, struct IoEvent*);
 // -----------------------------------------------------------------------------
 
 void scene_render(Scene*, GpuImage* target, rect2f32 viewport);
-
-// -----------------------------------------------------------------------------
-
-enum class SceneSystemId : u32 {};
-auto scene_register_system(Scene*) -> SceneSystemId;
 
 // -----------------------------------------------------------------------------
 
@@ -179,42 +174,39 @@ auto scene_seat_get_selection(SceneSeat*) -> SceneDataSource*;
 
 // -----------------------------------------------------------------------------
 
-enum class SceneNodeType
-{
-    tree,
-    texture,
-    mesh,
-    input_region,
-};
-
 struct SceneNode
 {
-    SceneNodeType type;
-
     SceneTree* parent;
 
-    ~SceneNode();
+    virtual ~SceneNode();
+
+    virtual void damage(Scene*) = 0;
 };
 
 void scene_node_unparent(SceneNode*);
+void scene_node_damage(  SceneNode*);
 
 struct SceneTree : SceneNode
 {
     Scene* scene;
 
-    vec2f32 translation;
-
     bool enabled;
 
-    SceneSystemId system;
-    void*           userdata;
+    vec2f32 translation;
 
-    RefVector<SceneNode> children;
+    struct {
+        Uid   id;
+        void* data;
+    } userdata;
+
+    std::vector<SceneNode*> children;
+
+    virtual void damage(Scene*);
 
     ~SceneTree();
 };
 
-auto scene_tree_create(Scene*) -> Ref<SceneTree>;
+auto scene_tree_create() -> Ref<SceneTree>;
 
 void scene_tree_set_enabled(SceneTree*, bool enabled);
 void scene_tree_place_below(SceneTree*, SceneNode* sibling, SceneNode* to_place);
@@ -222,12 +214,7 @@ void scene_tree_place_above(SceneTree*, SceneNode* sibling, SceneNode* to_place)
 void scene_tree_clear(      SceneTree*);
 
 void scene_tree_set_translation(SceneTree*, vec2f32 translation);
-
-inline
-auto scene_tree_get_position(SceneTree* tree) -> vec2f32
-{
-    return tree->translation + (tree->parent ? scene_tree_get_position(tree->parent) : vec2f32{});
-}
+auto scene_tree_get_position(   SceneTree*) -> vec2f32;
 
 struct SceneTexture : SceneNode
 {
@@ -238,9 +225,13 @@ struct SceneTexture : SceneNode
     vec4u8   tint;
     aabb2f32 src;
     rect2f32 dst;
+
+    virtual void damage(Scene*);
+
+    ~SceneTexture();
 };
 
-auto scene_texture_create(Scene*) -> Ref<SceneTexture>;
+auto scene_texture_create() -> Ref<SceneTexture>;
 void scene_texture_set_image(SceneTexture*, GpuImage*, GpuSampler*, GpuBlendMode);
 void scene_texture_set_tint( SceneTexture*, vec4u8   tint);
 void scene_texture_set_src(  SceneTexture*, aabb2f32 src);
@@ -267,9 +258,13 @@ struct SceneMesh : SceneNode
     std::vector<SceneVertex>      vertices;
     std::vector<u16>              indices;
     std::vector<SceneMeshSegment> segments;
+
+    virtual void damage(Scene*);
+
+    ~SceneMesh();
 };
 
-auto scene_mesh_create(Scene*) -> Ref<SceneMesh>;
+auto scene_mesh_create() -> Ref<SceneMesh>;
 void scene_mesh_update(SceneMesh*, std::span<const SceneVertex>      vertices,
                                    std::span<const u16>              indices,
                                    std::span<const SceneMeshSegment> segments,
@@ -278,41 +273,24 @@ void scene_mesh_update(SceneMesh*, std::span<const SceneVertex>      vertices,
 struct SceneInputRegion : SceneNode
 {
     SceneClient* client;
-    Weak<SceneWindow> window;
 
     region2f32 region;
+
+    virtual void damage(Scene*);
 
     ~SceneInputRegion();
 };
 
-auto scene_input_region_create(SceneClient*, SceneWindow*) -> Ref<SceneInputRegion>;
+auto scene_input_region_create(SceneClient*) -> Ref<SceneInputRegion>;
 void scene_input_region_set_region(SceneInputRegion*, region2f32);
 
 // -----------------------------------------------------------------------------
 
-// Represents a normal interactable "toplevel" window.
-struct SceneWindow;
-
-auto scene_window_create(SceneClient*) -> Ref<SceneWindow>;
-
-void scene_window_set_title(SceneWindow*, std::string_view title);
-
-void scene_window_map(  SceneWindow*);
-void scene_window_unmap(SceneWindow*);
-void scene_window_raise(SceneWindow*);
-
-auto scene_window_get_tree(  SceneWindow*) -> SceneTree*;
-auto scene_window_get_client(SceneWindow*) -> SceneClient*;
-
-void scene_window_request_reposition(SceneWindow*, rect2f32 frame, vec2f32 gravity);
-void scene_window_request_close(     SceneWindow*);
-
-void scene_window_set_frame(SceneWindow*, rect2f32 frame);
-auto scene_window_get_frame(SceneWindow*) -> rect2f32;
-
-auto scene_find_window_at(Scene*, vec2f32 point) -> SceneWindow*;
-
-// -----------------------------------------------------------------------------
+enum class SceneIterateDirection
+{
+    front_to_back,
+    back_to_front,
+};
 
 enum class SceneIterateAction
 {
@@ -323,28 +301,18 @@ enum class SceneIterateAction
 
 static constexpr auto scene_iterate_default = [](auto*) {};
 
-enum class SceneIterateDirection
-{
-    front_to_back,
-    back_to_front,
-};
-
 template<typename Visit>
 auto scene_visit(SceneNode* node, Visit&& visit)
 {
-    switch (node->type) {
-        break;case SceneNodeType::texture:
-            return visit(static_cast<SceneTexture*>(node));
-        break;case SceneNodeType::mesh:
-            return visit(static_cast<SceneMesh*>(node));
-        break;case SceneNodeType::input_region:
-            return visit(static_cast<SceneInputRegion*>(node));
-        break;case SceneNodeType::tree:
-            return visit(static_cast<SceneTree*>(node));
+    if (auto* tree = dynamic_cast<SceneTree*>(node)) {
+        return visit(tree);
+    } else {
+        return visit(node);
     }
 
     debug_unreachable();
 }
+
 
 template<SceneIterateDirection Dir, typename Pre, typename Leaf, typename Post>
 auto scene_iterate(SceneTree* tree, Pre&& pre, Leaf&& leaf, Post&& post) -> SceneIterateAction
@@ -420,9 +388,6 @@ enum class SceneEventType
     pointer_button,
     pointer_scroll,
 
-    window_reposition,
-    window_close,
-
     output_added,
     output_configured,
     output_removed,
@@ -475,17 +440,6 @@ struct ScenePointerEvent
     };
 };
 
-struct SceneWindowEvent
-{
-    SceneWindow* window;
-    union {
-        struct {
-            rect2f32 frame;
-            vec2f32  gravity;
-        } reposition;
-    };
-};
-
 struct SceneRedrawEvent
 {
     SceneOutput* output;
@@ -503,7 +457,6 @@ struct SceneEvent
 
     union {
         SceneSeat*         seat;
-        SceneWindowEvent   window;
         SceneKeyboardEvent keyboard;
         ScenePointerEvent  pointer;
         SceneRedrawEvent   redraw;

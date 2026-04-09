@@ -6,11 +6,6 @@ SceneClient::~SceneClient()
 
     debug_assert(input_regions == 0);
 
-    // All client windows must be destroyed before the client
-    for (auto* window : scene->windows) {
-        debug_assert(window->client != this);
-    }
-
     // Focus must have been dropped before the client can safely be destroyed
     for (auto* seat : scene_get_seats(scene)) {
         debug_assert(scene_get_focus_client(seat->keyboard->focus) != this);

@@ -9,8 +9,7 @@ UNIX_ERROR_BEHAVIOUR(wl_event_loop_dispatch, negative_one)
 
 // -----------------------------------------------------------------------------
 
-namespace detail { struct WaySerialFingerprint {}; }
-using WaySerial = UniqueInteger<u32, detail::WaySerialFingerprint>;
+DECLARE_TAGGED_INTEGER(WaySerial, u32);
 
 // -----------------------------------------------------------------------------
 
@@ -23,8 +22,8 @@ struct WayServer : WayObject
     std::chrono::steady_clock::time_point epoch;
 
     Gpu* gpu;
-    Scene* scene;
-    SceneSystemId scene_system;
+    WindowManager* wm;
+    Uid userdata_id;
 
     Ref<SceneClient> seat_listener;
 

@@ -32,11 +32,22 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
     surface->role = WaySurfaceRole::xdg_toplevel;
     surface->toplevel.resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
 
-    surface->toplevel.window = scene_window_create(surface->client->scene.get());
+    surface->toplevel.window = wm_window_create(surface->client->server->wm);
+    wm_window_set_event_listener(surface->toplevel.window.get(), [surface](WmWindowEvent* event) {
+        switch (event->type) {
+            break;case WmEventType::window_reposition_requested:
+                way_toplevel_on_reposition(surface, event->reposition.frame, event->reposition.gravity);
+            break;case WmEventType::window_close_requested:
+                way_toplevel_on_close(surface);
 
-    surface->scene.input_region->window = surface->toplevel.window.get();
+            break;default:
+                ;
+        }
+    });
 
-    scene_tree_place_above(scene_window_get_tree(surface->toplevel.window.get()), nullptr, surface->scene.tree.get());
+    wm_window_add_input_region(surface->toplevel.window.get(), surface->scene.input_region.get());
+
+    scene_tree_place_above(wm_window_get_tree(surface->toplevel.window.get()), nullptr, surface->scene.tree.get());
 }
 
 static
@@ -95,12 +106,12 @@ void way_xdg_surface_configure(WaySurface* surface)
 void way_toplevel_on_map_change(WaySurface* surface, bool mapped)
 {
     if (mapped) {
-        scene_window_map(surface->toplevel.window.get());
-        for (auto* seat : scene_get_seats(surface->client->server->scene)) {
+        wm_window_map(surface->toplevel.window.get());
+        for (auto* seat : scene_get_seats(wm_get_scene(surface->client->server->wm))) {
             scene_keyboard_focus(scene_seat_get_keyboard(seat), surface->scene.input_region.get());
         }
     } else {
-        scene_window_unmap(surface->toplevel.window.get());
+        wm_window_unmap(surface->toplevel.window.get());
     }
 }
 
@@ -127,7 +138,7 @@ void reposition(WaySurface* surface)
     vec2f32 rel = 1.f - ((surface->toplevel.gravity + 1.f) * .5f);
     frame.origin -= rel * (extent - anchor.extent);
 
-    scene_window_set_frame(surface->toplevel.window.get(), frame);
+    wm_window_set_frame(surface->toplevel.window.get(), frame);
     scene_tree_set_translation(surface->scene.tree.get(), -surface->current.xdg.geometry.origin);
 }
 

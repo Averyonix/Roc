@@ -259,8 +259,7 @@ auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SceneInputRegio
     scene_iterate<SceneIterateDirection::front_to_back>(tree,
         scene_iterate_default,
         [&](SceneNode* node) {
-            if (node->type == SceneNodeType::input_region) {
-                auto* input_region = static_cast<SceneInputRegion*>(node);
+            if (auto input_region = dynamic_cast<SceneInputRegion*>(node)) {
                 if (input_region->region.contains(pos - scene_tree_get_position(input_region->parent))) {
                     region = input_region;
                     return SceneIterateAction::stop;
@@ -349,7 +348,7 @@ auto scene_pointer_create(SceneSeat* seat) -> Ref<ScenePointer>
 
     pointer->accel = [](vec2f32 delta) { return delta; };
 
-    pointer->tree = scene_tree_create(seat->scene);
+    pointer->tree = scene_tree_create();
     scene_tree_place_above(scene_get_layer(seat->scene, SceneLayer::overlay), nullptr, pointer->tree .get());
 
     return pointer;

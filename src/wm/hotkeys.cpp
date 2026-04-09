@@ -1,14 +1,26 @@
 #include "internal.hpp"
 
 static
+auto find_window_for_input_region(WindowManager* wm, SceneInputRegion* region) -> WmWindow*
+{
+    for (auto* window : wm->windows) {
+        if (std::ranges::contains(window->input_regions, region)) {
+            return window;
+        }
+    }
+    return nullptr;
+}
+
+static
 auto close_focused(WindowManager* wm, SceneInputDevice* input_device) -> SceneEventFilterResult
 {
     auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(input_device));
     if (!mods.contains(wm->main_mod)) return {};
 
+    WmWindow* window;
     auto focus = scene_input_device_get_focus(input_device);
-    if (focus && focus->window) {
-        scene_window_request_close(focus->window.get());
+    if (focus && (window = find_window_for_input_region(wm, focus))) {
+        wm_window_request_close(window);
     }
     return SceneEventFilterResult::capture;
 }
@@ -42,7 +54,7 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
 
 void wm_init_hotkeys(WindowManager* wm)
 {
-    wm->hotkeys.filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) {
+    wm->hotkeys.filter = scene_add_input_event_filter(wm->scene.get(), [wm](SceneEvent* event) {
         return filter_event(wm, event);
     });
 }

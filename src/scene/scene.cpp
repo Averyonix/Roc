@@ -4,7 +4,6 @@ Scene::~Scene()
 {
     debug_assert(outputs.empty());
     debug_assert(clients.empty());
-    debug_assert(windows.empty());
 }
 
 void scene_push_io_event(Scene* scene, IoEvent* event)
@@ -35,12 +34,11 @@ auto scene_create(ExecContext* exec, Gpu* gpu) -> Ref<Scene>
     scene->exec = exec;
     scene->gpu = gpu;
 
-    scene->window_system = scene_register_system(scene.get());
-
-    scene->root_tree = scene_tree_create(scene.get());
+    scene->root_tree = scene_tree_create();
+    scene->root_tree->scene = scene.get();
 
     for (auto layer : magic_enum::enum_values<SceneLayer>()) {
-        auto* tree = (scene->layers[layer] = scene_tree_create(scene.get())).get();
+        auto* tree = (scene->layers[layer] = scene_tree_create()).get();
         scene_tree_place_above(scene->root_tree.get(), nullptr, tree);
     }
 
@@ -70,14 +68,6 @@ void scene_broadcast_event(Scene* scene, SceneEvent* event)
     for (auto* client : scene->clients) {
         scene_client_post_event(client, event);
     }
-}
-
-// -----------------------------------------------------------------------------
-
-auto scene_register_system(Scene* scene) -> SceneSystemId
-{
-    scene->prev_system_id = SceneSystemId(std::to_underlying(scene->prev_system_id) + 1);
-    return scene->prev_system_id;
 }
 
 // -----------------------------------------------------------------------------

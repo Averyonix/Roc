@@ -6,9 +6,9 @@ void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmInteractionMo
     wm->movesize.pointer = pointer;
 
     auto pos = scene_pointer_get_position(pointer);
-    auto* window = scene_find_window_at(wm->scene, pos);
+    auto* window = wm_find_window_at(wm, pos);
     if (!window) return;
-    auto frame = scene_window_get_frame(window);
+    auto frame = wm_window_get_frame(window);
 
     wm->mode = initial_mode;
     wm->movesize.window = window;
@@ -62,7 +62,7 @@ void handle_motion(WindowManager* wm)
         frame.extent += delta;
     }
 
-    scene_window_request_reposition(wm->movesize.window.get(), frame, wm->movesize.relative);
+    wm_window_request_reposition(wm->movesize.window.get(), frame, wm->movesize.relative);
 }
 
 static
@@ -128,7 +128,7 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
 
 void wm_init_movesize(WindowManager* wm)
 {
-    wm->movesize.filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) {
+    wm->movesize.filter = scene_add_input_event_filter(wm->scene.get(), [wm](SceneEvent* event) {
         return filter_event(wm, event);
     });
 }

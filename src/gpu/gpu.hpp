@@ -5,6 +5,7 @@
 #include "core/fd.hpp"
 #include "core/hash.hpp"
 #include "core/containers.hpp"
+#include "core/id.hpp"
 #include "core/memory.hpp"
 
 #include "exec/exec.hpp"
@@ -24,8 +25,7 @@ enum class GpuImageUsage : u32;
 
 // -----------------------------------------------------------------------------
 
-namespace detail { struct GpuDescriptorIdFingerprint {}; }
-using GpuDescriptorId = UniqueInteger<u16, detail::GpuDescriptorIdFingerprint>;
+DECLARE_TAGGED_INTEGER(GpuDescriptorId, u16);
 
 struct GpuDescriptorIdAllocator
 {

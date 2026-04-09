@@ -23,7 +23,7 @@ WayServer::~WayServer()
     wl_display_destroy(wl_display);
 }
 
-auto way_create(ExecContext* exec, Gpu* gpu, Scene* scene) -> Ref<WayServer>
+auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer>
 {
     auto server = ref_create<WayServer>();
 
@@ -31,8 +31,8 @@ auto way_create(ExecContext* exec, Gpu* gpu, Scene* scene) -> Ref<WayServer>
 
     server->exec = exec;
     server->gpu = gpu;
-    server->scene = scene;
-    server->scene_system = scene_register_system(scene);
+    server->wm = wm;
+    server->userdata_id = uid_allocate();
 
     server->wl_display = wl_display_create();
 

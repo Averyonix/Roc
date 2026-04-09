@@ -139,7 +139,7 @@ struct WaySurface : WayObject
         WayResource resource;
         rect2f32 anchor;
         vec2f32 gravity = {1, 1};
-        Ref<SceneWindow> window;
+        Ref<WmWindow> window;
 
         WaySerial pending; // commit response to resize configure is pending
         bool queued;  // new reposition request received while pending

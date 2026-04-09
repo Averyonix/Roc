@@ -20,21 +20,21 @@ int main()
     auto exec  = exec_create();
     auto gpu   = gpu_create(  exec.get(), {});
     auto io    = io_create(   exec.get(), gpu.get());
-    auto scene = scene_create(exec.get(), gpu.get());
-    auto way   = way_create(exec.get(), gpu.get(), scene.get());
     auto wm    = wm_create({
         .exec = exec.get(),
         .gpu = gpu.get(),
         .io = io.get(),
-        .scene = scene.get(),
         .main_mod = roc.main_mod,
     });
+    auto scene = wm_get_scene(wm.get());
+    auto way = way_create(exec.get(), gpu.get(), wm.get());
 
     roc.exec = exec.get();
     roc.gpu = gpu.get();
-    roc.scene = scene.get();
+    roc.scene = scene;
     roc.way = way.get();
     roc.io = io.get();
+    roc.wm = wm.get();
 
     // Applets
 
@@ -44,29 +44,46 @@ int main()
 
     // Test client
 
-    auto client = scene_client_create(scene.get());
+    auto client = scene_client_create(scene);
 
-    auto window = scene_window_create(client.get());
+    auto window = wm_window_create(wm.get());
     auto initial_size = vec2f32{256, 256};
-    scene_window_set_frame(window.get(), {{64, 64}, initial_size, xywh});
+    wm_window_set_frame(window.get(), {{64, 64}, initial_size, xywh});
 
-    auto canvas = scene_texture_create(scene.get());
+    auto canvas = scene_texture_create();
     scene_texture_set_tint(canvas.get(), {255, 0, 255, 255});
     scene_texture_set_dst(canvas.get(), {{}, initial_size, xywh});
-    scene_tree_place_below(scene_window_get_tree(window.get()), nullptr, canvas.get());
+    scene_tree_place_below(wm_window_get_tree(window.get()), nullptr, canvas.get());
 
-    auto input = scene_input_region_create(client.get(), window.get());
+    auto input = scene_input_region_create(client.get());
+    wm_window_add_input_region(window.get(), input.get());
     scene_input_region_set_region(input.get(), {{{}, initial_size, xywh}});
-    scene_tree_place_above(scene_window_get_tree(window.get()), nullptr, input.get());
+    scene_tree_place_above(wm_window_get_tree(window.get()), nullptr, input.get());
 
-    auto inner = scene_tree_create(scene.get());
+    auto inner = scene_tree_create();
     scene_tree_set_translation(inner.get(), {64, 64});
-    scene_tree_place_above(scene_window_get_tree(window.get()), nullptr, inner.get());
+    scene_tree_place_above(wm_window_get_tree(window.get()), nullptr, inner.get());
 
-    auto square = scene_texture_create(scene.get());
+    auto square = scene_texture_create();
     scene_texture_set_tint(square.get(), {0, 255, 255, 255});
     scene_texture_set_dst(square.get(), {{}, {128, 128}, xywh});
     scene_tree_place_above(inner.get(), nullptr, square.get());
+
+    wm_window_set_event_listener(window.get(), [&](WmWindowEvent* event) {
+        switch (event->type) {
+            break;case WmEventType::window_reposition_requested: {
+                auto frame = event->reposition.frame;
+                scene_texture_set_dst(       canvas.get(), {{}, frame.extent, xywh});
+                scene_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
+                wm_window_set_frame(event->window, frame);
+            }
+            break;case WmEventType::window_close_requested:
+                log_warn("toplevel_close({})", (void*)event->window);
+
+            break;default:
+                ;
+        }
+    });
 
     scene_client_set_event_handler(client.get(), [&](SceneEvent* event) {
         switch (event->type) {
@@ -92,7 +109,7 @@ int main()
                 log_trace("pointer_button({}, {})",
                     libevdev_event_code_get_name(EV_KEY, event->pointer.button.code),
                     event->pointer.button.pressed ? "pressed" : "released");
-                scene_window_raise(window.get());
+                wm_window_raise(window.get());
             break;case SceneEventType::pointer_scroll:
                 log_trace("pointer_scroll(delta: {})", event->pointer.scroll.delta);
             break;case SceneEventType::pointer_enter:
@@ -103,14 +120,6 @@ int main()
                 log_trace("keyboard_enter({})", (void*)event->keyboard.keyboard);
             break;case SceneEventType::keyboard_leave:
                 log_trace("keyboard_leave({})", (void*)event->keyboard.keyboard);
-            break;case SceneEventType::window_reposition: {
-                auto frame = event->window.reposition.frame;
-                scene_texture_set_dst(       canvas.get(), {{}, frame.extent, xywh});
-                scene_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
-                scene_window_set_frame(event->window.window, frame);
-            }
-            break;case SceneEventType::window_close:
-                log_warn("window_close({})", (void*)event->window.window);
             break;case SceneEventType::output_frame:
                   case SceneEventType::output_added:
                   case SceneEventType::output_removed:
@@ -123,12 +132,12 @@ int main()
         }
     });
 
-    scene_window_map(window.get());
+    wm_window_map(window.get());
 
     // ImGui
 
     std::string ui_text_edit = "Hello, world!";
-    auto ui = ui_create(gpu.get(), scene.get(), roc.app_share / "ui");
+    auto ui = ui_create(gpu.get(), wm.get(), roc.app_share / "ui");
     ui_set_frame_handler(ui.get(), [&] {
         ImGui::ShowDemoWindow();
 
@@ -144,8 +153,8 @@ int main()
             }
 
             if (ImGui::Button("Reposition")) {
-                if (auto* window = ui_get_window(ImGui::GetCurrentWindow())) {
-                    scene_window_request_reposition(window, {{}, {512, 512}, xywh}, {});
+                if (auto* toplevel = ui_get_toplevel(ImGui::GetCurrentWindow())) {
+                    wm_window_request_reposition(toplevel, {{}, {512, 512}, xywh}, {});
                 }
             }
 
@@ -156,14 +165,14 @@ int main()
                     static u32 capture = 0;
                     gpu->renderdoc->StartFrameCapture(nullptr, nullptr);
                     gpu->renderdoc->SetCaptureTitle(std::format("Roc capture {}", ++capture).c_str());
-                    for (auto* output : scene_list_outputs(scene.get())) {
+                    for (auto* output : scene_list_outputs(scene)) {
                         auto viewport =  scene_output_get_viewport(output);
                         auto texture = gpu_image_create(gpu.get(), {
                             .extent = viewport.extent,
                             .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
                             .usage = GpuImageUsage::render
                         });
-                        scene_render(scene.get(), texture.get(), viewport);
+                        scene_render(scene, texture.get(), viewport);
                     }
                     gpu->renderdoc->EndFrameCapture(nullptr, nullptr);
                 }
@@ -173,11 +182,11 @@ int main()
                 u32 depth = 0;
                 auto indent = [&] { return std::string(depth, ' '); };
                 scene_iterate<SceneIterateDirection::back_to_front>(
-                    scene_get_layer(scene.get(), SceneLayer::window)->parent,
+                    scene_get_layer(scene, SceneLayer::window)->parent,
                     [&](SceneTree* tree) {
                         WaySurface* surface;
-                        if (tree->system == way->scene_system
-                                && (surface = way_get_userdata<WaySurface>(tree->userdata))) {
+                        if (tree->userdata.id == way->userdata_id
+                                && (surface = way_get_userdata<WaySurface>(tree->userdata.data))) {
                             log_warn("{}tree({}{}) {{", indent(),
                                 surface->role,
                                 tree->enabled ? "": ", disabled");
@@ -187,7 +196,7 @@ int main()
                         depth += 2;
                     },
                     [&](SceneNode* node) {
-                        log_warn("{}{}", indent(), node->type);
+                        log_warn("{}{}", indent(), typeid(*node).name());
                     },
                     [&](SceneTree* tree) {
                         depth -= 2;
@@ -202,7 +211,7 @@ int main()
 
     // Selection
 
-    auto data_client = scene_client_create(scene.get());
+    auto data_client = scene_client_create(scene);
     scene_client_set_event_handler(data_client.get(), [](SceneEvent*) {});
     auto data_source = scene_data_source_create(data_client.get(), {
         .send = [&](const char* mime, int fd) {
@@ -213,7 +222,7 @@ int main()
     scene_data_source_offer(data_source.get(), "text/plain;charset=utf-8");
     scene_data_source_offer(data_source.get(), "text/plain");
     scene_data_source_offer(data_source.get(), "text/html");
-    for (auto* seat : scene_get_seats(scene.get())) {
+    for (auto* seat : scene_get_seats(scene)) {
         scene_seat_set_selection(seat, data_source.get());
     }
 

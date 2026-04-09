@@ -7,11 +7,12 @@
 
 struct Roc
 {
-    ExecContext* exec;
-    Gpu*         gpu;
-    Scene*       scene;
-    WayServer*   way;
-    IoContext*   io;
+    ExecContext*   exec;
+    Gpu*           gpu;
+    WindowManager* wm;
+    Scene*         scene;
+    WayServer*     way;
+    IoContext*     io;
 
     SceneModifier main_mod;
 

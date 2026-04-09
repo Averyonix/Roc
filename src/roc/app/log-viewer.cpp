@@ -33,7 +33,7 @@ auto roc_init_log_viewer(Roc* roc) -> Ref<void>
         });
     });
 
-    viewer->ui = ui_create(roc->gpu, roc->scene, roc->app_share / "log-viewer");
+    viewer->ui = ui_create(roc->gpu, roc->wm, roc->app_share / "log-viewer");
     ui_set_frame_handler(viewer->ui.get(), [viewer = viewer.get()] {
         frame(viewer);
     });

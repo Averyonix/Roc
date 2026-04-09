@@ -3,7 +3,7 @@
 #include "ui.hpp"
 
 struct UiViewportData {
-    Ref<SceneWindow> window;
+    Ref<WmWindow> window;
     RefVector<SceneMesh> meshes;
     Ref<SceneInputRegion> input_region;
 
@@ -15,7 +15,8 @@ struct UiViewportData {
 struct Ui
 {
     Gpu* gpu;
-    Scene* scene;
+
+    WindowManager* wm;
 
     std::chrono::steady_clock::time_point last_frame = {};
 
@@ -59,3 +60,19 @@ void ui_handle_keyboard_leave(Ui*);
 void ui_handle_pointer_enter( Ui*, ScenePointer*, SceneInputRegion*);
 void ui_handle_pointer_leave( Ui*);
 void ui_handle_output_layout( Ui*);
+
+struct UiContextGuard
+{
+    ImGuiContext* old;
+
+    UiContextGuard(ImGuiContext* imgui)
+        : old(ImGui::GetCurrentContext())
+    {
+        ImGui::SetCurrentContext(imgui);
+    }
+
+    ~UiContextGuard()
+    {
+        ImGui::SetCurrentContext(old);
+    }
+};

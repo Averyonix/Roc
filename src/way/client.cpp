@@ -6,18 +6,6 @@
 #include "seat/seat.hpp"
 
 static
-auto find_surface(WayClient* client, SceneWindow* window) -> WaySurface*
-{
-    for (auto* surface : client->surfaces) {
-        if (surface->toplevel.window.get() == window) {
-            return surface;
-        }
-    }
-
-    return nullptr;
-}
-
-static
 auto get_seat_client(WayClient* client, SceneSeat* seat) -> WaySeatClient*
 {
     for (auto* seat_client : client->seat_clients) {
@@ -51,15 +39,6 @@ void handle_event(WayClient* client, SceneEvent* event)
         break;case SceneEventType::seat_add:
               case SceneEventType::seat_configure:
               case SceneEventType::seat_remove:
-
-        break;case SceneEventType::window_reposition: {
-            auto* surface = find_surface(client, event->window.window);
-            way_toplevel_on_reposition(surface, event->window.reposition.frame, event->window.reposition.gravity);
-        }
-        break;case SceneEventType::window_close: {
-            auto* surface = find_surface(client, event->window.window);
-            way_toplevel_on_close(surface);
-        }
 
         break;case SceneEventType::output_frame: {
             for (auto* surface : client->surfaces) {
@@ -107,7 +86,7 @@ void way_on_client_create(wl_listener* listener, void* data)
         object_remove_ref(way_get_userdata<WayClient>(data));
     });
 
-    client->scene = scene_client_create(server->scene);
+    client->scene = scene_client_create(wm_get_scene(server->wm));
     scene_client_set_event_handler(client->scene.get(), [client = client.get()](SceneEvent* event) {
         handle_event(client, event);
     });

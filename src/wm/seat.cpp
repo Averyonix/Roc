@@ -48,7 +48,7 @@ void wm_init_seat(WindowManager* wm)
 {
     // Pointer
 
-    wm->seat.client = scene_client_create(wm->scene);
+    wm->seat.client = scene_client_create(wm->scene.get());
     scene_client_set_event_handler(wm->seat.client.get(), [wm](SceneEvent* event) {
         handle_seat_event(wm, event);
     });

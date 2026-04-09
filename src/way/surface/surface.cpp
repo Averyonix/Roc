@@ -32,17 +32,15 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
     surface->client->surfaces.emplace_back(surface.get());
 
     auto* server = surface->client->server;
-    auto* scene = server->scene;
 
-    surface->scene.tree = scene_tree_create(scene);
-    surface->scene.tree->system = server->scene_system;
-    surface->scene.tree->userdata = surface.get();
+    surface->scene.tree = scene_tree_create();
+    surface->scene.tree->userdata = {server->userdata_id, surface.get()};
     scene_tree_set_enabled(surface->scene.tree.get(), false);
 
-    surface->scene.texture = scene_texture_create(scene);
+    surface->scene.texture = scene_texture_create();
     scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.texture.get());
 
-    surface->scene.input_region = scene_input_region_create(surface->client->scene.get(), nullptr);
+    surface->scene.input_region = scene_input_region_create(surface->client->scene.get());
     scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.input_region.get());
 
     surface->wl_surface = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
@@ -333,10 +331,10 @@ void flush(WaySurface* surface)
     auto* server = surface->client->server;
 
     for (auto* child : surface->scene.tree->children) {
-        if (child->type != SceneNodeType::tree) continue;
-        auto* tree = static_cast<SceneTree*>(child);
-        if (tree->system != server->scene_system) continue;
-        flush(way_get_userdata<WaySurface>(tree->userdata));
+        auto* tree = dynamic_cast<SceneTree*>(child);
+        if (!tree) continue;
+        if (tree->userdata.id != server->userdata_id) continue;
+        flush(way_get_userdata<WaySurface>(tree->userdata.data));
     }
 }
 
@@ -353,7 +351,7 @@ void commit(wl_client* client, wl_resource* resource)
     // Queue frame request for frame callbacks
 
     if (pending->surface.frame_callbacks.front()) {
-        scene_request_frame(surface->client->server->scene);
+        scene_request_frame(wm_get_scene(surface->client->server->wm));
     }
 
     // Apply subsurface synchronization barriers
@@ -390,8 +388,7 @@ WAY_INTERFACE(wl_surface) = {
 
 WaySurface::~WaySurface()
 {
-    scene_node_unparent(scene.tree.get());
-    scene.tree->userdata = nullptr;
+    scene.tree->userdata = {};
     debug_assert(std::erase(client->surfaces, this));
 }
 

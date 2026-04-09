@@ -145,12 +145,15 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
         push_vtx({dst.max.x, dst.max.y}, {src.max.x, src.max.y});
     };
 
-    scene_iterate<SceneIterateDirection::back_to_front>(scene->root_tree.get(),
+    scene_iterate<SceneIterateDirection::back_to_front>(
+        scene->root_tree.get(),
         scene_iterate_default,
-        OverloadSet {
-            draw_mesh,
-            draw_texture,
-            [](SceneInputRegion*) {},
+        [&](SceneNode* node) {
+            if (auto* texture = dynamic_cast<SceneTexture*>(node)) {
+                draw_texture(texture);
+            } else if (auto* mesh = dynamic_cast<SceneMesh*>(node)) {
+                draw_mesh(mesh);
+            }
         },
         scene_iterate_default);
 

@@ -1,11 +1,10 @@
 #include "../util.hpp"
 
-#include "core/containers.hpp"
+#include "core/id.hpp"
 
 // -----------------------------------------------------------------------------
 
-namespace detail { struct WayCommitIdFingerprint {}; }
-using WayCommitId = UniqueInteger<u32, detail::WayCommitIdFingerprint>;
+DECLARE_TAGGED_INTEGER(WayCommitId, u32);
 
 // -----------------------------------------------------------------------------
 

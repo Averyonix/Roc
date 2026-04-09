@@ -1,7 +1,7 @@
 #pragma once
 
-#include "scene/scene.hpp"
+#include "wm/wm.hpp"
 
 struct WayServer;
 
-auto way_create(ExecContext*, Gpu*, Scene*) -> Ref<WayServer>;
+auto way_create(ExecContext*, Gpu*, WindowManager*) -> Ref<WayServer>;

@@ -25,7 +25,7 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
         break;case IoEventType::input_added:
                 case IoEventType::input_removed:
                 case IoEventType::input_event:
-            scene_push_io_event(wm->scene, event);
+            scene_push_io_event(wm->scene.get(), event);
 
         // output
         break;case IoEventType::output_added:
@@ -38,7 +38,7 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
             reflow_outputs(wm);
         break;case IoEventType::output_frame: {
             auto output = std::ranges::find_if(wm->io.outputs, [&](auto& p) { return p.io == event->output.output; });
-            scene_frame(wm->scene, output->scene.get());
+            scene_frame(wm->scene.get(), output->scene.get());
 
             // TODO: Only redraw with damage
 
@@ -55,7 +55,7 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
                 }))
             });
 
-            scene_render(wm->scene, target.get(), scene_output_get_viewport(output->scene.get()));
+            scene_render(wm->scene.get(), target.get(), scene_output_get_viewport(output->scene.get()));
 
             output->io->commit(target.get(), gpu_flush(wm->gpu), IoOutputCommitFlag::vsync);
         }
@@ -78,7 +78,7 @@ void handle_scene_event(WindowManager* wm, SceneEvent* event)
 void wm_init_io(WindowManager* wm)
 {
     wm->io.pool = gpu_image_pool_create(wm->gpu);
-    wm->io.client = scene_client_create(wm->scene);
+    wm->io.client = scene_client_create(wm->scene.get());
 
     io_set_event_handler(wm->io.context, [wm](IoEvent* event) {
         handle_io_event(wm, event);

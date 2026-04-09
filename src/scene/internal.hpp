@@ -40,17 +40,12 @@ struct Scene
         Ref<GpuSampler> sampler;
     } render;
 
-    SceneSystemId prev_system_id = {};
-
     Ref<SceneTree> root_tree;
     EnumMap<SceneLayer, Ref<SceneTree>> layers;
 
     std::vector<SceneOutput*> outputs;
 
     std::vector<SceneClient*> clients;
-    std::vector<SceneWindow*> windows;
-
-    SceneSystemId window_system;
 
     RefVector<SceneSeat> seats;
 
@@ -100,22 +95,6 @@ struct SceneClient
 };
 
 void scene_client_post_event(SceneClient*, SceneEvent*);
-
-// -----------------------------------------------------------------------------
-
-struct SceneWindow
-{
-    SceneClient* client;
-
-    vec2f32 extent;
-    bool mapped;
-
-    std::string title;
-
-    Ref<SceneTree> tree;
-
-    ~SceneWindow();
-};
 
 // -----------------------------------------------------------------------------
 
@@ -187,6 +166,10 @@ void scene_offer_selection(SceneClient*, SceneDataSource*);
 // -----------------------------------------------------------------------------
 
 void scene_output_request_frame(SceneOutput*);
+
+// -----------------------------------------------------------------------------
+
+void scene_enqueue_damage(Scene*, SceneDamageType);
 
 // -----------------------------------------------------------------------------
 

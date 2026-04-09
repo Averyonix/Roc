@@ -62,7 +62,7 @@ auto find_viewport_for_input_region(Ui* ui, SceneInputRegion* focus) -> ImGuiVie
 }
 
 static
-auto find_viewport_for_window(SceneWindow* window) -> ImGuiViewport*
+auto find_viewport_for_window(WmWindow* window) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->window.get() == window) {
@@ -73,7 +73,7 @@ auto find_viewport_for_window(SceneWindow* window) -> ImGuiViewport*
     return nullptr;
 }
 
-auto ui_get_window(ImGuiWindow* window) -> SceneWindow*
+auto ui_get_toplevel(ImGuiWindow* window) -> WmWindow*
 {
     if (!window->Viewport) return nullptr;
     if (auto* data = get_data(window->Viewport)) return data->window.get();
@@ -83,15 +83,48 @@ auto ui_get_window(ImGuiWindow* window) -> SceneWindow*
 // -----------------------------------------------------------------------------
 
 static
+void handle_reposition(Ui* ui, WmWindow* window, rect2f32 frame)
+{
+    if (auto* vp = find_viewport_for_window(window)) {
+        get_data(vp)->reposition = frame;
+        ui_request_frame(ui);
+    }
+}
+
+static
+void handle_close(Ui* ui, WmWindow* window)
+{
+    if (auto* vp = find_viewport_for_window(window)) {
+        vp->PlatformRequestClose = true;
+        ui_request_frame(ui);
+    }
+}
+
+static
 void Platform_CreateWindow(ImGuiViewport* vp)
 {
     auto* ui = get_context();
     auto* data = new UiViewportData();
 
-    data->window = scene_window_create(ui->client.get());
+    data->window = wm_window_create(ui->wm);
 
-    data->input_region = scene_input_region_create(ui->client.get(), data->window.get());
-    scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, data->input_region.get());
+    wm_window_set_event_listener(data->window.get(), [ui](WmWindowEvent* event) {
+        UiContextGuard _{ui->context};
+        switch (event->type) {
+            // window
+            break;case WmEventType::window_reposition_requested:
+                handle_reposition(ui, event->window, event->reposition.frame);
+            break;case WmEventType::window_close_requested:
+                handle_close(ui, event->window);
+
+            break;default:
+                ;
+        }
+    });
+
+    data->input_region = scene_input_region_create(ui->client.get());
+    wm_window_add_input_region(data->window.get(), data->input_region.get());
+    scene_tree_place_above(wm_window_get_tree(data->window.get()), nullptr, data->input_region.get());
 
     vp->PlatformUserData = data;
 }
@@ -109,8 +142,8 @@ void Platform_ShowWindow(ImGuiViewport* vp)
     auto* ui = get_context();
     auto* data = get_data(vp);
 
-    scene_window_map(data->window.get());
-    for (auto* seat : scene_get_seats(ui->scene)) {
+    wm_window_map(data->window.get());
+    for (auto* seat : scene_get_seats(wm_get_scene(ui->wm))) {
         scene_keyboard_focus(scene_seat_get_keyboard(seat), data->input_region.get());
     }
 }
@@ -142,7 +175,7 @@ void Platform_SetWindowSize(ImGuiViewport* vp, ImVec2 size)
 static
 void Platform_SetWindowTitle(ImGuiViewport* vp, const char* title)
 {
-    scene_window_set_title(get_data(vp)->window.get(), title);
+    wm_window_set_title(get_data(vp)->window.get(), title);
 }
 
 // -----------------------------------------------------------------------------
@@ -215,22 +248,6 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imgui) -> const char*
 }
 
 // -----------------------------------------------------------------------------
-
-struct UiContextGuard
-{
-    ImGuiContext* old;
-
-    UiContextGuard(ImGuiContext* imgui)
-        : old(ImGui::GetCurrentContext())
-    {
-        ImGui::SetCurrentContext(imgui);
-    }
-
-    ~UiContextGuard()
-    {
-        ImGui::SetCurrentContext(old);
-    }
-};
 
 Ui::~Ui()
 {
@@ -324,7 +341,7 @@ void ui_request_frame(Ui* ui)
     // Double-pump frames: ImGui always works based on last frame state,
     // so input needs a second frame to react against the updated state.
     ui->frames_requested = 2;
-    scene_request_frame(ui->scene);
+    scene_request_frame(wm_get_scene(ui->wm));
 }
 
 static
@@ -337,12 +354,12 @@ void render_viewport(Ui* ui, ImGuiViewport* vp)
 
     if (usz lists = vp->DrawData->CmdListsCount; lists != data->meshes.size()) {
         while (lists > data->meshes.size()) {
-            auto mesh = scene_mesh_create(ui->scene);
+            auto mesh = scene_mesh_create();
             data->meshes.emplace_back(mesh.get());
-            scene_tree_place_above(scene_window_get_tree(data->window.get()), nullptr, mesh.get());
+            scene_tree_place_above(wm_window_get_tree(data->window.get()), nullptr, mesh.get());
         }
         while (lists < data->meshes.size()) {
-            scene_node_unparent(data->meshes.pop_back().get());
+            data->meshes.pop_back();
         }
     }
 
@@ -386,9 +403,9 @@ void render_viewport(Ui* ui, ImGuiViewport* vp)
 
     {
         rect2f32 rect {translation, from_imvec(vp->Size), xywh};
-        if (rect != scene_window_get_frame(data->window.get())) {
+        if (rect != wm_window_get_frame(data->window.get())) {
             scene_input_region_set_region(data->input_region.get(), {{{}, rect.extent, xywh}});
-            scene_window_set_frame(data->window.get(), rect);
+            wm_window_set_frame(data->window.get(), rect);
         }
     }
 
@@ -408,7 +425,7 @@ void ui_frame(Ui* ui)
     if (!ui->frames_requested) return;
     ui->frames_requested--;
 
-    if (ui->frames_requested) scene_request_frame(ui->scene);
+    if (ui->frames_requested) scene_request_frame(wm_get_scene(ui->wm));
 
     auto& io = ImGui::GetIO();
     io.DisplaySize = {};
@@ -447,34 +464,16 @@ void ui_frame(Ui* ui)
 
 // -----------------------------------------------------------------------------
 
-static
-void handle_reposition(Ui* ui, SceneWindow* window, rect2f32 frame)
-{
-    if (auto* vp = find_viewport_for_window(window)) {
-        get_data(vp)->reposition = frame;
-        ui_request_frame(ui);
-    }
-}
-
-static
-void handle_close(Ui* ui, SceneWindow* window)
-{
-    if (auto* vp = find_viewport_for_window(window)) {
-        vp->PlatformRequestClose = true;
-        ui_request_frame(ui);
-    }
-}
-
-auto ui_create(Gpu* gpu, Scene* scene, const std::filesystem::path& path) -> Ref<Ui>
+auto ui_create(Gpu* gpu, WindowManager* wm, const std::filesystem::path& path) -> Ref<Ui>
 {
     auto ui = ref_create<Ui>();
-    ui->scene   = scene;
-    ui->gpu     = gpu;
+    ui->wm  = wm;
+    ui->gpu = gpu;
     ui->sampler = gpu_sampler_create(ui->gpu, {
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
     });
-    ui->client  = scene_client_create(scene);
+    ui->client  = scene_client_create(wm_get_scene(ui->wm));
 
     ui_init(ui.get(), path);
 
@@ -508,12 +507,6 @@ auto ui_create(Gpu* gpu, Scene* scene, const std::filesystem::path& path) -> Ref
                 ui_handle_button(ui, event->pointer.button.code, event->pointer.button.pressed);
             break;case SceneEventType::pointer_scroll:
                 ui_handle_wheel(ui, event->pointer.scroll.delta);
-
-            // window
-            break;case SceneEventType::window_reposition:
-                handle_reposition(ui, event->window.window, event->window.reposition.frame);
-            break;case SceneEventType::window_close:
-                handle_close(ui, event->window.window);
 
             // output
             break;case SceneEventType::output_added:
@@ -549,7 +542,7 @@ void ui_handle_keyboard_enter(Ui* ui, SceneKeyboard* keyboard, SceneInputRegion*
     ui->seats.emplace(scene_input_device_get_seat(scene_keyboard_get_base(keyboard)));
 
     if (auto* vp = find_viewport_for_input_region(ui, region)) {
-        scene_window_raise(get_data(vp)->window.get());
+        wm_window_raise(get_data(vp)->window.get());
     }
 
     auto& io = ImGui::GetIO();
@@ -665,7 +658,7 @@ void ui_handle_output_layout(Ui* ui)
     auto& platform_io = ImGui::GetPlatformIO();
 
     platform_io.Monitors.clear();
-    for (auto* output : scene_list_outputs(ui->scene)) {
+    for (auto* output : scene_list_outputs(wm_get_scene(ui->wm))) {
         rect2f32 rect = scene_output_get_viewport(output);
         if (rect.extent.x == 0 || rect.extent.y == 0) continue;
 

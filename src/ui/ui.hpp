@@ -1,10 +1,10 @@
 #pragma once
 
-#include "scene/scene.hpp"
+#include "wm/wm.hpp"
 
 struct Ui;
 
-auto ui_create(Gpu*, Scene*, const std::filesystem::path& ini_dir) -> Ref<Ui>;
+auto ui_create(Gpu*, WindowManager*, const std::filesystem::path& ini_dir) -> Ref<Ui>;
 
 // -----------------------------------------------------------------------------
 
@@ -14,7 +14,7 @@ void ui_request_frame(Ui*);
 void ui_set_frame_handler(Ui*, std::move_only_function<UiFrameFn>&&);
 auto ui_get_texture(Ui*, GpuImage*, GpuSampler*, GpuBlendMode) -> ImTextureID;
 
-auto ui_get_window(ImGuiWindow*) -> SceneWindow*;
+auto ui_get_toplevel(ImGuiWindow*) -> WmWindow*;
 
 // -----------------------------------------------------------------------------
 

@@ -75,7 +75,7 @@ auto get_xcursor(Scene* scene, const char* semantic) -> SceneNode*
     });
     gpu_copy_memory_to_image(image.get(), as_bytes(cursor->pixels, cursor->width * cursor->height * 4), {{image->extent()}});
 
-    auto visual = scene_texture_create(scene);
+    auto visual = scene_texture_create();
     scene_texture_set_image(visual.get(), image.get(), scene->render.sampler.get(), GpuBlendMode::premultiplied);
     scene_texture_set_dst(visual.get(), {-vec2f32{cursor->xhot, cursor->yhot}, {cursor->width, cursor->height}, xywh});
 

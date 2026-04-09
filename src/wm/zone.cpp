@@ -50,7 +50,7 @@ void update_rectangle(WindowManager* wm)
 
     auto color = selecting ? c.color_selected : c.color_initial;
 
-    scene_tree_place_above(scene_get_layer(wm->scene, SceneLayer::overlay), nullptr, wm->zone.texture.get());
+    scene_tree_place_above(scene_get_layer(wm->scene.get(), SceneLayer::overlay), nullptr, wm->zone.texture.get());
     scene_texture_set_dst(wm->zone.texture.get(), rect);
     scene_texture_set_tint(wm->zone.texture.get(), color * 255.f);
 }
@@ -61,7 +61,7 @@ void zone_update_regions(WindowManager* wm)
     auto pointer = wm->zone.pointer;
     vec2f64 point = scene_pointer_get_position(pointer);
 
-    auto[output, position] = scene_find_output_for_point(wm->scene, point);
+    auto[output, position] = scene_find_output_for_point(wm->scene.get(), point);
 
     // TODO: Separate "workarea" concept per output
     aabb2i32 workarea = scene_output_get_viewport(output);
@@ -102,7 +102,7 @@ void zone_update_regions(WindowManager* wm)
 }
 
 static
-bool is_interactable(SceneWindow* window)
+bool is_interactable(WmWindow* window)
 {
     return true;
 }
@@ -121,7 +121,7 @@ void begin_zone(WindowManager* wm, ScenePointer* pointer)
 
     wm->zone.pointer = pointer;
 
-    auto window = scene_find_window_at(wm->scene, scene_pointer_get_position(pointer));
+    auto window = wm_find_window_at(wm, scene_pointer_get_position(pointer));
     if (window) {
         wm->zone.window = window;
         if (is_interactable(window)) {
@@ -142,7 +142,7 @@ void end_zone(WindowManager* wm)
     if (!wm->zone.selecting) return;
 
     if (auto* window = wm->zone.window.get()) {
-        scene_window_request_reposition(window, wm->zone.final_zone, {1, 1});
+        wm_window_request_reposition(window, wm->zone.final_zone, {1, 1});
     }
 }
 
@@ -210,8 +210,8 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
 
 void wm_init_zone(WindowManager* wm)
 {
-    wm->zone.texture = scene_texture_create(wm->scene);
-    wm->zone.filter = scene_add_input_event_filter(wm->scene, [wm](SceneEvent* event) {
+    wm->zone.texture = scene_texture_create();
+    wm->zone.filter = scene_add_input_event_filter(wm->scene.get(), [wm](SceneEvent* event) {
         return filter_event(wm, event);
     });
 }

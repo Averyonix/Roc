@@ -49,7 +49,7 @@ WaySeat::~WaySeat()
 
 void way_seat_init(WayServer* server)
 {
-    server->seat_listener = scene_client_create(server->scene);
+    server->seat_listener = scene_client_create(wm_get_scene(server->wm));
     scene_client_set_event_handler(server->seat_listener.get(), [server](SceneEvent* event) {
         switch (event->type) {
             break;case SceneEventType::seat_add:
@@ -237,7 +237,7 @@ void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SceneEvent* event)
     keyboard_leave(seat_client);
 
     if (surface->toplevel.window) {
-        scene_window_raise(surface->toplevel.window.get());
+        wm_window_raise(surface->toplevel.window.get());
     }
 
     seat->keyboard.scene = event->keyboard.keyboard;
