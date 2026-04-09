@@ -110,7 +110,7 @@ void io_wayland_start(IoContext* io)
             if (io) display_read(io.get(), events);
         });
 
-    io_add_output(io);
+    io_output_create(io);
 }
 
 void io_wayland_deinit(IoContext* io)

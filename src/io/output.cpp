@@ -10,8 +10,8 @@ void io_output_add(IoOutputBase* output)
     debug_assert(!std::ranges::contains(output->io->outputs, output));
     output->io->outputs.emplace_back(output);
     io_post_event(output->io, ptr_to(IoEvent {
-        .type = IoEventType::output_added,
         .output = {
+            .type = IoEventType::output_added,
             .output = output
         },
     }));
@@ -21,8 +21,8 @@ void io_output_remove(IoOutputBase* output)
 {
     if (std::erase(output->io->outputs, output)) {
         io_post_event(output->io, ptr_to(IoEvent {
-            .type = IoEventType::output_removed,
             .output = {
+                .type = IoEventType::output_removed,
                 .output = output
             },
         }));
@@ -40,8 +40,8 @@ void io_output_try_redraw(IoOutputBase* output)
     output->frame_requested = false;
 
     io_post_event(output->io, ptr_to(IoEvent {
-        .type = IoEventType::output_frame,
         .output = {
+            .type = IoEventType::output_frame,
             .output = output,
         }
     }));
@@ -65,8 +65,8 @@ void IoOutputBase::request_frame()
 void io_output_post_configure(IoOutputBase* output)
 {
     io_post_event(output->io, ptr_to(IoEvent {
-        .type = IoEventType::output_configure,
         .output = {
+            .type = IoEventType::output_configure,
             .output = output,
         }
     }));

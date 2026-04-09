@@ -7,8 +7,8 @@ void io_input_device_add(IoInputDeviceBase* device)
     debug_assert(!std::ranges::contains(device->io->input_devices, device));
     device->io->input_devices.emplace_back(device);
     io_post_event(device->io, ptr_to(IoEvent {
-        .type = IoEventType::input_added,
         .input = IoInputEvent {
+            .type = IoEventType::input_added,
             .device = device,
         },
     }));
@@ -18,8 +18,8 @@ void io_input_device_remove(IoInputDeviceBase* device)
 {
     if (std::erase(device->io->input_devices, device)) {
         io_post_event(device->io, ptr_to(IoEvent {
-            .type = IoEventType::input_removed,
             .input = IoInputEvent {
+                .type = IoEventType::input_removed,
                 .device = device,
             },
         }));
@@ -30,8 +30,8 @@ static
 void post_input(IoInputDeviceBase* device, bool quiet, std::span<const IoInputChannel> channels)
 {
     io_post_event(device->io, ptr_to(IoEvent {
-        .type = IoEventType::input_event,
-        .input = IoInputEvent {
+        .input = {
+            .type = IoEventType::input_event,
             .device = device,
             .quiet = quiet,
             .channels = channels,

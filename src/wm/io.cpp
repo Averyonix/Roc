@@ -29,7 +29,9 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
 
         // output
         break;case IoEventType::output_added:
-            wm->io.outputs.emplace_back(scene_output_create(wm->io.client.get(), SceneOutputFlag::workspace), event->output.output);
+            wm->io.outputs.emplace_back(
+                scene_output_create(wm->io.client.get(), SceneOutputFlag::workspace),
+                event->output.output);
             reflow_outputs(wm);
         break;case IoEventType::output_configure:
             reflow_outputs(wm);

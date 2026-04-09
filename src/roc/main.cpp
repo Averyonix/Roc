@@ -149,7 +149,7 @@ int main()
             }
 
             if (ImGui::Button("New Output")) {
-                io_add_output(io.get());
+                io_output_create(io.get());
             }
 
             if (ImGui::Button("Reposition")) {

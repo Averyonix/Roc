@@ -90,8 +90,8 @@ void io_request_shutdown(IoContext* io, IoShutdownReason reason)
 {
     exec_enqueue(io->exec, [io, reason] {
         io_post_event(io, ptr_to(IoEvent {
-            .type = IoEventType::shutdown_requested,
             .shutdown {
+                .type = IoEventType::shutdown_requested,
                 .reason = reason,
             }
         }));

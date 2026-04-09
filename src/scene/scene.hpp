@@ -33,7 +33,7 @@ void scene_request_frame(Scene*);
 
 // -----------------------------------------------------------------------------
 
-void scene_push_io_event(Scene* scene, struct IoEvent*);
+void scene_push_io_event(Scene* scene, union IoEvent*);
 
 // -----------------------------------------------------------------------------
 
@@ -309,8 +309,6 @@ auto scene_visit(SceneNode* node, Visit&& visit)
     } else {
         return visit(node);
     }
-
-    debug_unreachable();
 }
 
 

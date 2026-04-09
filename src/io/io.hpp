@@ -89,6 +89,7 @@ enum class IoShutdownReason
 
 struct IoShutdownEvent
 {
+    IoEventType type;
     IoShutdownReason reason;
 };
 
@@ -116,6 +117,7 @@ struct IoInputChannel
  */
 struct IoInputEvent
 {
+    IoEventType type;
     IoInputDevice* device;
     bool quiet;
     std::span<const IoInputChannel> channels;
@@ -125,20 +127,19 @@ struct IoInputEvent
 
 struct IoOutputEvent
 {
-    IoOutput* output;
+    IoEventType type;
+    IoOutput*   output;
 };
 
 // -----------------------------------------------------------------------------
 
-struct IoEvent
+union IoEvent
 {
     IoEventType type;
 
-    union {
-        IoShutdownEvent shutdown;
-        IoInputEvent    input;
-        IoOutputEvent   output;
-    };
+    IoShutdownEvent shutdown;
+    IoInputEvent    input;
+    IoOutputEvent   output;
 };
 
 using IoEventHandler = void(IoEvent*);
@@ -150,5 +151,5 @@ void io_set_event_handler(IoContext*, std::move_only_function<IoEventHandler>&&)
 void io_run( IoContext*);
 void io_stop(IoContext*);
 
-void io_add_output(  IoContext*);
-void io_close_output(IoOutput*);
+void io_output_create( IoContext*);
+void io_output_destroy(IoOutput*);

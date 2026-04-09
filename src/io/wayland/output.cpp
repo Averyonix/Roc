@@ -121,10 +121,10 @@ IO_WL_LISTENER(zwp_locked_pointer_v1) = {
     },
 };
 
-void io_add_output(IoContext* io)
+static
+void create_output(IoContext* io)
 {
     auto* wl = io->wayland.get();
-    if (!wl) return;
 
     static u32 window_id = 0;
     auto title = std::format("WL-{}", ++window_id);
@@ -166,6 +166,15 @@ void io_add_output(IoContext* io)
     wl_display_flush(wl->wl_display);
 
     io_output_add(output.get());
+}
+
+void io_output_create(IoContext* io)
+{
+    if (!io->wayland) return;
+
+    exec_enqueue(io->exec, [io] {
+        create_output(io);
+    });
 }
 
 // -----------------------------------------------------------------------------
