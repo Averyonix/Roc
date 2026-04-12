@@ -16,7 +16,7 @@ struct WayClient : WayObject
 
     wl_client* wl_client;
 
-    Ref<SceneClient> scene;
+    Ref<SeatClient> scene;
 
     std::vector<WaySurface*> surfaces;
     std::vector<WaySeatClient*> seat_clients;

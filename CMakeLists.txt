@@ -72,6 +72,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(libevdev REQUIRED IMPORTED_TARGET libevdev)
 pkg_check_modules(libgio2  REQUIRED IMPORTED_TARGET gio-2.0 gio-unix-2.0 gobject-2.0 glib-2.0)
 pkg_check_modules(libdrm   REQUIRED IMPORTED_TARGET libdrm)
+pkg_check_modules(libseat  REQUIRED IMPORTED_TARGET libseat)
 
 # ------------------------------------------------------------------------------
 #       Git Dependencies
@@ -175,7 +176,7 @@ target_link_libraries(core PUBLIC
     Xcursor
     PkgConfig::libdrm
     udev
-    seat
+    PkgConfig::libseat
     imgui
     cap
     PkgConfig::libgio2
@@ -230,7 +231,7 @@ target_sources(io-test PRIVATE src/io/main.cpp)
 target_link_libraries(io-test PUBLIC io)
 
 # ------------------------------------------------------------------------------
-#       Scene Compositor
+#       Scene
 # ------------------------------------------------------------------------------
 
 init_library(scene)
@@ -252,6 +253,17 @@ target_sources(scene PRIVATE
 target_link_libraries(scene PUBLIC io)
 
 # ------------------------------------------------------------------------------
+#       Seat
+# ------------------------------------------------------------------------------
+
+init_library(seat)
+target_sources(seat PRIVATE
+    src/seat/keyboard.cpp
+    src/seat/pointer.cpp
+    )
+target_link_libraries(seat PUBLIC core)
+
+# ------------------------------------------------------------------------------
 #       Window Manager
 # ------------------------------------------------------------------------------
 
@@ -265,7 +277,7 @@ target_sources(wm PRIVATE
     src/wm/hotkeys.cpp
     src/wm/zone.cpp
     )
-target_link_libraries(wm PUBLIC scene)
+target_link_libraries(wm PUBLIC scene seat)
 
 # ------------------------------------------------------------------------------
 #       UI
@@ -275,7 +287,7 @@ init_library(ui)
 target_sources(ui PRIVATE
     src/ui/ui.cpp
     )
-target_link_libraries(ui PUBLIC scene)
+target_link_libraries(ui PUBLIC wm)
 
 # ------------------------------------------------------------------------------
 #       Wayland
@@ -307,7 +319,7 @@ target_sources(way PRIVATE
     src/way/surface/surface.cpp
     src/way/surface/viewport.cpp
     )
-target_link_libraries(way PUBLIC scene)
+target_link_libraries(way PUBLIC wm)
 
 # ------------------------------------------------------------------------------
 #       Roc

@@ -26,30 +26,24 @@ struct WmLinearAccel
     }
 };
 
-static
-void handle_seat_event(WindowManager* wm, SceneEvent* event)
+auto wm_get_seat(WindowManager* wm) -> Seat*
 {
-    switch (event->type) {
-        break;case SceneEventType::seat_add: {
-            auto* pointer = scene_seat_get_pointer(event->seat);
-            scene_pointer_set_xcursor(pointer, "default");
-            scene_pointer_set_accel(  pointer, WmLinearAccel {
-                .offset     = 2.f,
-                .rate       = 0.05f,
-                .multiplier = 0.3f
-            });
-        }
-        break;default:
-            ;
-    }
+    return wm->seat.get();
 }
 
 void wm_init_seat(WindowManager* wm)
 {
+    auto seats = scene_get_seats(wm->scene.get());
+    debug_assert(!seats.empty());
+    wm->seat = seats.front();
+
     // Pointer
 
-    wm->seat.client = scene_client_create(wm->scene.get());
-    scene_client_set_event_handler(wm->seat.client.get(), [wm](SceneEvent* event) {
-        handle_seat_event(wm, event);
+    auto* pointer = seat_get_pointer(wm->seat.get());
+    seat_pointer_set_xcursor(pointer, "default");
+    seat_pointer_set_accel(  pointer, WmLinearAccel {
+        .offset     = 2.f,
+        .rate       = 0.05f,
+        .multiplier = 0.3f
     });
 }

@@ -12,7 +12,7 @@ struct RocLauncher
     std::string filter;
     const WmLauncherApp* selected = 0;
 
-    Ref<SceneEventFilter> event_filter;
+    Ref<SeatEventFilter> event_filter;
 
     bool show = false;
     bool grab_focus = false;
@@ -157,17 +157,17 @@ auto roc_init_launcher(Roc* roc) -> Ref<void>
         frame(launcher);
     });
 
-    launcher->event_filter = scene_add_input_event_filter(wm_get_scene(roc->wm), [launcher = launcher.get()](SceneEvent* event) -> SceneEventFilterResult {
-        if (event->type != SceneEventType::keyboard_key) return {};
+    launcher->event_filter = seat_add_input_event_filter(wm_get_seat(roc->wm), [launcher = launcher.get()](SeatEvent* event) -> SeatEventFilterResult {
+        if (event->type != SeatEventType::keyboard_key) return {};
 
         auto key = event->keyboard.key;
         if (!key.pressed || key.code != KEY_D) return {};
 
-        auto mods = scene_keyboard_get_modifiers(event->keyboard.keyboard);
+        auto mods = seat_keyboard_get_modifiers(event->keyboard.keyboard);
         if (!mods.contains(launcher->roc->main_mod)) return {};
 
         show(launcher);
-        return SceneEventFilterResult::capture;
+        return SeatEventFilterResult::capture;
     });
 
     return launcher;

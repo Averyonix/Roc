@@ -2,48 +2,18 @@
 
 #include "core/math.hpp"
 
-auto scene_input_device_get_type(SceneInputDevice* device) -> SceneInputDeviceType
-{
-    return device->type;
-}
-
-auto scene_input_device_get_pointer(SceneInputDevice* device) -> ScenePointer*
-{
-    return device->type == SceneInputDeviceType::pointer
-        ? static_cast<ScenePointer*>(device)
-        : nullptr;
-}
-
-auto scene_input_device_get_keyboard(SceneInputDevice* device) -> SceneKeyboard*
-{
-    return device->type == SceneInputDeviceType::keyboard
-        ? static_cast<SceneKeyboard*>(device)
-        : nullptr;
-}
-
-auto scene_input_device_get_focus(SceneInputDevice* device) -> SceneInputRegion*
-{
-    return device->focus;
-}
-
-auto scene_input_device_get_seat(SceneInputDevice* device)  -> SceneSeat*
-{
-    return device->seat;
-}
-
 // -----------------------------------------------------------------------------
 
-SceneKeyboard::~SceneKeyboard()
+SeatKeyboard::~SeatKeyboard()
 {
     xkb_keymap_unref(keymap);
     xkb_state_unref(state);
     xkb_context_unref(context);
 }
 
-auto scene_keyboard_create(SceneSeat* seat) -> Ref<SceneKeyboard>
+auto seat_keyboard_create(Seat* seat) -> Ref<SeatKeyboard>
 {
-    auto keyboard = ref_create<SceneKeyboard>();
-    keyboard->type = SceneInputDeviceType::keyboard;
+    auto keyboard = ref_create<SeatKeyboard>();
     keyboard->seat = seat;
 
     keyboard->rate = 25;
@@ -61,21 +31,21 @@ auto scene_keyboard_create(SceneSeat* seat) -> Ref<SceneKeyboard>
 
     // Get XKB modifier masks
 
-    keyboard->mod_masks[SceneModifier::shift] = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_SHIFT);
-    keyboard->mod_masks[SceneModifier::ctrl]  = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_CTRL);
-    keyboard->mod_masks[SceneModifier::caps]  = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_CAPS);
-    keyboard->mod_masks[SceneModifier::super] = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_SUPER);
-    keyboard->mod_masks[SceneModifier::alt]   = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_ALT)
+    keyboard->mod_masks[SeatModifier::shift] = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_SHIFT);
+    keyboard->mod_masks[SeatModifier::ctrl]  = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_CTRL);
+    keyboard->mod_masks[SeatModifier::caps]  = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_CAPS);
+    keyboard->mod_masks[SeatModifier::super] = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_SUPER);
+    keyboard->mod_masks[SeatModifier::alt]   = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_ALT)
                                                | xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_LEVEL3);
-    keyboard->mod_masks[SceneModifier::num]   = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_NUM);
+    keyboard->mod_masks[SeatModifier::num]   = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_NUM);
 
     return keyboard;
 }
 
 static
-auto get_modifiers(SceneKeyboard* keyboard, Flags<xkb_state_component> component) -> Flags<SceneModifier>
+auto get_modifiers(SeatKeyboard* keyboard, Flags<xkb_state_component> component) -> Flags<SeatModifier>
 {
-    Flags<SceneModifier> down = {};
+    Flags<SeatModifier> down = {};
     auto xkb_mods = xkb_state_serialize_mods(keyboard->state, component.get());
     for (auto mod : keyboard->mod_masks.enum_values) {
         if (xkb_mods & keyboard->mod_masks[mod]) down |= mod;
@@ -83,37 +53,36 @@ auto get_modifiers(SceneKeyboard* keyboard, Flags<xkb_state_component> component
     return down;
 }
 
-auto scene_keyboard_get_modifiers(SceneKeyboard* keyboard, Flags<SceneModifierFlag> flags) -> Flags<SceneModifier>
+auto seat_keyboard_get_modifiers(SeatKeyboard* keyboard, Flags<SeatModifierFlag> flags) -> Flags<SeatModifier>
 {
     auto mods = keyboard->depressed | keyboard->latched;
-    if (!flags.contains(SceneModifierFlag::ignore_locked)) mods |= keyboard->locked;
+    if (!flags.contains(SeatModifierFlag::ignore_locked)) mods |= keyboard->locked;
     return mods;
 }
 
-auto scene_seat_get_modifiers(SceneSeat* seat, Flags<SceneModifierFlag> flags) -> Flags<SceneModifier>
+auto seat_get_modifiers(Seat* seat, Flags<SeatModifierFlag> flags) -> Flags<SeatModifier>
 {
-    return scene_keyboard_get_modifiers(scene_seat_get_keyboard(seat), flags);
+    return seat_keyboard_get_modifiers(seat_get_keyboard(seat), flags);
 }
 
 static
-xkb_keycode_t evdev_to_xkb(SceneScancode code)
+xkb_keycode_t evdev_to_xkb(SeatInputCode code)
 {
     return code + 8;
 }
 
 static
-bool post_input_event(Weak<SceneInputDevice> device, SceneEvent* event)
+bool post_input_event(Weak<SeatInputDevice> device, SeatEvent* event)
 {
-    auto* scene = device->seat->scene;
-    for (auto* filter : scene->input_event_filters) {
-        if (filter->filter(event) == SceneEventFilterResult::capture) {
+    for (auto* filter : device->seat->input_event_filters) {
+        if (filter->filter(event) == SeatEventFilterResult::capture) {
             return false;
         }
     }
 
     if (!device) return false;
     if (device->focus) {
-        scene_client_post_event(device->focus->client, event);
+        seat_client_post_event(device->focus->client, event);
         return true;
     }
 
@@ -121,14 +90,14 @@ bool post_input_event(Weak<SceneInputDevice> device, SceneEvent* event)
 }
 
 static
-Flags<xkb_state_component> handle_key(SceneKeyboard* keyboard, SceneScancode code, bool pressed, bool quiet)
+Flags<xkb_state_component> handle_key(SeatKeyboard* keyboard, SeatInputCode code, bool pressed, bool quiet)
 {
     if (pressed ? keyboard->pressed.inc(code) : keyboard->pressed.dec(code)) {
         auto changed_components = xkb_state_update_key(keyboard->state, evdev_to_xkb(code), pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
 
-        post_input_event(keyboard, ptr_to(SceneEvent {
-            .type = SceneEventType::keyboard_key,
+        post_input_event(keyboard, ptr_to(SeatEvent {
             .keyboard = {
+                .type = SeatEventType::keyboard_key,
                 .keyboard = keyboard,
                 .key = {
                     .code = code,
@@ -145,7 +114,7 @@ Flags<xkb_state_component> handle_key(SceneKeyboard* keyboard, SceneScancode cod
 }
 
 static
-auto get_keyboard_leds(SceneKeyboard* keyboard) -> Flags<libinput_led>
+auto get_keyboard_leds(SeatKeyboard* keyboard) -> Flags<libinput_led>
 {
     Flags<libinput_led> leds = {};
     if (xkb_state_led_name_is_active(keyboard->state, XKB_LED_NAME_NUM)    > 0) leds |= LIBINPUT_LED_NUM_LOCK;
@@ -155,12 +124,12 @@ auto get_keyboard_leds(SceneKeyboard* keyboard) -> Flags<libinput_led>
 }
 
 static
-void update_leds(SceneSeat* seat)
+void update_leds(Seat* seat)
 {
     if (seat->led_devices.empty()) return;
 
     // TODO: How to manage LED output across multiple keyboards
-    auto leds = get_keyboard_leds(scene_seat_get_keyboard(seat));
+    auto leds = get_keyboard_leds(seat_get_keyboard(seat));
 
     for (auto& device : seat->led_devices) {
         device->update_leds(leds);
@@ -168,16 +137,16 @@ void update_leds(SceneSeat* seat)
 }
 
 static
-void handle_xkb_component_updates(SceneKeyboard* keyboard, Flags<xkb_state_component> changed)
+void handle_xkb_component_updates(SeatKeyboard* keyboard, Flags<xkb_state_component> changed)
 {
     if (changed & XKB_STATE_MODS_DEPRESSED) keyboard->depressed = get_modifiers(keyboard, XKB_STATE_MODS_DEPRESSED);
     if (changed & XKB_STATE_MODS_LATCHED)   keyboard->depressed = get_modifiers(keyboard, XKB_STATE_MODS_LATCHED);
     if (changed & XKB_STATE_MODS_LOCKED)    keyboard->depressed = get_modifiers(keyboard, XKB_STATE_MODS_LOCKED);
 
     if (changed & XKB_STATE_MODS_EFFECTIVE) {
-        post_input_event(keyboard, ptr_to(SceneEvent {
-            .type = SceneEventType::keyboard_modifier,
+        post_input_event(keyboard, ptr_to(SeatEvent {
             .keyboard = {
+                .type = SeatEventType::keyboard_modifier,
                 .keyboard = keyboard,
             },
         }));
@@ -186,7 +155,7 @@ void handle_xkb_component_updates(SceneKeyboard* keyboard, Flags<xkb_state_compo
     if (changed & XKB_STATE_LEDS) update_leds(keyboard->seat);
 }
 
-void scene_keyboard_focus(SceneKeyboard* keyboard, SceneInputRegion* new_focus)
+void seat_keyboard_focus(SeatKeyboard* keyboard, SeatInputRegion* new_focus)
 {
     auto old_focus = keyboard->focus;
 
@@ -198,18 +167,18 @@ void scene_keyboard_focus(SceneKeyboard* keyboard, SceneInputRegion* new_focus)
     auto new_client = scene_get_focus_client(new_focus);
 
     if (old_client && (old_client != new_client)) {
-        scene_client_post_event(old_client, ptr_to(SceneEvent {
-            .type = SceneEventType::keyboard_leave,
+        seat_client_post_event(old_client, ptr_to(SeatEvent {
             .keyboard = {
+                .type = SeatEventType::keyboard_leave,
                 .keyboard = keyboard,
             },
         }));
     }
 
     if (new_focus) {
-        scene_client_post_event(new_client, ptr_to(SceneEvent {
-            .type = SceneEventType::keyboard_enter,
+        seat_client_post_event(new_client, ptr_to(SeatEvent {
             .keyboard = {
+                .type = SeatEventType::keyboard_enter,
                 .keyboard = keyboard,
                 .focus = new_focus,
             },
@@ -217,27 +186,27 @@ void scene_keyboard_focus(SceneKeyboard* keyboard, SceneInputRegion* new_focus)
     }
 }
 
-auto scene_keyboard_get_focus(SceneKeyboard* keyboard) -> SceneInputRegion*
+auto seat_keyboard_get_focus(SeatKeyboard* keyboard) -> SeatInputRegion*
 {
-    return scene_input_device_get_focus(keyboard);
+    return keyboard->focus;
 }
 
-auto scene_keyboard_get_base(SceneKeyboard* keyboard) -> SceneInputDevice*
+auto seat_keyboard_get_seat(SeatKeyboard* keyboard) -> Seat*
 {
-    return keyboard;
+    return keyboard->seat;
 }
 
-auto scene_keyboard_get_pressed(SceneKeyboard* keyboard) -> std::span<const SceneScancode>
+auto seat_keyboard_get_pressed(SeatKeyboard* keyboard) -> std::span<const SeatInputCode>
 {
     return keyboard->pressed;
 }
 
-auto scene_keyboard_get_sym(SceneKeyboard* keyboard, SceneScancode code) -> xkb_keysym_t
+auto seat_keyboard_get_sym(SeatKeyboard* keyboard, SeatInputCode code) -> xkb_keysym_t
 {
     return xkb_state_key_get_one_sym(keyboard->state, evdev_to_xkb(code));
 }
 
-auto scene_keyboard_get_utf8(SceneKeyboard* keyboard, SceneScancode code) -> std::string
+auto seat_keyboard_get_utf8(SeatKeyboard* keyboard, SeatInputCode code) -> std::string
 {
     std::string utf8;
     utf8.resize(xkb_state_key_get_utf8(keyboard->state, evdev_to_xkb(code), nullptr, 0));
@@ -245,21 +214,21 @@ auto scene_keyboard_get_utf8(SceneKeyboard* keyboard, SceneScancode code) -> std
     return utf8;
 }
 
-auto scene_keyboard_get_info(SceneKeyboard* keyboard) -> const SceneKeyboardInfo&
+auto seat_keyboard_get_info(SeatKeyboard* keyboard) -> const SeatKeyboardInfo&
 {
     return *keyboard;
 }
 
 // -----------------------------------------------------------------------------
 
-auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SceneInputRegion*
+auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SeatInputRegion*
 {
-    SceneInputRegion* region = nullptr;
+    SeatInputRegion* region = nullptr;
 
     scene_iterate<SceneIterateDirection::front_to_back>(tree,
         scene_iterate_default,
         [&](SceneNode* node) {
-            if (auto input_region = dynamic_cast<SceneInputRegion*>(node)) {
+            if (auto input_region = dynamic_cast<SeatInputRegion*>(node)) {
                 if (input_region->region.contains(pos - scene_tree_get_position(input_region->parent))) {
                     region = input_region;
                     return SceneIterateAction::stop;
@@ -272,7 +241,7 @@ auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SceneInputRegio
     return region;
 }
 
-void scene_pointer_focus(ScenePointer* pointer, SceneInputRegion* new_focus)
+void seat_pointer_focus(SeatPointer* pointer, SeatInputRegion* new_focus)
 {
     auto* old_focus = pointer->focus;
 
@@ -284,18 +253,18 @@ void scene_pointer_focus(ScenePointer* pointer, SceneInputRegion* new_focus)
     pointer->focus = new_focus;
 
     if (old_client && old_client != new_client) {
-        scene_client_post_event(old_client, ptr_to(SceneEvent {
-            .type = SceneEventType::pointer_leave,
+        seat_client_post_event(old_client, ptr_to(SeatEvent {
             .pointer = {
+                .type = SeatEventType::pointer_leave,
                 .pointer = pointer,
             },
         }));
     }
 
     if (new_client) {
-        scene_client_post_event(new_client, ptr_to(SceneEvent {
-            .type = SceneEventType::pointer_enter,
+        seat_client_post_event(new_client, ptr_to(SeatEvent {
             .pointer = {
+                .type = SeatEventType::pointer_enter,
                 .pointer = pointer,
                 .focus= new_focus,
             }
@@ -303,48 +272,42 @@ void scene_pointer_focus(ScenePointer* pointer, SceneInputRegion* new_focus)
     }
 
     if (!new_focus) {
-        scene_pointer_set_xcursor(pointer, "default");
+        seat_pointer_set_xcursor(pointer, "default");
     }
 }
 
 static
-void update_pointer_focus(ScenePointer* pointer)
+void update_pointer_focus(SeatPointer* pointer)
 {
-    SceneInputRegion* new_focus = nullptr;
+    SeatInputRegion* new_focus = nullptr;
 
-    if (!scene_pointer_get_pressed(pointer).empty()) {
+    if (!seat_pointer_get_pressed(pointer).empty()) {
         // Pointer retains old focus while any pointer buttons pressed
         new_focus = pointer->focus;
 
-    } else if (auto* region = scene_find_input_region_at(pointer->seat->scene->root_tree.get(), scene_pointer_get_position(pointer))) {
+    } else if (auto* region = scene_find_input_region_at(pointer->seat->scene->root_tree.get(), seat_pointer_get_position(pointer))) {
         new_focus = region;
     }
 
-    scene_pointer_focus(pointer, new_focus);
+    seat_pointer_focus(pointer, new_focus);
 }
 
-auto scene_pointer_get_base(ScenePointer* pointer) -> SceneInputDevice*
-{
-    return pointer;
-}
-
-auto scene_pointer_get_position(ScenePointer* pointer) -> vec2f32
+auto seat_pointer_get_position(SeatPointer* pointer) -> vec2f32
 {
     return scene_tree_get_position(pointer->tree.get());
 }
 
-auto scene_pointer_get_pressed(ScenePointer* pointer) -> std::span<const SceneScancode>
+auto seat_pointer_get_pressed(SeatPointer* pointer) -> std::span<const SeatInputCode>
 {
     return pointer->pressed;
 }
 
 // -----------------------------------------------------------------------------
 
-auto scene_pointer_create(SceneSeat* seat) -> Ref<ScenePointer>
+auto seat_pointer_create(Seat* seat) -> Ref<SeatPointer>
 {
-    auto pointer = ref_create<ScenePointer>();
+    auto pointer = ref_create<SeatPointer>();
     pointer->seat = seat;
-    pointer->type = SceneInputDeviceType::pointer;
 
     pointer->accel = [](vec2f32 delta) { return delta; };
 
@@ -355,12 +318,12 @@ auto scene_pointer_create(SceneSeat* seat) -> Ref<ScenePointer>
 }
 
 static
-void handle_button(ScenePointer* pointer, SceneScancode code, bool pressed, bool quiet)
+void handle_button(SeatPointer* pointer, SeatInputCode code, bool pressed, bool quiet)
 {
     if (pressed ? pointer->pressed.inc(code) : pointer->pressed.dec(code)) {
-        if (post_input_event(pointer, ptr_to(SceneEvent {
-            .type = SceneEventType::pointer_button,
+        if (post_input_event(pointer, ptr_to(SeatEvent {
             .pointer = {
+                .type = SeatEventType::pointer_button,
                 .pointer = pointer,
                 .button = {
                     .code    = code,
@@ -369,12 +332,12 @@ void handle_button(ScenePointer* pointer, SceneScancode code, bool pressed, bool
                 },
         }}))) {
             if (pressed) {
-                scene_keyboard_focus(
-                    scene_seat_get_keyboard(pointer->seat),
+                seat_keyboard_focus(
+                    seat_get_keyboard(pointer->seat),
                     pointer->focus);
             }
         } else if (pressed) {
-            scene_keyboard_focus(scene_seat_get_keyboard(pointer->seat), nullptr);
+            seat_keyboard_focus(seat_get_keyboard(pointer->seat), nullptr);
         }
         if (!pressed) {
             update_pointer_focus(pointer);
@@ -383,9 +346,9 @@ void handle_button(ScenePointer* pointer, SceneScancode code, bool pressed, bool
 }
 
 static
-void handle_motion(ScenePointer* pointer, vec2f32 delta)
+void handle_motion(SeatPointer* pointer, vec2f32 delta)
 {
-    auto cur = scene_pointer_get_position(pointer);
+    auto cur = seat_pointer_get_position(pointer);
 
     auto delta_accel = pointer->accel(delta);
 
@@ -396,9 +359,9 @@ void handle_motion(ScenePointer* pointer, vec2f32 delta)
 
     update_pointer_focus(pointer);
 
-    post_input_event(pointer, ptr_to(SceneEvent {
-        .type = SceneEventType::pointer_motion,
+    post_input_event(pointer, ptr_to(SeatEvent {
         .pointer = {
+            .type = SeatEventType::pointer_motion,
             .pointer = pointer,
             .motion = {
                 .rel_accel   = delta_accel,
@@ -411,18 +374,18 @@ void handle_motion(ScenePointer* pointer, vec2f32 delta)
 void scene_update_pointers(Scene* scene)
 {
     for (auto* seat : scene_get_seats(scene)) {
-        if (auto* pointer = scene_seat_get_pointer(seat)) {
+        if (auto* pointer = seat_get_pointer(seat)) {
             handle_motion(pointer, {});
         }
     }
 }
 
 static
-void handle_scroll(ScenePointer* pointer, vec2f32 delta)
+void handle_scroll(SeatPointer* pointer, vec2f32 delta)
 {
-    post_input_event(pointer, ptr_to(SceneEvent {
-        .type = SceneEventType::pointer_scroll,
+    post_input_event(pointer, ptr_to(SeatEvent {
         .pointer = {
+            .type = SeatEventType::pointer_scroll,
             .pointer = pointer,
             .scroll = {
                 .delta = delta,
@@ -431,64 +394,79 @@ void handle_scroll(ScenePointer* pointer, vec2f32 delta)
     }));
 }
 
-auto scene_pointer_get_focus(ScenePointer* pointer) -> SceneInputRegion*
+auto seat_pointer_get_focus(SeatPointer* pointer) -> SeatInputRegion*
 {
-    return scene_input_device_get_focus(pointer);
+    return pointer->focus;
 }
 
-void scene_pointer_set_accel(ScenePointer* pointer, std::move_only_function<ScenePointerAccelFn>&& accel)
+auto seat_pointer_get_seat(SeatPointer* pointer) -> Seat*
+{
+    return pointer->seat;
+}
+
+void seat_pointer_set_accel(SeatPointer* pointer, std::move_only_function<SeatPointerAccelFn>&& accel)
 {
     pointer->accel = std::move(accel);
 }
 
 // -----------------------------------------------------------------------------
 
-void scene_handle_input_added(SceneSeat* seat, IoInputDevice* device)
+static
+void handle_input_added(Seat* seat, IoInputDevice* device)
 {
     if (device->info().capabilities.contains(IoInputDeviceCapability::libinput_led)) {
         seat->led_devices.emplace_back(device);
     }
 }
 
-void scene_handle_input_removed(SceneSeat* seat, IoInputDevice* device)
+static
+void handle_input_removed(Seat* seat, IoInputDevice* device)
 {
     std::erase(seat->led_devices, device);
 }
 
+enum class SeatDeviceType
+{
+    invalid,
+    keyboard,
+    pointer,
+};
+
 static
-auto categorize_key(SceneScancode code) -> SceneInputDeviceType
+auto categorize_key(SeatInputCode code) -> SeatDeviceType
 {
     switch (code) {
         break;case BTN_MOUSE ... BTN_TASK:
-            return SceneInputDeviceType::pointer;
+            return SeatDeviceType::pointer;
         break;case KEY_ESC        ... KEY_MICMUTE:
               case KEY_OK         ... KEY_LIGHTS_TOGGLE:
               case KEY_ALS_TOGGLE ... KEY_PERFORMANCE:
-            return SceneInputDeviceType::keyboard;
+            return SeatDeviceType::keyboard;
         break;default:
-            return SceneInputDeviceType::invalid;
+            return SeatDeviceType::invalid;
     }
 }
 
-void scene_handle_input(SceneSeat* seat, const IoInputEvent& event)
+static
+void handle_input(Seat* seat, const IoInputEvent& event)
 {
     vec2f32 motion = {};
     vec2f32 scroll = {};
     Flags<xkb_state_component> xkb_updates = {};
 
     // TODO: Multiple input devices
-    auto* pointer = scene_seat_get_pointer(seat);
-    auto* keyboard  = scene_seat_get_keyboard(seat);
+    auto* pointer = seat_get_pointer(seat);
+    auto* keyboard  = seat_get_keyboard(seat);
 
     for (auto& channel : event.channels) {
         switch (channel.type) {
             break;case EV_KEY:
                 switch (categorize_key(channel.code)) {
-                    break;case SceneInputDeviceType::pointer:
+                    break;case SeatDeviceType::pointer:
                         handle_button(pointer, channel.code, channel.value, event.quiet);
-                    break;case SceneInputDeviceType::keyboard:
+                    break;case SeatDeviceType::keyboard:
                         xkb_updates |= handle_key(keyboard, channel.code, channel.value, event.quiet);
-                    break;case SceneInputDeviceType::invalid:
+                    break;case SeatDeviceType::invalid:
                         log_warn("Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
                 }
             break;case EV_REL:
@@ -507,4 +485,25 @@ void scene_handle_input(SceneSeat* seat, const IoInputEvent& event)
     if (scroll.x || scroll.y) handle_scroll(pointer, scroll);
 
     if (xkb_updates) handle_xkb_component_updates(keyboard, xkb_updates);
+}
+
+void seat_push_io_event(Seat* seat, IoEvent* event)
+{
+    switch (event->type) {
+        break;case IoEventType::shutdown_requested:
+            ;
+
+        break;case IoEventType::input_added:
+            handle_input_added(seat, event->input.device);
+        break;case IoEventType::input_removed:
+            handle_input_removed(seat, event->input.device);
+        break;case IoEventType::input_event:
+            handle_input(seat, event->input);
+
+        break;case IoEventType::output_configure:
+              case IoEventType::output_frame:
+              case IoEventType::output_added:
+              case IoEventType::output_removed:
+            ;
+    }
 }

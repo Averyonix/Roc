@@ -1,20 +1,23 @@
 #include "internal.hpp"
 
-struct scene_cursor_manager
+struct SeatCursorManager
 {
-    const char* theme = "breeze_cursors";
-    i32         size = 24;
+    std::string theme;
+    i32         size;
 
     ankerl::unordered_dense::map<std::string_view, Ref<SceneNode>> cache;
 };
 
-void scene_cursor_manager_init(Scene* scene)
+auto scene_cursor_manager_create(const char* theme, i32 size) -> Ref<SeatCursorManager>
 {
-    scene->cursor_manager = ref_create<scene_cursor_manager>();
+    auto cursor_manager = ref_create<SeatCursorManager>();
+    cursor_manager->theme = theme;
+    cursor_manager->size = size;
+    return cursor_manager;
 }
 
 static
-auto get_visual(ScenePointer* pointer) -> SceneNode*
+auto get_visual(SeatPointer* pointer) -> SceneNode*
 {
     debug_assert(pointer->tree->children.size() <= 1);
 
@@ -24,7 +27,7 @@ auto get_visual(ScenePointer* pointer) -> SceneNode*
 }
 
 static
-void set_visual(ScenePointer* pointer, SceneNode* visual)
+void set_visual(SeatPointer* pointer, SceneNode* visual)
 {
     debug_assert(get_visual(pointer) != visual);
 
@@ -37,7 +40,7 @@ void set_visual(ScenePointer* pointer, SceneNode* visual)
     }
 }
 
-void scene_pointer_set_cursor(ScenePointer* pointer, SceneNode* visual)
+void seat_pointer_set_cursor(SeatPointer* pointer, SceneNode* visual)
 {
     if (visual != get_visual(pointer)) {
         log_trace("scene.pointer.set_cursor({})", visual ? std::format("{}", (void*)visual) : "nullptr");
@@ -57,7 +60,7 @@ auto get_xcursor(Scene* scene, const char* semantic) -> SceneNode*
 
     log_debug("Loading XCursor icon \"{}\"", semantic);
 
-    auto* cursor = XcursorLibraryLoadImage(semantic, manager->theme, manager->size);
+    auto* cursor = XcursorLibraryLoadImage(semantic, manager->theme.c_str(), manager->size);
 
     if (!cursor) {
         debug_assert("default"sv != semantic);
@@ -84,7 +87,7 @@ auto get_xcursor(Scene* scene, const char* semantic) -> SceneNode*
     return visual.get();
 }
 
-void scene_pointer_set_xcursor(ScenePointer* pointer, const char* semantic)
+void seat_pointer_set_xcursor(SeatPointer* pointer, const char* semantic)
 {
     auto visual = semantic ? get_xcursor(pointer->seat->scene, semantic) : nullptr;
 

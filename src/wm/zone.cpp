@@ -59,7 +59,7 @@ static
 void zone_update_regions(WindowManager* wm)
 {
     auto pointer = wm->zone.pointer;
-    vec2f64 point = scene_pointer_get_position(pointer);
+    vec2f64 point = seat_pointer_get_position(pointer);
 
     auto[output, position] = wm_find_output_at(wm, point);
 
@@ -115,13 +115,13 @@ void toggle_selecting(WindowManager* wm)
 }
 
 static
-void begin_zone(WindowManager* wm, ScenePointer* pointer)
+void begin_zone(WindowManager* wm, SeatPointer* pointer)
 {
     wm->mode = WmInteractionMode::zone;
 
     wm->zone.pointer = pointer;
 
-    auto window = wm_find_window_at(wm, scene_pointer_get_position(pointer));
+    auto window = wm_find_window_at(wm, seat_pointer_get_position(pointer));
     if (window) {
         wm->zone.window = window;
         if (is_interactable(window)) {
@@ -147,25 +147,25 @@ void end_zone(WindowManager* wm)
 }
 
 static
-auto filter_event_zone(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event_zone(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (event->type) {
-        break;case SceneEventType::pointer_motion:
+        break;case SeatEventType::pointer_motion:
             if (event->pointer.pointer == wm->zone.pointer) zone_update_regions(wm);
-        break;case SceneEventType::pointer_button:
+        break;case SeatEventType::pointer_button:
             if (event->pointer.pointer == wm->zone.pointer) {
                 if (event->pointer.button.pressed) {
                     if (event->pointer.button.code == BTN_RIGHT) {
                         toggle_selecting(wm);
                     }
-                    return SceneEventFilterResult::capture;
+                    return SeatEventFilterResult::capture;
                 }
-                if (scene_pointer_get_pressed(wm->zone.pointer).empty()) {
+                if (seat_pointer_get_pressed(wm->zone.pointer).empty()) {
                     end_zone(wm);
                 }
             }
-        break;case SceneEventType::pointer_scroll:
-            if (event->pointer.pointer == wm->zone.pointer) return SceneEventFilterResult::capture;
+        break;case SeatEventType::pointer_scroll:
+            if (event->pointer.pointer == wm->zone.pointer) return SeatEventFilterResult::capture;
         break;default:
             ;
     }
@@ -174,25 +174,25 @@ auto filter_event_zone(WindowManager* wm, SceneEvent* event) -> SceneEventFilter
 }
 
 static
-auto filter_event_default(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event_default(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
-    if (event->type != SceneEventType::pointer_button) return {};
+    if (event->type != SeatEventType::pointer_button) return {};
 
     auto button = event->pointer.button;
     if (!button.pressed) return {};
 
     if (button.code != BTN_LEFT) return {};
 
-    auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(scene_pointer_get_base(event->pointer.pointer)));
+    auto mods = seat_get_modifiers(seat_pointer_get_seat(event->pointer.pointer));
     if (!mods.contains(wm->main_mod)) return {};
-    if (mods.contains(SceneModifier::shift)) return {}; // Avoid conflicts with movesize interaction
+    if (mods.contains(SeatModifier::shift)) return {}; // Avoid conflicts with movesize interaction
 
     begin_zone(wm, event->pointer.pointer);
-    return SceneEventFilterResult::capture;
+    return SeatEventFilterResult::capture;
 }
 
 static
-auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (wm->mode) {
         break;case WmInteractionMode::none:
@@ -203,7 +203,7 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
             ;
     }
 
-    return SceneEventFilterResult::passthrough;
+    return SeatEventFilterResult::passthrough;
 }
 
 // -----------------------------------------------------------------------------
@@ -211,7 +211,7 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
 void wm_init_zone(WindowManager* wm)
 {
     wm->zone.texture = scene_texture_create();
-    wm->zone.filter = scene_add_input_event_filter(wm->scene.get(), [wm](SceneEvent* event) {
+    wm->zone.filter = seat_add_input_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {
         return filter_event(wm, event);
     });
 }

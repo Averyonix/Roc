@@ -80,7 +80,7 @@ A spatial hierarchy providing hit-testing, damage tracking, and rendering logic.
 
 ### `seat` ─ Seat
 
-- Focus based nput routing
+- Focus based input routing
 - Cursor theme management
 - Data management
    - Selection buffers

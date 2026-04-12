@@ -13,7 +13,7 @@ struct WayDataSource : WayObject
 
     WayResource resource;
 
-    Ref<SceneDataSource> source;
+    Ref<SeatDataSource> source;
 };
 
 struct WayDataOffer : WayObject
@@ -22,7 +22,7 @@ struct WayDataOffer : WayObject
 
     WayResource resource;
 
-    Ref<SceneDataSource> source;
+    Ref<SeatDataSource> source;
 };
 
 void way_data_offer_selection(WaySeatClient*);

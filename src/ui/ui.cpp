@@ -50,7 +50,7 @@ auto get_data(ImGuiViewport* vp) -> UiViewportData*
 // -----------------------------------------------------------------------------
 
 static
-auto find_viewport_for_input_region(Ui* ui, SceneInputRegion* focus) -> ImGuiViewport*
+auto find_viewport_for_input_region(Ui* ui, SeatInputRegion* focus) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->input_region.get() == focus) {
@@ -73,7 +73,7 @@ auto find_viewport_for_window(WmWindow* window) -> ImGuiViewport*
     return nullptr;
 }
 
-auto ui_get_toplevel(ImGuiWindow* window) -> WmWindow*
+auto ui_get_window(ImGuiWindow* window) -> WmWindow*
 {
     if (!window->Viewport) return nullptr;
     if (auto* data = get_data(window->Viewport)) return data->window.get();
@@ -144,7 +144,7 @@ void Platform_ShowWindow(ImGuiViewport* vp)
 
     wm_window_map(data->window.get());
     for (auto* seat : scene_get_seats(wm_get_scene(ui->wm))) {
-        scene_keyboard_focus(scene_seat_get_keyboard(seat), data->input_region.get());
+        seat_keyboard_focus(seat_get_keyboard(seat), data->input_region.get());
     }
 }
 
@@ -192,17 +192,17 @@ void Platform_SetClipboardTextFn(ImGuiContext* imgui, const char* text)
 {
     auto* ui = get_context(imgui);
 
-    auto data_source = scene_data_source_create(ui->client.get(), {
+    auto data_source = seat_data_source_create(ui->client.get(), {
         .send = [message = std::string(text)](const char* mime, int fd) {
             unix_check<write>(fd, message.data(), message.size());
         }
     });
     for (auto* mime : text_mime_types) {
-        scene_data_source_offer(data_source.get(), mime);
+        seat_data_source_offer(data_source.get(), mime);
     }
 
     for (auto* seat : ui->seats) {
-        scene_seat_set_selection(seat, data_source.get());
+        seat_set_selection(seat, data_source.get());
     }
 }
 
@@ -225,8 +225,8 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imgui) -> const char*
     auto* ui = get_context(imgui);
 
     for (auto* seat : ui->seats) {
-        if (auto* source = scene_seat_get_selection(seat)) {
-            auto available = scene_data_source_get_offered(source);
+        if (auto* source = seat_get_selection(seat)) {
+            auto available = seat_data_source_get_offered(source);
             for (auto mime : text_mime_types) {
                 if (std::ranges::contains(available, std::string_view(mime))) {
                     auto[read, write] = [] {
@@ -234,7 +234,7 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imgui) -> const char*
                         unix_check<pipe>(fd);
                         return std::make_pair(Fd(fd[0]), Fd(fd[1]));
                     }();
-                    scene_data_source_receive(source, mime, write.get());
+                    seat_data_source_receive(source, mime, write.get());
                     write.reset();
 
                     ui->clipboard.text = read_to_string(read.get());
@@ -445,7 +445,7 @@ void ui_frame(Ui* ui)
     ImGui::Render();
 
     if (ui->pointer) {
-        scene_pointer_set_xcursor(ui->pointer, imgui_cursor_to_xcursor(ImGui::GetMouseCursor()));
+        seat_pointer_set_xcursor(ui->pointer, imgui_cursor_to_xcursor(ImGui::GetMouseCursor()));
     }
 
     // Zero-sized main viewport should never contain draw data
@@ -473,7 +473,7 @@ auto ui_create(Gpu* gpu, WindowManager* wm, const std::filesystem::path& path) -
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
     });
-    ui->client  = scene_client_create(wm_get_scene(ui->wm));
+    ui->client  = seat_client_create(wm_get_scene(ui->wm));
 
     ui_init(ui.get(), path);
 
@@ -493,39 +493,34 @@ auto ui_create(Gpu* gpu, WindowManager* wm, const std::filesystem::path& path) -
         }
     });
 
-    scene_client_set_event_handler(ui->client.get(), [ui = ui.get()](SceneEvent* event) {
+    seat_client_set_event_handler(ui->client.get(), [ui = ui.get()](SeatEvent* event) {
         UiContextGuard _{ui->context};
         switch (event->type) {
-            // seat
-            break;case SceneEventType::seat_add:
-                  case SceneEventType::seat_configure:
-                  case SceneEventType::seat_remove:
-                ;
 
             // keyboard
-            break;case SceneEventType::keyboard_enter:
+            break;case SeatEventType::keyboard_enter:
                 ui_handle_keyboard_enter(ui, event->keyboard.keyboard, event->keyboard.focus);
-            break;case SceneEventType::keyboard_leave:
+            break;case SeatEventType::keyboard_leave:
                 ui_handle_keyboard_leave(ui);
-            break;case SceneEventType::keyboard_key:
+            break;case SeatEventType::keyboard_key:
                 ui_handle_key(ui, event->keyboard.key.code, event->keyboard.key.pressed);
-            break;case SceneEventType::keyboard_modifier:
+            break;case SeatEventType::keyboard_modifier:
                 ui_handle_mods(ui);
 
             // pointer
-            break;case SceneEventType::pointer_enter:
+            break;case SeatEventType::pointer_enter:
                 ui_handle_pointer_enter(ui, event->pointer.pointer, event->pointer.focus);
-            break;case SceneEventType::pointer_leave:
+            break;case SeatEventType::pointer_leave:
                 ui_handle_pointer_leave(ui);
-            break;case SceneEventType::pointer_motion:
+            break;case SeatEventType::pointer_motion:
                 ui_handle_motion(ui);
-            break;case SceneEventType::pointer_button:
+            break;case SeatEventType::pointer_button:
                 ui_handle_button(ui, event->pointer.button.code, event->pointer.button.pressed);
-            break;case SceneEventType::pointer_scroll:
+            break;case SeatEventType::pointer_scroll:
                 ui_handle_wheel(ui, event->pointer.scroll.delta);
 
             // selection
-            break;case SceneEventType::selection:
+            break;case SeatEventType::selection:
                 ;
         }
     });
@@ -540,11 +535,11 @@ void ui_set_frame_handler(Ui* ui, std::move_only_function<UiFrameFn>&& handler)
 
 // -----------------------------------------------------------------------------
 
-void ui_handle_keyboard_enter(Ui* ui, SceneKeyboard* keyboard, SceneInputRegion* region)
+void ui_handle_keyboard_enter(Ui* ui, SeatKeyboard* keyboard, SeatInputRegion* region)
 {
     ui->keyboard = keyboard;
 
-    ui->seats.emplace(scene_input_device_get_seat(scene_keyboard_get_base(keyboard)));
+    ui->seats.emplace(seat_keyboard_get_seat(keyboard));
 
     if (auto* vp = find_viewport_for_input_region(ui, region)) {
         wm_window_raise(get_data(vp)->window.get());
@@ -558,7 +553,7 @@ void ui_handle_keyboard_enter(Ui* ui, SceneKeyboard* keyboard, SceneInputRegion*
 
 void ui_handle_keyboard_leave(Ui* ui)
 {
-    ui->seats.emplace(scene_input_device_get_seat(scene_keyboard_get_base(ui->keyboard)));
+    ui->seats.emplace(seat_keyboard_get_seat(ui->keyboard));
 
     ui->keyboard = nullptr;
 
@@ -568,12 +563,12 @@ void ui_handle_keyboard_leave(Ui* ui)
     ui_request_frame(ui);
 }
 
-void ui_handle_key(Ui* ui, SceneScancode code, bool pressed)
+void ui_handle_key(Ui* ui, SeatInputCode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
-    io.AddKeyEvent(imgui_key_from_xkb_sym(scene_keyboard_get_sym(ui->keyboard, code)), pressed);
-    if (pressed) io.AddInputCharactersUTF8(scene_keyboard_get_utf8(ui->keyboard, code).c_str());
+    io.AddKeyEvent(imgui_key_from_xkb_sym(seat_keyboard_get_sym(ui->keyboard, code)), pressed);
+    if (pressed) io.AddInputCharactersUTF8(seat_keyboard_get_utf8(ui->keyboard, code).c_str());
 
     ui_request_frame(ui);
 }
@@ -582,12 +577,12 @@ void ui_handle_mods(Ui* ui)
 {
     auto& io = ImGui::GetIO();
 
-    auto mods = scene_keyboard_get_modifiers(ui->keyboard);
+    auto mods = seat_keyboard_get_modifiers(ui->keyboard);
 
-    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(SceneModifier::shift));
-    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(SceneModifier::ctrl));
-    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(SceneModifier::alt));
-    io.AddKeyEvent(ImGuiMod_Super, mods.contains(SceneModifier::super));
+    io.AddKeyEvent(ImGuiMod_Shift, mods.contains(SeatModifier::shift));
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.contains(SeatModifier::ctrl));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.contains(SeatModifier::alt));
+    io.AddKeyEvent(ImGuiMod_Super, mods.contains(SeatModifier::super));
 
     ui_request_frame(ui);
 }
@@ -596,13 +591,13 @@ void ui_handle_motion(Ui* ui)
 {
     auto& io = ImGui::GetIO();
 
-    auto pos = scene_pointer_get_position(ui->pointer);
+    auto pos = seat_pointer_get_position(ui->pointer);
     io.AddMousePosEvent(pos.x, pos.y);
 
     ui_request_frame(ui);
 }
 
-void ui_handle_button(Ui* ui, SceneScancode code, bool pressed)
+void ui_handle_button(Ui* ui, SeatInputCode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
@@ -626,7 +621,7 @@ void ui_handle_wheel(Ui* ui, vec2f32 delta)
     ui_request_frame(ui);
 }
 
-void ui_handle_pointer_enter(Ui* ui, ScenePointer* pointer, SceneInputRegion* focus)
+void ui_handle_pointer_enter(Ui* ui, SeatPointer* pointer, SeatInputRegion* focus)
 {
     ui->pointer = pointer;
 
@@ -636,7 +631,7 @@ void ui_handle_pointer_enter(Ui* ui, ScenePointer* pointer, SceneInputRegion* fo
         io.AddMouseViewportEvent(find_viewport_for_input_region(ui, focus)->ID);
     }
 
-    auto pos = scene_pointer_get_position(pointer);
+    auto pos = seat_pointer_get_position(pointer);
     io.AddMousePosEvent(pos.x, pos.y);
 
     ui_request_frame(ui);
@@ -649,7 +644,7 @@ void ui_handle_pointer_leave(Ui* ui)
     io.AddMouseViewportEvent(0);
     io.AddMousePosEvent(-FLT_MAX,-FLT_MAX);
 
-    for (auto code : scene_pointer_get_pressed(ui->pointer)) {
+    for (auto code : seat_pointer_get_pressed(ui->pointer)) {
         ui_handle_button(ui, code, false);
     }
 

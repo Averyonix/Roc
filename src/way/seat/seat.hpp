@@ -27,17 +27,17 @@ struct WayKeymap
 struct WaySeat : WayObject
 {
     WayServer* server;
-    SceneSeat* scene;
+    Seat* scene;
 
     wl_global* global;
 
     struct {
-        SceneKeyboard* scene;
+        SeatKeyboard* scene;
         WayKeymap keymap;
     } keyboard;
 
     struct {
-        ScenePointer* scene;
+        SeatPointer* scene;
     } pointer;
 
     struct {
@@ -68,16 +68,16 @@ struct WaySeatClient : WayObject
 
 void way_seat_init(WayServer*);
 
-void way_seat_on_keyboard_enter(WaySeatClient*, SceneEvent*);
-void way_seat_on_keyboard_leave(WaySeatClient*, SceneEvent*);
-void way_seat_on_key(           WaySeatClient*, SceneEvent*);
-void way_seat_on_modifier(      WaySeatClient*, SceneEvent*);
+void way_seat_on_keyboard_enter(WaySeatClient*, SeatEvent*);
+void way_seat_on_keyboard_leave(WaySeatClient*, SeatEvent*);
+void way_seat_on_key(           WaySeatClient*, SeatEvent*);
+void way_seat_on_modifier(      WaySeatClient*, SeatEvent*);
 
-void way_seat_on_pointer_enter(WaySeatClient*, SceneEvent*);
-void way_seat_on_pointer_leave(WaySeatClient*, SceneEvent*);
-void way_seat_on_motion(       WaySeatClient*, SceneEvent*);
-void way_seat_on_button(       WaySeatClient*, SceneEvent*);
-void way_seat_on_scroll(       WaySeatClient*, SceneEvent*);
+void way_seat_on_pointer_enter(WaySeatClient*, SeatEvent*);
+void way_seat_on_pointer_leave(WaySeatClient*, SeatEvent*);
+void way_seat_on_motion(       WaySeatClient*, SeatEvent*);
+void way_seat_on_button(       WaySeatClient*, SeatEvent*);
+void way_seat_on_scroll(       WaySeatClient*, SeatEvent*);
 
 // -----------------------------------------------------------------------------
 

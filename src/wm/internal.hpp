@@ -29,7 +29,7 @@ struct WindowManager
 
     Ref<Scene> scene;
 
-    SceneModifier main_mod;
+    SeatModifier main_mod;
 
     WmInteractionMode mode;
 
@@ -46,17 +46,15 @@ struct WindowManager
         std::vector<WmOutputListener> output_listeners;
     } io;
 
-    struct {
-        Ref<SceneClient> client;
-    } seat;
+    Weak<Seat> seat;
 
     struct {
-        Ref<SceneEventFilter> filter;
+        Ref<SeatEventFilter> filter;
     } hotkeys;
 
     struct {
-        Ref<SceneEventFilter> filter;
-        ScenePointer* pointer;
+        Ref<SeatEventFilter> filter;
+        SeatPointer* pointer;
 
         Weak<WmWindow> window;
         vec2f32  grab;
@@ -65,8 +63,8 @@ struct WindowManager
     } movesize;
 
     struct {
-        Ref<SceneEventFilter> filter;
-        ScenePointer* pointer;
+        Ref<SeatEventFilter> filter;
+        SeatPointer* pointer;
         Ref<SceneTexture> texture;
 
         Weak<WmWindow> window;
@@ -97,7 +95,7 @@ struct WmWindow
 
     WmWindowListener listener;
 
-    std::vector<Weak<SceneInputRegion>> input_regions;
+    std::vector<Weak<SeatInputRegion>> input_regions;
 
     ~WmWindow();
 };

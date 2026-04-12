@@ -17,7 +17,7 @@ struct WindowManagerCreateInfo
     Gpu*         gpu;
     IoContext*   io;
 
-    SceneModifier main_mod;
+    SeatModifier main_mod;
 };
 
 auto wm_create(const WindowManagerCreateInfo&) -> Ref<WindowManager>;
@@ -76,7 +76,7 @@ auto wm_window_create(WindowManager*) -> Ref<WmWindow>;
 using WmWindowListener = std::move_only_function<void(WmWindowEvent*)>;
 void wm_window_set_event_listener(WmWindow*, WmWindowListener);
 
-void wm_window_add_input_region(WmWindow*, SceneInputRegion*);
+void wm_window_add_input_region(WmWindow*, SeatInputRegion*);
 
 void wm_window_set_title(WmWindow*, std::string_view title);
 
@@ -93,6 +93,10 @@ void wm_window_set_frame(WmWindow*, rect2f32 frame);
 auto wm_window_get_frame(WmWindow*) -> rect2f32;
 
 auto wm_find_window_at(WindowManager*, vec2f32 point) -> WmWindow*;
+
+// -----------------------------------------------------------------------------
+
+auto wm_get_seat(WindowManager*) -> Seat*;
 
 // -----------------------------------------------------------------------------
 

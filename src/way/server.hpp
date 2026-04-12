@@ -26,8 +26,6 @@ struct WayServer : WayObject
     WindowManager* wm;
     Uid userdata_id;
 
-    Ref<SceneClient> seat_listener;
-
     wl_display* wl_display;
     std::string socket_name;
 

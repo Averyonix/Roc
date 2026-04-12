@@ -53,7 +53,7 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
         break;case IoEventType::input_added:
                 case IoEventType::input_removed:
                 case IoEventType::input_event:
-            scene_push_io_event(wm->scene.get(), event);
+            seat_push_io_event(wm->seat.get(), event);
 
         // output
         break;case IoEventType::output_added: {

@@ -149,7 +149,7 @@ struct WaySurface : WayObject
     struct {
         Ref<SceneTree> tree;
         Ref<SceneTexture> texture;
-        Ref<SceneInputRegion> input_region;
+        Ref<SeatInputRegion> input_region;
     } scene;
 
     bool mapped;

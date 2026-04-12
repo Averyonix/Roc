@@ -14,7 +14,7 @@ void ui_request_frame(Ui*);
 void ui_set_frame_handler(Ui*, std::move_only_function<UiFrameFn>&&);
 auto ui_get_texture(Ui*, GpuImage*, GpuSampler*, GpuBlendMode) -> ImTextureID;
 
-auto ui_get_toplevel(ImGuiWindow*) -> WmWindow*;
+auto ui_get_window(ImGuiWindow*) -> WmWindow*;
 
 // -----------------------------------------------------------------------------
 

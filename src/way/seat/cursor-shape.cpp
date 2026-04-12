@@ -73,7 +73,7 @@ void set_shape(wl_client* client, wl_resource* resource, u32 serial, u32 shape)
     auto* seat_client = way_get_userdata<WaySeatClient>(resource);
     auto* seat = seat_client->seat;
     if (seat->pointer.scene) {
-        scene_pointer_set_xcursor(seat->pointer.scene, cursor_shape_to_xcursor(wp_cursor_shape_device_v1_shape(shape)));
+        seat_pointer_set_xcursor(seat->pointer.scene, cursor_shape_to_xcursor(wp_cursor_shape_device_v1_shape(shape)));
     }
 }
 

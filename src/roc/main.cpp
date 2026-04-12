@@ -12,7 +12,7 @@ int main()
     // Config
 
     roc.app_share = std::filesystem::path(getenv("HOME")) / ".local/share" / PROGRAM_NAME;
-    roc.main_mod = SceneModifier::alt;
+    roc.main_mod = SeatModifier::alt;
     roc.wallpaper = getenv("WALLPAPER");
 
     // Systems
@@ -43,7 +43,7 @@ int main()
 
     // Test client
 
-    auto client = scene_client_create(scene);
+    auto client = seat_client_create(scene);
 
     auto window = wm_window_create(wm.get());
     auto initial_size = vec2f32{256, 256};
@@ -84,42 +84,35 @@ int main()
         }
     });
 
-    scene_client_set_event_handler(client.get(), [&](SceneEvent* event) {
+    seat_client_set_event_handler(client.get(), [&](SeatEvent* event) {
         switch (event->type) {
-            break;case SceneEventType::seat_add:
-                log_trace("seat_add({})", (void*)event->seat);
-            break;case SceneEventType::seat_configure:
-                log_trace("seat_configure({})", (void*)event->seat);
-            break;case SceneEventType::seat_remove:
-                log_trace("seat_remove({})", (void*)event->seat);
-
-            break;case SceneEventType::keyboard_key:
+            break;case SeatEventType::keyboard_key:
                 log_trace("keyboard_key({}, {})",
                     libevdev_event_code_get_name(EV_KEY, event->keyboard.key.code),
                     event->keyboard.key.pressed ? "pressed" : "released");
-            break;case SceneEventType::keyboard_modifier:
-                log_trace("keyboard_modifier({})", scene_keyboard_get_modifiers(event->keyboard.keyboard));
-            break;case SceneEventType::pointer_motion:
+            break;case SeatEventType::keyboard_modifier:
+                log_trace("keyboard_modifier({})", seat_keyboard_get_modifiers(event->keyboard.keyboard));
+            break;case SeatEventType::pointer_motion:
                 log_trace("pointer_motion(accel: {}, unaccel: {}, pos: {})",
                     event->pointer.motion.rel_accel,
                     event->pointer.motion.rel_unaccel,
-                    scene_pointer_get_position(event->pointer.pointer));
-            break;case SceneEventType::pointer_button:
+                    seat_pointer_get_position(event->pointer.pointer));
+            break;case SeatEventType::pointer_button:
                 log_trace("pointer_button({}, {})",
                     libevdev_event_code_get_name(EV_KEY, event->pointer.button.code),
                     event->pointer.button.pressed ? "pressed" : "released");
                 wm_window_raise(window.get());
-            break;case SceneEventType::pointer_scroll:
+            break;case SeatEventType::pointer_scroll:
                 log_trace("pointer_scroll(delta: {})", event->pointer.scroll.delta);
-            break;case SceneEventType::pointer_enter:
+            break;case SeatEventType::pointer_enter:
                 log_trace("pointer_enter({}, focus: {})", (void*)event->pointer.pointer, (void*)event->pointer.focus);
-            break;case SceneEventType::pointer_leave:
+            break;case SeatEventType::pointer_leave:
                 log_trace("pointer_leave({})", (void*)event->pointer.pointer);
-            break;case SceneEventType::keyboard_enter:
+            break;case SeatEventType::keyboard_enter:
                 log_trace("keyboard_enter({})", (void*)event->keyboard.keyboard);
-            break;case SceneEventType::keyboard_leave:
+            break;case SeatEventType::keyboard_leave:
                 log_trace("keyboard_leave({})", (void*)event->keyboard.keyboard);
-            break;case SceneEventType::selection:
+            break;case SeatEventType::selection:
                 log_trace("selection({})", (void*)event->data.source);
         }
     });
@@ -145,8 +138,8 @@ int main()
             }
 
             if (ImGui::Button("Reposition")) {
-                if (auto* toplevel = ui_get_toplevel(ImGui::GetCurrentWindow())) {
-                    wm_window_request_reposition(toplevel, {{}, {512, 512}, xywh}, {});
+                if (auto* window = ui_get_window(ImGui::GetCurrentWindow())) {
+                    wm_window_request_reposition(window, {{}, {512, 512}, xywh}, {});
                 }
             }
 
@@ -203,19 +196,19 @@ int main()
 
     // Selection
 
-    auto data_client = scene_client_create(scene);
-    scene_client_set_event_handler(data_client.get(), [](SceneEvent*) {});
-    auto data_source = scene_data_source_create(data_client.get(), {
+    auto data_client = seat_client_create(scene);
+    seat_client_set_event_handler(data_client.get(), [](SeatEvent*) {});
+    auto data_source = seat_data_source_create(data_client.get(), {
         .send = [&](const char* mime, int fd) {
             std::string message = "This is a test clipboard message.";
             write(fd, message.data(), message.size());
         }
     });
-    scene_data_source_offer(data_source.get(), "text/plain;charset=utf-8");
-    scene_data_source_offer(data_source.get(), "text/plain");
-    scene_data_source_offer(data_source.get(), "text/html");
+    seat_data_source_offer(data_source.get(), "text/plain;charset=utf-8");
+    seat_data_source_offer(data_source.get(), "text/plain");
+    seat_data_source_offer(data_source.get(), "text/html");
     for (auto* seat : scene_get_seats(scene)) {
-        scene_seat_set_selection(seat, data_source.get());
+        seat_set_selection(seat, data_source.get());
     }
 
     // Run

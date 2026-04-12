@@ -12,7 +12,7 @@
 struct SceneNode;
 struct SceneTree;
 struct SceneTexture;
-struct SceneInputRegion;
+struct SeatInputRegion;
 
 struct Scene;
 
@@ -29,17 +29,13 @@ auto scene_get_layer(Scene*, SceneLayer) -> SceneTree*;
 
 // -----------------------------------------------------------------------------
 
-void scene_push_io_event(Scene* scene, union IoEvent*);
-
-// -----------------------------------------------------------------------------
-
 void scene_render(Scene*, GpuImage* target, rect2f32 viewport);
 
 // -----------------------------------------------------------------------------
 
-struct SceneClient;
+struct SeatClient;
 
-auto scene_client_create(Scene*) -> Ref<SceneClient>;
+auto seat_client_create(Scene*) -> Ref<SeatClient>;
 
 // -----------------------------------------------------------------------------
 
@@ -48,7 +44,7 @@ void scene_add_damage_listener(Scene*, SceneDamageListener);
 
 // -----------------------------------------------------------------------------
 
-enum class SceneModifier : u32
+enum class SeatModifier : u32
 {
     super = 1 << 0,
     shift = 1 << 1,
@@ -58,56 +54,42 @@ enum class SceneModifier : u32
     caps  = 1 << 5,
 };
 
-enum class SceneModifierFlag
+enum class SeatModifierFlag
 {
     ignore_locked = 1 << 0
 };
 
-using SceneScancode = u32;
+using SeatInputCode = u32;
 
 // -----------------------------------------------------------------------------
 
-enum class SceneInputDeviceType
-{
-    invalid,
-    keyboard,
-    pointer,
-};
-
-struct SceneInputDevice;
-struct SceneKeyboard;
-struct ScenePointer;
-struct SceneSeat;
-
-auto scene_input_device_get_type(    SceneInputDevice*) -> SceneInputDeviceType;
-auto scene_input_device_get_pointer( SceneInputDevice*) -> ScenePointer*;
-auto scene_input_device_get_keyboard(SceneInputDevice*) -> SceneKeyboard*;
-auto scene_input_device_get_focus(   SceneInputDevice*) -> SceneInputRegion*;
-auto scene_input_device_get_seat(    SceneInputDevice*)  -> SceneSeat*;
+struct SeatKeyboard;
+struct SeatPointer;
+struct Seat;
 
 // -----------------------------------------------------------------------------
 
-auto scene_get_seats(Scene*) -> std::span<SceneSeat* const>;
+void seat_push_io_event(Seat*, union IoEvent*);
 
-auto scene_seat_get_pointer( SceneSeat*) -> ScenePointer*;
-auto scene_seat_get_keyboard(SceneSeat*) -> SceneKeyboard*;
+auto scene_get_seats(Scene*) -> std::span<Seat* const>;
 
-auto scene_pointer_get_base( ScenePointer*)  -> SceneInputDevice*;
-auto scene_keyboard_get_base(SceneKeyboard*) -> SceneInputDevice*;
+auto seat_get_pointer( Seat*) -> SeatPointer*;
+auto seat_get_keyboard(Seat*) -> SeatKeyboard*;
 
-auto scene_seat_get_modifiers(SceneSeat*, Flags<SceneModifierFlag> = {}) -> Flags<SceneModifier>;
+auto seat_get_modifiers(Seat*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifier>;
 
 // -----------------------------------------------------------------------------
 
-void scene_pointer_focus(       ScenePointer*, SceneInputRegion*);
-auto scene_pointer_get_position(ScenePointer*) -> vec2f32;
-auto scene_pointer_get_pressed( ScenePointer*) -> std::span<const SceneScancode>;
-auto scene_pointer_get_focus(   ScenePointer*) -> SceneInputRegion*;
+void seat_pointer_focus(       SeatPointer*, SeatInputRegion*);
+auto seat_pointer_get_position(SeatPointer*) -> vec2f32;
+auto seat_pointer_get_pressed( SeatPointer*) -> std::span<const SeatInputCode>;
+auto seat_pointer_get_focus(   SeatPointer*) -> SeatInputRegion*;
+auto seat_pointer_get_seat(    SeatPointer*) -> Seat*;
 
-void scene_pointer_set_cursor( ScenePointer*, SceneNode*);
-void scene_pointer_set_xcursor(ScenePointer*, const char* xcursor_semantic);
+void seat_pointer_set_cursor( SeatPointer*, SceneNode*);
+void seat_pointer_set_xcursor(SeatPointer*, const char* xcursor_semantic);
 
-struct SceneKeyboardInfo
+struct SeatKeyboardInfo
 {
     xkb_context* context;
     xkb_state*   state;
@@ -116,39 +98,40 @@ struct SceneKeyboardInfo
     i32          delay;
 };
 
-void scene_keyboard_focus(        SceneKeyboard*, SceneInputRegion*);
-auto scene_keyboard_get_modifiers(SceneKeyboard*, Flags<SceneModifierFlag> = {}) -> Flags<SceneModifier>;
-auto scene_keyboard_get_pressed(  SceneKeyboard*) -> std::span<const SceneScancode>;
-auto scene_keyboard_get_sym(      SceneKeyboard*, SceneScancode) -> xkb_keysym_t;
-auto scene_keyboard_get_utf8(     SceneKeyboard*, SceneScancode) -> std::string;
-auto scene_keyboard_get_info(     SceneKeyboard*) -> const SceneKeyboardInfo&;
-auto scene_keyboard_get_focus(    SceneKeyboard*) -> SceneInputRegion*;
+void seat_keyboard_focus(        SeatKeyboard*, SeatInputRegion*);
+auto seat_keyboard_get_modifiers(SeatKeyboard*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifier>;
+auto seat_keyboard_get_pressed(  SeatKeyboard*) -> std::span<const SeatInputCode>;
+auto seat_keyboard_get_sym(      SeatKeyboard*, SeatInputCode) -> xkb_keysym_t;
+auto seat_keyboard_get_utf8(     SeatKeyboard*, SeatInputCode) -> std::string;
+auto seat_keyboard_get_info(     SeatKeyboard*) -> const SeatKeyboardInfo&;
+auto seat_keyboard_get_focus(    SeatKeyboard*) -> SeatInputRegion*;
+auto seat_keyboard_get_seat(     SeatKeyboard*) -> Seat*;
 
 // -----------------------------------------------------------------------------
 
-using ScenePointerAccelFn = auto(vec2f32) -> vec2f32;
+using SeatPointerAccelFn = auto(vec2f32) -> vec2f32;
 
-void scene_pointer_set_accel(ScenePointer*, std::move_only_function<ScenePointerAccelFn>&&);
+void seat_pointer_set_accel(SeatPointer*, std::move_only_function<SeatPointerAccelFn>&&);
 
 // -----------------------------------------------------------------------------
 
-struct SceneDataSource;
+struct SeatDataSource;
 
-struct SceneDataSourceOps
+struct SeatDataSourceOps
 {
     std::move_only_function<void()>                 cancel = [] {};
     std::move_only_function<void(const char*, int)> send;
 };
 
-auto scene_data_source_create(SceneClient*, SceneDataSourceOps&&) -> Ref<SceneDataSource>;
+auto seat_data_source_create(SeatClient*, SeatDataSourceOps&&) -> Ref<SeatDataSource>;
 
-void scene_data_source_offer(      SceneDataSource*, const char* mime_type);
-auto scene_data_source_get_offered(SceneDataSource*) -> std::span<const std::string>;
+void seat_data_source_offer(      SeatDataSource*, const char* mime_type);
+auto seat_data_source_get_offered(SeatDataSource*) -> std::span<const std::string>;
 
-void scene_data_source_receive(SceneDataSource*, const char* mime_type, int fd);
+void seat_data_source_receive(SeatDataSource*, const char* mime_type, int fd);
 
-void scene_seat_set_selection(SceneSeat*, SceneDataSource*);
-auto scene_seat_get_selection(SceneSeat*) -> SceneDataSource*;
+void seat_set_selection(Seat*, SeatDataSource*);
+auto seat_get_selection(Seat*) -> SeatDataSource*;
 
 // -----------------------------------------------------------------------------
 
@@ -248,19 +231,19 @@ void scene_mesh_update(SceneMesh*, std::span<const SceneVertex>      vertices,
                                    std::span<const SceneMeshSegment> segments,
                                    vec2f32 offset);
 
-struct SceneInputRegion : SceneNode
+struct SeatInputRegion : SceneNode
 {
-    SceneClient* client;
+    SeatClient* client;
 
     region2f32 region;
 
     virtual void damage(Scene*);
 
-    ~SceneInputRegion();
+    ~SeatInputRegion();
 };
 
-auto scene_input_region_create(SceneClient*) -> Ref<SceneInputRegion>;
-void scene_input_region_set_region(SceneInputRegion*, region2f32);
+auto scene_input_region_create(SeatClient*) -> Ref<SeatInputRegion>;
+void scene_input_region_set_region(SeatInputRegion*, region2f32);
 
 // -----------------------------------------------------------------------------
 
@@ -288,7 +271,6 @@ auto scene_visit(SceneNode* node, Visit&& visit)
         return visit(node);
     }
 }
-
 
 template<SceneIterateDirection Dir, typename Pre, typename Leaf, typename Post>
 auto scene_iterate(SceneTree* tree, Pre&& pre, Leaf&& leaf, Post&& post) -> SceneIterateAction
@@ -347,12 +329,8 @@ auto scene_iterate(SceneTree* tree, Pre&& pre, Leaf&& leaf, Post&& post) -> Scen
 
 // -----------------------------------------------------------------------------
 
-enum class SceneEventType
+enum class SeatEventType
 {
-    seat_add,
-    seat_configure,
-    seat_remove,
-
     keyboard_enter,
     keyboard_leave,
     keyboard_key,
@@ -367,25 +345,27 @@ enum class SceneEventType
     selection,
 };
 
-struct SceneKeyboardEvent
+struct SeatKeyboardEvent
 {
-    SceneKeyboard* keyboard;
+    SeatEventType type;
+    SeatKeyboard* keyboard;
     union {
         struct {
-            SceneScancode code;
+            SeatInputCode code;
             bool          pressed;
             bool          quiet;
         } key;
-        SceneInputRegion* focus;
+        SeatInputRegion* focus;
     };
 };
 
-struct ScenePointerEvent
+struct SeatPointerEvent
 {
-    ScenePointer* pointer;
+    SeatEventType type;
+    SeatPointer* pointer;
     union {
         struct {
-            SceneScancode code;
+            SeatInputCode code;
             bool          pressed;
             bool          quiet;
         } button;
@@ -396,38 +376,35 @@ struct ScenePointerEvent
         struct {
             vec2f32 delta;
         } scroll;
-        SceneInputRegion* focus;
+        SeatInputRegion* focus;
     };
 };
 
-struct SceneDataEvent
+struct SeatDataEvent
 {
-    SceneDataSource* source;
-    SceneSeat*       seat;
+    SeatEventType type;
+    SeatDataSource* source;
+    Seat*       seat;
 };
 
-struct SceneEvent
+union SeatEvent
 {
-    SceneEventType type;
-
-    union {
-        SceneSeat*         seat;
-        SceneKeyboardEvent keyboard;
-        ScenePointerEvent  pointer;
-        SceneDataEvent     data;
-    };
+    SeatEventType     type;
+    SeatKeyboardEvent keyboard;
+    SeatPointerEvent  pointer;
+    SeatDataEvent     data;
 };
 
-using SceneEventHandlerFn = void(SceneEvent*);
+using SeatEventHandlerFn = void(SeatEvent*);
 
-void scene_client_set_event_handler(SceneClient*, std::move_only_function<SceneEventHandlerFn>&&);
+void seat_client_set_event_handler(SeatClient*, std::move_only_function<SeatEventHandlerFn>&&);
 
-enum class SceneEventFilterResult
+enum class SeatEventFilterResult
 {
     passthrough,
     capture,
 };
 
-struct SceneEventFilter;
+struct SeatEventFilter;
 
-auto scene_add_input_event_filter(Scene*, std::move_only_function<SceneEventFilterResult(SceneEvent*)>) -> Ref<SceneEventFilter>;
+auto seat_add_input_event_filter(Seat*, std::move_only_function<SeatEventFilterResult(SeatEvent*)>) -> Ref<SeatEventFilter>;

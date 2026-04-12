@@ -1,7 +1,7 @@
 #include "internal.hpp"
 
 static
-auto find_window_for_input_region(WindowManager* wm, SceneInputRegion* region) -> WmWindow*
+auto find_window_for_input_region(WindowManager* wm, SeatInputRegion* region) -> WmWindow*
 {
     for (auto* window : wm->windows) {
         if (std::ranges::contains(window->input_regions, region)) {
@@ -12,38 +12,41 @@ auto find_window_for_input_region(WindowManager* wm, SceneInputRegion* region) -
 }
 
 static
-auto close_focused(WindowManager* wm, SceneInputDevice* input_device) -> SceneEventFilterResult
+auto close_focused(WindowManager* wm, Seat* seat, SeatInputRegion* focus) -> SeatEventFilterResult
 {
-    auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(input_device));
+    auto mods = seat_get_modifiers(seat);
     if (!mods.contains(wm->main_mod)) return {};
 
     WmWindow* window;
-    auto focus = scene_input_device_get_focus(input_device);
     if (focus && (window = find_window_for_input_region(wm, focus))) {
         wm_window_request_close(window);
     }
-    return SceneEventFilterResult::capture;
+    return SeatEventFilterResult::capture;
 }
 
 static
-auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (event->type) {
-        break;case SceneEventType::keyboard_key:
+        break;case SeatEventType::keyboard_key:
             if (!event->keyboard.key.pressed) return {};
             if (event->keyboard.key.code == KEY_Q) {
-                return close_focused(wm, scene_keyboard_get_base(event->keyboard.keyboard));
+                return close_focused(wm,
+                    seat_keyboard_get_seat(event->keyboard.keyboard),
+                    seat_keyboard_get_focus(event->keyboard.keyboard));
             }
             if (event->keyboard.key.code == KEY_S) {
-                auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(scene_keyboard_get_base(event->keyboard.keyboard)));
+                auto mods = seat_keyboard_get_modifiers(event->keyboard.keyboard);
                 if (mods.contains(wm->main_mod)) {
-                    scene_keyboard_focus(event->keyboard.keyboard, nullptr);
+                    seat_keyboard_focus(event->keyboard.keyboard, nullptr);
                 }
             }
-        break;case SceneEventType::pointer_button:
+        break;case SeatEventType::pointer_button:
             if (!event->pointer.button.pressed) return {};
             if (event->pointer.button.code == BTN_MIDDLE) {
-                return close_focused(wm, scene_pointer_get_base(event->pointer.pointer));
+                return close_focused(wm,
+                    seat_pointer_get_seat(event->pointer.pointer),
+                    seat_pointer_get_focus(event->pointer.pointer));
             }
         break;default:
             ;
@@ -54,7 +57,7 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
 
 void wm_init_hotkeys(WindowManager* wm)
 {
-    wm->hotkeys.filter = scene_add_input_event_filter(wm->scene.get(), [wm](SceneEvent* event) {
+    wm->hotkeys.filter = seat_add_input_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {
         return filter_event(wm, event);
     });
 }

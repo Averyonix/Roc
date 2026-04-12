@@ -158,7 +158,7 @@ auto wm_find_window_at(WindowManager* wm, vec2f32 point) -> WmWindow*
     return window;
 }
 
-void wm_window_add_input_region(WmWindow* window, SceneInputRegion* region)
+void wm_window_add_input_region(WmWindow* window, SeatInputRegion* region)
 {
     window->input_regions.emplace_back(region);
 }

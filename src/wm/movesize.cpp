@@ -1,11 +1,11 @@
 #include "internal.hpp"
 
 static
-void begin_interaction(WindowManager* wm, ScenePointer* pointer, WmInteractionMode initial_mode)
+void begin_interaction(WindowManager* wm, SeatPointer* pointer, WmInteractionMode initial_mode)
 {
     wm->movesize.pointer = pointer;
 
-    auto pos = scene_pointer_get_position(pointer);
+    auto pos = seat_pointer_get_position(pointer);
     auto* window = wm_find_window_at(wm, pos);
     if (!window) return;
     auto frame = wm_window_get_frame(window);
@@ -49,7 +49,7 @@ void handle_motion(WindowManager* wm)
         return;
     }
 
-    auto pos = scene_pointer_get_position(wm->movesize.pointer);
+    auto pos = seat_pointer_get_position(wm->movesize.pointer);
     auto delta = (pos - wm->movesize.grab) * wm->movesize.relative;
     auto frame = wm->movesize.frame;
 
@@ -66,20 +66,20 @@ void handle_motion(WindowManager* wm)
 }
 
 static
-auto filter_event_movesize(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event_movesize(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (event->type) {
-        break;case SceneEventType::pointer_motion:
+        break;case SeatEventType::pointer_motion:
             if (event->pointer.pointer == wm->movesize.pointer) handle_motion(wm);
-        break;case SceneEventType::pointer_button:
+        break;case SeatEventType::pointer_button:
             if (event->pointer.pointer == wm->movesize.pointer) {
-                if (event->pointer.button.pressed) return SceneEventFilterResult::capture;
-                if (scene_pointer_get_pressed(wm->movesize.pointer).empty()) {
+                if (event->pointer.button.pressed) return SeatEventFilterResult::capture;
+                if (seat_pointer_get_pressed(wm->movesize.pointer).empty()) {
                     end_interaction(wm);
                 }
             }
-        break;case SceneEventType::pointer_scroll:
-            if (event->pointer.pointer == wm->movesize.pointer) return SceneEventFilterResult::capture;
+        break;case SeatEventType::pointer_scroll:
+            if (event->pointer.pointer == wm->movesize.pointer) return SeatEventFilterResult::capture;
         break;default:
             ;
     }
@@ -88,30 +88,30 @@ auto filter_event_movesize(WindowManager* wm, SceneEvent* event) -> SceneEventFi
 }
 
 static
-auto filter_event_default(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event_default(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
-    if (event->type != SceneEventType::pointer_button) return {};
+    if (event->type != SeatEventType::pointer_button) return {};
 
     auto button = event->pointer.button;
     if (!button.pressed) return {};
 
-    auto mods = scene_seat_get_modifiers(scene_input_device_get_seat(scene_pointer_get_base(event->pointer.pointer)));
+    auto mods = seat_get_modifiers(seat_pointer_get_seat(event->pointer.pointer));
     if (!mods.contains(wm->main_mod)) return {};
 
-    if (button.code == BTN_LEFT && mods.contains(SceneModifier::shift)) {
+    if (button.code == BTN_LEFT && mods.contains(SeatModifier::shift)) {
         begin_interaction(wm, event->pointer.pointer, WmInteractionMode::move);
-        return SceneEventFilterResult::capture;
+        return SeatEventFilterResult::capture;
 
     } else if (button.code == BTN_RIGHT) {
         begin_interaction(wm, event->pointer.pointer, WmInteractionMode::size);
-        return SceneEventFilterResult::capture;
+        return SeatEventFilterResult::capture;
     }
 
     return {};
 }
 static
 
-auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResult
+auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (wm->mode) {
         break;case WmInteractionMode::none:
@@ -123,12 +123,12 @@ auto filter_event(WindowManager* wm, SceneEvent* event) -> SceneEventFilterResul
             ;
     }
 
-    return SceneEventFilterResult::passthrough;
+    return SeatEventFilterResult::passthrough;
 }
 
 void wm_init_movesize(WindowManager* wm)
 {
-    wm->movesize.filter = scene_add_input_event_filter(wm->scene.get(), [wm](SceneEvent* event) {
+    wm->movesize.filter = seat_add_input_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {
         return filter_event(wm, event);
     });
 }

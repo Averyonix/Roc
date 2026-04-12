@@ -13,7 +13,7 @@ struct Roc
     WayServer*     way;
     IoContext*     io;
 
-    SceneModifier main_mod;
+    SeatModifier main_mod;
 
     std::filesystem::path app_share;
     std::filesystem::path wallpaper;

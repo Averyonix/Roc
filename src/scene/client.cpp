@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-SceneClient::~SceneClient()
+SeatClient::~SeatClient()
 {
     // TODO: Allow deletion of client resources in any order safely
 
@@ -11,31 +11,21 @@ SceneClient::~SceneClient()
         debug_assert(scene_get_focus_client(seat->keyboard->focus) != this);
         debug_assert(scene_get_focus_client(seat->pointer->focus)  != this);
     }
-
-    std::erase(scene->clients, this);
 }
 
-auto scene_client_create(Scene* scene) -> Ref<SceneClient>
+auto seat_client_create(Scene* scene) -> Ref<SeatClient>
 {
-    auto client = ref_create<SceneClient>();
+    auto client = ref_create<SeatClient>();
     client->scene = scene;
-    scene->clients.emplace_back(client.get());
     return client;
 }
 
-void scene_client_set_event_handler(SceneClient* client, std::move_only_function<SceneEventHandlerFn>&& event_handler)
+void seat_client_set_event_handler(SeatClient* client, std::move_only_function<SeatEventHandlerFn>&& event_handler)
 {
     client->event_handler = std::move(event_handler);
-
-    for (auto* seat : scene_get_seats(client->scene)) {
-        client->event_handler(ptr_to(SceneEvent {
-            .type = SceneEventType::seat_add,
-            .seat = seat,
-        }));
-    }
 }
 
-void scene_client_post_event(SceneClient* client, SceneEvent* event)
+void seat_client_post_event(SeatClient* client, SeatEvent* event)
 {
     client->event_handler(event);
 }

@@ -2,7 +2,7 @@
 
 #include "core/math.hpp"
 
-SceneInputRegion::~SceneInputRegion()
+SeatInputRegion::~SeatInputRegion()
 {
     client->input_regions--;
 
@@ -12,21 +12,21 @@ SceneInputRegion::~SceneInputRegion()
 
     for (auto* seat : scene_get_seats(client->scene)) {
         if (seat->keyboard->focus == this) {
-            scene_keyboard_focus(seat->keyboard.get(), nullptr);
+            seat_keyboard_focus(seat->keyboard.get(), nullptr);
         }
     }
 
     scene_update_pointers(client->scene);
 }
 
-void SceneInputRegion::damage(Scene* scene)
+void SeatInputRegion::damage(Scene* scene)
 {
     scene_enqueue_damage(scene, SceneDamageType::input);
 }
 
-auto scene_input_region_create(SceneClient* client) -> Ref<SceneInputRegion>
+auto scene_input_region_create(SeatClient* client) -> Ref<SeatInputRegion>
 {
-    auto region = ref_create<SceneInputRegion>();
+    auto region = ref_create<SeatInputRegion>();
     region->client = client;
 
     client->input_regions++;
@@ -34,7 +34,7 @@ auto scene_input_region_create(SceneClient* client) -> Ref<SceneInputRegion>
     return region;
 }
 
-void scene_input_region_set_region(SceneInputRegion* input_region, region2f32 region)
+void scene_input_region_set_region(SeatInputRegion* input_region, region2f32 region)
 {
     if (input_region->region == region) return;
 

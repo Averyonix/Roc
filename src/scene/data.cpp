@@ -1,64 +1,63 @@
 #include "internal.hpp"
 
-auto scene_data_source_create(SceneClient* client, SceneDataSourceOps&& ops) -> Ref<SceneDataSource>
+auto seat_data_source_create(SeatClient* client, SeatDataSourceOps&& ops) -> Ref<SeatDataSource>
 {
-    auto source = ref_create<SceneDataSource>();
+    auto source = ref_create<SeatDataSource>();
     source->ops = std::move(ops);
     source->client = client;
     return source;
 }
 
-void scene_data_source_offer(SceneDataSource* source, const char* mime_type)
+void seat_data_source_offer(SeatDataSource* source, const char* mime_type)
 {
     source->offered.insert(mime_type);
 }
 
 static
-void offer_selection(SceneSeat* seat, SceneDataSource* source)
+void offer_selection_to_focus(Seat* seat, SeatDataSource* source)
 {
-    // TODO: Only offer to clients with focus
-    for (auto* client : seat->scene->clients) {
-        scene_offer_selection(client, source);
+    if (auto* focus = seat->keyboard->focus) {
+        scene_offer_selection(focus->client, source);
     }
 }
 
-void scene_seat_set_selection(SceneSeat* seat, SceneDataSource* source)
+void seat_set_selection(Seat* seat, SeatDataSource* source)
 {
     if (seat->selection) {
         seat->selection->ops.cancel();
     }
     seat->selection = source;
-    offer_selection(seat, source);
+    offer_selection_to_focus(seat, source);
 }
 
-auto scene_seat_get_selection(SceneSeat* seat) -> SceneDataSource*
+auto seat_get_selection(Seat* seat) -> SeatDataSource*
 {
     return seat->selection.get();
 }
 
-SceneDataSource::~SceneDataSource()
+SeatDataSource::~SeatDataSource()
 {
 }
 
-void scene_offer_selection(SceneClient* client, SceneDataSource* source)
+void scene_offer_selection(SeatClient* client, SeatDataSource* source)
 {
-    scene_client_post_event(client, ptr_to(SceneEvent {
-        .type = SceneEventType::selection,
+    seat_client_post_event(client, ptr_to(SeatEvent {
         .data {
-            .source =source,
+            .type = SeatEventType::selection,
+            .source = source,
         },
     }));
 }
 
-auto scene_data_source_get_offered(SceneDataSource* source) -> std::span<const std::string>
+auto seat_data_source_get_offered(SeatDataSource* source) -> std::span<const std::string>
 {
     return source->offered;
 }
 
 // -----------------------------------------------------------------------------
 
-void scene_data_source_receive(SceneDataSource* source, const char* mime_type, int fd)
+void seat_data_source_receive(SeatDataSource* source, const char* mime_type, int fd)
 {
-    log_debug("scene_data_source_send({}, {}, {})", (void*)source, mime_type, fd);
+    log_debug("seat_data_source_send({}, {}, {})", (void*)source, mime_type, fd);
     source->ops.send(mime_type, fd);
 }
