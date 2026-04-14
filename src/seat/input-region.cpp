@@ -43,3 +43,23 @@ void scene_input_region_set_region(SeatInputRegion* input_region, region2f32 reg
 
     scene_node_damage(input_region);
 }
+
+auto seat_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SeatInputRegion*
+{
+    SeatInputRegion* region = nullptr;
+
+    scene_iterate<SceneIterateDirection::front_to_back>(tree,
+        scene_iterate_default,
+        [&](SceneNode* node) {
+            if (auto input_region = dynamic_cast<SeatInputRegion*>(node)) {
+                if (input_region->region.contains(pos - scene_tree_get_position(input_region->parent))) {
+                    region = input_region;
+                    return SceneIterateAction::stop;
+                }
+            }
+            return SceneIterateAction::next;
+        },
+        scene_iterate_default);
+
+    return region;
+}

@@ -36,6 +36,8 @@ struct SeatInputDevice
     Weak<SeatInputRegion> focus;
 };
 
+bool seat_post_input_event(Weak<SeatInputDevice>, SeatEvent*);
+
 // -----------------------------------------------------------------------------
 
 struct SeatKeyboard : SeatInputDevice, SeatKeyboardInfo

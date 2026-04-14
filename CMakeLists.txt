@@ -256,7 +256,6 @@ target_sources(seat PRIVATE
     src/seat/pointer.cpp
     src/seat/input-region.cpp
     src/seat/seat.cpp
-    src/seat/input.cpp
     src/seat/cursor.cpp
     src/seat/client.cpp
     src/seat/data.cpp

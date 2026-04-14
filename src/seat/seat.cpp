@@ -40,3 +40,20 @@ SeatEventFilter::~SeatEventFilter()
         std::erase(seat->input_event_filters, this);
     }
 }
+
+bool seat_post_input_event(Weak<SeatInputDevice> device, SeatEvent* event)
+{
+    for (auto* filter : device->seat->input_event_filters) {
+        if (filter->filter(event) == SeatEventFilterResult::capture) {
+            return false;
+        }
+    }
+
+    if (!device) return false;
+    if (device->focus) {
+        seat_client_post_event(device->focus->client, event);
+        return true;
+    }
+
+    return false;
+}
