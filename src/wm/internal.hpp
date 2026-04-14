@@ -45,6 +45,8 @@ struct WindowManager
         RefVector<WmOutput> outputs;
 
         std::vector<WmOutputListener> output_listeners;
+
+        std::vector<IoInputDevice*> led_devices;
     } io;
 
     Ref<SeatCursorManager> cursor_manager;

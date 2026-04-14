@@ -11,20 +11,19 @@ SeatKeyboard::~SeatKeyboard()
     xkb_context_unref(context);
 }
 
-auto seat_keyboard_create(Seat* seat) -> Ref<SeatKeyboard>
+auto seat_keyboard_create(const SeatKeyboardCreateInfo& info) -> Ref<SeatKeyboard>
 {
     auto keyboard = ref_create<SeatKeyboard>();
-    keyboard->seat = seat;
 
-    keyboard->rate = 25;
-    keyboard->delay = 600;
+    keyboard->rate = info.rate;
+    keyboard->delay = info.delay;
 
     // Init XKB
 
     keyboard->context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
     keyboard->keymap = xkb_keymap_new_from_names(keyboard->context, ptr_to(xkb_rule_names {
-        .layout = "gb",
+        .layout = info.layout,
     }), XKB_KEYMAP_COMPILE_NO_FLAGS);
 
     keyboard->state = xkb_state_new(keyboard->keymap);
@@ -36,7 +35,7 @@ auto seat_keyboard_create(Seat* seat) -> Ref<SeatKeyboard>
     keyboard->mod_masks[SeatModifier::caps]  = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_MOD_NAME_CAPS);
     keyboard->mod_masks[SeatModifier::super] = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_SUPER);
     keyboard->mod_masks[SeatModifier::alt]   = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_ALT)
-                                               | xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_LEVEL3);
+                                             | xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_LEVEL3);
     keyboard->mod_masks[SeatModifier::num]   = xkb_keymap_mod_get_mask(keyboard->keymap, XKB_VMOD_NAME_NUM);
 
     return keyboard;
@@ -89,51 +88,13 @@ bool post_input_event(Weak<SeatInputDevice> device, SeatEvent* event)
     return false;
 }
 
-static
-Flags<xkb_state_component> handle_key(SeatKeyboard* keyboard, SeatInputCode code, bool pressed, bool quiet)
-{
-    if (pressed ? keyboard->pressed.inc(code) : keyboard->pressed.dec(code)) {
-        auto changed_components = xkb_state_update_key(keyboard->state, evdev_to_xkb(code), pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
-
-        post_input_event(keyboard, ptr_to(SeatEvent {
-            .keyboard = {
-                .type = SeatEventType::keyboard_key,
-                .keyboard = keyboard,
-                .key = {
-                    .code = code,
-                    .pressed = pressed,
-                    .quiet = quiet,
-                },
-            }
-        }));
-
-        return changed_components;
-    }
-
-    return {};
-}
-
-static
-auto get_keyboard_leds(SeatKeyboard* keyboard) -> Flags<libinput_led>
+auto seat_keyboard_get_leds(SeatKeyboard* keyboard) -> Flags<libinput_led>
 {
     Flags<libinput_led> leds = {};
     if (xkb_state_led_name_is_active(keyboard->state, XKB_LED_NAME_NUM)    > 0) leds |= LIBINPUT_LED_NUM_LOCK;
     if (xkb_state_led_name_is_active(keyboard->state, XKB_LED_NAME_CAPS)   > 0) leds |= LIBINPUT_LED_CAPS_LOCK;
     if (xkb_state_led_name_is_active(keyboard->state, XKB_LED_NAME_SCROLL) > 0) leds |= LIBINPUT_LED_SCROLL_LOCK;
     return leds;
-}
-
-static
-void update_leds(Seat* seat)
-{
-    if (seat->led_devices.empty()) return;
-
-    // TODO: How to manage LED output across multiple keyboards
-    auto leds = get_keyboard_leds(seat_get_keyboard(seat));
-
-    for (auto& device : seat->led_devices) {
-        device->update_leds(leds);
-    }
 }
 
 static
@@ -151,8 +112,32 @@ void handle_xkb_component_updates(SeatKeyboard* keyboard, Flags<xkb_state_compon
             },
         }));
     }
+}
 
-    if (changed & XKB_STATE_LEDS) update_leds(keyboard->seat);
+auto seat_keyboard_key(SeatKeyboard* keyboard, SeatInputCode code, bool pressed, bool quiet) -> Flags<xkb_state_component>
+{
+    Flags<xkb_state_component> changed = {};
+
+    if (pressed ? keyboard->pressed.inc(code) : keyboard->pressed.dec(code)) {
+        // TODO: Query symbol *before* update
+        changed = xkb_state_update_key(keyboard->state, evdev_to_xkb(code), pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
+
+        post_input_event(keyboard, ptr_to(SeatEvent {
+            .keyboard = {
+                .type = SeatEventType::keyboard_key,
+                .keyboard = keyboard,
+                .key = {
+                    .code = code,
+                    .pressed = pressed,
+                    .quiet = quiet,
+                },
+            }
+        }));
+
+        handle_xkb_component_updates(keyboard, changed);
+    }
+
+    return changed;
 }
 
 void seat_keyboard_focus(SeatKeyboard* keyboard, SeatInputRegion* new_focus)
@@ -304,23 +289,19 @@ auto seat_pointer_get_pressed(SeatPointer* pointer) -> std::span<const SeatInput
 
 // -----------------------------------------------------------------------------
 
-auto seat_pointer_create(Seat* seat, SeatCursorManager* cursor_manager, SceneTree* root, SceneTree* layer) -> Ref<SeatPointer>
+auto seat_pointer_create(const SeatPointerCreateInfo& info) -> Ref<SeatPointer>
 {
     auto pointer = ref_create<SeatPointer>();
-    pointer->seat = seat;
-    pointer->cursor_manager = cursor_manager;
-    pointer->root = root;
-
-    pointer->accel = [](vec2f32 delta) { return delta; };
+    pointer->cursor_manager = info.cursor_manager;
+    pointer->root = info.root;
 
     pointer->tree = scene_tree_create();
-    scene_tree_place_above(layer, nullptr, pointer->tree .get());
+    scene_tree_place_above(info.layer, nullptr, pointer->tree .get());
 
     return pointer;
 }
 
-static
-void handle_button(SeatPointer* pointer, SeatInputCode code, bool pressed, bool quiet)
+void seat_pointer_button(SeatPointer* pointer, SeatInputCode code, bool pressed, bool quiet)
 {
     if (pressed ? pointer->pressed.inc(code) : pointer->pressed.dec(code)) {
         if (post_input_event(pointer, ptr_to(SeatEvent {
@@ -347,41 +328,31 @@ void handle_button(SeatPointer* pointer, SeatInputCode code, bool pressed, bool 
     }
 }
 
-static
-void handle_motion(SeatPointer* pointer, vec2f32 delta)
+void seat_pointer_move(SeatPointer* pointer, vec2f32 position, vec2f32 rel_accel, vec2f32 rel_unaccel)
 {
-    auto cur = seat_pointer_get_position(pointer);
+    bool send_event = pointer->tree->translation != position
+                   || rel_accel.x   || rel_accel.y
+                   || rel_unaccel.x || rel_unaccel.y;
 
-    auto delta_accel = pointer->accel(delta);
-
-    // TODO: Handle pointer constraints in `wm`
-    auto pos = cur + delta_accel;
-
-    scene_tree_set_translation(pointer->tree.get(), pos);
+    scene_tree_set_translation(pointer->tree.get(), position);
 
     update_pointer_focus(pointer);
+
+    if (!send_event) return;
 
     post_input_event(pointer, ptr_to(SeatEvent {
         .pointer = {
             .type = SeatEventType::pointer_motion,
             .pointer = pointer,
             .motion = {
-                .rel_accel   = delta_accel,
-                .rel_unaccel = delta,
+                .rel_accel   = rel_accel,
+                .rel_unaccel = rel_unaccel,
             },
         },
     }));
 }
 
-void seat_update_pointers(Seat* seat)
-{
-    if (auto* pointer = seat_get_pointer(seat)) {
-        handle_motion(pointer, {});
-    }
-}
-
-static
-void handle_scroll(SeatPointer* pointer, vec2f32 delta)
+void seat_pointer_scroll(SeatPointer* pointer, vec2f32 delta)
 {
     post_input_event(pointer, ptr_to(SeatEvent {
         .pointer = {
@@ -402,108 +373,4 @@ auto seat_pointer_get_focus(SeatPointer* pointer) -> SeatInputRegion*
 auto seat_pointer_get_seat(SeatPointer* pointer) -> Seat*
 {
     return pointer->seat;
-}
-
-void seat_pointer_set_accel(SeatPointer* pointer, std::move_only_function<SeatPointerAccelFn>&& accel)
-{
-    pointer->accel = std::move(accel);
-}
-
-// -----------------------------------------------------------------------------
-
-static
-void handle_input_added(Seat* seat, IoInputDevice* device)
-{
-    if (device->info().capabilities.contains(IoInputDeviceCapability::libinput_led)) {
-        seat->led_devices.emplace_back(device);
-    }
-}
-
-static
-void handle_input_removed(Seat* seat, IoInputDevice* device)
-{
-    std::erase(seat->led_devices, device);
-}
-
-enum class SeatDeviceType
-{
-    invalid,
-    keyboard,
-    pointer,
-};
-
-static
-auto categorize_key(SeatInputCode code) -> SeatDeviceType
-{
-    switch (code) {
-        break;case BTN_MOUSE ... BTN_TASK:
-            return SeatDeviceType::pointer;
-        break;case KEY_ESC        ... KEY_MICMUTE:
-              case KEY_OK         ... KEY_LIGHTS_TOGGLE:
-              case KEY_ALS_TOGGLE ... KEY_PERFORMANCE:
-            return SeatDeviceType::keyboard;
-        break;default:
-            return SeatDeviceType::invalid;
-    }
-}
-
-static
-void handle_input(Seat* seat, const IoInputEvent& event)
-{
-    vec2f32 motion = {};
-    vec2f32 scroll = {};
-    Flags<xkb_state_component> xkb_updates = {};
-
-    // TODO: Multiple input devices
-    auto* pointer = seat_get_pointer(seat);
-    auto* keyboard  = seat_get_keyboard(seat);
-
-    for (auto& channel : event.channels) {
-        switch (channel.type) {
-            break;case EV_KEY:
-                switch (categorize_key(channel.code)) {
-                    break;case SeatDeviceType::pointer:
-                        handle_button(pointer, channel.code, channel.value, event.quiet);
-                    break;case SeatDeviceType::keyboard:
-                        xkb_updates |= handle_key(keyboard, channel.code, channel.value, event.quiet);
-                    break;case SeatDeviceType::invalid:
-                        log_warn("Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
-                }
-            break;case EV_REL:
-                switch (channel.code) {
-                    break;case REL_X: motion.x += channel.value;
-                    break;case REL_Y: motion.y += channel.value;
-                    break;case REL_HWHEEL: scroll.x += channel.value;
-                    break;case REL_WHEEL:  scroll.y += channel.value;
-                }
-            break;case EV_ABS:
-                log_warn("Unknown  {} = {}", libevdev_event_code_get_name(channel.type, channel.code), channel.value);
-        }
-    }
-
-    if (motion.x || motion.y) handle_motion(pointer, motion);
-    if (scroll.x || scroll.y) handle_scroll(pointer, scroll);
-
-    if (xkb_updates) handle_xkb_component_updates(keyboard, xkb_updates);
-}
-
-void seat_push_io_event(Seat* seat, IoEvent* event)
-{
-    switch (event->type) {
-        break;case IoEventType::shutdown_requested:
-            ;
-
-        break;case IoEventType::input_added:
-            handle_input_added(seat, event->input.device);
-        break;case IoEventType::input_removed:
-            handle_input_removed(seat, event->input.device);
-        break;case IoEventType::input_event:
-            handle_input(seat, event->input);
-
-        break;case IoEventType::output_configure:
-              case IoEventType::output_frame:
-              case IoEventType::output_added:
-              case IoEventType::output_removed:
-            ;
-    }
 }

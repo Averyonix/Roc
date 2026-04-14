@@ -1,11 +1,14 @@
 #include "internal.hpp"
 
-auto seat_create(SeatCursorManager* cursor_manager, SceneTree* pointer_root, SceneTree* pointer_layer) -> Ref<Seat>
+auto seat_create(SeatKeyboard* keyboard, SeatPointer* pointer) -> Ref<Seat>
 {
     auto seat = ref_create<Seat>();
 
-    seat->keyboard = seat_keyboard_create(seat.get());
-    seat->pointer = seat_pointer_create(seat.get(), cursor_manager, pointer_root, pointer_layer);
+    seat->keyboard = keyboard;
+    keyboard->seat = seat.get();
+
+    seat->pointer = pointer;
+    pointer->seat = seat.get();
 
     return seat;
 }

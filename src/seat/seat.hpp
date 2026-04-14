@@ -43,9 +43,7 @@ struct Seat;
 
 // -----------------------------------------------------------------------------
 
-auto seat_create(SeatCursorManager*, SceneTree* pointer_root, SceneTree* pointer_layer) -> Ref<Seat>;
-
-void seat_push_io_event(Seat*, union IoEvent*);
+auto seat_create(SeatKeyboard*, SeatPointer*) -> Ref<Seat>;
 
 auto seat_get_pointer( Seat*) -> SeatPointer*;
 auto seat_get_keyboard(Seat*) -> SeatKeyboard*;
@@ -54,13 +52,24 @@ auto seat_get_modifiers(Seat*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifi
 
 // -----------------------------------------------------------------------------
 
+struct SeatPointerCreateInfo
+{
+    SeatCursorManager* cursor_manager;
+    SceneTree* root;
+    SceneTree* layer;
+};
+
+auto seat_pointer_create(const SeatPointerCreateInfo&) -> Ref<SeatPointer>;
+
 void seat_pointer_focus(       SeatPointer*, SeatInputRegion*);
 auto seat_pointer_get_position(SeatPointer*) -> vec2f32;
 auto seat_pointer_get_pressed( SeatPointer*) -> std::span<const SeatInputCode>;
 auto seat_pointer_get_focus(   SeatPointer*) -> SeatInputRegion*;
 auto seat_pointer_get_seat(    SeatPointer*) -> Seat*;
 
-void seat_update_pointers(Seat*);
+void seat_pointer_button(SeatPointer*, SeatInputCode, bool pressd, bool quiet);
+void seat_pointer_scroll(SeatPointer*, vec2f32 delta);
+void seat_pointer_move(  SeatPointer*, vec2f32 position, vec2f32 rel_accel, vec2f32 rel_unaccel);
 
 void seat_pointer_set_cursor( SeatPointer*, SceneNode*);
 void seat_pointer_set_xcursor(SeatPointer*, const char* xcursor_semantic);
@@ -74,6 +83,15 @@ struct SeatKeyboardInfo
     i32          delay;
 };
 
+struct SeatKeyboardCreateInfo
+{
+    const char* layout;
+    i32 rate;
+    i32 delay;
+};
+
+auto seat_keyboard_create(const SeatKeyboardCreateInfo&) -> Ref<SeatKeyboard>;
+
 void seat_keyboard_focus(        SeatKeyboard*, SeatInputRegion*);
 auto seat_keyboard_get_modifiers(SeatKeyboard*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifier>;
 auto seat_keyboard_get_pressed(  SeatKeyboard*) -> std::span<const SeatInputCode>;
@@ -82,12 +100,9 @@ auto seat_keyboard_get_utf8(     SeatKeyboard*, SeatInputCode) -> std::string;
 auto seat_keyboard_get_info(     SeatKeyboard*) -> const SeatKeyboardInfo&;
 auto seat_keyboard_get_focus(    SeatKeyboard*) -> SeatInputRegion*;
 auto seat_keyboard_get_seat(     SeatKeyboard*) -> Seat*;
+auto seat_keyboard_get_leds(     SeatKeyboard*) -> Flags<libinput_led>;
 
-// -----------------------------------------------------------------------------
-
-using SeatPointerAccelFn = auto(vec2f32) -> vec2f32;
-
-void seat_pointer_set_accel(SeatPointer*, std::move_only_function<SeatPointerAccelFn>&&);
+auto seat_keyboard_key(SeatKeyboard*, SeatInputCode, bool pressd, bool quiet) -> Flags<xkb_state_component>;
 
 // -----------------------------------------------------------------------------
 
@@ -180,9 +195,9 @@ struct SeatPointerEvent
 
 struct SeatDataEvent
 {
-    SeatEventType type;
+    SeatEventType   type;
     SeatDataSource* source;
-    Seat*       seat;
+    Seat*           seat;
 };
 
 union SeatEvent

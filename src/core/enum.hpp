@@ -67,6 +67,7 @@ struct std::formatter<Flags<E>> {
     constexpr auto format(Flags<E> bitfield, auto& ctx) const
     {
         using Type = Flags<E>::underlying_type;
+        // TODO: This breaks with enum flags with higher bits using magic_enum, switch to reflection
         Type v = bitfield.value;
         bool first = true;
         auto out = ctx.out();

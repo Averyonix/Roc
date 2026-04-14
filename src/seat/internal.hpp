@@ -1,7 +1,6 @@
 #pragma once
 
 #include "seat.hpp"
-#include <io/io.hpp>
 
 // -----------------------------------------------------------------------------
 
@@ -9,7 +8,6 @@ struct Seat
 {
     Ref<SeatKeyboard> keyboard;
     Ref<SeatPointer> pointer;
-    std::vector<IoInputDevice*> led_devices;
 
     Ref<SeatDataSource> selection;
 
@@ -53,8 +51,6 @@ struct SeatKeyboard : SeatInputDevice, SeatKeyboardInfo
     ~SeatKeyboard();
 };
 
-auto seat_keyboard_create(Seat*) -> Ref<SeatKeyboard>;
-
 // -----------------------------------------------------------------------------
 
 struct SeatPointer : SeatInputDevice
@@ -65,11 +61,7 @@ struct SeatPointer : SeatInputDevice
     SceneTree* root;
 
     Ref<SceneTree> tree;
-
-    std::move_only_function<SeatPointerAccelFn> accel;
 };
-
-auto seat_pointer_create(Seat*, SeatCursorManager*, SceneTree* root, SceneTree* layer) -> Ref<SeatPointer>;
 
 // -----------------------------------------------------------------------------
 
