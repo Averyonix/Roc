@@ -1,1 +1,208 @@
 #pragma once
+
+#include <scene/scene.hpp>
+
+struct SeatInputRegion;
+
+// -----------------------------------------------------------------------------
+
+struct SeatClient;
+
+auto seat_client_create() -> Ref<SeatClient>;
+
+// -----------------------------------------------------------------------------
+
+struct SeatCursorManager;
+
+auto scene_cursor_manager_create(Gpu*, const char* theme, i32 size) -> Ref<SeatCursorManager>;
+
+// -----------------------------------------------------------------------------
+
+enum class SeatModifier : u32
+{
+    super = 1 << 0,
+    shift = 1 << 1,
+    ctrl  = 1 << 2,
+    alt   = 1 << 3,
+    num   = 1 << 4,
+    caps  = 1 << 5,
+};
+
+enum class SeatModifierFlag
+{
+    ignore_locked = 1 << 0
+};
+
+using SeatInputCode = u32;
+
+// -----------------------------------------------------------------------------
+
+struct SeatKeyboard;
+struct SeatPointer;
+struct Seat;
+
+// -----------------------------------------------------------------------------
+
+auto seat_create(SeatCursorManager*, SceneTree* pointer_root, SceneTree* pointer_layer) -> Ref<Seat>;
+
+void seat_push_io_event(Seat*, union IoEvent*);
+
+auto seat_get_pointer( Seat*) -> SeatPointer*;
+auto seat_get_keyboard(Seat*) -> SeatKeyboard*;
+
+auto seat_get_modifiers(Seat*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifier>;
+
+// -----------------------------------------------------------------------------
+
+void seat_pointer_focus(       SeatPointer*, SeatInputRegion*);
+auto seat_pointer_get_position(SeatPointer*) -> vec2f32;
+auto seat_pointer_get_pressed( SeatPointer*) -> std::span<const SeatInputCode>;
+auto seat_pointer_get_focus(   SeatPointer*) -> SeatInputRegion*;
+auto seat_pointer_get_seat(    SeatPointer*) -> Seat*;
+
+void seat_update_pointers(Seat*);
+
+void seat_pointer_set_cursor( SeatPointer*, SceneNode*);
+void seat_pointer_set_xcursor(SeatPointer*, const char* xcursor_semantic);
+
+struct SeatKeyboardInfo
+{
+    xkb_context* context;
+    xkb_state*   state;
+    xkb_keymap*  keymap;
+    i32          rate;
+    i32          delay;
+};
+
+void seat_keyboard_focus(        SeatKeyboard*, SeatInputRegion*);
+auto seat_keyboard_get_modifiers(SeatKeyboard*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifier>;
+auto seat_keyboard_get_pressed(  SeatKeyboard*) -> std::span<const SeatInputCode>;
+auto seat_keyboard_get_sym(      SeatKeyboard*, SeatInputCode) -> xkb_keysym_t;
+auto seat_keyboard_get_utf8(     SeatKeyboard*, SeatInputCode) -> std::string;
+auto seat_keyboard_get_info(     SeatKeyboard*) -> const SeatKeyboardInfo&;
+auto seat_keyboard_get_focus(    SeatKeyboard*) -> SeatInputRegion*;
+auto seat_keyboard_get_seat(     SeatKeyboard*) -> Seat*;
+
+// -----------------------------------------------------------------------------
+
+using SeatPointerAccelFn = auto(vec2f32) -> vec2f32;
+
+void seat_pointer_set_accel(SeatPointer*, std::move_only_function<SeatPointerAccelFn>&&);
+
+// -----------------------------------------------------------------------------
+
+struct SeatDataSource;
+
+struct SeatDataSourceOps
+{
+    std::move_only_function<void()>                 cancel = [] {};
+    std::move_only_function<void(const char*, int)> send;
+};
+
+auto seat_data_source_create(SeatClient*, SeatDataSourceOps&&) -> Ref<SeatDataSource>;
+
+void seat_data_source_offer(      SeatDataSource*, const char* mime_type);
+auto seat_data_source_get_offered(SeatDataSource*) -> std::span<const std::string>;
+
+void seat_data_source_receive(SeatDataSource*, const char* mime_type, int fd);
+
+void seat_set_selection(Seat*, SeatDataSource*);
+auto seat_get_selection(Seat*) -> SeatDataSource*;
+
+// -----------------------------------------------------------------------------
+
+struct SeatInputRegion : SceneNode
+{
+    SeatClient* client;
+
+    region2f32 region;
+
+    virtual void damage(Scene*);
+
+    ~SeatInputRegion();
+};
+
+auto scene_input_region_create(SeatClient*) -> Ref<SeatInputRegion>;
+void scene_input_region_set_region(SeatInputRegion*, region2f32);
+
+// -----------------------------------------------------------------------------
+
+enum class SeatEventType
+{
+    keyboard_enter,
+    keyboard_leave,
+    keyboard_key,
+    keyboard_modifier,
+
+    pointer_enter,
+    pointer_leave,
+    pointer_motion,
+    pointer_button,
+    pointer_scroll,
+
+    selection,
+};
+
+struct SeatKeyboardEvent
+{
+    SeatEventType type;
+    SeatKeyboard* keyboard;
+    union {
+        struct {
+            SeatInputCode code;
+            bool          pressed;
+            bool          quiet;
+        } key;
+        SeatInputRegion* focus;
+    };
+};
+
+struct SeatPointerEvent
+{
+    SeatEventType type;
+    SeatPointer* pointer;
+    union {
+        struct {
+            SeatInputCode code;
+            bool          pressed;
+            bool          quiet;
+        } button;
+        struct {
+            vec2f32 rel_accel;
+            vec2f32 rel_unaccel;
+        } motion;
+        struct {
+            vec2f32 delta;
+        } scroll;
+        SeatInputRegion* focus;
+    };
+};
+
+struct SeatDataEvent
+{
+    SeatEventType type;
+    SeatDataSource* source;
+    Seat*       seat;
+};
+
+union SeatEvent
+{
+    SeatEventType     type;
+    SeatKeyboardEvent keyboard;
+    SeatPointerEvent  pointer;
+    SeatDataEvent     data;
+};
+
+using SeatEventHandlerFn = void(SeatEvent*);
+
+void seat_client_set_event_handler(SeatClient*, std::move_only_function<SeatEventHandlerFn>&&);
+
+enum class SeatEventFilterResult
+{
+    passthrough,
+    capture,
+};
+
+struct SeatEventFilter;
+
+auto seat_add_input_event_filter(Seat*, std::move_only_function<SeatEventFilterResult(SeatEvent*)>) -> Ref<SeatEventFilter>;

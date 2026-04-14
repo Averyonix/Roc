@@ -238,17 +238,11 @@ init_library(scene)
 target_sources(scene PRIVATE
     src/scene/scene.cpp
     src/scene/render.cpp
-    src/scene/node/input-region.cpp
     src/scene/node/mesh.cpp
     src/scene/node/node.cpp
     src/scene/node/texture.cpp
     src/scene/node/tree.cpp
     src/scene/damage.cpp
-    src/scene/seat.cpp
-    src/scene/input.cpp
-    src/scene/cursor.cpp
-    src/scene/client.cpp
-    src/scene/data.cpp
     )
 target_link_libraries(scene PUBLIC io)
 
@@ -260,6 +254,12 @@ init_library(seat)
 target_sources(seat PRIVATE
     src/seat/keyboard.cpp
     src/seat/pointer.cpp
+    src/seat/input-region.cpp
+    src/seat/seat.cpp
+    src/seat/input.cpp
+    src/seat/cursor.cpp
+    src/seat/client.cpp
+    src/seat/data.cpp
     )
 target_link_libraries(seat PUBLIC core)
 

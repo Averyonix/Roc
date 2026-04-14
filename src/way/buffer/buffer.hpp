@@ -2,7 +2,7 @@
 
 #include "../util.hpp"
 
-#include "gpu/gpu.hpp"
+#include <gpu/gpu.hpp>
 
 #include <wayland/server/linux-dmabuf-v1.h>
 #include <wayland/server/linux-drm-syncobj-v1.h>

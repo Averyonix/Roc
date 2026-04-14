@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/pch.hpp"
+#include <core/pch.hpp>
 
 #define GPU_INSTANCE_FUNCTIONS(DO) \
     DO(EnumeratePhysicalDevices) \

@@ -2,10 +2,10 @@
 
 #include "wm.hpp"
 
-#include "core/types.hpp"
-#include "scene/scene.hpp"
-#include "way/way.hpp"
-#include "io/io.hpp"
+#include <core/types.hpp>
+#include <scene/scene.hpp>
+#include <way/way.hpp>
+#include <io/io.hpp>
 
 enum class WmInteractionMode
 {

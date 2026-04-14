@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core/debug.hpp"
-#include "core/object.hpp"
-#include "core/enum.hpp"
-#include "core/fd.hpp"
+#include <core/debug.hpp>
+#include <core/object.hpp>
+#include <core/enum.hpp>
+#include <core/fd.hpp>
 
 // -----------------------------------------------------------------------------
 

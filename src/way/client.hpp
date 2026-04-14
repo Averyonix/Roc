@@ -2,7 +2,8 @@
 
 #include "util.hpp"
 
-#include "scene/scene.hpp"
+#include <scene/scene.hpp>
+#include <seat/seat.hpp>
 
 // -----------------------------------------------------------------------------
 

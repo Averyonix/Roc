@@ -1,7 +1,7 @@
 #include "internal.hpp"
 
-#include "core/enum.hpp"
-#include "core/stack.hpp"
+#include <core/enum.hpp>
+#include <core/stack.hpp>
 
 void gpu_queue_init(Gpu* gpu)
 {

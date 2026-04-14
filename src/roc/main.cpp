@@ -1,6 +1,6 @@
 #include "roc.hpp"
 
-#include "wm/wm.hpp"
+#include <wm/wm.hpp>
 
 #include "way/way.hpp"
 #include "way/surface/surface.hpp"

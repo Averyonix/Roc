@@ -1,6 +1,6 @@
 #pragma once
 
-#include "wm/wm.hpp"
+#include <wm/wm.hpp>
 
 struct Ui;
 

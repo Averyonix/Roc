@@ -1,8 +1,8 @@
 #include "../roc.hpp"
 
-#include "core/chrono.hpp"
-#include "core/color.hpp"
-#include "core/stacktrace.hpp"
+#include <core/chrono.hpp>
+#include <core/color.hpp>
+#include <core/stacktrace.hpp>
 
 struct RocLogViewer
 {

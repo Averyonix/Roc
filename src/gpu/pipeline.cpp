@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-#include "core/stack.hpp"
+#include <core/stack.hpp>
 
 struct GpuShader
 {

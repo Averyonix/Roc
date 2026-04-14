@@ -1,14 +1,14 @@
 #pragma once
 
-#include "core/object.hpp"
-#include "core/types.hpp"
-#include "core/fd.hpp"
-#include "core/hash.hpp"
-#include "core/containers.hpp"
-#include "core/id.hpp"
-#include "core/memory.hpp"
+#include <core/object.hpp>
+#include <core/types.hpp>
+#include <core/fd.hpp>
+#include <core/hash.hpp>
+#include <core/containers.hpp>
+#include <core/id.hpp>
+#include <core/memory.hpp>
 
-#include "exec/exec.hpp"
+#include <exec/exec.hpp>
 
 #include "functions.hpp"
 

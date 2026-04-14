@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-#include "core/stack.hpp"
+#include <core/stack.hpp>
 
 thread_local ImGuiContext* ui_imgui_ctx;
 

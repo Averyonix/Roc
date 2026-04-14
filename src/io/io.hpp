@@ -1,10 +1,10 @@
 #pragma once
 
-#include "core/object.hpp"
+#include <core/object.hpp>
 
-#include "exec/exec.hpp"
+#include <exec/exec.hpp>
 
-#include "gpu/gpu.hpp"
+#include <gpu/gpu.hpp>
 
 // -----------------------------------------------------------------------------
 

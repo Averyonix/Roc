@@ -1,6 +1,6 @@
-#include "base.hpp"
+#include "internal.hpp"
 
-#include "core/math.hpp"
+#include <core/math.hpp>
 
 SeatInputRegion::~SeatInputRegion()
 {

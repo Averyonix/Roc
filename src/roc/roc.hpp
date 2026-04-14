@@ -1,9 +1,9 @@
 #pragma once
 
-#include "scene/scene.hpp"
+#include <scene/scene.hpp>
 #include "ui/ui.hpp"
 #include "way/way.hpp"
-#include "io/io.hpp"
+#include <io/io.hpp>
 
 struct Roc
 {

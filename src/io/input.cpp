@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-#include "core/stack.hpp"
+#include <core/stack.hpp>
 
 void io_input_device_add(IoInputDeviceBase* device)
 {

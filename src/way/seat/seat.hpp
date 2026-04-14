@@ -2,9 +2,8 @@
 
 #include "../util.hpp"
 
-#include "core/fd.hpp"
-
-#include "scene/scene.hpp"
+#include <core/fd.hpp>
+#include <seat/seat.hpp>
 
 #include <wayland/server/pointer-gestures-unstable-v1.h>
 #include <wayland/server/relative-pointer-unstable-v1.h>

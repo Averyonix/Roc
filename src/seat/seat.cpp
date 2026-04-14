@@ -19,3 +19,21 @@ auto seat_get_pointer(Seat* seat) -> SeatPointer*
 {
     return seat->pointer.get();
 }
+
+// -----------------------------------------------------------------------------
+
+auto seat_add_input_event_filter(Seat* seat, std::move_only_function<SeatEventFilterResult(SeatEvent*)> fn) -> Ref<SeatEventFilter>
+{
+    auto filter = ref_create<SeatEventFilter>();
+    filter->seat = seat;
+    filter->filter = std::move(fn);
+    seat->input_event_filters.emplace_back(filter.get());
+    return filter;
+}
+
+SeatEventFilter::~SeatEventFilter()
+{
+    if (seat) {
+        std::erase(seat->input_event_filters, this);
+    }
+}

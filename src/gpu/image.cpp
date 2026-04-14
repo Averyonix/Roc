@@ -1,7 +1,7 @@
 #include "internal.hpp"
 
-#include "core/stack.hpp"
-#include "core/util.hpp"
+#include <core/stack.hpp>
+#include <core/util.hpp>
 
 VkImageUsageFlags gpu_image_usage_to_vk(Flags<GpuImageUsage> usage)
 {

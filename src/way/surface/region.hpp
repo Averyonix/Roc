@@ -2,8 +2,8 @@
 
 #include "../util.hpp"
 
-#include "core/region.hpp"
-#include "core/math.hpp"
+#include <core/region.hpp>
+#include <core/math.hpp>
 
 // -----------------------------------------------------------------------------
 

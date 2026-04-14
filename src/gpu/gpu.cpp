@@ -1,9 +1,9 @@
 #include "internal.hpp"
 
-#include "core/types.hpp"
-#include "core/util.hpp"
-#include "core/process.hpp"
-#include "core/stack.hpp"
+#include <core/types.hpp>
+#include <core/util.hpp>
+#include <core/process.hpp>
+#include <core/stack.hpp>
 
 #include <sys/sysmacros.h>
 

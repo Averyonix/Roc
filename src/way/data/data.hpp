@@ -2,7 +2,7 @@
 
 #include "../util.hpp"
 
-#include "scene/scene.hpp"
+#include <seat/seat.hpp>
 
 struct WayClient;
 struct WaySeatClient;

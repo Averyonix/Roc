@@ -1,8 +1,8 @@
 #include "internal.hpp"
 
-#include "io/io.hpp"
+#include <io/io.hpp>
 
-#include "core/math.hpp"
+#include <core/math.hpp>
 
 static
 void reflow_outputs(WindowManager* wm, bool any_changed = false)

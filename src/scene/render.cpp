@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-#include "core/math.hpp"
+#include <core/math.hpp>
 
 #include "scene_render_vert.hpp"
 #include "scene_render_frag.hpp"

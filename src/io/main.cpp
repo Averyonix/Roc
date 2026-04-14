@@ -1,7 +1,7 @@
 #include "io.hpp"
 
-#include "core/math.hpp"
-#include "gpu/internal.hpp"
+#include <core/math.hpp>
+#include <gpu/internal.hpp>
 
 static
 void render(Gpu* gpu, IoOutput* output, GpuImagePool* pool)

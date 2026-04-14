@@ -1,6 +1,6 @@
 #include "internal.hpp"
 
-#include "core/math.hpp"
+#include <core/math.hpp>
 
 WmWindow::~WmWindow()
 {

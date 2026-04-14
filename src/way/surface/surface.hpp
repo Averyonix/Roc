@@ -5,7 +5,7 @@
 
 #include "../server.hpp"
 
-#include "gpu/gpu.hpp"
+#include <gpu/gpu.hpp>
 
 #include <wayland/server/viewporter.h>
 #include <wayland/server/xdg-decoration-unstable-v1.h>
