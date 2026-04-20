@@ -19,12 +19,13 @@ auto wm_create(const WindowManagerCreateInfo& info) -> Ref<WindowManager>
 
     wm->window_system_id = uid_allocate();
 
-    wm_init_io(  wm.get());
+    wm_init_io(wm.get());
     wm_init_seat(wm.get());
 
-    wm_init_hotkeys( wm.get());
+    wm_init_hotkeys(wm.get());
     wm_init_movesize(wm.get());
-    wm_init_zone(    wm.get());
+    wm_init_zone(wm.get());
+    wm_init_focus_cycle(wm.get());
 
     return wm;
 }

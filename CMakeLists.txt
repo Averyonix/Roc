@@ -275,6 +275,7 @@ target_sources(wm PRIVATE
     src/wm/movesize.cpp
     src/wm/hotkeys.cpp
     src/wm/zone.cpp
+    src/wm/focus.cpp
     )
 target_link_libraries(wm PUBLIC scene seat)
 

@@ -20,6 +20,7 @@ struct SceneRenderInput
     GpuImageHandle texture;
     rect2f32 clip;
     vec4f32 radius;
+    f32 opacity;
 };
 
 #endif // SCENE_RENDER_H

@@ -13,6 +13,7 @@ enum class WmInteractionMode
     move,
     size,
     zone,
+    focus_cycle,
 };
 
 struct RocLauncher;
@@ -76,13 +77,25 @@ struct WindowManager
         aabb2f64 final_zone;
         bool     selecting = false;
     } zone;
+
+    struct {
+        Ref<SeatEventFilter> filter;
+        Seat* seat;
+        Weak<WmWindow> cycled;
+    } focus;
 };
 
-void wm_init_io(      WindowManager*);
-void wm_init_seat(    WindowManager*);
-void wm_init_hotkeys( WindowManager*);
-void wm_init_movesize(WindowManager*);
-void wm_init_zone(    WindowManager*);
+void wm_init_io(     WindowManager*);
+void wm_init_seat(   WindowManager*);
+void wm_init_hotkeys(WindowManager*);
+
+void wm_init_movesize(   WindowManager*);
+void wm_init_zone(       WindowManager*);
+void wm_init_focus_cycle(WindowManager*);
+
+// -----------------------------------------------------------------------------
+
+void wm_arrange_windows(WindowManager*);
 
 // -----------------------------------------------------------------------------
 

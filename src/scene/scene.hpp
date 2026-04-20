@@ -49,6 +49,7 @@ struct SceneTree : SceneNode
     Scene* scene;
 
     bool enabled;
+    f32 opacity = 1.f;
 
     vec2f32 translation;
 
@@ -69,7 +70,10 @@ auto scene_tree_create() -> Ref<SceneTree>;
 void scene_tree_set_enabled(SceneTree*, bool enabled);
 void scene_tree_place_below(SceneTree*, SceneNode* sibling, SceneNode* to_place);
 void scene_tree_place_above(SceneTree*, SceneNode* sibling, SceneNode* to_place);
+void scene_tree_replace(    SceneTree*, std::span<SceneNode* const> children);
 void scene_tree_clear(      SceneTree*);
+
+void scene_tree_set_opacity(SceneTree*, f32 opacity);
 
 void scene_tree_set_translation(SceneTree*, vec2f32 translation);
 auto scene_tree_get_position(   SceneTree*) -> vec2f32;

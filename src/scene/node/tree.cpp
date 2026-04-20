@@ -92,6 +92,18 @@ void scene_tree_place_above(SceneTree* tree, SceneNode* reference, SceneNode* to
     reparent_unsafe(to_place, tree);
 }
 
+void scene_tree_replace(SceneTree* tree, std::span<SceneNode* const> new_children)
+{
+    if (std::ranges::equal(tree->children, new_children)) return;
+
+    // TODO: More efficient bulk tree operations
+
+    scene_tree_clear(tree);
+    for (auto* new_child : new_children) {
+        scene_tree_place_above(tree, nullptr, new_child);
+    }
+}
+
 void scene_tree_clear(SceneTree* tree)
 {
     scene_node_damage(tree);
@@ -101,6 +113,14 @@ void scene_tree_clear(SceneTree* tree)
     }
 
     tree->children.clear();
+}
+
+void scene_tree_set_opacity(SceneTree* tree, f32 opacity)
+{
+    if (tree->opacity == opacity) return;
+
+    tree->opacity = opacity;
+    scene_node_damage(tree);
 }
 
 void scene_tree_set_translation(SceneTree* tree, vec2f32 position)

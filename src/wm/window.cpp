@@ -99,9 +99,8 @@ void wm_window_map(WmWindow* window)
 {
     if (window->mapped) return;
 
-    scene_tree_place_above(wm_get_layer(window->wm, WmLayer::window), nullptr, window->tree.get());
-
     window->mapped = true;
+    wm_arrange_windows(window->wm);
 
     wm_window_post_event(ptr_to(WmWindowEvent {
         .type = WmEventType::window_mapped,
@@ -113,16 +112,20 @@ void wm_window_raise(WmWindow* window)
 {
     if (!window->mapped) return;
 
-    scene_tree_place_above(wm_get_layer(window->wm, WmLayer::window), nullptr, window->tree.get());
+    auto* wm = window->wm;
+
+    std::erase(wm->windows, window);
+    wm->windows.emplace_back(window);
+
+    wm_arrange_windows(wm);
 }
 
 void wm_window_unmap(WmWindow* window)
 {
     if (!window->mapped) return;
 
-    scene_node_unparent(window->tree.get());
-
     window->mapped = false;
+    wm_arrange_windows(window->wm);
 
     wm_window_post_event(ptr_to(WmWindowEvent {
         .type = WmEventType::window_unmapped,

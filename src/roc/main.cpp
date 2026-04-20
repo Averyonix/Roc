@@ -17,10 +17,10 @@ int main()
 
     // Systems
 
-    auto exec  = exec_create();
-    auto gpu   = gpu_create(  exec.get(), {});
-    auto io    = io_create(   exec.get(), gpu.get());
-    auto wm    = wm_create({
+    auto exec = exec_create();
+    auto gpu = gpu_create(exec.get(), {});
+    auto io = io_create(exec.get(), gpu.get());
+    auto wm = wm_create({
         .exec = exec.get(),
         .gpu = gpu.get(),
         .io = io.get(),
@@ -72,7 +72,7 @@ int main()
         switch (event->type) {
             break;case WmEventType::window_reposition_requested: {
                 auto frame = event->reposition.frame;
-                scene_texture_set_dst(       canvas.get(), {{}, frame.extent, xywh});
+                scene_texture_set_dst(canvas.get(), {{}, frame.extent, xywh});
                 scene_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
                 wm_window_set_frame(event->window, frame);
             }
@@ -151,7 +151,7 @@ int main()
                     gpu->renderdoc->StartFrameCapture(nullptr, nullptr);
                     gpu->renderdoc->SetCaptureTitle(std::format("Roc capture {}", ++capture).c_str());
                     for (auto* output : wm_list_outputs(wm.get())) {
-                        auto viewport =  wm_output_get_viewport(output);
+                        auto viewport = wm_output_get_viewport(output);
                         auto texture = gpu_image_create(gpu.get(), {
                             .extent = viewport.extent,
                             .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),

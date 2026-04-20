@@ -46,6 +46,7 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
         GpuSampler* sampler;
         GpuBlendMode blend;
         vec2f32 position;
+        f32 opacity;
     };
 
     std::vector<SceneVertex> vertices;
@@ -54,8 +55,17 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
 
     aabb2f32 default_clip = viewport;
 
+    auto get_opacity = [](SceneNode* node) {
+        f32 opacity = 1.f;
+        while (node->parent) {
+            opacity *= node->parent->opacity;
+            node = node->parent;
+        }
+        return opacity;
+    };
+
     auto get_draw = [&draws, &vertices, &indices](
-        aabb2f32 clip, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend, vec2f32 position)
+        aabb2f32 clip, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend, vec2f32 position, f32 opacity)
     {
         auto* draw = draws.empty() ? nullptr : &draws.back();
         if (  !draw
@@ -63,7 +73,8 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
             || draw->image    != image
             || draw->sampler  != sampler
             || draw->blend    != blend
-            || draw->position != position)
+            || draw->position != position
+            || draw->opacity  != opacity)
         {
             draw = &draws.emplace_back(Draw{
                 .vertex_offset = u32(vertices.size()),
@@ -73,6 +84,7 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
                 .sampler = sampler,
                 .blend = blend,
                 .position = position,
+                .opacity = opacity,
             });
         }
         return draw;
@@ -95,6 +107,7 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
                 .sampler = segment.sampler.get() ?: render.sampler.get(),
                 .blend = segment.blend,
                 .position = pos + mesh->offset,
+                .opacity = get_opacity(mesh),
             });
         }
 
@@ -115,7 +128,8 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
             texture->image.get()   ?: render.white.get(),
             texture->sampler.get() ?: render.sampler.get(),
             texture->blend,
-            {});
+            {},
+            get_opacity(texture));
 
         auto base_vtx = vertices.size() - draw->vertex_offset;
         draw->index_count += 6;
@@ -199,6 +213,7 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
                 .offset = (draw.position - viewport.origin) * draw_scale - 1.f,
                 .texture = {draw.image, render.sampler.get()},
                 .clip = clip,
+                .opacity = draw.opacity,
             }));
 
             pass.draw_indexed({

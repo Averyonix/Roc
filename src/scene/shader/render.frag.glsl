@@ -24,5 +24,7 @@ void main()
     f32 m = clamp(0.5 - s, 0, 1);
     if (m == 0) discard;
 
-    out_color = image_sample(si.texture, in_uv) * in_color * m;
+    vec4f32 color = image_sample(si.texture, in_uv) * in_color * m;
+    color.a *= si.opacity;
+    out_color = color;
 }
