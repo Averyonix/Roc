@@ -111,12 +111,6 @@ extern "C" {
 
 // -----------------------------------------------------------------------------
 
-#include <imgui.h>
-#include <imgui_internal.h>
-#include <misc/cpp/imgui_stdlib.h>
-
-// -----------------------------------------------------------------------------
-
 #ifndef VK_NO_PROTOTYPES
 # define VK_NO_PROTOTYPES
 #endif

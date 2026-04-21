@@ -277,7 +277,6 @@ void IoWaylandOutput::commit(GpuImage* image, GpuSyncpoint done, Flags<IoOutputC
     wl_display_flush(io->wayland->wl_display);
 }
 
-
 IoWaylandOutput::~IoWaylandOutput()
 {
     IO_WL_DESTROY(wp_linux_drm_syncobj_surface_v1);

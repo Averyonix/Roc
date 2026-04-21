@@ -30,6 +30,7 @@ struct LogEntry
 
     std::string_view message() const noexcept;
 };
+
 struct LogHistory
 {
     std::unique_lock<std::recursive_mutex> mutex;
@@ -39,6 +40,7 @@ struct LogHistory
 
     const LogEntry* find(u32 line) const noexcept;
 };
+
 auto log_history_get() -> LogHistory;
 void log_history_enable(bool enabled);
 void log_history_add_listener(std::move_only_function<void(LogEntry*)>);
@@ -49,7 +51,7 @@ template<typename ...Args>
 void log(LogLevel level, std::format_string<Args...> fmt, Args&&... args)
 {
     if (log_get_level() > level) return;
-    log(level, std::vformat(fmt.get(), std::make_format_args(args...)));
+    log(level, std::format(fmt, std::forward<Args>(args)...));
 }
 
 #define log_trace(fmt, ...) do { if (log_is_enabled(LogLevel::trace)) log(LogLevel::trace, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)

@@ -177,7 +177,6 @@ target_link_libraries(core PUBLIC
     PkgConfig::libdrm
     udev
     PkgConfig::libseat
-    imgui
     cap
     PkgConfig::libgio2
     renderdoc-api
@@ -287,7 +286,7 @@ init_library(ui)
 target_sources(ui PRIVATE
     src/ui/ui.cpp
     )
-target_link_libraries(ui PUBLIC wm)
+target_link_libraries(ui PUBLIC wm imgui)
 
 # ------------------------------------------------------------------------------
 #       Wayland
