@@ -257,9 +257,9 @@ auto to_fixed(vec2f32 v) -> Vec<2, wl_fixed_t>
 }
 
 static
-auto get_fixed_pos(WaySurface* surface, SeatPointer* pointer)
+auto to_surface_pos(WaySurface* surface, vec2f32 global_pos)
 {
-    return to_fixed(seat_pointer_get_position(pointer) - scene_tree_get_position(surface->scene.tree.get()));
+    return global_pos - scene_tree_get_position(surface->scene.tree.get());
 }
 
 static
@@ -305,7 +305,7 @@ void way_seat_on_pointer_enter(WaySeatClient* seat_client, SeatEvent* event)
     seat->focus.pointer = new_surface;
 
     if (!new_surface->wl_surface) return;
-    auto pos = get_fixed_pos(new_surface, seat->pointer.scene);
+    auto pos = to_fixed(to_surface_pos(new_surface, seat_pointer_get_position(seat->pointer.scene)));
     for (auto* resource : seat_client->pointers) {
         way_send(server, wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, pos.x, pos.y);
     }
@@ -366,7 +366,7 @@ void way_seat_on_motion(WaySeatClient* seat_client, SeatEvent* event)
     auto elapsed = way_get_elapsed(server);
     u64 time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 
-    auto pos = get_fixed_pos(surface, seat->pointer.scene);
+    auto pos = to_fixed(to_surface_pos(surface, seat_pointer_get_position(seat->pointer.scene)));
 
     {
         u64 time_us = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();

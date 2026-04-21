@@ -21,7 +21,7 @@ WAY_BIND_GLOBAL(wl_output, bind)
     // TODO: This is just a temporary output to satisfy clients that need (but
     //       really shouldn't care about) a wl_output to function properly.
 
-    static constexpr vec2i32 size = {1920, 1080};
+    static constexpr vec2i32 size = {3840, 2160};
 
     way_send(server, wl_output_send_geometry, resource,
         size.x, size.y,
