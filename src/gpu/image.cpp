@@ -3,7 +3,7 @@
 #include <core/stack.hpp>
 #include <core/util.hpp>
 
-auto gpu_image_usage_to_vk(Flags<GpuImageUsage> usage) -> VkImageUsageFlags
+auto gpu_image_usage_to_vulkan(Flags<GpuImageUsage> usage) -> VkImageUsageFlags
 {
     VkImageUsageFlags vk_usage = {};
     if (usage.contains(GpuImageUsage::storage))      vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
@@ -112,7 +112,7 @@ auto gpu_image_create(Gpu* gpu, const GpuImageCreateInfo& info) -> Ref<GpuImage>
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = gpu_image_usage_to_vk(info.usage),
+        .usage = gpu_image_usage_to_vulkan(info.usage),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), ptr_to(VmaAllocationCreateInfo {
@@ -136,7 +136,7 @@ void gpu_image_init(GpuImageBase* image)
 {
     auto* gpu = image->context();
 
-    auto vk_usage = gpu_image_usage_to_vk(image->usage());
+    auto vk_usage = gpu_image_usage_to_vulkan(image->usage());
     if (vk_usage & (VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
         gpu_check(gpu->vk.CreateImageView(gpu->device, ptr_to(VkImageViewCreateInfo {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -275,7 +275,7 @@ GpuSampler::~GpuSampler()
 
 // -----------------------------------------------------------------------------
 
-auto gpu_find_vk_memory_type_index(Gpu* gpu, u32 type_filter, VkMemoryPropertyFlags properties) -> u32
+auto gpu_find_memory_type_index(Gpu* gpu, u32 type_filter, VkMemoryPropertyFlags properties) -> u32
 {
     VkPhysicalDeviceMemoryProperties props;
     gpu->vk.GetPhysicalDeviceMemoryProperties(gpu->physical_device, &props);
@@ -326,11 +326,11 @@ auto gpu_image_create_dmabuf(Gpu* gpu, const GpuImageCreateInfo& info) -> Ref<Gp
     image->data.format = info.format;
     image->data.usage = info.usage;
 
-    auto vk_usage = gpu_image_usage_to_vk(info.usage);
+    auto vk_usage = gpu_image_usage_to_vulkan(info.usage);
 
     gpu_check(gpu->vk.CreateImage(gpu->device, ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = gpu_vk_make_chain_in({
+        .pNext = gpu_vulkan_make_chain({
             ptr_to(VkExternalMemoryImageCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
@@ -359,10 +359,10 @@ auto gpu_image_create_dmabuf(Gpu* gpu, const GpuImageCreateInfo& info) -> Ref<Gp
     VkMemoryRequirements mem_reqs;
     gpu->vk.GetImageMemoryRequirements(gpu->device, image->handle(), &mem_reqs);
 
-    auto index = gpu_find_vk_memory_type_index(gpu, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    auto index = gpu_find_memory_type_index(gpu, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     gpu_check(gpu->vk.AllocateMemory(gpu->device, ptr_to(VkMemoryAllocateInfo {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = gpu_vk_make_chain_in({
+        .pNext = gpu_vulkan_make_chain({
             ptr_to(VkExportMemoryAllocateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
@@ -493,7 +493,7 @@ auto gpu_image_import(Gpu* gpu, const GpuDmaParams& params, Flags<GpuImageUsage>
     if (params.disjoint) img_create_flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
     gpu_check(gpu->vk.CreateImage(gpu->device, ptr_to(VkImageCreateInfo {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = gpu_vk_make_chain_in({
+        .pNext = gpu_vulkan_make_chain({
             ptr_to(VkExternalMemoryImageCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
                 .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
@@ -513,7 +513,7 @@ auto gpu_image_import(Gpu* gpu, const GpuDmaParams& params, Flags<GpuImageUsage>
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
-        .usage = gpu_image_usage_to_vk(usage),
+        .usage = gpu_image_usage_to_vulkan(usage),
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     }), nullptr, &image->data.image));
@@ -545,7 +545,7 @@ auto gpu_image_import(Gpu* gpu, const GpuDmaParams& params, Flags<GpuImageUsage>
             .image = image->handle(),
         }), &mem_reqs);
 
-        auto mem = gpu_find_vk_memory_type_index(gpu, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
+        auto mem = gpu_find_memory_type_index(gpu, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
 
         // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
         int vk_fd = fd_dup_unsafe(fd.get());
@@ -555,7 +555,7 @@ auto gpu_image_import(Gpu* gpu, const GpuDmaParams& params, Flags<GpuImageUsage>
 
         if (gpu_check(gpu->vk.AllocateMemory(gpu->device, ptr_to(VkMemoryAllocateInfo {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .pNext = gpu_vk_make_chain_in({
+            .pNext = gpu_vulkan_make_chain({
                 ptr_to(VkImportMemoryFdInfoKHR {
                     .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
                     .handleType = handle_type,

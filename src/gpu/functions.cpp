@@ -1,28 +1,29 @@
 #include "functions.hpp"
-#include "gpu.hpp"
 
 #include <core/log.hpp>
 
 #define VULKAN_LOAD_INSTANCE_FUNCTION(FuncName, ...) \
-    gpu->vk.FuncName = (PFN_vk##FuncName)gpu->vk.GetInstanceProcAddr(gpu->instance, "vk"#FuncName); \
-    if (!gpu->vk.FuncName) log_error("Failed to load vk" #FuncName);
-#define VULKAN_LOAD_DEVICE_FUNCTION(  FuncName, ...) \
-    gpu->vk.FuncName = (PFN_vk##FuncName)gpu->vk.GetDeviceProcAddr(  gpu->device,   "vk"#FuncName); \
-    if (!gpu->vk.FuncName) log_error("Failed to load vk" #FuncName);
+    vk.FuncName = (PFN_vk##FuncName)vk.GetInstanceProcAddr(instance, "vk"#FuncName); \
+    if (!vk.FuncName) log_error("Failed to load vk" #FuncName);
 
-void gpu_init_functions(Gpu* gpu, PFN_vkGetInstanceProcAddr loadFn)
+#define VULKAN_LOAD_DEVICE_FUNCTION(FuncName, ...) \
+    vk.FuncName = (PFN_vk##FuncName)vk.GetDeviceProcAddr(device, "vk"#FuncName); \
+    if (!vk.FuncName) log_error("Failed to load vk" #FuncName);
+
+void gpu_init_functions(GpuVulkanFunctions& vk, PFN_vkGetInstanceProcAddr loadFn)
 {
-    gpu->vk.GetInstanceProcAddr = loadFn;
+    vk.GetInstanceProcAddr = loadFn;
 
+    VkInstance instance = nullptr;
     VULKAN_LOAD_INSTANCE_FUNCTION(CreateInstance)
 }
 
-void gpu_load_instance_functions(Gpu* gpu)
+void gpu_load_instance_functions(GpuVulkanFunctions& vk, VkInstance instance)
 {
     GPU_INSTANCE_FUNCTIONS(VULKAN_LOAD_INSTANCE_FUNCTION)
 }
 
-void gpu_load_device_functions(Gpu* gpu)
+void gpu_load_device_functions(GpuVulkanFunctions& vk, VkDevice device)
 {
     GPU_DEVICE_FUNCTIONS(VULKAN_LOAD_DEVICE_FUNCTION)
 }

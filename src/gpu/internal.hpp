@@ -4,19 +4,17 @@
 
 // -----------------------------------------------------------------------------
 
-auto gpu_result_to_string(VkResult res) -> const char*;
-
 auto gpu_check(VkResult res, auto... allowed) -> VkResult
 {
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
-    log_error("VULKAN ERROR: {}, ({})", gpu_result_to_string(res), int(res));
+    log_error("VULKAN ERROR: {}, ({})", string_VkResult(res), int(res));
 
     debug_kill();
 }
 
 template<typename Container, typename Fn, typename... Args>
-void gpu_vk_enumerate(Container& container, Fn&& fn, Args&&... args)
+void gpu_vulkan_enumerate(Container& container, Fn&& fn, Args&&... args)
 {
     u32 count = static_cast<u32>(container.size());
     for (;;) {
@@ -33,7 +31,7 @@ void gpu_vk_enumerate(Container& container, Fn&& fn, Args&&... args)
 }
 
 inline
-auto gpu_vk_make_chain_in(std::span<void* const> structures)
+auto gpu_vulkan_make_chain(std::span<void* const> structures) -> void*
 {
     VkBaseInStructure* last = nullptr;
     for (auto* s : structures) {
@@ -47,13 +45,13 @@ auto gpu_vk_make_chain_in(std::span<void* const> structures)
 
 // -----------------------------------------------------------------------------
 
-auto gpu_find_vk_memory_type_index(Gpu*, u32 type_filter, VkMemoryPropertyFlags properties) -> u32;
+auto gpu_find_memory_type_index(Gpu*, u32 type_filter, VkMemoryPropertyFlags properties) -> u32;
 
 auto gpu_get_required_format_features(GpuFormat, Flags<GpuImageUsage>) -> VkFormatFeatureFlags;
 
 // -----------------------------------------------------------------------------
 
-auto gpu_image_usage_to_vk(Flags<GpuImageUsage>) -> VkImageUsageFlags;
+auto gpu_image_usage_to_vulkan(Flags<GpuImageUsage>) -> VkImageUsageFlags;
 
 struct GpuImageBase : GpuImage
 {

@@ -115,7 +115,7 @@ void gpu_allocate_image_descriptor(GpuImageBase* image)
 
     image->data.id = id;
 
-    auto usage = gpu_image_usage_to_vk(image->usage());
+    auto usage = gpu_image_usage_to_vulkan(image->usage());
 
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
         vk.UpdateDescriptorSets(gpu->device, 1, std::array {

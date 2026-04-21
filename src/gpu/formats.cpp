@@ -160,7 +160,7 @@ auto query_format_support(
 static
 auto load_format_props(Gpu* gpu, GpuFormatProperties& props, GpuFormat format, Flags<GpuImageUsage> usage) -> const GpuFormatProperties*
 {
-    auto vk_usage = gpu_image_usage_to_vk(usage);
+    auto vk_usage = gpu_image_usage_to_vulkan(usage);
     auto required_features = gpu_get_required_format_features(format, usage);
     auto has_all_features = [&](VkFormatFeatureFlags features) {
         return (features & required_features) == required_features;
@@ -225,7 +225,7 @@ auto gpu_get_format_properties(Gpu* gpu, GpuFormat format, Flags<GpuImageUsage> 
 {
     debug_assert(!usage.empty());
 
-    GpuFormatPropertiesKey key { format->vk, gpu_image_usage_to_vk(usage) };
+    GpuFormatPropertiesKey key { format->vk, gpu_image_usage_to_vulkan(usage) };
 
     auto iter = gpu->format_props.find(key);
 

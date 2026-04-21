@@ -16,6 +16,7 @@
 
 // -----------------------------------------------------------------------------
 
+struct Gpu;
 struct GpuImage;
 struct GpuBuffer;
 struct GpuSampler;
@@ -130,7 +131,7 @@ struct GpuFormatProperties
 
 struct GpuFormatPropertiesKey
 {
-    VkFormat format;
+    VkFormat          format;
     VkImageUsageFlags usage;
 
     constexpr auto operator==(const GpuFormatPropertiesKey&) const noexcept -> bool = default;
@@ -178,16 +179,11 @@ enum class GpuFeature : u32
 
 struct Gpu
 {
+    GpuVulkanFunctions vk;
+
     Flags<GpuFeature> features;
 
     ExecContext* exec;
-
-    struct {
-        GPU_DECLARE_FUNCTION(GetInstanceProcAddr)
-        GPU_DECLARE_FUNCTION(CreateInstance)
-        GPU_INSTANCE_FUNCTIONS(GPU_DECLARE_FUNCTION)
-        GPU_DEVICE_FUNCTIONS(  GPU_DECLARE_FUNCTION)
-    } vk;
 
     void* loader;
 
@@ -262,7 +258,7 @@ struct GpuSyncobj
     u32 syncobj;
 
     struct {
-        Fd fd;
+        Fd  fd;
         u64 skips = 0;
         IntrusiveList<GpuWaitFn> list;
     } wait;
@@ -272,7 +268,7 @@ struct GpuSyncobj
 
 struct GpuSyncpoint
 {
-    GpuSyncobj*          syncobj;
+    GpuSyncobj*           syncobj;
     u64                   value = 0;
     VkPipelineStageFlags2 stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 };
@@ -521,7 +517,7 @@ struct GpuRenderpass
 struct GpuRenderpassInfo
 {
     GpuImage* target;
-    vec4f32    clear_color;
+    vec4f32   clear_color;
 };
 
 auto gpu_renderpass_begin(Gpu*, const GpuRenderpassInfo&) -> GpuRenderpass;
@@ -541,7 +537,7 @@ constexpr static u32 gpu_dma_max_planes = 4;
 
 struct GpuDmaPlane
 {
-    Fd fd;
+    Fd  fd;
     u32 offset;
     u32 stride;
 };
@@ -551,8 +547,8 @@ struct GpuDmaParams
     FixedArray<GpuDmaPlane, gpu_dma_max_planes> planes;
     bool disjoint;
 
-    vec2u32          extent;
-    GpuFormat       format;
+    vec2u32        extent;
+    GpuFormat      format;
     GpuDrmModifier modifier;
 };
 
@@ -580,7 +576,7 @@ template<typename Lessor>
 struct GpuImageLease : GpuImage
 {
     Ref<GpuImage> image;
-    Lessor         lessor;
+    Lessor        lessor;
 
     GpuImageLease(Ref<GpuImage> image, Lessor&& lessor)
         : image(std::move(image))

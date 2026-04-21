@@ -7,11 +7,6 @@
 
 #include <sys/sysmacros.h>
 
-auto gpu_result_to_string(VkResult res) -> const char*
-{
-    return string_VkResult(res);
-}
-
 Gpu::~Gpu()
 {
     log_info("GPU context destroyed");
@@ -131,7 +126,7 @@ auto try_physical_device(Gpu* gpu, VkPhysicalDevice phdev) -> bool
     // Device extension support
 
     std::vector<VkExtensionProperties> available_extensions;
-    gpu_vk_enumerate(available_extensions, gpu->vk.EnumerateDeviceExtensionProperties, phdev, nullptr);
+    gpu_vulkan_enumerate(available_extensions, gpu->vk.EnumerateDeviceExtensionProperties, phdev, nullptr);
 
     auto check_extension = [&](const char* name) -> bool {
         for (auto& extension : available_extensions) {
@@ -302,7 +297,7 @@ auto test_timeline_syncobj_export(Gpu* gpu) -> bool
     defer { gpu->vk.DestroySemaphore(gpu->device, semaphore, nullptr); };
     gpu_check(gpu->vk.CreateSemaphore(gpu->device, ptr_to(VkSemaphoreCreateInfo {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = gpu_vk_make_chain_in({
+        .pNext = gpu_vulkan_make_chain({
             ptr_to(VkSemaphoreTypeCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
                 .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
@@ -370,7 +365,7 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
         return nullptr;
     }
 
-    gpu_init_functions(gpu.get(), vkGetInstanceProcAddr);
+    gpu_init_functions(gpu->vk, vkGetInstanceProcAddr);
 
     std::vector<const char*> instance_extensions {
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
@@ -390,14 +385,14 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
         .ppEnabledExtensionNames = instance_extensions.data(),
     }), nullptr, &gpu->instance));
 
-    gpu_load_instance_functions(gpu.get());
+    gpu_load_instance_functions(gpu->vk, gpu->instance);
 
     gpu_check(gpu->vk.CreateDebugUtilsMessengerEXT(gpu->instance, &debug_messenger_info, nullptr, &gpu->debug_messenger));
 
     // Select GPU
 
     std::vector<VkPhysicalDevice> physical_devices;
-    gpu_vk_enumerate(physical_devices, gpu->vk.EnumeratePhysicalDevices, gpu->instance);
+    gpu_vulkan_enumerate(physical_devices, gpu->vk.EnumeratePhysicalDevices, gpu->instance);
 
     for (auto& phdev : physical_devices) {
         if (try_physical_device(gpu.get(), phdev)) {
@@ -415,7 +410,7 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
 
     {
         std::vector<VkPhysicalDeviceToolProperties> tools;
-        gpu_vk_enumerate(tools, gpu->vk.GetPhysicalDeviceToolProperties, gpu->physical_device);
+        gpu_vulkan_enumerate(tools, gpu->vk.GetPhysicalDeviceToolProperties, gpu->physical_device);
 
         for (auto& tool : tools) {
             if (tool.layer == "VK_LAYER_KHRONOS_validation"sv) {
@@ -436,7 +431,7 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
 
     {
         std::vector<VkQueueFamilyProperties> props;
-        gpu_vk_enumerate(props, gpu->vk.GetPhysicalDeviceQueueFamilyProperties, gpu->physical_device);
+        gpu_vulkan_enumerate(props, gpu->vk.GetPhysicalDeviceQueueFamilyProperties, gpu->physical_device);
 
         bool found = false;
         for (auto[i, queue_props] : props | std::views::enumerate) {
@@ -455,7 +450,7 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
     auto create_device = [&](bool global_priority) {
         return gpu_check(gpu->vk.CreateDevice(gpu->physical_device, ptr_to(VkDeviceCreateInfo {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pNext = gpu_vk_make_chain_in({
+            .pNext = gpu_vulkan_make_chain({
                 ptr_to(VkPhysicalDeviceFeatures2 {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
                     .features = {
@@ -548,7 +543,7 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
         create_device(false);
     }
 
-    gpu_load_device_functions(gpu.get());
+    gpu_load_device_functions(gpu->vk, gpu->device);
 
     if (test_timeline_syncobj_export(gpu.get())) {
         log_info("Timeline semaphores importable as DRM syncobj");
