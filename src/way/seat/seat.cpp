@@ -40,6 +40,9 @@ void init_seat(WayServer* server, Seat* SceneSeat)
     seat->keyboard.keymap = get_keymap_file(kb_info.keymap);
 
     seat->global = way_global(server, wl_seat, seat.get());
+
+    way_global(server, zwp_relative_pointer_manager_v1);
+    way_global(server, zwp_pointer_constraints_v1);
 }
 
 WaySeat::~WaySeat()
@@ -248,11 +251,15 @@ void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SeatEvent* event)
 // -----------------------------------------------------------------------------
 
 static
-auto get_fixed_pos(WaySurface* surface, SeatPointer* pointer) -> std::pair<wl_fixed_t, wl_fixed_t>
+auto to_fixed(vec2f32 v) -> Vec<2, wl_fixed_t>
 {
-    auto local = seat_pointer_get_position(pointer) - scene_tree_get_position(surface->scene.tree.get());
+    return {wl_fixed_from_double(v.x), wl_fixed_from_double(v.y)};
+}
 
-    return {wl_fixed_from_double(local.x), wl_fixed_from_double(local.y)};
+static
+auto get_fixed_pos(WaySurface* surface, SeatPointer* pointer)
+{
+    return to_fixed(seat_pointer_get_position(pointer) - scene_tree_get_position(surface->scene.tree.get()));
 }
 
 static
@@ -298,9 +305,9 @@ void way_seat_on_pointer_enter(WaySeatClient* seat_client, SeatEvent* event)
     seat->focus.pointer = new_surface;
 
     if (!new_surface->wl_surface) return;
-    auto[x, y] = get_fixed_pos(new_surface, seat->pointer.scene);
+    auto pos = get_fixed_pos(new_surface, seat->pointer.scene);
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, x, y);
+        way_send(server, wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, pos.x, pos.y);
     }
 }
 
@@ -356,11 +363,26 @@ void way_seat_on_motion(WaySeatClient* seat_client, SeatEvent* event)
     auto* surface = seat->focus.pointer.get();
     if (!surface) return;
 
-    u32 time = elapsed_ms(server);
-    auto[x, y] = get_fixed_pos(surface, seat->pointer.scene);
+    auto elapsed = way_get_elapsed(server);
+    u64 time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+
+    auto pos = get_fixed_pos(surface, seat->pointer.scene);
+
+    {
+        u64 time_us = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+        u32 time_us_hi = time_us >> 32;
+        u32 time_us_lo = time_us & ~0u;
+
+        auto accel   = to_fixed(event->pointer.motion.rel_accel);
+        auto unaccel = to_fixed(event->pointer.motion.rel_unaccel);
+        for (auto* resource : seat_client->relative_pointers) {
+            way_send(server, zwp_relative_pointer_v1_send_relative_motion,
+                resource, time_us_hi, time_us_lo, accel.x, accel.y, unaccel.x, unaccel.y);
+        }
+    }
 
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_motion, resource, time, x, y);
+        way_send(server, wl_pointer_send_motion, resource, time_ms, pos.x, pos.y);
         pointer_frame(server, resource);
     }
 }

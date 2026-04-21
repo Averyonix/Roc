@@ -56,6 +56,8 @@ struct WaySeatClient : WayObject
     WayResourceList pointers;
     WayResourceList data_devices;
 
+    WayResourceList relative_pointers;
+
     struct {
         Ref<WayDataOffer> offer;
     } drag;
@@ -91,3 +93,10 @@ WAY_INTERFACE_DECLARE(wp_cursor_shape_device_v1);
 WAY_INTERFACE_DECLARE(wl_seat, 9);
 WAY_INTERFACE_DECLARE(wl_keyboard);
 WAY_INTERFACE_DECLARE(wl_pointer);
+
+WAY_INTERFACE_DECLARE(zwp_relative_pointer_manager_v1, 1);
+WAY_INTERFACE_DECLARE(zwp_relative_pointer_v1);
+
+WAY_INTERFACE_DECLARE(zwp_pointer_constraints_v1, 1);
+WAY_INTERFACE_DECLARE(zwp_locked_pointer_v1);
+WAY_INTERFACE_DECLARE(zwp_confined_pointer_v1);

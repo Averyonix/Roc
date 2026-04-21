@@ -310,6 +310,8 @@ target_sources(way PRIVATE
     src/way/seat/cursor-shape.cpp
     src/way/seat/gestures.cpp
     src/way/seat/seat.cpp
+    src/way/seat/relative-pointer.cpp
+    src/way/seat/pointer-constraints.cpp
 
     src/way/shell/popup.cpp
     src/way/shell/shell.cpp
