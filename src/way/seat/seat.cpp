@@ -392,14 +392,25 @@ void way_seat_on_scroll(WaySeatClient* seat_client, SeatEvent* event)
     static constexpr f32 axis_pixel_rate = 15.f;
 
     for (auto* resource : seat_client->pointers) {
-        if (delta.x) {
-            way_send(server, wl_pointer_send_axis, resource, time,
-                WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(delta.x * axis_pixel_rate));
+        auto version = wl_resource_get_version(resource);
+
+        if (version >= WL_POINTER_AXIS_SOURCE_SINCE_VERSION) {
+            way_send(server, wl_pointer_send_axis_source, resource, WL_POINTER_AXIS_SOURCE_WHEEL);
         }
-        if (delta.y) {
-            way_send(server, wl_pointer_send_axis, resource, time,
-                WL_POINTER_AXIS_VERTICAL_SCROLL, wl_fixed_from_double(delta.y * axis_pixel_rate));
+
+        if (delta.x) way_send(server, wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(delta.x * axis_pixel_rate));
+        if (delta.y) way_send(server, wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(delta.y * axis_pixel_rate));
+
+        if (version >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION) {
+            if (delta.x) way_send(server, wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(delta.x * 120));
+            if (delta.y) way_send(server, wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(delta.y * 120));
+
+        } else if (version >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION) {
+            // TODO: Accumulate fractional values
+            if (delta.x) way_send(server, wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(delta.x));
+            if (delta.y) way_send(server, wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(delta.y));
         }
+
         pointer_frame(server, resource);
     }
 }
