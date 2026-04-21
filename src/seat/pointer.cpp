@@ -145,7 +145,7 @@ auto seat_pointer_get_pressed(SeatPointer* pointer) -> std::span<const SeatInput
 
 auto seat_pointer_get_focus(SeatPointer* pointer) -> SeatInputRegion*
 {
-    return pointer->focus.get();
+    return pointer->focus;
 }
 
 auto seat_pointer_get_seat(SeatPointer* pointer) -> Seat*

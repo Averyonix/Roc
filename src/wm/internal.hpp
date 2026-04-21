@@ -28,6 +28,8 @@ struct WindowManager
     ExecContext* exec;
     Gpu*         gpu;
 
+    Ref<SeatManager> seat_manager;
+
     Ref<Scene> scene;
     EnumMap<WmLayer, Ref<SceneTree>> layers;
 

@@ -6,9 +6,15 @@ struct SeatInputRegion;
 
 // -----------------------------------------------------------------------------
 
+struct SeatManager;
+
+auto seat_manager_create() -> Ref<SeatManager>;
+
+// -----------------------------------------------------------------------------
+
 struct SeatClient;
 
-auto seat_client_create() -> Ref<SeatClient>;
+auto seat_client_create(SeatManager*) -> Ref<SeatClient>;
 
 // -----------------------------------------------------------------------------
 
@@ -43,7 +49,7 @@ struct Seat;
 
 // -----------------------------------------------------------------------------
 
-auto seat_create(SeatKeyboard*, SeatPointer*) -> Ref<Seat>;
+auto seat_create(SeatManager*, SeatKeyboard*, SeatPointer*) -> Ref<Seat>;
 
 auto seat_get_pointer( Seat*) -> SeatPointer*;
 auto seat_get_keyboard(Seat*) -> SeatKeyboard*;

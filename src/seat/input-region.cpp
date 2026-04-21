@@ -4,13 +4,25 @@
 
 SeatInputRegion::~SeatInputRegion()
 {
-    client->input_regions--;
+    std::erase(client->input_regions, this);
 
     if (parent) {
         scene_node_unparent(this);
     }
 
-    // TODO: Clear focus
+    for (auto* seat : client->manager->seats) {
+        if (auto* keyboard = seat_get_keyboard(seat)) {
+            if (seat_keyboard_get_focus(keyboard) == this) {
+                seat_keyboard_focus(keyboard, nullptr);
+            }
+        }
+
+        if (auto* pointer = seat_get_pointer(seat)) {
+            if (seat_pointer_get_focus(pointer) == this) {
+                seat_pointer_focus(pointer, nullptr);
+            }
+        }
+    }
 }
 
 void SeatInputRegion::damage(Scene* scene)
@@ -23,7 +35,7 @@ auto scene_input_region_create(SeatClient* client) -> Ref<SeatInputRegion>
     auto region = ref_create<SeatInputRegion>();
     region->client = client;
 
-    client->input_regions++;
+    client->input_regions.emplace_back(region.get());
 
     return region;
 }

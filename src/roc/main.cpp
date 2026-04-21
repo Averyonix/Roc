@@ -43,7 +43,7 @@ int main()
 
     // Test client
 
-    auto client = seat_client_create();
+    auto client = seat_client_create(wm_get_seat_manager(wm.get()));
 
     auto window = wm_window_create(wm.get());
     auto initial_size = vec2f32{256, 256};
@@ -196,7 +196,7 @@ int main()
 
     // Selection
 
-    auto data_client = seat_client_create();
+    auto data_client = seat_client_create(wm_get_seat_manager(wm.get()));
     seat_client_set_event_handler(data_client.get(), [](SeatEvent*) {});
     auto data_source = seat_data_source_create(data_client.get(), {
         .send = [&](const char* mime, int fd) {

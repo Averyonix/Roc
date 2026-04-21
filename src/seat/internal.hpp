@@ -4,23 +4,36 @@
 
 // -----------------------------------------------------------------------------
 
+struct SeatManager
+{
+    std::vector<Seat*> seats;
+};
+
+// -----------------------------------------------------------------------------
+
 struct Seat
 {
+    SeatManager* manager;
+
     Ref<SeatKeyboard> keyboard;
     Ref<SeatPointer> pointer;
 
     Ref<SeatDataSource> selection;
 
     std::vector<SeatEventFilter*> input_event_filters;
+
+    ~Seat();
 };
 
 // -----------------------------------------------------------------------------
 
 struct SeatClient
 {
+    SeatManager* manager;
+
     std::move_only_function<SeatEventHandlerFn> event_handler;
 
-    u32 input_regions = 0;
+    std::vector<SeatInputRegion*> input_regions;
 
     ~SeatClient();
 };
@@ -33,7 +46,7 @@ struct SeatInputDevice
 {
     Seat* seat;
 
-    Weak<SeatInputRegion> focus;
+    SeatInputRegion* focus;
 };
 
 bool seat_post_input_event(Weak<SeatInputDevice>, SeatEvent*);

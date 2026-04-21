@@ -8,6 +8,8 @@ auto wm_create(const WindowManagerCreateInfo& info) -> Ref<WindowManager>
     wm->gpu = info.gpu;
     wm->io.context = info.io;
 
+    wm->seat_manager = seat_manager_create();
+
     wm->scene = scene_create(wm->gpu);
     for (auto layer : magic_enum::enum_values<WmLayer>()) {
         auto* tree = (wm->layers[layer] = scene_tree_create()).get();
@@ -28,6 +30,11 @@ auto wm_create(const WindowManagerCreateInfo& info) -> Ref<WindowManager>
     wm_init_focus_cycle(wm.get());
 
     return wm;
+}
+
+auto wm_get_seat_manager(WindowManager* wm) -> SeatManager*
+{
+    return wm->seat_manager.get();
 }
 
 auto wm_get_scene(WindowManager* wm) -> Scene*

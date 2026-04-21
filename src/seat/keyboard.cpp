@@ -155,7 +155,7 @@ void seat_keyboard_focus(SeatKeyboard* keyboard, SeatInputRegion* new_focus)
 
 auto seat_keyboard_get_focus(SeatKeyboard* keyboard) -> SeatInputRegion*
 {
-    return keyboard->focus.get();
+    return keyboard->focus;
 }
 
 auto seat_keyboard_get_seat(SeatKeyboard* keyboard) -> Seat*

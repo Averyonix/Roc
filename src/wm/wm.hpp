@@ -30,6 +30,7 @@ enum class WmLayer
     overlay,
 };
 
+auto wm_get_seat_manager(WindowManager*) -> SeatManager*;
 auto wm_get_scene(WindowManager*) -> Scene*;
 
 auto wm_get_layer(WindowManager*, WmLayer) -> SceneTree*;

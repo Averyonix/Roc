@@ -71,7 +71,7 @@ void way_on_client_create(wl_listener* listener, void* data)
         object_remove_ref(way_get_userdata<WayClient>(data));
     });
 
-    client->scene = seat_client_create();
+    client->scene = seat_client_create(wm_get_seat_manager(server->wm));
     seat_client_set_event_handler(client->scene.get(), [client = client.get()](SeatEvent* event) {
         handle_event(client, event);
     });

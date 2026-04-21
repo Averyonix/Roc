@@ -473,7 +473,7 @@ auto ui_create(Gpu* gpu, WindowManager* wm, const std::filesystem::path& path) -
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
     });
-    ui->client  = seat_client_create();
+    ui->client  = seat_client_create(wm_get_seat_manager(wm));
 
     ui_init(ui.get(), path);
 

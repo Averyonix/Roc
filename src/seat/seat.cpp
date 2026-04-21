@@ -1,8 +1,18 @@
 #include "internal.hpp"
 
-auto seat_create(SeatKeyboard* keyboard, SeatPointer* pointer) -> Ref<Seat>
+auto seat_manager_create() -> Ref<SeatManager>
+{
+    return ref_create<SeatManager>();
+}
+
+// -----------------------------------------------------------------------------
+
+auto seat_create(SeatManager* manager, SeatKeyboard* keyboard, SeatPointer* pointer) -> Ref<Seat>
 {
     auto seat = ref_create<Seat>();
+
+    seat->manager = manager;
+    manager->seats.emplace_back(seat.get());
 
     seat->keyboard = keyboard;
     keyboard->seat = seat.get();
@@ -11,6 +21,11 @@ auto seat_create(SeatKeyboard* keyboard, SeatPointer* pointer) -> Ref<Seat>
     pointer->seat = seat.get();
 
     return seat;
+}
+
+Seat::~Seat()
+{
+    std::erase(manager->seats, this);
 }
 
 auto seat_get_keyboard(Seat* seat) -> SeatKeyboard*
