@@ -68,7 +68,6 @@ std::array required_device_extensions = {
     VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
     VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
     VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
-    VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME,
     VK_EXT_SHADER_OBJECT_EXTENSION_NAME,
 
     VK_KHR_MAINTENANCE_8_EXTENSION_NAME,
@@ -480,6 +479,7 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
                 }),
                 ptr_to(VkPhysicalDeviceVulkan13Features {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+                    .shaderDemoteToHelperInvocation = true,
                     .synchronization2 = true,
                     .dynamicRendering = true,
                     .maintenance4 = true,
@@ -489,11 +489,6 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
                     .maintenance5 = true,
                     .maintenance6 = true,
                 }),
-                ptr_to(VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR {
-                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
-                    .unifiedImageLayouts = true,
-                    .unifiedImageLayoutsVideo = true,
-                }),
                 ptr_to(VkPhysicalDeviceShaderObjectFeaturesEXT {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT,
                     .shaderObject = true,
@@ -501,10 +496,6 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
                 ptr_to(VkPhysicalDeviceMaintenance8FeaturesKHR {
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_8_FEATURES_KHR,
                     .maintenance8 = true,
-                }),
-                ptr_to(VkPhysicalDeviceMaintenance9FeaturesKHR {
-                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_9_FEATURES_KHR,
-                    .maintenance9 = true,
                 }),
             }),
             .queueCreateInfoCount = 1,
