@@ -7,6 +7,8 @@
 
 auto main() -> int
 {
+    log_set_file(PROGRAM_NAME ".log");
+
     Roc roc = {};
 
     // Config

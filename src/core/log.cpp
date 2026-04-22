@@ -2,13 +2,13 @@
 #include "log.hpp"
 #include "stacktrace.hpp"
 #include "chrono.hpp"
+#include "enum.hpp"
 
 #define VT_COLOR_BEGIN(color) "\u001B[" #color "m"
 #define VT_COLOR_RESET "\u001B[0m"
 #define VT_COLOR(color, text) VT_COLOR_BEGIN(color) text VT_COLOR_RESET
 
 static struct {
-    LogLevel log_level = LogLevel::trace;
     std::ofstream log_file;
 
     struct {
@@ -22,16 +22,6 @@ static struct {
     StacktraceCache stacktraces;
     std::recursive_mutex mutex;
 } log_state = {};
-
-auto log_get_level() -> LogLevel
-{
-    return log_state.log_level;
-}
-
-auto log_is_enabled(LogLevel level) -> bool
-{
-    return level >= log_get_level();
-}
 
 auto log_history_is_enabled() -> bool
 {
@@ -106,11 +96,9 @@ auto LogHistory::find(u32 line) const noexcept -> const LogEntry*
     return &iter[-1];
 }
 
-void log(LogLevel level, std::string_view message)
+void log(LogSemantic semantic, std::string_view message)
 {
     auto& state = log_state;
-
-    if (state.log_level > level) return;
 
     // Strip trailing newlines
     while (message.ends_with('\n')) message.remove_suffix(1);
@@ -119,14 +107,25 @@ void log(LogLevel level, std::string_view message)
 
     std::scoped_lock _ { state.mutex };
 
-    if (state.history.enabled) {
-        auto[stacktrace, added] = state.stacktraces.insert(std::stacktrace::current(1));
+    auto[stacktrace, new_stacktrace] = state.stacktraces.insert(std::stacktrace::current(1));
 
+    if (state.log_file.is_open()) {
+        if (new_stacktrace) {
+            state.log_file << std::format("s  {}\n", (void*)stacktrace);
+            for (auto& entry : *stacktrace) {
+                if (entry.source_file().empty() && entry.description().empty()) continue;
+                state.log_file << std::format("se {} \"{}\" {}\n", entry.source_line(), entry.source_file().c_str(), entry.description());
+                state.log_file.flush();
+            }
+        }
+    }
+
+    if (state.history.enabled) {
         auto start = state.history.buffer.size();
         state.history.buffer.append(message);
         auto lines = u32(std::ranges::count(message, '\n') + 1);
         auto& entry = state.history.entries.emplace_back(LogEntry {
-            .level = level,
+            .semantic = semantic,
             .timestamp = timestamp,
             .start = u32(start),
             .len = u32(message.size()),
@@ -141,36 +140,29 @@ void log(LogLevel level, std::string_view message)
         }
     }
 
-    struct {
-        const char* vt;
-        const char* plain;
-    } fmt;
-
-    switch (level) {
-        break;case LogLevel::trace:
-            fmt = { VT_COLOR(90, "{}") " [" VT_COLOR(90, "TRACE") "] " VT_COLOR(90, "{}") "\n", "{} [TRACE] {}\n" };
-        break;case LogLevel::debug:
-            fmt = { VT_COLOR(90, "{}") " [" VT_COLOR(96, "DEBUG") "] {}\n",                          "{} [DEBUG] {}\n" };
-        break;case LogLevel::info:
-            fmt = { VT_COLOR(90, "{}") "  [" VT_COLOR(94, "INFO") "] {}\n",                          "{}  [INFO] {}\n" };
-        break;case LogLevel::warn:
-            fmt = { VT_COLOR(90, "{}") "  [" VT_COLOR(93, "WARN") "] {}\n",                          "{}  [WARN] {}\n" };
-        break;case LogLevel::error:
-            fmt = { VT_COLOR(90, "{}") " [" VT_COLOR(91, "ERROR") "] {}\n",                          "{} [ERROR] {}\n" };
-        break;case LogLevel::fatal:
-            fmt = { VT_COLOR(90, "{}") " [" VT_COLOR(91, "FATAL") "] {}\n",                          "{} [FATAL] {}\n" };
+    const char* format;
+    switch (semantic) {
+        break;case LogSemantic::trace: format = VT_COLOR(90, "{}") " ["  VT_COLOR(90, "TRACE") "] " VT_COLOR(90, "{}") "\n";
+        break;case LogSemantic::debug: format = VT_COLOR(90, "{}") " ["  VT_COLOR(96, "DEBUG") "] "              "{}"  "\n";
+        break;case LogSemantic::info:  format = VT_COLOR(90, "{}") "  [" VT_COLOR(94,  "INFO") "] "              "{}"  "\n";
+        break;case LogSemantic::warn:  format = VT_COLOR(90, "{}") "  [" VT_COLOR(93,  "WARN") "] "              "{}"  "\n";
+        break;case LogSemantic::error: format = VT_COLOR(90, "{}") " ["  VT_COLOR(91, "ERROR") "] "              "{}"  "\n";
+        break;case LogSemantic::fatal: format = VT_COLOR(90, "{}") " ["  VT_COLOR(91, "FATAL") "] "              "{}"  "\n";
     }
 
     auto time_ms = FmtTime{timestamp, TimeFormat::time_ms};
-    std::cerr << std::vformat(fmt.vt, std::make_format_args(time_ms, message));
+    std::cerr << std::vformat(format, std::make_format_args(time_ms, message));
+
     if (state.log_file.is_open()) {
-        auto datetime_ms = FmtTime{timestamp, TimeFormat::datetime_ms};
-        state.log_file << std::vformat(fmt.plain, std::make_format_args(datetime_ms, message)) << std::flush;
+        state.log_file << std::format("m  {} {} {}\n", (void*)stacktrace, FmtTime{timestamp, TimeFormat::iso8601}, semantic);
+        for (auto line : std::views::split(message, '\n')) {
+            state.log_file << std::format("ml {:s}\n", line);
+        }
+        state.log_file.flush();
     }
 }
 
-void log_init(LogLevel log_level,  const char* log_file)
+void log_set_file(const std::filesystem::path& log_file)
 {
-    log_state.log_level = log_level;
-    if (log_file) log_state.log_file = std::ofstream(log_file);
+    log_state.log_file = std::ofstream(log_file);
 }

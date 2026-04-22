@@ -3,7 +3,7 @@
 #include "pch.hpp"
 #include "types.hpp"
 
-enum class LogLevel : u32
+enum class LogSemantic : u32
 {
     trace,
     debug,
@@ -13,14 +13,12 @@ enum class LogLevel : u32
     fatal,
 };
 
-auto log_get_level() -> LogLevel;
-auto log_is_enabled(LogLevel) -> bool;
-void log_init(      LogLevel, const char* log_file);
-void log(           LogLevel, std::string_view message);
+void log_set_file(const std::filesystem::path& log_file);
+void log(LogSemantic, std::string_view message);
 
 struct LogEntry
 {
-    LogLevel level;
+    LogSemantic semantic;
     std::chrono::system_clock::time_point timestamp;
     u32 start;
     u32 len;
@@ -48,14 +46,13 @@ auto log_history_is_enabled() -> bool;
 void log_history_clear();
 
 template<typename ...Args>
-void log(LogLevel level, std::format_string<Args...> fmt, Args&&... args)
+void log(LogSemantic semantic, std::format_string<Args...> fmt, Args&&... args)
 {
-    if (log_get_level() > level) return;
-    log(level, std::format(fmt, std::forward<Args>(args)...));
+    log(semantic, std::format(fmt, std::forward<Args>(args)...));
 }
 
-#define log_trace(fmt, ...) do { if (log_is_enabled(LogLevel::trace)) log(LogLevel::trace, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_debug(fmt, ...) do { if (log_is_enabled(LogLevel::debug)) log(LogLevel::debug, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_info( fmt, ...) do { if (log_is_enabled(LogLevel::info )) log(LogLevel::info,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_warn( fmt, ...) do { if (log_is_enabled(LogLevel::warn )) log(LogLevel::warn,  std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
-#define log_error(fmt, ...) do { if (log_is_enabled(LogLevel::error)) log(LogLevel::error, std::format(fmt __VA_OPT__(,) __VA_ARGS__)); } while (0)
+#define log_trace(...) log(LogSemantic::trace, __VA_ARGS__)
+#define log_debug(...) log(LogSemantic::debug, __VA_ARGS__)
+#define log_info( ...) log(LogSemantic::info,  __VA_ARGS__)
+#define log_warn( ...) log(LogSemantic::warn,  __VA_ARGS__)
+#define log_error(...) log(LogSemantic::error, __VA_ARGS__)

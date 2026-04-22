@@ -38,7 +38,7 @@ A collection of reusable components and helpers used throughout the project.
 - Event loop (timed dispatch, file events)
 - File descriptor lifetime management
 - Object registry (intrusive allocation reference counting)
-- Logging (level-based filtering, with full stacktrace contexts)
+- Structured logging (semantic + timestamp + stacktrace)
 - Linear algebra (vectors, aabbs, rects)
 
 ### `exec` ─ Execution Contexts

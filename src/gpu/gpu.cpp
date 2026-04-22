@@ -236,21 +236,19 @@ auto VKAPI_CALL debug_callback(
 {
     if (!data->pMessage) return VK_FALSE;
 
-    LogLevel level;
+    LogSemantic semantic;
     switch (severity) {
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: level = LogLevel::trace;
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:    level = LogLevel::info;
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: level = LogLevel::warn;
-        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:   level = LogLevel::error;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: semantic = LogSemantic::trace;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:    semantic = LogSemantic::info;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: semantic = LogSemantic::warn;
+        break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:   semantic = LogSemantic::error;
         break;case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
             debug_unreachable();
     }
 
-    if (!log_is_enabled(level)) return VK_FALSE;
-
     if (data->messageIdNumber) {
         auto message = std::format("Validation {}: [ {} ] | MessageID = {:#x}\n",
-            level == LogLevel::error ? "Error" : "Warning",
+            semantic == LogSemantic::error ? "Error" : "Warning",
             data->pMessageIdName,
             data->messageIdNumber);
         message += data->pMessage;
@@ -276,9 +274,9 @@ auto VKAPI_CALL debug_callback(
                 std::make_format_args(i, max_index_width, type_name, type_width, object.objectHandle));
         }
 
-        log(level, message);
+        log(semantic, message);
     } else {
-        log(level, data->pMessage);
+        log(semantic, data->pMessage);
     }
 
     if (severity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {

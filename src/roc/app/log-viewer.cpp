@@ -114,13 +114,13 @@ void frame(RocLogViewer* viewer)
         ImVec4 color;
         const char* format;
 
-        switch (entry.level) {
-            break;case LogLevel::trace: format = "[TRACE] %.*s"; color = to_imvec(color_trace);
-            break;case LogLevel::debug: format = "[DEBUG] %.*s"; color = to_imvec(color_debug);
-            break;case LogLevel::info:  format = " [INFO] %.*s"; color = to_imvec(color_info);
-            break;case LogLevel::warn:  format = " [WARN] %.*s"; color = to_imvec(color_warn);
-            break;case LogLevel::error: format = "[ERROR] %.*s"; color = to_imvec(color_error);
-            break;case LogLevel::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
+        switch (entry.semantic) {
+            break;case LogSemantic::trace: format = "[TRACE] %.*s"; color = to_imvec(color_trace);
+            break;case LogSemantic::debug: format = "[DEBUG] %.*s"; color = to_imvec(color_debug);
+            break;case LogSemantic::info:  format = " [INFO] %.*s"; color = to_imvec(color_info);
+            break;case LogSemantic::warn:  format = " [WARN] %.*s"; color = to_imvec(color_warn);
+            break;case LogSemantic::error: format = "[ERROR] %.*s"; color = to_imvec(color_error);
+            break;case LogSemantic::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
         }
 
         ImGui::PushStyleColor(ImGuiCol_Text, color);
