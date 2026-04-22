@@ -292,6 +292,7 @@ void ui_init(Ui* ui, const std::filesystem::path& path)
     io.ConfigFlags         |= ImGuiConfigFlags_ViewportsEnable;
     io.BackendFlags        |= ImGuiBackendFlags_PlatformHasViewports
                            |  ImGuiBackendFlags_RendererHasViewports
+                           |  ImGuiBackendFlags_RendererHasVtxOffset
                            |  ImGuiBackendFlags_HasMouseHoveredViewport;
     io.BackendPlatformName  = PROJECT_NAME;
     io.BackendRendererName  = PROJECT_NAME;
