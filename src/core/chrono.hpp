@@ -10,12 +10,14 @@ auto time_current() -> std::chrono::system_clock::time_point
     return std::chrono::system_clock::now();
 }
 
+using clock_id_t = int;
+
 /*
  * Assume steady_clock is implemented as CLOCK_MONOTONIC.
  */
-static constexpr int steady_clock_id = CLOCK_MONOTONIC;
+static constexpr clock_id_t steady_clock_id = CLOCK_MONOTONIC;
 
-template<int ClockID>
+template<clock_id_t ClockID>
 auto steady_clock_from_timespec(const timespec& ts) -> std::chrono::steady_clock::time_point
 {
     static_assert(steady_clock_id == ClockID);
@@ -25,7 +27,7 @@ auto steady_clock_from_timespec(const timespec& ts) -> std::chrono::steady_clock
     return std::chrono::steady_clock::time_point(dur);
 }
 
-template<int ClockID>
+template<clock_id_t ClockID>
 auto steady_clock_to_timespec(std::chrono::steady_clock::time_point tp) -> timespec
 {
     static_assert(steady_clock_id == ClockID);
@@ -91,7 +93,7 @@ struct std::formatter<FmtTime> {
             "December"
         };
 
-        static constexpr auto day_suffix = [&](int i) {
+        static constexpr auto day_suffix = [&](auto i) {
             switch (i) {
                 break;case 1: case 21: case 31: return "st";
                 break;case 2: case 22:          return "nd";

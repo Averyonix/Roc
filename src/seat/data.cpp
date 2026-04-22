@@ -56,7 +56,7 @@ auto seat_data_source_get_offered(SeatDataSource* source) -> std::span<const std
 
 // -----------------------------------------------------------------------------
 
-void seat_data_source_receive(SeatDataSource* source, const char* mime_type, int fd)
+void seat_data_source_receive(SeatDataSource* source, const char* mime_type, fd_t fd)
 {
     log_debug("seat_data_source_send({}, {}, {})", (void*)source, mime_type, fd);
     source->ops.send(mime_type, fd);

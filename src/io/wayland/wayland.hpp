@@ -123,14 +123,14 @@ struct IoWaylandOutput : IoOutputBase
         };
     }
 
-    struct release_slot
+    struct ReleaseSlot
     {
         Ref<GpuImage>   image;
         Ref<GpuSyncobj> syncobj;
         u64             point;
     };
 
-    std::vector<release_slot> release_slots;
+    std::vector<ReleaseSlot> release_slots;
 
     virtual void commit(GpuImage*, GpuSyncpoint done, Flags<IoOutputCommitFlag>) final override;
 
@@ -149,6 +149,11 @@ struct IoWaylandKeyboard : IoInputDeviceBase
 {
     IO_WL_INTERFACE(wl_keyboard);
 
+    virtual auto info() -> IoInputDeviceInfo final override
+    {
+        return {};
+    }
+
     ~IoWaylandKeyboard();
 };
 
@@ -159,6 +164,11 @@ struct IoWaylandPointer : IoInputDeviceBase
 
     Weak<IoOutput> current_output;
     u32 last_serial;
+
+    virtual auto info() -> IoInputDeviceInfo final override
+    {
+        return {};
+    }
 
     ~IoWaylandPointer();
 };

@@ -8,7 +8,7 @@ static constexpr libinput_interface io_libinput_interface {
         auto* io = static_cast<IoContext*>(data);
         return io_session_open_device(io->session.get(), path);
     },
-    .close_restricted = [](int fd, void* data) {
+    .close_restricted = [](fd_t fd, void* data) {
         auto* io = static_cast<IoContext*>(data);
         io_session_close_device(io->session.get(), fd);
     }
@@ -41,8 +41,8 @@ void io_libinput_init(IoContext* io)
 
     debug_assert(unix_check<libinput_udev_assign_seat>(io->libinput->libinput, io_session_get_seat_name(io->session.get())).ok());
 
-    int fd = libinput_get_fd(io->libinput->libinput);
-    exec_fd_listen(io->exec, fd, FdEventBit::readable, [io](int fd, Flags<FdEventBit>) {
+    fd_t fd = libinput_get_fd(io->libinput->libinput);
+    fd_listen(io->exec, fd, FdEventBit::readable, [io](fd_t fd, Flags<FdEventBit>) {
         handle_libinput_readable(io);
     });
 }
@@ -50,7 +50,7 @@ void io_libinput_init(IoContext* io)
 void io_libinput_deinit(IoContext* io)
 {
     if (io->libinput) {
-        exec_fd_unlisten(io->exec, libinput_get_fd(io->libinput->libinput));
+        fd_unlisten(io->exec, libinput_get_fd(io->libinput->libinput));
         libinput_unref(io->libinput->libinput);
     }
 

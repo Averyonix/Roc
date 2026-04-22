@@ -166,7 +166,7 @@ void create_params(wl_client* client, wl_resource* resource, u32 params_id)
 }
 
 static
-void params_add(wl_client* client, wl_resource* resource, int _fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo)
+void params_add(wl_client* client, wl_resource* resource, fd_t _fd, u32 plane_idx, u32 offset, u32 stride, u32 modifier_hi, u32 modifier_lo)
 {
     auto fd = Fd(_fd);
 

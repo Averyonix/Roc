@@ -2,7 +2,7 @@
 
 struct IoEvdevDevice
 {
-    int fd = -1;
+    fd_t fd = -1;
     struct libevdev* evdev = nullptr;
     bool needs_sync;
 
@@ -14,7 +14,7 @@ struct IoEvdevDevice
     void destroy(IoContext* io)
     {
         libevdev_free(std::exchange(evdev, nullptr));
-        exec_fd_unlisten(io->exec, fd);
+        fd_unlisten(io->exec, fd);
         close(std::exchange(fd, -1));
     }
 };
@@ -89,7 +89,7 @@ void handle_device(IoContext* io, udev_device* dev)
     device->evdev = std::exchange(evdev, nullptr);
     io->evdev->devices.emplace_back(device.get());
 
-    exec_fd_listen(io->exec, device->fd, FdEventBit::readable, [io, device = device.get()](int, Flags<FdEventBit>) {
+    fd_listen(io->exec, device->fd, FdEventBit::readable, [io, device = device.get()](fd_t, Flags<FdEventBit>) {
         handle_evdev_event(io, device);
     });
 }
@@ -131,7 +131,7 @@ void io_evdev_init(IoContext* io)
     udev_monitor_filter_add_match_subsystem_devtype(io->evdev->monitor, "input", nullptr);
     udev_monitor_enable_receiving(io->evdev->monitor);
     auto fd = udev_monitor_get_fd(io->evdev->monitor);
-    exec_fd_listen(io->exec, fd, FdEventBit::readable, [io](int, Flags<FdEventBit>) {
+    fd_listen(io->exec, fd, FdEventBit::readable, [io](fd_t, Flags<FdEventBit>) {
         handle_monitor_events(io);
     });
 }
@@ -142,7 +142,7 @@ void io_evdev_deinit(IoContext* io)
         device->destroy(io);
     }
 
-    exec_fd_unlisten(io->exec, udev_monitor_get_fd(io->evdev->monitor));
+    fd_unlisten(io->exec, udev_monitor_get_fd(io->evdev->monitor));
     udev_monitor_unref(io->evdev->monitor);
 
     io->evdev.destroy();

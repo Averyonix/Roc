@@ -323,10 +323,10 @@ struct WayBindGlobalData
 
 // -----------------------------------------------------------------------------
 
-auto way_resource_create(wl_client*, const wl_interface*, int version, int id, const void* impl, WayObject*, bool refcount) -> wl_resource*;
+auto way_resource_create(wl_client*, const wl_interface*, i32 version, i32 id, const void* impl, WayObject*, bool refcount) -> wl_resource*;
 
 inline
-auto way_resource_create(wl_client* client, const wl_interface* interface, wl_resource* parent, int id, const void* impl, WayObject* object, bool refcount) -> wl_resource*
+auto way_resource_create(wl_client* client, const wl_interface* interface, wl_resource* parent, i32 id, const void* impl, WayObject* object, bool refcount) -> wl_resource*
 {
     return way_resource_create(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
 }

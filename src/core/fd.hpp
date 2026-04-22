@@ -4,37 +4,39 @@
 
 // -----------------------------------------------------------------------------
 
-static constexpr int fd_limit = 1024;
+using fd_t = int;
+
+static constexpr fd_t fd_limit = 1024;
 
 // -----------------------------------------------------------------------------
 
-auto fd_are_same(int fd0, int fd1) -> bool;
-auto fd_dup_unsafe(int fd) -> int;
+auto fd_are_same(fd_t fd0, fd_t fd1) -> bool;
+auto fd_dup_unsafe(fd_t fd) -> fd_t;
 
 // -----------------------------------------------------------------------------
 
 inline
-auto fd_is_valid(int fd) -> bool
+auto fd_is_valid(fd_t fd) -> bool
 {
     return fd >= 0 && fd < fd_limit;
 }
 
-auto fd_get_ref_count(int fd) -> u32;
+auto fd_get_ref_count(fd_t fd) -> u32;
 
-auto fd_add_ref(   int fd) -> int;
-auto fd_remove_ref(int fd) -> int;
+auto fd_add_ref(   fd_t fd) -> fd_t;
+auto fd_remove_ref(fd_t fd) -> fd_t;
 
-auto fd_extract(int fd) -> int;
+auto fd_extract(fd_t fd) -> fd_t;
 
 struct Fd
 {
-    int fd;
+    fd_t fd;
 
     Fd()
         : fd(-1)
     {}
 
-    explicit Fd(int fd)
+    explicit Fd(fd_t fd)
         : fd(fd)
     {
         fd_add_ref(fd);
@@ -72,7 +74,7 @@ struct Fd
         fd_remove_ref(fd);
     }
 
-    void reset(int new_fd = -1)
+    void reset(fd_t new_fd = -1)
     {
         fd_remove_ref(fd);
         fd = fd_add_ref(new_fd);
@@ -84,9 +86,9 @@ struct Fd
         return *this;
     }
 
-    auto get() const noexcept -> int { return fd; }
+    auto get() const noexcept -> fd_t { return fd; }
 
-    auto extract() noexcept -> int;
+    auto extract() noexcept -> fd_t;
 
     explicit operator bool() const noexcept { return fd >= 0; }
 };

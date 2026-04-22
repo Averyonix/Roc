@@ -36,7 +36,4 @@ struct CommandParser
 
         return value;
     }
-
-    auto get_int()    -> std::optional<int> { return get_from_chars<int>(); }
-    auto get_double() -> std::optional<int> { return get_from_chars<f64>(); }
 };

@@ -37,7 +37,7 @@ void exec_add_timer_wakeup(ExecContext* exec, std::chrono::steady_clock::time_po
 }
 
 static
-void handle_timer(ExecContext* exec, int fd)
+void handle_timer(ExecContext* exec, fd_t fd)
 {
     u64 expirations;
     if (unix_check<read>(fd, &expirations, sizeof(expirations)).value != sizeof(expirations)) return;
@@ -77,7 +77,7 @@ auto exec_create() -> Ref<ExecContext>
     exec->epoll_fd = Fd(unix_check<epoll_create1>(EPOLL_CLOEXEC).value);
 
     exec->task_fd = Fd(unix_check<eventfd>(0, EFD_CLOEXEC | EFD_NONBLOCK).value);
-    exec_fd_listen(exec.get(), exec->task_fd.get(), FdEventBit::readable, [exec = exec.get()](int fd, Flags<FdEventBit> events) {
+    fd_listen(exec.get(), exec->task_fd.get(), FdEventBit::readable, [exec = exec.get()](fd_t fd, Flags<FdEventBit> events) {
         eventfd_t tasks = {};
         unix_check<eventfd_read>(fd, &tasks);
         exec->tasks_available += tasks;
@@ -87,7 +87,7 @@ auto exec_create() -> Ref<ExecContext>
     });
 
     exec->timer_fd = Fd(unix_check<timerfd_create>(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC).value);
-    exec_fd_listen(exec.get(), exec->timer_fd.get(), FdEventBit::readable, [exec = exec.get()](int fd, Flags<FdEventBit> events) {
+    fd_listen(exec.get(), exec->timer_fd.get(), FdEventBit::readable, [exec = exec.get()](fd_t fd, Flags<FdEventBit> events) {
         handle_timer(exec, fd);
 
         // Don't double dip timer event stats
@@ -115,8 +115,8 @@ ExecContext::~ExecContext()
 {
     debug_assert(stopped);
 
-    exec_fd_unlisten(this, task_fd.get());
-    exec_fd_unlisten(this, timer_fd.get());
+    fd_unlisten(this, task_fd.get());
+    fd_unlisten(this, timer_fd.get());
 
 #if EXEC_CHECK_LISTENERS
     for (auto[i, listener] : listeners | std::views::enumerate) {
@@ -191,9 +191,9 @@ void exec_run(ExecContext* exec)
                 exec->stats.events_handled++;
 
                 auto event_bits = from_epoll_events(events[i].events);
-                if (l->flags.contains(ExecListenFlag::oneshot)) {
+                if (l->flags.contains(FdListenFlag::oneshot)) {
                     Ref listener = l;
-                    exec_fd_unlisten(exec, fd);
+                    fd_unlisten(exec, fd);
                     listener->handle(fd, event_bits);
                 } else {
                     l->handle(fd, event_bits);
@@ -224,10 +224,10 @@ void exec_run(ExecContext* exec)
 
 // -----------------------------------------------------------------------------
 
-void exec_fd_listen(
+void fd_listen(
     ExecContext* exec,
-    int fd,
-    ExecFdListener* listener)
+    fd_t fd,
+    FdListener* listener)
 {
     auto events = listener->events;
 
@@ -246,7 +246,7 @@ void exec_fd_listen(
     }));
 }
 
-void exec_fd_unlisten(ExecContext* exec, int fd)
+void fd_unlisten(ExecContext* exec, fd_t fd)
 {
     debug_assert(fd_is_valid(fd));
 

@@ -81,8 +81,8 @@ void handle_pointer_scroll_wheel(IoLibinputDevice* device, libinput_event_pointe
 static
 void handle_device_added(IoContext* io, struct libinput_device* libinput_device)
 {
-    int vendor = libinput_device_get_id_vendor(libinput_device);
-    int product = libinput_device_get_id_product(libinput_device);
+    auto vendor = libinput_device_get_id_vendor(libinput_device);
+    auto product = libinput_device_get_id_product(libinput_device);
     const char* name = libinput_device_get_name(libinput_device);
 
     log_debug("Adding {} [{}:{}]", name, vendor, product);

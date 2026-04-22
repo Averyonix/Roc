@@ -55,7 +55,7 @@ auto gpu_format_from_drm(GpuDrmFormat drm_format) -> GpuFormat
     return {};
 }
 
-auto gpu_format_from_vk(VkFormat vk_format, Flags<GpuVulkanFormatFlag> vk_flags) -> GpuFormat
+auto gpu_format_from_vulkan(VkFormat vk_format, Flags<GpuVulkanFormatFlag> vk_flags) -> GpuFormat
 {
     for (auto[i, f] : gpu_format_infos | std::views::enumerate) {
         if (f.vk == vk_format && f.vk_flags == vk_flags) return GpuFormat(i);

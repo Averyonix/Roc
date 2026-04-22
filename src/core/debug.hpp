@@ -36,13 +36,15 @@ void debug_assert_fail(std::string_view expr, std::string_view reason = {});
 //      Error Checking
 // -----------------------------------------------------------------------------
 
-void log_unix_error(std::string_view message, int err = 0);
+using unix_error_t = int;
+
+void log_unix_error(std::string_view message, unix_error_t err = 0);
 
 template<typename T>
 struct UnixResult
 {
-    T   value;
-    int error;
+    T            value;
+    unix_error_t error;
 
     auto ok()  const noexcept -> bool { return !error; }
     auto err() const noexcept -> bool { return  error; }
@@ -60,7 +62,7 @@ enum class UnixErrorBehavior
 template<auto Function>
 struct UnixErrorBehaviorHelper { static_assert(false); };
 
-template<auto Function, int... Quiet>
+template<auto Function, unix_error_t... Quiet>
 auto unix_check(auto... args) -> UnixResult<decltype(Function(args...))>
 {
     static constexpr auto behaviour = UnixErrorBehaviorHelper<Function>::behaviour;
@@ -71,7 +73,7 @@ auto unix_check(auto... args) -> UnixResult<decltype(Function(args...))>
 
     auto res = Function(args...);
 
-    int err;
+    unix_error_t err;
     if constexpr (behaviour == UnixErrorBehavior::negative_one) {
         if (res != decltype(res)(-1)) [[likely]] return { res };
         err = errno;

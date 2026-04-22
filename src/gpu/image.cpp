@@ -432,7 +432,7 @@ auto gpu_image_export(GpuImage* _image) -> GpuDmaParams
     // Export file descriptors
 
     auto export_fd = [&](VkDeviceMemory mem) {
-        int _fd = -1;
+        fd_t _fd = -1;
         gpu_check(gpu->vk.GetMemoryFdKHR(gpu->device, ptr_to(VkMemoryGetFdInfoKHR {
             .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
             .memory = image->memory[0],
@@ -548,7 +548,7 @@ auto gpu_image_import(Gpu* gpu, const GpuDmaParams& params, Flags<GpuImageUsage>
         auto mem = gpu_find_memory_type_index(gpu, mem_reqs.memoryRequirements.memoryTypeBits & fd_props.memoryTypeBits, 0);
 
         // Take a copy of the file descriptor, this will be owned by the bound vulkan memory
-        int vk_fd = fd_dup_unsafe(fd.get());
+        fd_t vk_fd = fd_dup_unsafe(fd.get());
 
         image->stats.allocation_size   += mem_reqs.memoryRequirements.size;
         gpu->stats.active_image_memory += mem_reqs.memoryRequirements.size;

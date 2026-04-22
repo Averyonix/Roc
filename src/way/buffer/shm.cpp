@@ -27,7 +27,7 @@ void pool_map(WayShmPool* pool, usz size)
 }
 
 static
-void create_pool(wl_client* client, wl_resource* resource, u32 id, int fd, i32 size)
+void create_pool(wl_client* client, wl_resource* resource, u32 id, fd_t fd, i32 size)
 {
     auto pool = ref_create<WayShmPool>();
     pool->server = way_get_userdata<WayServer>(resource);

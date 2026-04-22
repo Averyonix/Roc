@@ -3,7 +3,7 @@
 #include "debug.hpp"
 #include "log.hpp"
 
-auto fd_are_same(int fd0, int fd1) -> bool
+auto fd_are_same(fd_t fd0, fd_t fd1) -> bool
 {
     struct stat st0 = {};
     if (unix_check<fstat>(fd0, &st0).err()) return false;
@@ -14,7 +14,7 @@ auto fd_are_same(int fd0, int fd1) -> bool
     return st0.st_ino == st1.st_ino;
 }
 
-auto fd_dup_unsafe(int fd) -> int
+auto fd_dup_unsafe(fd_t fd) -> fd_t
 {
     if (fd < 0) return {};
 
@@ -35,7 +35,7 @@ struct FdRegistry
 #if FD_LEAK_CHECK
     FdRegistry()
     {
-        for (int fd = 0; fd < fd_limit; ++fd) {
+        for (fd_t fd = 0; fd < fd_limit; ++fd) {
             if (fcntl(fd, F_GETFD) == 0) {
                 inherited[fd] = true;
             }
@@ -44,7 +44,7 @@ struct FdRegistry
 
     ~FdRegistry()
     {
-        for (int fd = 0; fd < fd_limit; ++fd) {
+        for (fd_t fd = 0; fd < fd_limit; ++fd) {
             if (inherited[fd]) continue;
             if (fcntl(fd, F_GETFD) == -1) continue;
 
@@ -57,7 +57,7 @@ struct FdRegistry
 static
 FdRegistry fds;
 
-auto fd_get_ref_count(int fd) -> u32
+auto fd_get_ref_count(fd_t fd) -> u32
 {
     if (!fd_is_valid(fd)) return 0;
 
@@ -72,7 +72,7 @@ auto fd_get_ref_count(int fd) -> u32
 #define FD_LOG(...)
 #endif
 
-auto fd_add_ref(int fd) -> int
+auto fd_add_ref(fd_t fd) -> fd_t
 {
     if (!fd_is_valid(fd)) return -1;
 
@@ -82,14 +82,14 @@ auto fd_add_ref(int fd) -> int
 }
 
 static
-void destroy_fd(int fd)
+void destroy_fd(fd_t fd)
 {
     FD_LOG("  close({})", fd);
     // std::cout << std::stacktrace::current();
     unix_check<close>(fd);
 }
 
-auto fd_remove_ref(int fd) -> int
+auto fd_remove_ref(fd_t fd) -> fd_t
 {
     if (!fd_is_valid(fd)) return -1;
 
@@ -102,7 +102,7 @@ auto fd_remove_ref(int fd) -> int
     return fd;
 }
 
-auto fd_extract(int fd) -> int
+auto fd_extract(fd_t fd) -> fd_t
 {
     debug_assert(fd_is_valid(fd));
     debug_assert(fd_get_ref_count(fd) == 1);
@@ -110,7 +110,7 @@ auto fd_extract(int fd) -> int
     return fd;
 }
 
-auto Fd::extract() noexcept -> int
+auto Fd::extract() noexcept -> fd_t
 {
     return fd_extract(std::exchange(fd, -1));
 }

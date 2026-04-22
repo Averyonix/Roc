@@ -15,7 +15,7 @@ auto gpu_syncpoint_to_submit_info(const GpuSyncpoint& syncpoint) -> VkSemaphoreS
             })
         }), nullptr, &syncobj->semaphore));
 
-        int syncobj_fd;
+        fd_t syncobj_fd;
         unix_check<drmSyncobjHandleToFD>(gpu->drm.fd, syncobj->syncobj, &syncobj_fd);
 
         if (gpu_check(gpu->vk.ImportSemaphoreFdKHR(gpu->device, ptr_to(VkImportSemaphoreFdInfoKHR {
@@ -48,7 +48,7 @@ auto gpu_syncobj_create(Gpu* gpu) -> Ref<GpuSyncobj>
     return syncobj;
 }
 
-auto gpu_syncobj_import(Gpu* gpu, int syncobj_fd) -> Ref<GpuSyncobj>
+auto gpu_syncobj_import(Gpu* gpu, fd_t syncobj_fd) -> Ref<GpuSyncobj>
 {
     auto syncobj = ref_create<GpuSyncobj>();
     syncobj->gpu = gpu;
@@ -60,12 +60,12 @@ auto gpu_syncobj_import(Gpu* gpu, int syncobj_fd) -> Ref<GpuSyncobj>
 
 auto gpu_syncobj_export(GpuSyncobj* syncobj) -> Fd
 {
-    int fd = -1;
+    fd_t fd = -1;
     unix_check<drmSyncobjHandleToFD>(syncobj->gpu->drm.fd, syncobj->syncobj, &fd);
     return Fd(fd);
 }
 
-void gpu_syncobj_import_syncfile(GpuSyncobj* syncobj, u64 target_point, int sync_fd)
+void gpu_syncobj_import_syncfile(GpuSyncobj* syncobj, u64 target_point, fd_t sync_fd)
 {
     auto* gpu = syncobj->gpu;
 
@@ -89,7 +89,7 @@ auto gpu_syncobj_export_syncfile(GpuSyncobj* syncobj, u64 source_point) -> Fd
     // and then export the syncfile from that.
 
     unix_check<drmSyncobjTransfer>(gpu->drm.fd, gpu->drm.syncobj, 0, syncobj->syncobj, source_point, 0);
-    int sync_fd = -1;
+    fd_t sync_fd = -1;
     unix_check<drmSyncobjExportSyncFile>(gpu->drm.fd, gpu->drm.syncobj, &sync_fd);
 
     return Fd(sync_fd);
@@ -100,7 +100,7 @@ GpuSyncobj::~GpuSyncobj()
     gpu->vk.DestroySemaphore(gpu->device, semaphore, nullptr);
 
     if (wait.fd) {
-        exec_fd_unlisten(gpu->exec, wait.fd.get());
+        fd_unlisten(gpu->exec, wait.fd.get());
     }
 
     while (!wait.list.empty()) {
@@ -162,8 +162,8 @@ void gpu_syncobj_wait(GpuSyncobj* syncobj, GpuWaitFn* wait)
     if (!syncobj->wait.fd) {
         syncobj->wait.fd = Fd(eventfd(0, EFD_CLOEXEC));
 
-        exec_fd_listen(gpu->exec, syncobj->wait.fd.get(), FdEventBit::readable,
-            [syncobj](int, Flags<FdEventBit>) {
+        fd_listen(gpu->exec, syncobj->wait.fd.get(), FdEventBit::readable,
+            [syncobj](fd_t, Flags<FdEventBit>) {
                 handle_waits(syncobj);
             });
     }

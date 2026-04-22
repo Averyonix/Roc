@@ -92,14 +92,7 @@ struct IoInputDeviceBase : IoInputDevice
 {
     IoContext* io;
 
-    Flags<IoInputDeviceCapability> capabilities;
-
     std::flat_set<u32> pressed;
-
-    auto info() -> IoInputDeviceInfo
-    {
-        return { .capabilities = capabilities };
-    }
 
     virtual ~IoInputDeviceBase() = default;
 };

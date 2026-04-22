@@ -1,6 +1,6 @@
 #include "drm.hpp"
 
-IoDrmResources::IoDrmResources(int drm_fd)
+IoDrmResources::IoDrmResources(fd_t drm_fd)
 {
     auto mode_res = unix_check<drmModeGetResources>(drm_fd).value;
     if (!mode_res) {
@@ -53,7 +53,7 @@ IoDrmResources::~IoDrmResources()
 
 // -----------------------------------------------------------------------------
 
-IoDrmPropertyMap::IoDrmPropertyMap(int drm, u32 object_id, u32 object_type)
+IoDrmPropertyMap::IoDrmPropertyMap(fd_t drm, u32 object_id, u32 object_type)
     : drm(drm)
     , props(PropPtr(drmModeObjectGetProperties(drm, object_id, object_type)))
 {

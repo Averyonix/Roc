@@ -14,7 +14,7 @@ struct IoDrmResources
     auto find_crtc(     u32 id) -> drmModeCrtc*;
     auto find_plane(    u32 id) -> drmModePlane*;
 
-    IoDrmResources(int drm_fd);
+    IoDrmResources(fd_t drm_fd);
     ~IoDrmResources();
 };
 
@@ -29,13 +29,13 @@ struct IoDrmPropertyMap
     };
     using PropPtr = std::unique_ptr<drmModeObjectProperties, PropDeleter>;
 
-    int drm;
+    fd_t drm;
     PropPtr props;
     ankerl::unordered_dense::map<std::string_view, drmModePropertyRes*> properties;
 
     IoDrmPropertyMap() = default;
 
-    IoDrmPropertyMap(int drm, u32 object_id, u32 object_type);
+    IoDrmPropertyMap(fd_t drm, u32 object_id, u32 object_type);
 
     IoDrmPropertyMap(IoDrmPropertyMap&& other);
     DEFINE_BASIC_MOVE(IoDrmPropertyMap)
@@ -86,7 +86,7 @@ struct IoDrmBuffer
 
 struct IoDrm
 {
-    int fd;
+    fd_t fd;
 
     RefVector<IoDrmOutput> outputs;
 

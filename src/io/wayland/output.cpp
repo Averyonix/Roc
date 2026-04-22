@@ -1,7 +1,7 @@
 #include "wayland.hpp"
 
 static
-void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, int fd, u32 size)
+void format_table(void* udata, zwp_linux_dmabuf_feedback_v1* zwp_linux_dmabuf_feedback_v1, fd_t fd, u32 size)
 {
     auto _ = Fd(fd);
     auto* io = static_cast<IoContext*>(udata);
@@ -239,7 +239,7 @@ void IoWaylandOutput::commit(GpuImage* image, GpuSyncpoint done, Flags<IoOutputC
 
     auto release = std::ranges::find_if(release_slots, [](auto& s) { return !s.image; });
     if (release == release_slots.end()) {
-        release = release_slots.insert(release_slots.end(), release_slot {
+        release = release_slots.insert(release_slots.end(), ReleaseSlot {
             .syncobj = gpu_syncobj_create(io->gpu),
         });
     }

@@ -116,8 +116,8 @@ struct SeatDataSource;
 
 struct SeatDataSourceOps
 {
-    std::move_only_function<void()>                 cancel = [] {};
-    std::move_only_function<void(const char*, int)> send;
+    std::move_only_function<void()>                  cancel = [] {};
+    std::move_only_function<void(const char*, fd_t)> send;
 };
 
 auto seat_data_source_create(SeatClient*, SeatDataSourceOps&&) -> Ref<SeatDataSource>;
@@ -125,7 +125,7 @@ auto seat_data_source_create(SeatClient*, SeatDataSourceOps&&) -> Ref<SeatDataSo
 void seat_data_source_offer(      SeatDataSource*, const char* mime_type);
 auto seat_data_source_get_offered(SeatDataSource*) -> std::span<const std::string>;
 
-void seat_data_source_receive(SeatDataSource*, const char* mime_type, int fd);
+void seat_data_source_receive(SeatDataSource*, const char* mime_type, fd_t fd);
 
 void seat_set_selection(Seat*, SeatDataSource*);
 auto seat_get_selection(Seat*) -> SeatDataSource*;

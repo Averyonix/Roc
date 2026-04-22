@@ -97,7 +97,7 @@ auto gpu_get_formats()
 }
 
 auto gpu_format_from_drm(GpuDrmFormat) -> GpuFormat;
-auto gpu_format_from_vk(VkFormat, Flags<GpuVulkanFormatFlag> = {}) -> GpuFormat;
+auto gpu_format_from_vulkan(VkFormat, Flags<GpuVulkanFormatFlag> = {}) -> GpuFormat;
 
 struct GpuFormatModifierProperties
 {
@@ -197,7 +197,7 @@ struct Gpu
     struct {
         drmDevice* device;
         dev_t      id;
-        int        fd;
+        fd_t       fd;
 
         u32 syncobj;
     } drm;
@@ -274,10 +274,10 @@ struct GpuSyncpoint
 };
 
 auto gpu_syncobj_create(Gpu*) -> Ref<GpuSyncobj>;
-auto gpu_syncobj_import(Gpu*, int syncobj_fd) -> Ref<GpuSyncobj>;
+auto gpu_syncobj_import(Gpu*, fd_t syncobj_fd) -> Ref<GpuSyncobj>;
 auto gpu_syncobj_export(GpuSyncobj*) -> Fd;
 
-void gpu_syncobj_import_syncfile(GpuSyncobj*, u64 target_point, int sync_fd);
+void gpu_syncobj_import_syncfile(GpuSyncobj*, u64 target_point, fd_t sync_fd);
 auto gpu_syncobj_export_syncfile(GpuSyncobj*, u64 source_point) -> Fd;
 
 auto gpu_syncobj_get_value(   GpuSyncobj*) -> u64;

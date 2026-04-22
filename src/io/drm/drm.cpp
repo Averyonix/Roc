@@ -85,7 +85,7 @@ void add_output(IoContext* io, IoDrmResources* resources, drmModeConnector* conn
 // -----------------------------------------------------------------------------
 
 static
-void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data);
+void on_page_flip(fd_t fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data);
 
 // -----------------------------------------------------------------------------
 
@@ -108,7 +108,7 @@ void io_drm_init(IoContext* io)
     }
     auto drm = io->drm->fd;
 
-    exec_fd_listen(io->exec, io ->drm->fd, FdEventBit::readable, [](int fd, Flags<FdEventBit>) {
+    fd_listen(io->exec, io ->drm->fd, FdEventBit::readable, [](fd_t fd, Flags<FdEventBit>) {
         drmHandleEvent(fd, ptr_to(drmEventContext {
             .version = 3,
             .page_flip_handler2 = on_page_flip,
@@ -154,7 +154,7 @@ void io_drm_start(IoContext* io)
 // -----------------------------------------------------------------------------
 
 static
-void on_page_flip(int fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data)
+void on_page_flip(fd_t fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, void* data)
 {
     auto* output = static_cast<IoDrmOutput*>(data);
 

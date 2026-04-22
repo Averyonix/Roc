@@ -202,7 +202,7 @@ auto main() -> int
     auto data_client = seat_client_create(wm_get_seat_manager(wm.get()));
     seat_client_set_event_handler(data_client.get(), [](SeatEvent*) {});
     auto data_source = seat_data_source_create(data_client.get(), {
-        .send = [&](const char* mime, int fd) {
+        .send = [&](const char* mime, fd_t fd) {
             std::string message = "This is a test clipboard message.";
             write(fd, message.data(), message.size());
         }

@@ -17,7 +17,7 @@ void create_data_source(wl_client* wl_client, wl_resource* resource, u32 id)
         .cancel = [source = source.get()] {
             way_send(source->client->server, wl_data_source_send_cancelled, source->resource);
         },
-        .send = [source = source.get()](const char* mime, int fd) {
+        .send = [source = source.get()](const char* mime, fd_t fd) {
             way_send(source->client->server, wl_data_source_send_send, source->resource, mime, fd);
         }
     });
@@ -44,7 +44,7 @@ WAY_BIND_GLOBAL(wl_data_device_manager, bind)
 // -----------------------------------------------------------------------------
 
 static
-void receive(wl_client* client, wl_resource* resource, const char* mime_type, int fd)
+void receive(wl_client* client, wl_resource* resource, const char* mime_type, fd_t fd)
 {
     auto write = Fd(fd);
 

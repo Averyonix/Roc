@@ -18,7 +18,7 @@ WayServer::~WayServer()
 {
     seats.clear();
 
-    exec_fd_unlisten(exec, get_loop_fd(wl_display));
+    fd_unlisten(exec, get_loop_fd(wl_display));
     wl_display_terminate(wl_display);
     wl_display_destroy(wl_display);
 }
@@ -40,8 +40,8 @@ auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer
 
     server->socket_name = wl_display_add_socket_auto(server->wl_display);
 
-    exec_fd_listen(exec, get_loop_fd(server->wl_display), FdEventBit::readable,
-        [server = server.get()](int fd, Flags<FdEventBit> events) {
+    fd_listen(exec, get_loop_fd(server->wl_display), FdEventBit::readable,
+        [server = server.get()](fd_t fd, Flags<FdEventBit> events) {
             unix_check<wl_event_loop_dispatch>(wl_display_get_event_loop(server->wl_display), 0);
             wl_display_flush_clients(server->wl_display);
         });

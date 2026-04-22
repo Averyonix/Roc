@@ -308,7 +308,7 @@ auto test_timeline_syncobj_export(Gpu* gpu) -> bool
 
     // Export as OPAQUE_FD
 
-    int fd = -1;
+    fd_t fd = -1;
     defer { close(fd); };
     gpu_check(gpu->vk.GetSemaphoreFdKHR(gpu->device, ptr_to(VkSemaphoreGetFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,

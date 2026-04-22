@@ -8,7 +8,7 @@ auto gpu_check(VkResult res, auto... allowed) -> VkResult
 {
     if (res == VK_SUCCESS || (... || (res == allowed))) return res;
 
-    log_error("VULKAN ERROR: {}, ({})", string_VkResult(res), int(res));
+    log_error("VULKAN ERROR: {}, ({})", string_VkResult(res), std::to_underlying(res));
 
     debug_kill();
 }

@@ -105,8 +105,8 @@ void io_wayland_start(IoContext* io)
     // Second roundtrip ensure that all events expected in response to binding are received
     wl_display_roundtrip(wl->wl_display);
 
-    exec_fd_listen(io->exec, wl_display_get_fd(wl->wl_display), FdEventBit::readable,
-        [io = Weak(io)](int, Flags<FdEventBit> events) {
+    fd_listen(io->exec, wl_display_get_fd(wl->wl_display), FdEventBit::readable,
+        [io = Weak(io)](fd_t, Flags<FdEventBit> events) {
             if (io) display_read(io.get(), events);
         });
 
@@ -115,7 +115,7 @@ void io_wayland_start(IoContext* io)
 
 void io_wayland_deinit(IoContext* io)
 {
-    exec_fd_unlisten(io->exec, wl_display_get_fd(io->wayland->wl_display));
+    fd_unlisten(io->exec, wl_display_get_fd(io->wayland->wl_display));
 
     io->wayland.destroy();
 }

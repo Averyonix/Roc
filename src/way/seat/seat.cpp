@@ -93,7 +93,7 @@ void get_pointer(wl_client* wl_client, wl_resource* resource, u32 id)
 }
 
 static
-void set_cursor(wl_client* wl_client, wl_resource* resource, u32 serial, wl_resource* wl_surface, int hot_x, int hot_y)
+void set_cursor(wl_client* wl_client, wl_resource* resource, u32 serial, wl_resource* wl_surface, i32 hot_x, i32 hot_y)
 {
     auto* seat_client = way_get_userdata<WaySeatClient>(resource);
     auto* seat = seat_client->seat;

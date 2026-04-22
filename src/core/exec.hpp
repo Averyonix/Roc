@@ -13,13 +13,13 @@ struct ExecTask
     std::atomic_flag* sync;
 };
 
-struct ExecFdListener;
+struct FdListener;
 
 struct ExecContext
 {
     bool stopped = false;
 
-    std::array<Ref<ExecFdListener>, fd_limit> listeners  = {};
+    std::array<Ref<FdListener>, fd_limit> listeners  = {};
 
     std::thread::id os_thread;
 
@@ -98,42 +98,42 @@ enum class FdEventBit : u32
     writable = 1 << 1,
 };
 
-enum class ExecListenFlag : u32
+enum class FdListenFlag : u32
 {
     oneshot = 1 << 0,
 };
 
-struct ExecFdListener
+struct FdListener
 {
     Flags<FdEventBit> events;
-    Flags<ExecListenFlag> flags;
+    Flags<FdListenFlag> flags;
 
-    virtual void handle(int fd, Flags<FdEventBit> events) = 0;
+    virtual void handle(fd_t fd, Flags<FdEventBit> events) = 0;
 };
 
 // -----------------------------------------------------------------------------
 
-void exec_fd_listen(  ExecContext*, int fd, ExecFdListener*);
-void exec_fd_unlisten(ExecContext*, int fd);
+void fd_listen(  ExecContext*, fd_t fd, FdListener*);
+void fd_unlisten(ExecContext*, fd_t fd);
 
 template<typename Fn>
-void exec_fd_listen(
+void fd_listen(
     ExecContext* exec,
-    int fd,
+    fd_t fd,
     Flags<FdEventBit> events,
     Fn&& callback,
-    Flags<ExecListenFlag> flags = {})
+    Flags<FdListenFlag> flags = {})
 {
-    struct Listener : ExecFdListener
+    struct Listener : FdListener
     {
         Fn lambda;
         Listener(Fn&& lambda): lambda(std::move(lambda)) {}
-        virtual void handle(int fd, Flags<FdEventBit> events) { lambda(fd, events); }
+        virtual void handle(fd_t fd, Flags<FdEventBit> events) { lambda(fd, events); }
     };
 
     auto listener = ref_create<Listener>(std::move(callback));
     listener->events = events;
     listener->flags = flags;
-    exec_fd_listen(exec, fd, listener.get());
+    fd_listen(exec, fd, listener.get());
 }
 

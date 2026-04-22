@@ -67,7 +67,7 @@ void transfer(GpuBinarySemaphore* from, GpuSyncobj* to, u64 to_point)
 {
     auto gpu = from->gpu;
 
-    int syncobj_fd = -1;
+    fd_t syncobj_fd = -1;
     gpu_check(gpu->vk.GetSemaphoreFdKHR(gpu->device, ptr_to(VkSemaphoreGetFdInfoKHR {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
         .semaphore = from->semaphore,

@@ -37,7 +37,7 @@ void keyboard_key(void* udata, wl_keyboard*, u32 serial, u32 time, u32 keycode, 
 }
 
 IO_WL_LISTENER(wl_keyboard) = {
-    .keymap = [](void*, wl_keyboard*, u32, int fd, u32 size) { close(fd); },
+    .keymap = [](void*, wl_keyboard*, u32, fd_t fd, u32 size) { close(fd); },
     .enter = keyboard_enter,
     .leave = keyboard_leave,
     .key   = keyboard_key,

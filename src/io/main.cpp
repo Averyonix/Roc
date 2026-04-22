@@ -56,7 +56,7 @@ void handle_event(IoContext* io, Gpu* gpu, GpuImagePool* pool, IoEvent* event)
     }
 }
 
-int main()
+auto main() -> int
 {
     auto exec = exec_create();
     auto gpu  = gpu_create( exec.get(), {});

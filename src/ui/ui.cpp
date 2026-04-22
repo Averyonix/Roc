@@ -193,7 +193,7 @@ void Platform_SetClipboardTextFn(ImGuiContext* imgui, const char* text)
     auto* ui = get_context(imgui);
 
     auto data_source = seat_data_source_create(ui->client.get(), {
-        .send = [message = std::string(text)](const char* mime, int fd) {
+        .send = [message = std::string(text)](const char* mime, fd_t fd) {
             unix_check<write>(fd, message.data(), message.size());
         }
     });
@@ -207,7 +207,7 @@ void Platform_SetClipboardTextFn(ImGuiContext* imgui, const char* text)
 }
 
 static
-auto read_to_string(int fd) -> std::string
+auto read_to_string(fd_t fd) -> std::string
 {
     std::string str;
     for (;;) {
@@ -230,7 +230,7 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imgui) -> const char*
             for (auto mime : text_mime_types) {
                 if (std::ranges::contains(available, std::string_view(mime))) {
                     auto[read, write] = [] {
-                        int fd[2] = {-1, -1};
+                        fd_t fd[2] = {-1, -1};
                         unix_check<pipe>(fd);
                         return std::make_pair(Fd(fd[0]), Fd(fd[1]));
                     }();

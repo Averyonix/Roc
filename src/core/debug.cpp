@@ -8,7 +8,7 @@ void debug_assert_fail(std::string_view expr, std::string_view reason)
     debug_kill();
 }
 
-void log_unix_error(std::string_view message, int err)
+void log_unix_error(std::string_view message, unix_error_t err)
 {
     err = err ?: errno;
 
