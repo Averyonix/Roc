@@ -21,12 +21,12 @@ struct WayClient : WayObject
 
     std::vector<WaySurface*> surfaces;
     std::vector<WaySeatClient*> seat_clients;
-
-    ~WayClient();
 };
 
 void way_on_client_create(wl_listener*, void* data);
 
-auto way_client_from(WayServer*, const wl_client*) -> WayClient*;
+auto way_client_from(const wl_client*) -> WayClient*;
 
 auto way_client_is_behind(WayClient*) -> bool;
+
+void way_client_queue_flush(WayClient*);

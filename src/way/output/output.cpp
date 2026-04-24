@@ -23,7 +23,7 @@ WAY_BIND_GLOBAL(wl_output, bind)
 
     static constexpr vec2i32 size = {3840, 2160};
 
-    way_send(server, wl_output_send_geometry, resource,
+    way_send(wl_output_send_geometry, resource,
         size.x, size.y,
         0, 0,
         WL_OUTPUT_SUBPIXEL_HORIZONTAL_RGB,
@@ -31,24 +31,24 @@ WAY_BIND_GLOBAL(wl_output, bind)
         "unknown",
         WL_OUTPUT_TRANSFORM_NORMAL);
 
-    way_send(server, wl_output_send_mode, resource,
+    way_send(wl_output_send_mode, resource,
         WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
         size.x, size.y,
         0);
 
     if (bind.version >= WL_OUTPUT_SCALE_SINCE_VERSION) {
-        way_send(server, wl_output_send_scale, resource, 1);
+        way_send(wl_output_send_scale, resource, 1);
     }
 
     if (bind.version >= WL_OUTPUT_NAME_SINCE_VERSION) {
-        way_send(server, wl_output_send_name, resource, "ROC-1");
+        way_send(wl_output_send_name, resource, "ROC-1");
     }
 
     if (bind.version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION) {
-        way_send(server, wl_output_send_description, resource, "unknown");
+        way_send(wl_output_send_description, resource, "unknown");
     }
 
     if (bind.version >= WL_OUTPUT_DONE_SINCE_VERSION) {
-        way_send(server, wl_output_send_done, resource);
+        way_send(wl_output_send_done, resource);
     }
 }

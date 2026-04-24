@@ -83,15 +83,15 @@ void send_feedback(WayServer* server, wl_resource* resource)
 
     auto& feedback = server->dmabuf;
 
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_main_device,  resource, &dev_id);
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_format_table, resource, feedback.format_table.get(), feedback.format_table_size);
+    way_send(zwp_linux_dmabuf_feedback_v1_send_main_device,  resource, &dev_id);
+    way_send(zwp_linux_dmabuf_feedback_v1_send_format_table, resource, feedback.format_table.get(), feedback.format_table_size);
 
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_tranche_target_device, resource, &dev_id);
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_tranche_flags,   resource, 0);
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_tranche_formats, resource, ptr_to(way_to_wl_array<u16>(feedback.tranche_formats)));
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_tranche_done,    resource);
+    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_target_device, resource, &dev_id);
+    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_flags,   resource, 0);
+    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_formats, resource, ptr_to(way_to_wl_array<u16>(feedback.tranche_formats)));
+    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_done,    resource);
 
-    way_send(server, zwp_linux_dmabuf_feedback_v1_send_done, resource);
+    way_send(zwp_linux_dmabuf_feedback_v1_send_done, resource);
 }
 
 static
@@ -133,11 +133,11 @@ WAY_BIND_GLOBAL(zwp_linux_dmabuf_v1, bind)
     auto send_modifier = [&](u32 format, u64 modifier) {
         u32 modifier_hi =  modifier >> 32;
         u32 modifier_lo = modifier & 0xFFFF'FFFF;
-        way_send(server, zwp_linux_dmabuf_v1_send_modifier, resource, format, modifier_hi, modifier_lo);
+        way_send(zwp_linux_dmabuf_v1_send_modifier, resource, format, modifier_hi, modifier_lo);
     };
 
     for (auto[format, modifiers] : get_formats(server)) {
-        way_send(server, zwp_linux_dmabuf_v1_send_format, resource, format->drm);
+        way_send(zwp_linux_dmabuf_v1_send_format, resource, format->drm);
 
         for (auto modifier : modifiers) {
             send_modifier(format->drm, modifier);
@@ -171,15 +171,14 @@ void params_add(wl_client* client, wl_resource* resource, fd_t _fd, u32 plane_id
     auto fd = Fd(_fd);
 
     auto* params = way_get_userdata<WayDmaParams>(resource);
-    auto* server = params->server;
 
     if (plane_idx >= gpu_dma_max_planes) {
-        way_post_error(server, resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX, "Invalid plane index");
+        way_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_IDX, "Invalid plane index");
         return;
     }
 
     if (params->planes_set & (1 << plane_idx)) {
-        way_post_error(server, resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_SET, "Plane already set");
+        way_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_PLANE_SET, "Plane already set");
         return;
     }
 
@@ -188,7 +187,7 @@ void params_add(wl_client* client, wl_resource* resource, fd_t _fd, u32 plane_id
     if (!params->planes_set) {
         params->params.modifier = drm_modifier;
     } else if (params->params.modifier != drm_modifier) {
-        way_post_error(server, resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "All planes must use the same DRM modifier");
+        way_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "All planes must use the same DRM modifier");
         params->planes_set = ~0u;
         return;
     }
@@ -235,18 +234,18 @@ auto create_buffer(WayDmaParams* dma_params, u32 buffer_id, vec2u32 extent, GpuF
     auto* server = dma_params->server;
 
     if (!format) {
-        way_post_error(server, dma_params->resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "Invalid format");
+        way_post_error(dma_params->resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_FORMAT, "Invalid format");
         return nullptr;
     }
 
     auto& params = dma_params->params;
 
     if (dma_params->planes_set == ~0u) {
-        way_post_error(server, dma_params->resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Attempted to use buffer params with previous errors");
+        way_post_error(dma_params->resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Attempted to use buffer params with previous errors");
         return nullptr;
     }
     if (!dma_params->planes_set || std::popcount(dma_params->planes_set + 1) != 1) {
-        way_post_error(server, dma_params->resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Incomplete plane set");
+        way_post_error(dma_params->resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE, "Incomplete plane set");
         return nullptr;
     }
 
@@ -277,13 +276,12 @@ static
 void create_buffer(wl_client* client, wl_resource* _params, i32 width, i32 height, u32 format, u32 flags)
 {
     auto* params = way_get_userdata<WayDmaParams>(_params);
-    auto* server = params->server;
 
     auto buffer = create_buffer(params, 0, {width, height}, gpu_format_from_drm(format), zwp_linux_buffer_params_v1_flags(flags));
     if (buffer) {
-        way_send(server, zwp_linux_buffer_params_v1_send_created, _params, buffer->resource);
+        way_send(zwp_linux_buffer_params_v1_send_created, _params, buffer->resource);
     } else {
-        way_send(server, zwp_linux_buffer_params_v1_send_failed, _params);
+        way_send(zwp_linux_buffer_params_v1_send_failed, _params);
     }
 }
 
@@ -315,7 +313,7 @@ auto WayDmaBuffer::acquire(WaySurface* surface, WayDamageRegion) -> Ref<GpuImage
 
     return gpu_lease_image(image.get(), [buffer = Weak(this)](Ref<GpuImage>) {
         if (buffer) {
-            way_send(buffer->server, wl_buffer_send_release, buffer->resource);
+            way_send(wl_buffer_send_release, buffer->resource);
         }
     });
 }

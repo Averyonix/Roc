@@ -1,7 +1,5 @@
 #include "roc.hpp"
 
-#include "way/server.hpp"
-
 void roc_init_xwayland(Roc* roc, int argc, char* argv[])
 {
     std::vector<std::string> args;
@@ -16,7 +14,7 @@ void roc_init_xwayland(Roc* roc, int argc, char* argv[])
         log_debug("Launching xwayland-satellite instance, DISPLAY={}", *socket);
 
         if (fork() == 0) {
-            setenv("WAYLAND_DISPLAY", roc->way->socket_name.c_str(), true);
+            setenv("WAYLAND_DISPLAY", way_server_get_socket(roc->way), true);
             execlp("xwayland-satellite", "xwayland-satellite", socket->c_str(), nullptr);
             std::terminate();
         }

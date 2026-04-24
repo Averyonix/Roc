@@ -1,7 +1,5 @@
 #include "../roc.hpp"
 
-#include "way/server.hpp"
-
 struct RocLauncher
 {
     Roc* roc;
@@ -179,12 +177,12 @@ void launch(RocLauncher* launcher, WmLauncherApp& app)
     auto* name = g_app_info_get_display_name(app.app_info) ?: g_app_info_get_name(app.app_info);
     log_info("Running: {}", name);
     log_info("  command line: {}", g_app_info_get_commandline(app.app_info) ?: "");
-    log_info("  WAYLAND_DISPLAY = {}", launcher->roc->way->socket_name);
+    log_info("  WAYLAND_DISPLAY = {}", way_server_get_socket(launcher->roc->way));
 
     auto* ctx = g_app_launch_context_new();
     defer { g_object_unref(ctx); };
 
-    g_app_launch_context_setenv(ctx, "WAYLAND_DISPLAY", launcher->roc->way->socket_name.c_str());
+    g_app_launch_context_setenv(ctx, "WAYLAND_DISPLAY", way_server_get_socket(launcher->roc->way));
     if (!launcher->roc->xwayland_socket.empty()) {
         g_app_launch_context_setenv(ctx, "DISPLAY", launcher->roc->xwayland_socket.c_str());
     } else {

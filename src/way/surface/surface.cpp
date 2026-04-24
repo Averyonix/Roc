@@ -28,7 +28,7 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
 {
     auto surface = ref_create<WaySurface>();
 
-    surface->client = way_client_from(way_get_userdata<WayServer>(resource), client);
+    surface->client = way_client_from(client);
     surface->client->surfaces.emplace_back(surface.get());
 
     auto* server = surface->client->server;
@@ -119,7 +119,7 @@ void way_surface_on_redraw(WaySurface* surface)
 
     auto send_frame_callbacks = [&](WayResourceList& list) {
         while (auto callback = list.front()) {
-            way_send(server, wl_callback_send_done, callback, ms);
+            way_send(wl_callback_send_done, callback, ms);
             wl_resource_destroy(callback);
         }
     };
@@ -130,7 +130,7 @@ void way_surface_on_redraw(WaySurface* surface)
         send_frame_callbacks(pending->surface.frame_callbacks);
     }
 
-    way_queue_client_flush(server);
+    way_client_queue_flush(surface->client);
 }
 
 static

@@ -62,19 +62,18 @@ void get_keyboard(wl_client* wl_client, wl_resource* resource, u32 id)
 {
     auto* seat_client = way_get_userdata<WaySeatClient>(resource);
     auto* seat = seat_client->seat;
-    auto* server = seat_client->client->server;
 
     auto* kb = way_resource_create_refcounted(wl_keyboard, wl_client, resource, id, seat_client);
     seat_client->keyboards.emplace_back(kb);
 
-    way_send(server, wl_keyboard_send_keymap, kb,
+    way_send(wl_keyboard_send_keymap, kb,
         WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1,
         seat->keyboard.keymap.fd.get(), seat->keyboard.keymap.size);
 
     auto& kb_info = seat_keyboard_get_info(seat_get_keyboard(seat_client->seat->scene));
 
     if (wl_resource_get_version(kb) >= WL_KEYBOARD_REPEAT_INFO_SINCE_VERSION) {
-        way_send(server, wl_keyboard_send_repeat_info, kb, kb_info.rate, kb_info.delay);
+        way_send(wl_keyboard_send_repeat_info, kb, kb_info.rate, kb_info.delay);
     }
 }
 
@@ -130,8 +129,7 @@ WAY_INTERFACE(wl_seat) = {
 WAY_BIND_GLOBAL(wl_seat, bind)
 {
     auto* seat = way_get_userdata<WaySeat>(bind.data);
-    auto* server = seat->server;
-    auto* client = way_client_from(server, bind.client);
+    auto* client = way_client_from(bind.client);
 
     auto seat_client = ref_create<WaySeatClient>();
     seat_client->seat = seat;
@@ -141,10 +139,10 @@ WAY_BIND_GLOBAL(wl_seat, bind)
 
     auto* resource = way_resource_create_refcounted(wl_seat, bind.client, bind.version, bind.id, seat_client.get());
 
-    way_send(server, wl_seat_send_capabilities, resource, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER);
+    way_send(wl_seat_send_capabilities, resource, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER);
 
     if (bind.version >= WL_SEAT_NAME_SINCE_VERSION) {
-        way_send(server, wl_seat_send_name, resource, "seat0");
+        way_send(wl_seat_send_name, resource, "seat0");
     }
 
     // TODO: Synchronize with current seat keyboard/pointer/data state
@@ -191,7 +189,7 @@ void keyboard_leave(WaySeatClient* seat_client)
 
     if (surface->wl_surface) {
         for (auto* resource : seat_client->keyboards) {
-            way_send(server, wl_keyboard_send_leave, resource, serial.value, surface->wl_surface);
+            way_send(wl_keyboard_send_leave, resource, serial.value, surface->wl_surface);
         }
     }
 
@@ -237,7 +235,7 @@ void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SeatEvent* event)
     if (surface->wl_surface) {
         auto pressed = way_to_wl_array<const u32>(seat_keyboard_get_pressed(seat->keyboard.scene));
         for (auto* resource : seat_client->keyboards) {
-            way_send(server, wl_keyboard_send_enter, resource, serial.value, surface->wl_surface, &pressed);
+            way_send(wl_keyboard_send_enter, resource, serial.value, surface->wl_surface, &pressed);
         }
     } else {
         log_error("Keyboard enter failed: wl_surface is destroyed for {}", (void*)surface);
@@ -265,12 +263,9 @@ auto to_surface_pos(WaySurface* surface, vec2f32 global_pos)
 static
 void pointer_leave_surface(WaySeatClient* seat_client, WaySurface* surface, WaySerial serial)
 {
-    auto* seat = seat_client->seat;
-    auto* server = seat->server;
-
     if (!surface->wl_surface) return;
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_leave, resource, serial.value, surface->wl_surface);
+        way_send(wl_pointer_send_leave, resource, serial.value, surface->wl_surface);
     }
 }
 
@@ -307,7 +302,7 @@ void way_seat_on_pointer_enter(WaySeatClient* seat_client, SeatEvent* event)
     if (!new_surface->wl_surface) return;
     auto pos = to_fixed(to_surface_pos(new_surface, seat_pointer_get_position(seat->pointer.scene)));
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, pos.x, pos.y);
+        way_send(wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, pos.x, pos.y);
     }
 }
 
@@ -324,7 +319,7 @@ void way_seat_on_key(WaySeatClient* seat_client, SeatEvent* event)
     auto state = key.pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED;
 
     for (auto* resource : seat_client->keyboards) {
-        way_send(server, wl_keyboard_send_key, resource, serial.value, time, key.code, state);
+        way_send(wl_keyboard_send_key, resource, serial.value, time, key.code, state);
     }
 }
 
@@ -337,7 +332,7 @@ void way_seat_on_modifier(WaySeatClient* seat_client, SeatEvent* event)
     auto kb = seat_keyboard_get_info(seat->keyboard.scene);
 
     for (auto* resource : seat_client->keyboards) {
-        way_send(server, wl_keyboard_send_modifiers, resource, serial.value,
+        way_send(wl_keyboard_send_modifiers, resource, serial.value,
             xkb_state_serialize_mods(  kb.state, XKB_STATE_MODS_DEPRESSED),
             xkb_state_serialize_mods(  kb.state, XKB_STATE_MODS_LATCHED),
             xkb_state_serialize_mods(  kb.state, XKB_STATE_MODS_LOCKED),
@@ -351,7 +346,7 @@ static
 void pointer_frame(WayServer* server, wl_resource* resource)
 {
     if (wl_resource_get_version(resource) >= WL_POINTER_FRAME_SINCE_VERSION) {
-        way_send(server, wl_pointer_send_frame, resource);
+        way_send(wl_pointer_send_frame, resource);
     }
 }
 
@@ -376,13 +371,13 @@ void way_seat_on_motion(WaySeatClient* seat_client, SeatEvent* event)
         auto accel   = to_fixed(event->pointer.motion.rel_accel);
         auto unaccel = to_fixed(event->pointer.motion.rel_unaccel);
         for (auto* resource : seat_client->relative_pointers) {
-            way_send(server, zwp_relative_pointer_v1_send_relative_motion,
+            way_send(zwp_relative_pointer_v1_send_relative_motion,
                 resource, time_us_hi, time_us_lo, accel.x, accel.y, unaccel.x, unaccel.y);
         }
     }
 
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_motion, resource, time_ms, pos.x, pos.y);
+        way_send(wl_pointer_send_motion, resource, time_ms, pos.x, pos.y);
         pointer_frame(server, resource);
     }
 }
@@ -398,7 +393,7 @@ void way_seat_on_button(WaySeatClient* seat_client, SeatEvent* event)
     auto state = button.pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED;
 
     for (auto* resource : seat_client->pointers) {
-        way_send(server, wl_pointer_send_button, resource, serial.value, time, button.code, state);
+        way_send(wl_pointer_send_button, resource, serial.value, time, button.code, state);
         pointer_frame(server, resource);
     }
 }
@@ -417,20 +412,20 @@ void way_seat_on_scroll(WaySeatClient* seat_client, SeatEvent* event)
         auto version = wl_resource_get_version(resource);
 
         if (version >= WL_POINTER_AXIS_SOURCE_SINCE_VERSION) {
-            way_send(server, wl_pointer_send_axis_source, resource, WL_POINTER_AXIS_SOURCE_WHEEL);
+            way_send(wl_pointer_send_axis_source, resource, WL_POINTER_AXIS_SOURCE_WHEEL);
         }
 
-        if (delta.x) way_send(server, wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(delta.x * axis_pixel_rate));
-        if (delta.y) way_send(server, wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(delta.y * axis_pixel_rate));
+        if (delta.x) way_send(wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_HORIZONTAL_SCROLL, wl_fixed_from_double(delta.x * axis_pixel_rate));
+        if (delta.y) way_send(wl_pointer_send_axis, resource, time, WL_POINTER_AXIS_VERTICAL_SCROLL,   wl_fixed_from_double(delta.y * axis_pixel_rate));
 
         if (version >= WL_POINTER_AXIS_VALUE120_SINCE_VERSION) {
-            if (delta.x) way_send(server, wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(delta.x * 120));
-            if (delta.y) way_send(server, wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(delta.y * 120));
+            if (delta.x) way_send(wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(delta.x * 120));
+            if (delta.y) way_send(wl_pointer_send_axis_value120, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(delta.y * 120));
 
         } else if (version >= WL_POINTER_AXIS_DISCRETE_SINCE_VERSION) {
             // TODO: Accumulate fractional values
-            if (delta.x) way_send(server, wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(delta.x));
-            if (delta.y) way_send(server, wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(delta.y));
+            if (delta.x) way_send(wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_HORIZONTAL_SCROLL, i32(delta.x));
+            if (delta.y) way_send(wl_pointer_send_axis_discrete, resource, WL_POINTER_AXIS_VERTICAL_SCROLL,   i32(delta.y));
         }
 
         pointer_frame(server, resource);

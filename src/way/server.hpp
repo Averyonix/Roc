@@ -35,7 +35,6 @@ struct WayServer : WayObject
 
     struct {
         WayListener created;
-        std::vector<WayClient*> list;
     } client;
 
     struct {
@@ -51,31 +50,31 @@ auto way_get_elapsed(WayServer*) -> std::chrono::steady_clock::duration;
 
 // -----------------------------------------------------------------------------
 
-auto way_next_serial(WayServer* server) -> WaySerial;
+auto way_next_serial(WayServer*) -> WaySerial;
 
-void way_queue_client_flush(WayServer* server);
+void way_queue_flush(wl_resource*);
 
-void way_send_event(WayServer* server, const char* fn_name, auto fn, auto&& resource, auto&&... args)
+void way_send_event(const char* fn_name, auto fn, auto&& resource, auto&&... args)
 {
     if (resource) {
         fn(resource, args...);
-        way_queue_client_flush(server);
+        way_queue_flush(resource);
     } else {
         log_error("Failed to dispatch {}, resource is null", fn_name);
     }
 }
 
-#define way_send(Server, Fn, Resource, ...) \
-    way_send_event(Server, #Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
+#define way_send(Fn, Resource, ...) \
+    way_send_event(#Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
 
 template<typename ...Args>
-void way_post_error(WayServer* server, wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
+void way_post_error(wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)
 {
     if (!resource) return;
     auto message = std::vformat(fmt.get(), std::make_format_args(args...));
     log_error("{}", message);
     wl_resource_post_error(resource, code, "%s", message.c_str());
-    way_queue_client_flush(server);
+    way_queue_flush(resource);
 }
 
 // -----------------------------------------------------------------------------

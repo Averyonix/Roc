@@ -22,7 +22,7 @@ void pool_map(WayShmPool* pool, usz size)
         pool->data = res.value;
         pool->size = size;
     } else {
-        way_post_error(pool->server, pool->resource, WL_SHM_ERROR_INVALID_FD, "mmap failed: {}", strerror(res.error));
+        way_post_error(pool->resource, WL_SHM_ERROR_INVALID_FD, "mmap failed: {}", strerror(res.error));
     }
 }
 
@@ -46,8 +46,8 @@ WAY_BIND_GLOBAL(wl_shm, bind)
     auto* server = way_get_userdata<WayServer>(bind.data);
     auto resource = way_resource_create_unsafe(wl_shm, bind.client, bind.version, bind.id, server);
 
-    way_send(server, wl_shm_send_format, resource, WL_SHM_FORMAT_ARGB8888);
-    way_send(server, wl_shm_send_format, resource, WL_SHM_FORMAT_XRGB8888);
+    way_send(wl_shm_send_format, resource, WL_SHM_FORMAT_ARGB8888);
+    way_send(wl_shm_send_format, resource, WL_SHM_FORMAT_XRGB8888);
 }
 
 // -----------------------------------------------------------------------------
@@ -91,7 +91,6 @@ static
 void create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset, i32 width, i32 height, i32 stride, u32 _format)
 {
     auto* pool = way_get_userdata<WayShmPool>(resource);
-    auto* server = pool->server;
 
     auto buffer = ref_create<WayShmBuffer>();
     buffer->resource = way_resource_create_refcounted(wl_buffer, client, resource, id, buffer.get());
@@ -103,7 +102,7 @@ void create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset,
     buffer->offset = offset;
 
     if (!buffer->format) {
-        way_post_error(server, resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", wl_shm_format(_format));
+        way_post_error(resource, WL_SHM_ERROR_INVALID_FORMAT, "Format {} is not supported", wl_shm_format(_format));
         return;
     }
 }
@@ -200,7 +199,7 @@ auto WayShmBuffer::acquire(WaySurface* surface, WayDamageRegion damage) -> Ref<G
     }
 #endif
 
-    way_send(server, wl_buffer_send_release, resource);
+    way_send(wl_buffer_send_release, resource);
 
     return image;
 }

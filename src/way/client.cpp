@@ -65,8 +65,6 @@ void way_on_client_create(wl_listener* listener, void* data)
     client->server = server;
     client->wl_client = wl_client;
 
-    server->client.list.emplace_back(client.get());
-
     wl_client_set_user_data(wl_client, object_add_ref(client.get()), [](void* data) {
         object_remove_ref(way_get_userdata<WayClient>(data));
     });
@@ -77,12 +75,7 @@ void way_on_client_create(wl_listener* listener, void* data)
     });
 }
 
-WayClient::~WayClient()
-{
-    std::erase(server->client.list, this);
-}
-
-auto way_client_from(WayServer* server, const wl_client* client) -> WayClient*
+auto way_client_from(const wl_client* client) -> WayClient*
 {
     // NOTE: `wl_client_get_user_data` does not actually require a non-const client.
     return way_get_userdata<WayClient>(wl_client_get_user_data(const_cast<wl_client*>(client)));
@@ -94,4 +87,10 @@ auto way_client_is_behind(WayClient* client) -> bool
         .fd = wl_client_get_fd(client->wl_client),
         .events = POLLOUT,
     }), 1, 0) != 1;
+}
+
+void way_client_queue_flush(WayClient* client)
+{
+    // TODO: Queue to run later
+    wl_client_flush(client->wl_client);
 }

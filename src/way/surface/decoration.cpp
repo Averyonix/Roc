@@ -18,7 +18,7 @@ void send_mode(way_decoration* decoration)
     // Since our decorations are just a border, it doesn't matter if a client decides to draw its own title bar or not.
     static constexpr auto mode = ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 
-    way_send(decoration->surface->client->server, zxdg_toplevel_decoration_v1_send_configure, decoration->resource, mode);
+    way_send(zxdg_toplevel_decoration_v1_send_configure, decoration->resource, mode);
     way_xdg_surface_configure(decoration->surface.get());
 }
 
@@ -75,7 +75,7 @@ void kwin_decoration_manager_create(wl_client* client, wl_resource* resource, u3
     auto* server = way_get_userdata<WayServer>(resource);
     auto decoration = way_resource_create_unsafe(org_kde_kwin_server_decoration, client, resource, id, server);
 
-    way_send(server, org_kde_kwin_server_decoration_send_mode, decoration, kde_decoration_mode);
+    way_send(org_kde_kwin_server_decoration_send_mode, decoration, kde_decoration_mode);
 }
 
 WAY_INTERFACE(org_kde_kwin_server_decoration_manager) {
@@ -86,7 +86,7 @@ WAY_BIND_GLOBAL(org_kde_kwin_server_decoration_manager, bind)
 {
     auto* server = way_get_userdata<WayServer>(bind.data);
     auto resource = way_resource_create_unsafe(org_kde_kwin_server_decoration_manager, bind.client, bind.version, bind.id, server);
-    way_send(server, org_kde_kwin_server_decoration_manager_send_default_mode, resource, kde_decoration_mode);
+    way_send(org_kde_kwin_server_decoration_manager_send_default_mode, resource, kde_decoration_mode);
 }
 
 static

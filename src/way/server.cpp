@@ -41,7 +41,7 @@ auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer
     server->socket_name = wl_display_add_socket_auto(server->wl_display);
 
     fd_listen(exec, get_loop_fd(server->wl_display), FdEventBit::readable,
-        [server = server.get()](fd_t fd, Flags<FdEventBit> events) {
+        [server = server.get()](fd_t, Flags<FdEventBit> events) {
             unix_check<wl_event_loop_dispatch>(wl_display_get_event_loop(server->wl_display), 0);
             wl_display_flush_clients(server->wl_display);
         });
@@ -72,8 +72,9 @@ auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer
     wm_add_output_listener(wm, [server = server.get()](WmOutputEvent* event) {
         switch (event->type) {
             break;case WmEventType::output_frame:
-                for (auto* client : server->client.list) {
-                    for (auto* surface : client->surfaces) {
+                wl_client* client;
+                wl_client_for_each(client, wl_display_get_client_list(server->wl_display)) {
+                    for (auto* surface : way_client_from(client)->surfaces) {
                         way_surface_on_redraw(surface);
                     }
                 }
@@ -84,6 +85,11 @@ auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer
     });
 
     return server;
+}
+
+auto way_server_get_socket(WayServer* server) -> const char*
+{
+    return server->socket_name.c_str();
 }
 
 auto way_get_elapsed(WayServer* server) -> std::chrono::steady_clock::duration
@@ -102,8 +108,7 @@ auto way_next_serial(WayServer* server) -> WaySerial
     return WaySerial(wl_display_next_serial(server->wl_display));
 }
 
-void way_queue_client_flush(WayServer* server)
+void way_queue_flush(wl_resource* resource)
 {
-    // TODO: Queue to run at end of event
-    wl_display_flush_clients(server->wl_display);
+    way_client_queue_flush(way_client_from(wl_resource_get_client(resource)));
 }
