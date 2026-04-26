@@ -83,15 +83,15 @@ void send_feedback(WayServer* server, wl_resource* resource)
 
     auto& feedback = server->dmabuf;
 
-    way_send(zwp_linux_dmabuf_feedback_v1_send_main_device,  resource, &dev_id);
-    way_send(zwp_linux_dmabuf_feedback_v1_send_format_table, resource, feedback.format_table.get(), feedback.format_table_size);
+    way_send(zwp_linux_dmabuf_feedback_v1, main_device,  resource, &dev_id);
+    way_send(zwp_linux_dmabuf_feedback_v1, format_table, resource, feedback.format_table.get(), feedback.format_table_size);
 
-    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_target_device, resource, &dev_id);
-    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_flags,   resource, 0);
-    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_formats, resource, ptr_to(way_to_wl_array<u16>(feedback.tranche_formats)));
-    way_send(zwp_linux_dmabuf_feedback_v1_send_tranche_done,    resource);
+    way_send(zwp_linux_dmabuf_feedback_v1, tranche_target_device, resource, &dev_id);
+    way_send(zwp_linux_dmabuf_feedback_v1, tranche_flags,   resource, 0);
+    way_send(zwp_linux_dmabuf_feedback_v1, tranche_formats, resource, ptr_to(way_to_wl_array<u16>(feedback.tranche_formats)));
+    way_send(zwp_linux_dmabuf_feedback_v1, tranche_done,    resource);
 
-    way_send(zwp_linux_dmabuf_feedback_v1_send_done, resource);
+    way_send(zwp_linux_dmabuf_feedback_v1, done, resource);
 }
 
 static
@@ -133,11 +133,11 @@ WAY_BIND_GLOBAL(zwp_linux_dmabuf_v1, bind)
     auto send_modifier = [&](u32 format, u64 modifier) {
         u32 modifier_hi =  modifier >> 32;
         u32 modifier_lo = modifier & 0xFFFF'FFFF;
-        way_send(zwp_linux_dmabuf_v1_send_modifier, resource, format, modifier_hi, modifier_lo);
+        way_send(zwp_linux_dmabuf_v1, modifier, resource, format, modifier_hi, modifier_lo);
     };
 
     for (auto[format, modifiers] : get_formats(server)) {
-        way_send(zwp_linux_dmabuf_v1_send_format, resource, format->drm);
+        way_send(zwp_linux_dmabuf_v1, format, resource, format->drm);
 
         for (auto modifier : modifiers) {
             send_modifier(format->drm, modifier);
@@ -279,9 +279,9 @@ void create_buffer(wl_client* client, wl_resource* _params, i32 width, i32 heigh
 
     auto buffer = create_buffer(params, 0, {width, height}, gpu_format_from_drm(format), zwp_linux_buffer_params_v1_flags(flags));
     if (buffer) {
-        way_send(zwp_linux_buffer_params_v1_send_created, _params, buffer->resource);
+        way_send(zwp_linux_buffer_params_v1, created, _params, buffer->resource);
     } else {
-        way_send(zwp_linux_buffer_params_v1_send_failed, _params);
+        way_send(zwp_linux_buffer_params_v1, failed, _params);
     }
 }
 
@@ -313,7 +313,7 @@ auto WayDmaBuffer::acquire(WaySurface* surface, WayDamageRegion) -> Ref<GpuImage
 
     return gpu_lease_image(image.get(), [buffer = Weak(this)](Ref<GpuImage>) {
         if (buffer) {
-            way_send(wl_buffer_send_release, buffer->resource);
+            way_send(wl_buffer, release, buffer->resource);
         }
     });
 }

@@ -54,18 +54,19 @@ auto way_next_serial(WayServer*) -> WaySerial;
 
 void way_queue_flush(wl_resource*);
 
-void way_send_event(const char* fn_name, auto fn, auto&& resource, auto&&... args)
+template<auto Fn>
+void way_send_event(const char* name, wl_resource* resource, auto&&... args)
 {
     if (resource) {
-        fn(resource, args...);
+        Fn(resource, args...);
         way_queue_flush(resource);
     } else {
-        log_error("Failed to dispatch {}, resource is null", fn_name);
+        log_error("Failed to dispatch {}, resource is null", name);
     }
 }
 
-#define way_send(Fn, Resource, ...) \
-    way_send_event(#Fn, Fn, Resource __VA_OPT__(,) __VA_ARGS__)
+#define way_send(I, F, Resource, ...) \
+    way_send_event<I##_send_##F>(#I"."#F, Resource __VA_OPT__(,) __VA_ARGS__)
 
 template<typename ...Args>
 void way_post_error(wl_resource* resource, u32 code, std::format_string<Args...> fmt, Args&&... args)

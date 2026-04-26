@@ -46,8 +46,8 @@ WAY_BIND_GLOBAL(wl_shm, bind)
     auto* server = way_get_userdata<WayServer>(bind.data);
     auto resource = way_resource_create_unsafe(wl_shm, bind.client, bind.version, bind.id, server);
 
-    way_send(wl_shm_send_format, resource, WL_SHM_FORMAT_ARGB8888);
-    way_send(wl_shm_send_format, resource, WL_SHM_FORMAT_XRGB8888);
+    way_send(wl_shm, format, resource, WL_SHM_FORMAT_ARGB8888);
+    way_send(wl_shm, format, resource, WL_SHM_FORMAT_XRGB8888);
 }
 
 // -----------------------------------------------------------------------------
@@ -199,7 +199,7 @@ auto WayShmBuffer::acquire(WaySurface* surface, WayDamageRegion damage) -> Ref<G
     }
 #endif
 
-    way_send(wl_buffer_send_release, resource);
+    way_send(wl_buffer, release, resource);
 
     return image;
 }

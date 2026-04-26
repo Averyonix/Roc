@@ -121,7 +121,7 @@ void way_surface_on_redraw(WaySurface* surface)
 
     auto send_frame_callbacks = [&](WayResourceList& list) {
         while (auto callback = list.front()) {
-            way_send(wl_callback_send_done, callback, ms);
+            way_send(wl_callback, done, callback, ms);
             wl_resource_destroy(callback);
         }
     };

@@ -269,9 +269,9 @@ void position(WaySurface* surface, const WayPositionerRules& rules, std::optiona
     surface->popup->position = geometry.origin;
 
     if (token) {
-        way_send(xdg_popup_send_repositioned, surface->popup->resource, *token);
+        way_send(xdg_popup, repositioned, surface->popup->resource, *token);
     }
-    way_send(xdg_popup_send_configure, surface->popup->resource,
+    way_send(xdg_popup, configure, surface->popup->resource,
         geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
     way_xdg_surface_configure(surface);
     popup_update_geometry(surface);
