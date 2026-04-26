@@ -236,9 +236,9 @@ auto positioner_apply(const WayPositionerRules& rules, rect2i32 constraint) -> r
 static
 void popup_update_geometry(WaySurface* surface)
 {
-    auto position    = surface->popup.position;
-    auto geom        = surface->current.xdg.geometry;
-    auto parent_geom = surface->parent->current.xdg.geometry;
+    auto position    = surface->popup->position;
+    auto geom        = surface->xdg->current.geometry;
+    auto parent_geom = surface->parent->xdg->current.geometry;
     scene_tree_set_translation(surface->scene.tree.get(),
         position + vec2f32(parent_geom.origin) - vec2f32(geom.origin));
 }
@@ -266,12 +266,12 @@ void position(WaySurface* surface, const WayPositionerRules& rules, std::optiona
 
     auto geometry = positioner_apply(rules, constraint);
     log_debug("popup geometry: {}", geometry);
-    surface->popup.position = geometry.origin;
+    surface->popup->position = geometry.origin;
 
     if (token) {
-        way_send(xdg_popup_send_repositioned, surface->popup.resource, *token);
+        way_send(xdg_popup_send_repositioned, surface->popup->resource, *token);
     }
-    way_send(xdg_popup_send_configure, surface->popup.resource,
+    way_send(xdg_popup_send_configure, surface->popup->resource,
         geometry.origin.x, geometry.origin.y, geometry.extent.x, geometry.extent.y);
     way_xdg_surface_configure(surface);
     popup_update_geometry(surface);
@@ -279,11 +279,16 @@ void position(WaySurface* surface, const WayPositionerRules& rules, std::optiona
 
 void way_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_parent, wl_resource* positioner)
 {
-    auto* surface = way_get_userdata<WaySurface>(resource);
+    auto* surface = way_get_userdata<WayXdgSurface>(resource)->surface;
     surface->role = WaySurfaceRole::xdg_popup;
-    surface->popup.resource = way_resource_create_refcounted(xdg_popup, client, resource, id, surface);
 
-    auto* parent = way_get_userdata<WaySurface>(wl_parent);
+    auto popup = ref_create<WayPopup>();
+    popup->resource = way_resource_create_refcounted(xdg_popup, client, resource, id, popup.get());
+    popup->surface = surface;
+    surface->popup = popup.get();
+    surface->addons.emplace_back(popup.get());
+
+    auto* parent = way_get_userdata<WayXdgSurface>(wl_parent)->surface;
     surface->parent = parent;
 
     // Place into parent's surface stack
@@ -292,20 +297,33 @@ void way_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource
     position(surface, way_get_userdata<WayPositioner>(positioner)->rules);
 }
 
-void way_popup_apply(WaySurface* surface, WaySurfaceState& from)
-{
-    popup_update_geometry(surface);
-}
-
 static
 void reposition(wl_client* client, wl_resource* resource, wl_resource* positioner, u32 token)
 {
-    auto* surface = way_get_userdata<WaySurface>(resource);
+    auto* surface = way_get_userdata<WayPopup>(resource)->surface;
     position(surface, way_get_userdata<WayPositioner>(positioner)->rules, token);
 }
 
 WAY_INTERFACE(xdg_popup) = {
-    .destroy = way_role_destroy,
+    .destroy = way_simple_destroy,
     WAY_STUB(grab),
     .reposition = reposition,
 };
+
+void WayPopup::commit(WayCommitId)
+{
+
+}
+
+void WayPopup::apply(WayCommitId)
+{
+    popup_update_geometry(surface);
+}
+
+WayPopup::~WayPopup()
+{
+    if (surface) {
+        surface->role = WaySurfaceRole::none;
+        surface->popup = nullptr;
+    }
+}

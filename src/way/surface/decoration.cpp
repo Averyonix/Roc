@@ -25,9 +25,9 @@ void send_mode(way_decoration* decoration)
 static
 void get_toplevel_decoration(wl_client* client, wl_resource* resource, u32 id, wl_resource* _toplevel)
 {
-    auto* surface = way_get_userdata<WaySurface>(_toplevel);
+    auto* toplevel = way_get_userdata<WayToplevel>(_toplevel);
     auto decoration = ref_create<way_decoration>();
-    decoration->surface = surface;
+    decoration->surface = toplevel->surface;
     decoration->resource = way_resource_create_refcounted(zxdg_toplevel_decoration_v1, client, resource, id, decoration.get());
 
     send_mode(decoration.get());

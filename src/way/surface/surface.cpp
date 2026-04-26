@@ -43,7 +43,7 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
     surface->scene.input_region = scene_input_region_create(surface->client->scene.get());
     scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.input_region.get());
 
-    surface->wl_surface = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
+    surface->resource = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
 }
 
 WAY_INTERFACE(wl_compositor) = {
@@ -63,25 +63,27 @@ static
 void offset(wl_client* client, wl_resource* resource, i32 dx, i32 dy)
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
-    surface->queue.pending->surface.offset += vec2i32{dx, dy};
+    surface->pending->surface.offset += vec2i32{dx, dy};
 }
 
 static
 void attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i32 dx, i32 dy)
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
-    auto* pending = surface->queue.pending.get();
+    auto* pending = surface->pending.get();
 
     debug_assert(!pending->image);
 
     if (!wl_buffer) {
         pending->buffer = nullptr;
-        pending->unset(WaySurfaceStateComponent::buffer);
+        pending->unset |= WaySurfaceStateComponent::buffer;
+        pending->set   -= WaySurfaceStateComponent::buffer;
         return;
     }
 
     pending->buffer = way_get_userdata<WayBuffer>(wl_buffer);
-    pending->set(WaySurfaceStateComponent::buffer);
+    pending->set   |= WaySurfaceStateComponent::buffer;
+    pending->unset -= WaySurfaceStateComponent::buffer;
 
     pending->surface.offset += vec2i32{dx, dy};
 }
@@ -91,7 +93,7 @@ void damage(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 width, i
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
 
-    surface->queue.pending->surface.damage.damage({{x, y}, {width, height}, xywh});
+    surface->pending->surface.damage.damage({{x, y}, {width, height}, xywh});
 }
 
 static
@@ -99,7 +101,7 @@ void damage_buffer(wl_client* client, wl_resource* resource, i32 x, i32 y, i32 w
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
 
-    surface->queue.pending->buffer_damage.damage({{x, y}, {width, height}, xywh});
+    surface->pending->buffer_damage.damage({{x, y}, {width, height}, xywh});
 }
 
 static
@@ -109,7 +111,7 @@ void frame(wl_client* client, wl_resource* resource, u32 id)
 
     auto callback = way_resource_create(client, &wl_callback_interface, resource, id, nullptr, nullptr, false);
 
-    surface->queue.pending->surface.frame_callbacks.emplace_back(callback);
+    surface->pending->surface.frame_callbacks.emplace_back(callback);
 }
 
 void way_surface_on_redraw(WaySurface* surface)
@@ -125,7 +127,7 @@ void way_surface_on_redraw(WaySurface* surface)
     };
 
     send_frame_callbacks(surface->current.surface.frame_callbacks);
-    for (auto& pending : surface->queue.cached) {
+    for (auto& pending : surface->cached) {
         if (!pending->commit) continue;
         send_frame_callbacks(pending->surface.frame_callbacks);
     }
@@ -137,13 +139,15 @@ static
 void set_input_region(wl_client* client, wl_resource* resource, wl_resource* region)
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
-    auto* pending = surface->queue.pending.get();
+    auto* pending = surface->pending.get();
 
     if (region) {
         pending->surface.input_region = way_get_userdata<WayRegion>(region)->region;
-        pending->set(WaySurfaceStateComponent::input_region);
+        pending->set   |= WaySurfaceStateComponent::input_region;
+        pending->unset -= WaySurfaceStateComponent::input_region;
     } else {
-        pending->unset(WaySurfaceStateComponent::input_region);
+        pending->unset |= WaySurfaceStateComponent::input_region;
+        pending->set   -= WaySurfaceStateComponent::input_region;
     }
 }
 
@@ -173,7 +177,7 @@ void update_map_state(WaySurface* surface)
     bool can_be_mapped =
            surface->current.buffer
         && surface->current.image
-        && surface->wl_surface;
+        && surface->resource;
 
     surface_set_mapped(surface, can_be_mapped);
 }
@@ -185,11 +189,18 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     to.commit = from.commit;
 
-    to.committed.set |=  from.committed.set;
-    to.committed.set &= ~from.committed.unset;
+    to.set |= from.set;
+    to.set -= from.unset;
 
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer_transform, buffer_transform);
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, buffer_scale,     buffer_scale);
+    if (from.set.contains(WaySurfaceStateComponent::buffer_transform)) {
+        to.set |= WaySurfaceStateComponent::buffer_transform;
+        to.buffer_transform = from.buffer_transform;
+    }
+
+    if (from.set.contains(WaySurfaceStateComponent::buffer_scale)) {
+        to.set |= WaySurfaceStateComponent::buffer_scale;
+        to.buffer_scale = from.buffer_scale;
+    }
 
     to.surface.frame_callbacks.take_and_append_all(std::move(from.surface.frame_callbacks));
 
@@ -207,7 +218,7 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     // Buffer state
 
-    if (from.is_set(WaySurfaceStateComponent::buffer)) {
+    if (from.set.contains(WaySurfaceStateComponent::buffer)) {
         to.buffer = std::move(from.buffer);
         to.image  = std::move(from.image);
 
@@ -220,7 +231,7 @@ void apply(WaySurface* surface, WaySurfaceState& from)
             scene_texture_damage(surface->scene.texture.get(), from.buffer_damage.bounds());
         }
 
-    } else if (from.is_unset(WaySurfaceStateComponent::buffer)) {
+    } else if (from.unset.contains(WaySurfaceStateComponent::buffer)) {
         to.buffer = nullptr;
 
         scene_texture_set_image(surface->scene.texture.get(), nullptr, nullptr, GpuBlendMode::none);
@@ -232,11 +243,11 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     // Input regions
 
-    if (from.is_set(WaySurfaceStateComponent::input_region)) {
+    if (from.set.contains(WaySurfaceStateComponent::input_region)) {
         // TODO: Clip set input_regions against surface bounds?
         scene_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
 
-    } else if (!to.is_set(WaySurfaceStateComponent::input_region) && to.buffer) {
+    } else if (!to.set.contains(WaySurfaceStateComponent::input_region) && to.buffer) {
         // Unset input_region fills entire surface
         scene_input_region_set_region(surface->scene.input_region.get(),
             {{{}, to.buffer->extent, xywh}});
@@ -248,37 +259,15 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     // Component state
 
-    if (surface->xdg_surface) {
-        way_xdg_surface_apply(surface, from);
+    for (auto* addon : surface->addons) {
+        addon->apply(from.commit);
     }
-
-    switch (surface->role) {
-        break;case WaySurfaceRole::xdg_toplevel:
-            way_toplevel_apply(surface, from);
-        break;case WaySurfaceRole::subsurface:
-        break;case WaySurfaceRole::cursor:
-        break;case WaySurfaceRole::drag_icon:
-        break;case WaySurfaceRole::xdg_popup:
-            way_popup_apply(surface, from);
-        break;case WaySurfaceRole::none:
-            ;
-    }
-
-    way_subsurface_apply(surface, from);
 }
 
-static
-auto is_blocked_by_parent(WaySurface* surface, WaySurfaceState& pending) -> bool
+WaySurfaceAddon::~WaySurfaceAddon()
 {
-    if (!pending.is_set(WaySurfaceStateComponent::parent_commit)) return false;
-
-    if (surface->parent && surface->parent->current.commit < pending.parent.commit) {
-        return true;
-    } else if (!surface->parent) {
-        log_warn("parent_commit set but parent is gone, applying");
-    }
-
-    return false;
+    if (!surface) return;
+    std::erase(surface->addons, this);
 }
 
 static
@@ -288,10 +277,14 @@ void flush(WaySurface* surface)
 
     auto prev_applied_commit_id = surface->current.commit;
 
-    while (!surface->queue.cached.empty()) {
-        auto& packet = *surface->queue.cached.front().get();
+    while (!surface->cached.empty()) {
+        auto& packet = *surface->cached.front().get();
 
-        if (is_blocked_by_parent(surface, packet)) break;
+        if (!std::ranges::all_of(surface->addons, [&](auto* addon) {
+            return addon->test(packet.commit);
+        })) {
+            break;
+        }
 
         // Convert surface damage to buffer damage
 
@@ -299,7 +292,7 @@ void flush(WaySurface* surface)
             auto bounds = packet.surface.damage.bounds();
 
             // Apply buffer transform
-            auto transform = packet.is_set(WaySurfaceStateComponent::buffer_transform)
+            auto transform = packet.set.contains(WaySurfaceStateComponent::buffer_transform)
                 ? packet.buffer_transform
                 : surface->current.buffer_transform;
             debug_assert(transform == WL_OUTPUT_TRANSFORM_NORMAL, "TODO: Support buffer transforms");
@@ -321,7 +314,7 @@ void flush(WaySurface* surface)
 
         apply(surface, packet);
 
-        surface->queue.cached.pop_front();
+        surface->cached.pop_front();
     }
 
     if (surface->current.commit == prev_applied_commit_id) return;
@@ -343,10 +336,10 @@ void commit(wl_client* client, wl_resource* resource)
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
 
-    auto pending = surface->queue.pending;
+    auto pending = surface->pending;
     pending->commit = ++surface->last_commit_id;
-    surface->queue.cached.emplace_back(pending);
-    surface->queue.pending = ref_create<WaySurfaceState>();
+    surface->cached.emplace_back(pending);
+    surface->pending = ref_create<WaySurfaceState>();
 
     // Queue frame request for frame callbacks
 
@@ -354,13 +347,11 @@ void commit(wl_client* client, wl_resource* resource)
         wm_request_frame(surface->client->server->wm);
     }
 
-    // Apply subsurface synchronization barriers
-
-    if (surface->role == WaySurfaceRole::subsurface) {
-        way_subsurface_commit(surface, *pending.get());
+    for (auto* addon : surface->addons) {
+        addon->commit(pending->commit);
     }
 
-    if (!pending->is_set(WaySurfaceStateComponent::buffer)) {
+    if (!pending->set.contains(WaySurfaceStateComponent::buffer)) {
         debug_assert(!pending->buffer_damage,  "TODO: wl_surface::damage_buffer without attached buffer");
         debug_assert(!pending->surface.damage, "TODO: wl_surface::damage without attached buffer");
     }
@@ -378,8 +369,16 @@ WAY_INTERFACE(wl_surface) = {
     WAY_STUB_QUIET(set_opaque_region),
     .set_input_region = set_input_region,
     .commit = commit,
-    .set_buffer_transform = WAY_ADDON_SIMPLE_STATE_REQUEST(WaySurface, buffer_transform, buffer_transform, wl_output_transform(bt), i32 bt),
-    .set_buffer_scale     = WAY_ADDON_SIMPLE_STATE_REQUEST(WaySurface, buffer_scale,     buffer_scale,     scale,                   i32 scale),
+    .set_buffer_transform = [](wl_client *client, wl_resource *resource, i32 bt) {
+        auto* surface = way_get_userdata<WaySurface>(resource);
+        surface->pending->buffer_transform = wl_output_transform(bt);
+        surface->pending->set |= WaySurfaceStateComponent::buffer_transform;
+    },
+    .set_buffer_scale = [](wl_client *client, wl_resource *resource, i32 scale) {
+        auto* surface = way_get_userdata<WaySurface>(resource);
+        surface->pending->buffer_scale = scale;
+        surface->pending->set |= WaySurfaceStateComponent::buffer_scale;
+    },
     .damage_buffer = damage_buffer,
     .offset = offset,
 };
@@ -390,11 +389,8 @@ WaySurface::~WaySurface()
 {
     scene.tree->userdata = {};
     debug_assert(std::erase(client->surfaces, this));
-}
 
-void way_role_destroy(wl_client* client, wl_resource* resource)
-{
-    auto* surface = way_get_userdata<WaySurface>(resource);
-    surface->role = WaySurfaceRole::none;
-    way_simple_destroy(client, resource);
+    for (auto* addon : addons) {
+        addon->surface = nullptr;
+    }
 }

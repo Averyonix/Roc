@@ -16,61 +16,42 @@ struct WayClient;
 
 // -----------------------------------------------------------------------------
 
+struct WaySubsurface;
+struct WaySurfaceTree;
+struct WayXdgSurface;
+struct WayToplevel;
+struct WayPopup;
+
+// -----------------------------------------------------------------------------
+
 enum class WaySurfaceStateComponent : u32
 {
     // wl_surface
-    buffer,
-    opaque_region,
-    input_region,
-    buffer_transform,
-    buffer_scale,
+    buffer           = 1 << 0,
+    opaque_region    = 1 << 1,
+    input_region     = 1 << 2,
+    buffer_transform = 1 << 3,
+    buffer_scale     = 1 << 4,
 
     // wp_viewport
-    buffer_source,
-    buffer_destination,
-
-    // wl_subsurface / xdg_toplevel / xdg_popup
-    parent,
-    parent_commit,
-
-    // xdg_surface
-    geometry,
-    acked_serial,
-
-    // xdg_toplevel
-    title,
-    app_id,
-    min_size,
-    max_size,
-};
-
-struct WaySubsurfacePlace
-{
-    Ref<WaySurface> reference;
-    Ref<WaySurface> subsurface;
-    bool above;
-};
-
-struct WaySubsurfaceMove
-{
-    Ref<WaySurface> subsurface;
-    vec2i32 position;
+    buffer_source      = 1 << 5,
+    buffer_destination = 1 << 6,
 };
 
 struct WayPositioner;
 struct WayBuffer;
 
-struct WaySurfaceState : WayState<WaySurfaceStateComponent>
+struct WaySurfaceState
 {
-    struct {
-        WayCommitId commit;
-    } parent;
+    Flags<WaySurfaceStateComponent> set;
+    Flags<WaySurfaceStateComponent> unset;
+    WayCommitId commit;
 
     struct {
         WayResourceList frame_callbacks;
-        vec2i32 offset;
-        region2f32 opaque_region;
-        region2f32 input_region;
+        vec2i32         offset;
+        region2f32      opaque_region;
+        region2f32      input_region;
         WayDamageRegion damage;
     } surface;
 
@@ -82,23 +63,6 @@ struct WaySurfaceState : WayState<WaySurfaceStateComponent>
     vec2i32             buffer_destination;
     WayDamageRegion     buffer_damage;
 
-    struct {
-        rect2i32 geometry;
-        WaySerial acked_serial;
-    } xdg;
-
-    struct {
-        std::vector<WaySubsurfacePlace> places;
-        std::vector<WaySubsurfaceMove>  moves;
-    } subsurface;
-
-    struct {
-        vec2i32 min_size;
-        vec2i32 max_size;
-        std::string title;
-        std::string app_id;
-    } toplevel;
-
     ~WaySurfaceState();
 };
 
@@ -109,55 +73,35 @@ struct WaySurface : WayObject
     Weak<WaySurface> parent;
 
     // core
-    WayResource wl_surface;
+    WayResource resource;
     WaySurfaceRole role = WaySurfaceRole::none;
 
     // state tracking
     WayCommitId last_commit_id;
-    WayStateQueue<WaySurfaceState> queue;
+    Ref<WaySurfaceState> pending = ref_create<WaySurfaceState>();
+    std::deque<Ref<WaySurfaceState>> cached;
     WaySurfaceState current;
-
-    // wl_subsurface
-    struct {
-        WayResource resource;
-        bool synchronized;
-    } subsurface;
-
-    // xdg_surface
-    WayResource xdg_surface;
-    WaySerial sent_serial;
-    WaySerial acked_serial;
-
-    // xdg_popup
-    struct {
-        WayResource resource;
-        vec2f32 position;
-    } popup;
-
-    // xdg_toplevel
-    struct {
-        WayResource resource;
-        rect2f32 anchor;
-        vec2f32 gravity = {1, 1};
-        Ref<WmWindow> window;
-
-        WaySerial pending; // commit response to resize configure is pending
-        bool queued;  // new reposition request received while pending
-    } toplevel;
 
     // scene
     struct {
-        Ref<SceneTree> tree;
-        Ref<SceneTexture> texture;
+        Ref<SceneTree>       tree;
+        Ref<SceneTexture>    texture;
         Ref<SeatInputRegion> input_region;
     } scene;
 
     bool mapped;
 
+    WayXdgSurface* xdg;
+    WayToplevel*   toplevel;
+    WayPopup*      popup;
+    WaySubsurface* subsurface;
+
+    Ref<WaySurfaceTree> tree;
+
+    std::vector<WaySurfaceAddon*> addons;
+
     ~WaySurface();
 };
-
-void way_role_destroy(wl_client*, wl_resource*);
 
 void way_surface_on_redraw(WaySurface*);
 
@@ -165,8 +109,57 @@ void way_viewport_apply(WaySurface*, WaySurfaceState& from);
 
 // -----------------------------------------------------------------------------
 
-void way_subsurface_commit(WaySurface*, WaySurfaceState&);
-void way_subsurface_apply( WaySurface*, WaySurfaceState&);
+struct WaySurfaceTreePlace
+{
+    Ref<WaySurface> reference;
+    Ref<WaySurface> surface;
+    bool above;
+};
+
+struct WaySurfaceTreeMove
+{
+    Ref<WaySurface> surface;
+    vec2i32 position;
+};
+
+struct WaySurfaceStateRequest
+{
+    WayCommitId commit;
+
+    std::vector<WaySurfaceTreePlace> places;
+    std::vector<WaySurfaceTreeMove>  moves;
+};
+
+struct WaySurfaceTree : WaySurfaceAddon
+{
+    WayCommitQueue<WaySurfaceStateRequest> queue;
+
+    virtual void commit(WayCommitId) final override;
+    virtual void apply( WayCommitId) final override;
+};
+
+struct WaySubsurfaceStateRequest
+{
+    WayCommitId commit;
+
+    Weak<WaySurface> parent;
+    WayCommitId      parent_commit;
+};
+
+struct WaySubsurface : WaySurfaceAddon
+{
+    WayCommitQueue<WaySubsurfaceStateRequest> queue;
+
+    WayResource resource;
+
+    bool synchronized;
+
+    virtual void commit(WayCommitId)         final override;
+    virtual auto test(  WayCommitId) -> bool final override;
+    virtual void apply( WayCommitId)         final override;
+
+    ~WaySubsurface();
+};
 
 // -----------------------------------------------------------------------------
 

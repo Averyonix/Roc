@@ -8,7 +8,11 @@ static
 void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resource* wl_surface)
 {
     auto* surface = way_get_userdata<WaySurface>(wl_surface);
-    surface->xdg_surface = way_resource_create_refcounted(xdg_surface, client, resource, id, surface);
+    auto xdg_surface = ref_create<WayXdgSurface>();
+    xdg_surface->resource = way_resource_create_refcounted(xdg_surface, client, resource, id, xdg_surface.get());
+    xdg_surface->surface=  surface;
+    surface->xdg = xdg_surface.get();
+    surface->addons.emplace_back(xdg_surface.get());
 }
 
 WAY_INTERFACE(xdg_wm_base) = {
@@ -28,12 +32,19 @@ WAY_BIND_GLOBAL(xdg_wm_base, bind)
 static
 void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
-    auto* surface = way_get_userdata<WaySurface>(resource);
+    auto* surface = way_get_userdata<WayXdgSurface>(resource)->surface;
     surface->role = WaySurfaceRole::xdg_toplevel;
-    surface->toplevel.resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, surface);
 
-    surface->toplevel.window = wm_window_create(surface->client->server->wm);
-    wm_window_set_event_listener(surface->toplevel.window.get(), [surface](WmWindowEvent* event) {
+    auto toplevel = ref_create<WayToplevel>();
+    toplevel->surface = surface;
+
+    surface->toplevel = toplevel.get();
+    surface->addons.emplace_back(toplevel.get());
+
+    toplevel->resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, toplevel.get());
+
+    toplevel->window = wm_window_create(surface->client->server->wm);
+    wm_window_set_event_listener(toplevel->window.get(), [surface](WmWindowEvent* event) {
         switch (event->type) {
             break;case WmEventType::window_reposition_requested:
                 way_toplevel_on_reposition(surface, event->reposition.frame, event->reposition.gravity);
@@ -45,79 +56,106 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
         }
     });
 
-    wm_window_add_input_region(surface->toplevel.window.get(), surface->scene.input_region.get());
+    wm_window_add_input_region(toplevel->window.get(), surface->scene.input_region.get());
 
-    scene_tree_place_above(wm_window_get_tree(surface->toplevel.window.get()), nullptr, surface->scene.tree.get());
+    scene_tree_place_above(wm_window_get_tree(toplevel->window.get()), nullptr, surface->scene.tree.get());
 }
 
 static
 void ack_configure(wl_client* client, wl_resource* resource, u32 _serial)
 {
-    auto* surface = way_get_userdata<WaySurface>(resource);
+    auto* xdg = way_get_userdata<WayXdgSurface>(resource);
 
     auto serial = WaySerial(_serial);
 
-    if (serial > surface->sent_serial) {
-        way_post_error(surface->xdg_surface, XDG_SURFACE_ERROR_INVALID_SERIAL,
+    if (serial > xdg->sent_serial) {
+        way_post_error(xdg->resource, XDG_SURFACE_ERROR_INVALID_SERIAL,
             "Client acked configure {} which is higher than latest sent configure serial {}",
-            serial.value, surface->sent_serial.value);
+            serial.value, xdg->sent_serial.value);
         return;
     }
 
-    if (serial <= surface->acked_serial) {
+    if (serial <= xdg->acked_serial) {
         log_warn("Client acked old configure serial");
         return;
     }
 
-    surface->queue.pending->xdg.acked_serial = serial;
-    surface->queue.pending->set(WaySurfaceStateComponent::acked_serial);
+    xdg->queue.pending->acked_serial = serial;
+    xdg->queue.pending->set |= WayXdgSurfaceStateComponent::acked_serial;
 
-    surface->acked_serial = serial;
+    xdg->acked_serial = serial;
 }
 
 WAY_INTERFACE(xdg_surface) = {
-    .destroy = way_role_destroy,
+    .destroy = way_simple_destroy,
     .get_toplevel = get_toplevel,
     .get_popup = way_get_popup,
-    .set_window_geometry = WAY_ADDON_SIMPLE_STATE_REQUEST(way_xdg_surface, xdg.geometry, geometry, rect2i32({x, y}, {w, h}, xywh), i32 x, i32 y, i32 w, i32 h),
+    .set_window_geometry = [](wl_client *client, wl_resource *resource, i32 x, i32 y, i32 w, i32 h) {
+        auto* xdg = way_get_userdata<WayXdgSurface>(resource);
+        xdg->queue.pending->geometry = rect2i32({x, y}, {w, h}, xywh);
+        xdg->queue.pending->set |= WayXdgSurfaceStateComponent::geometry;
+    },
     .ack_configure = ack_configure,
 };
 
-void way_xdg_surface_apply(WaySurface* surface, WaySurfaceState& from)
+WayXdgSurface::~WayXdgSurface()
 {
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.geometry,     geometry);
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, xdg.acked_serial, acked_serial);
+    if (surface) {
+        surface->xdg = nullptr;
+    }
+}
 
-    if (!surface->current.is_set(WaySurfaceStateComponent::geometry) && surface->mapped) {
-        surface->current.xdg.geometry = { {}, surface->current.buffer->extent, xywh };
+void WayXdgSurface::commit(WayCommitId id)
+{
+    queue.commit(id);
+}
+
+void WayXdgSurface::apply(WayCommitId id)
+{
+    if (auto from = queue.dequeue(id)) {
+        if (from->set.contains(WayXdgSurfaceStateComponent::geometry)) {
+            current.set |= WayXdgSurfaceStateComponent::geometry;
+            current.geometry = from->geometry;
+        }
+
+        if (from->set.contains(WayXdgSurfaceStateComponent::acked_serial)) {
+            current.set |= WayXdgSurfaceStateComponent::acked_serial;
+            current.acked_serial = from->acked_serial;
+        }
+    }
+
+    if (!current.set.contains(WayXdgSurfaceStateComponent::geometry) && surface->mapped) {
+        current.geometry = { {}, surface->current.buffer->extent, xywh };
     }
 }
 
 void way_xdg_surface_configure(WaySurface* surface)
 {
     auto* server = surface->client->server;
-    surface->sent_serial = way_next_serial(server);
-    way_send(xdg_surface_send_configure, surface->xdg_surface, surface->sent_serial.value);
+    surface->xdg->sent_serial = way_next_serial(server);
+    way_send(xdg_surface_send_configure, surface->xdg->resource, surface->xdg->sent_serial.value);
 }
 
 // -----------------------------------------------------------------------------
 
 void way_toplevel_on_map_change(WaySurface* surface, bool mapped)
 {
+    auto* toplevel = surface->toplevel;
+
     if (mapped) {
-        wm_window_map(surface->toplevel.window.get());
+        wm_window_map(toplevel->window.get());
         for (auto* seat : wm_get_seats(surface->client->server->wm)) {
             seat_keyboard_focus(seat_get_keyboard(seat), surface->scene.input_region.get());
         }
     } else {
-        wm_window_unmap(surface->toplevel.window.get());
+        wm_window_unmap(toplevel->window.get());
     }
 }
 
 static
-void configure_toplevel(WaySurface* surface, vec2u32 extent)
+void configure_toplevel(WayToplevel* toplevel, vec2u32 extent)
 {
-    way_send(xdg_toplevel_send_configure, surface->toplevel.resource,
+    way_send(xdg_toplevel_send_configure, toplevel->resource,
         extent.x, extent.y,
         ptr_to(way_to_wl_array<const xdg_toplevel_state>({
             XDG_TOPLEVEL_STATE_ACTIVATED,
@@ -128,31 +166,36 @@ void configure_toplevel(WaySurface* surface, vec2u32 extent)
 static
 void reposition(WaySurface* surface)
 {
-    vec2f32 extent = surface->current.xdg.geometry.extent;
-    rect2f32 anchor = surface->toplevel.anchor;
+    auto* xdg = surface->xdg;
+    auto* toplevel = surface->toplevel;
+
+    vec2f32 extent = xdg->current.geometry.extent;
+    rect2f32 anchor = toplevel->anchor;
 
     rect2f32 frame { anchor.origin, extent, xywh };
 
     // Apply gravity
-    vec2f32 rel = 1.f - ((surface->toplevel.gravity + 1.f) * .5f);
+    vec2f32 rel = 1.f - ((toplevel->gravity + 1.f) * .5f);
     frame.origin -= rel * (extent - anchor.extent);
 
-    wm_window_set_frame(surface->toplevel.window.get(), frame);
-    scene_tree_set_translation(surface->scene.tree.get(), -surface->current.xdg.geometry.origin);
+    wm_window_set_frame(toplevel->window.get(), frame);
+    scene_tree_set_translation(surface->scene.tree.get(), -xdg->current.geometry.origin);
 }
 
 void way_toplevel_on_reposition(WaySurface* surface, rect2f32 frame, vec2f32 gravity)
 {
-    bool resize = surface->toplevel.anchor.extent != frame.extent;
-    surface->toplevel.anchor = frame;
-    surface->toplevel.gravity = gravity;
+    auto* toplevel = surface->toplevel;
+
+    bool resize = toplevel->anchor.extent != frame.extent;
+    toplevel->anchor = frame;
+    toplevel->gravity = gravity;
     if (resize) {
-        if (surface->toplevel.pending > surface->acked_serial) {
-            surface->toplevel.queued = true;
+        if (toplevel->pending > surface->xdg->acked_serial) {
+            toplevel->queued = true;
         } else {
-            configure_toplevel(surface, frame.extent);
+            configure_toplevel(toplevel, frame.extent);
             way_xdg_surface_configure(surface);
-            surface->toplevel.pending = surface->sent_serial;
+            toplevel->pending = surface->xdg->sent_serial;
         }
     } else {
         reposition(surface);
@@ -161,59 +204,114 @@ void way_toplevel_on_reposition(WaySurface* surface, rect2f32 frame, vec2f32 gra
 
 void way_toplevel_on_close(WaySurface* surface)
 {
-    way_send(xdg_toplevel_send_close, surface->toplevel.resource);
+    way_send(xdg_toplevel_send_close, surface->toplevel->resource);
 }
 
 static
-void send_premap_configure(WaySurface* surface)
+void send_premap_configure(WayToplevel* toplevel)
 {
-    if (wl_resource_get_version(surface->toplevel.resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        way_send(xdg_toplevel_send_wm_capabilities, surface->toplevel.resource, ptr_to(way_to_wl_array<const xdg_toplevel_wm_capabilities>({
+    if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
+        way_send(xdg_toplevel_send_wm_capabilities, toplevel->resource, ptr_to(way_to_wl_array<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
         })));
     }
 
-    configure_toplevel(surface, {0, 0});
-    way_xdg_surface_configure(surface);
+    configure_toplevel(toplevel, {0, 0});
+    way_xdg_surface_configure(toplevel->surface);
 }
 
-void way_toplevel_apply(WaySurface* surface, WaySurfaceState& from)
+void WayToplevel::commit(WayCommitId id)
 {
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.title, title);
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.app_id, app_id);
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.max_size, max_size);
-    WAY_ADDON_SIMPLE_STATE_APPLY(from, surface->current, toplevel.min_size, min_size);
+    queue.commit(id);
+}
+
+void WayToplevel::apply(WayCommitId id)
+{
+    auto from = queue.dequeue(id);
+    if (!from) return;
+
+    if (from->set.contains(WayToplevelStateComponent::title)) {
+        current.set |= WayToplevelStateComponent::title;
+        current.title = std::move(from->title);
+    }
+
+    if (from->set.contains(WayToplevelStateComponent::app_id)) {
+        current.set |= WayToplevelStateComponent::app_id;
+        current.app_id = std::move(from->app_id);
+    }
+
+    if (from->set.contains(WayToplevelStateComponent::max_size)) {
+        if (from->max_size == vec2i32(0, 0)) {
+            current.set -= WayToplevelStateComponent::max_size;
+        } else {
+            current.set |= WayToplevelStateComponent::max_size;
+            current.max_size = from->max_size;
+        }
+    }
+
+    if (from->set.contains(WayToplevelStateComponent::min_size)) {
+        if (from->min_size == vec2i32(0, 0)) {
+            current.set -= WayToplevelStateComponent::min_size;
+        } else {
+            current.set |= WayToplevelStateComponent::min_size;
+            current.min_size = from->min_size;
+        }
+    }
 
     if (surface->mapped) {
         reposition(surface);
 
-        if (surface->toplevel.queued) {
-            configure_toplevel(surface, surface->toplevel.anchor.extent);
+        if (queued) {
+            configure_toplevel(this, anchor.extent);
             way_xdg_surface_configure(surface);
-            surface->toplevel.pending = surface->sent_serial;
-            surface->toplevel.queued = false;
+            pending = surface->xdg->sent_serial;
+            queued = false;
         }
     } else {
         log_info("toplevel surface committed but not mapped, sending configure");
-        send_premap_configure(surface);
+        send_premap_configure(this);
     }
 }
 
 // -----------------------------------------------------------------------------
 
 WAY_INTERFACE(xdg_toplevel) = {
-    .destroy = way_role_destroy,
+    .destroy = way_simple_destroy,
     WAY_STUB(set_parent),
-    .set_title  = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.title,  title,  title,  const char* title),
-    .set_app_id = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.app_id, app_id, app_id, const char* app_id),
+    .set_title  = [](wl_client *client, wl_resource *resource, const char *title) {
+        auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
+        pending->title = title;
+        pending->set |= WayToplevelStateComponent::title;
+    },
+    .set_app_id = [](wl_client *client, wl_resource *resource, const char *app_id) {
+        auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
+        pending->app_id = app_id;
+        pending->set |= WayToplevelStateComponent::app_id;
+    },
     WAY_STUB(show_window_menu),
     WAY_STUB(move),
     WAY_STUB(resize),
-    .set_max_size = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.max_size, max_size, vec2i32(w, h), i32 w, i32 h),
-    .set_min_size = WAY_ADDON_SIMPLE_STATE_REQUEST(way_toplevel, toplevel.min_size, min_size, vec2i32(w, h), i32 w, i32 h),
+    .set_max_size = [](wl_client *client, wl_resource *resource, i32 w, i32 h) {
+        auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
+        pending->max_size = vec2i32(w, h);
+        pending->set |= WayToplevelStateComponent::max_size;
+    },
+    .set_min_size = [](wl_client *client, wl_resource *resource, i32 w, i32 h) {
+        auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
+        pending->min_size = vec2i32(w, h);
+        pending->set |= WayToplevelStateComponent ::min_size;
+    },
     WAY_STUB(set_maximized),
     WAY_STUB(unset_maximized),
     WAY_STUB(set_fullscreen),
     WAY_STUB(unset_fullscreen),
     WAY_STUB(set_minimized),
 };
+
+WayToplevel::~WayToplevel()
+{
+    if (surface) {
+        surface->toplevel = nullptr;
+        surface->role = WaySurfaceRole::none;
+    }
+}

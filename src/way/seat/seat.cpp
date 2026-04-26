@@ -3,6 +3,7 @@
 #include "../data/data.hpp"
 #include "../surface/surface.hpp"
 #include "../client.hpp"
+#include "../shell/shell.hpp"
 
 // -----------------------------------------------------------------------------
 
@@ -187,9 +188,9 @@ void keyboard_leave(WaySeatClient* seat_client)
     seat->keyboard.scene = nullptr;
     auto serial = way_next_serial(server);
 
-    if (surface->wl_surface) {
+    if (surface->resource) {
         for (auto* resource : seat_client->keyboards) {
-            way_send(wl_keyboard_send_leave, resource, serial.value, surface->wl_surface);
+            way_send(wl_keyboard_send_leave, resource, serial.value, surface->resource);
         }
     }
 
@@ -224,18 +225,18 @@ void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SeatEvent* event)
     // Leave previous window
     keyboard_leave(seat_client);
 
-    if (surface->toplevel.window) {
-        wm_window_raise(surface->toplevel.window.get());
+    if (surface->toplevel->window) {
+        wm_window_raise(surface->toplevel->window.get());
     }
 
     seat->keyboard.scene = event->keyboard.keyboard;
 
     auto serial = way_next_serial(server);
 
-    if (surface->wl_surface) {
+    if (surface->resource) {
         auto pressed = way_to_wl_array<const u32>(seat_keyboard_get_pressed(seat->keyboard.scene));
         for (auto* resource : seat_client->keyboards) {
-            way_send(wl_keyboard_send_enter, resource, serial.value, surface->wl_surface, &pressed);
+            way_send(wl_keyboard_send_enter, resource, serial.value, surface->resource, &pressed);
         }
     } else {
         log_error("Keyboard enter failed: wl_surface is destroyed for {}", (void*)surface);
@@ -263,9 +264,9 @@ auto to_surface_pos(WaySurface* surface, vec2f32 global_pos)
 static
 void pointer_leave_surface(WaySeatClient* seat_client, WaySurface* surface, WaySerial serial)
 {
-    if (!surface->wl_surface) return;
+    if (!surface->resource) return;
     for (auto* resource : seat_client->pointers) {
-        way_send(wl_pointer_send_leave, resource, serial.value, surface->wl_surface);
+        way_send(wl_pointer_send_leave, resource, serial.value, surface->resource);
     }
 }
 
@@ -299,10 +300,10 @@ void way_seat_on_pointer_enter(WaySeatClient* seat_client, SeatEvent* event)
 
     seat->focus.pointer = new_surface;
 
-    if (!new_surface->wl_surface) return;
+    if (!new_surface->resource) return;
     auto pos = to_fixed(to_surface_pos(new_surface, seat_pointer_get_position(seat->pointer.scene)));
     for (auto* resource : seat_client->pointers) {
-        way_send(wl_pointer_send_enter, resource, serial.value, new_surface->wl_surface, pos.x, pos.y);
+        way_send(wl_pointer_send_enter, resource, serial.value, new_surface->resource, pos.x, pos.y);
     }
 }
 

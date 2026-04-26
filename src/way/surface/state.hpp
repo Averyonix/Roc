@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../util.hpp"
 
 #include <core/id.hpp>
@@ -20,89 +22,57 @@ enum class WaySurfaceRole : u32
 
 // -----------------------------------------------------------------------------
 
-template<typename Component>
-struct WayState
+struct WaySurface;
+
+struct WaySurfaceAddon : WayObject
 {
-    WayCommitId commit;
+    WaySurface* surface;
 
-    struct {
-        u32 set   = 0;
-        u32 unset = 0;
-    } committed;
+    virtual void commit(WayCommitId) = 0;
+    virtual auto test(  WayCommitId) -> bool { return true; };
+    virtual void apply( WayCommitId) = 0;
 
-    static_assert(sizeof(u32) * CHAR_BIT >
-        std::to_underlying(*std::ranges::max_element(magic_enum::enum_values<Component>())));
-
-    auto is_set(  Component component) const -> bool { return committed.set   & (1 << std::to_underlying(component)); }
-    auto is_unset(Component component) const -> bool { return committed.unset & (1 << std::to_underlying(component)); }
-
-    auto empty() const -> bool { return !committed.set && !committed.unset; }
-
-    void set(Component component)
-    {
-        committed.set   |=  (1 << std::to_underlying(component));
-        committed.unset &= ~(1 << std::to_underlying(component));
-    }
-
-    void unset(Component component)
-    {
-        committed.unset |=  (1 << std::to_underlying(component));
-        committed.set   &= ~(1 << std::to_underlying(component));
-    }
+    ~WaySurfaceAddon();
 };
 
 // -----------------------------------------------------------------------------
 
-#define WAY_ADDON_SIMPLE_STATE_REQUEST(Type, Field, Name, Expr, ...) \
-    [](wl_client* client, wl_resource* resource, __VA_ARGS__) { \
-        auto* surface = way_get_userdata<WaySurface>(resource); \
-        surface->queue.pending->Field = Expr; \
-        surface->queue.pending->set(WaySurfaceStateComponent::Name); \
-    }
-
-/**
- * Convenience macro for applying trivial state elements.
- */
-#define WAY_ADDON_SIMPLE_STATE_APPLY(From, To, Field, Name) \
-    do { \
-        if ((From).is_set(WaySurfaceStateComponent::Name)) { \
-            (To).Field = std::move((From).Field); \
-        } \
-    } while (false)
-
-// -----------------------------------------------------------------------------
-
 template<typename T>
-struct WayStateQueue
+struct WayCommitQueue
 {
     Ref<T> pending;
-    std::deque<Ref<T>> cached;
+    std::deque<Ref<T>> queue;
 
-    WayStateQueue()
+    WayCommitQueue()
+        : pending(ref_create<T>())
+    {}
+
+    void commit(WayCommitId id)
     {
+        pending->commit = id;
+        queue.emplace_back(std::move(pending));
         pending = ref_create<T>();
     }
 
-    auto commit(WayCommitId id) -> T*
+    T* peek(WayCommitId id)
     {
-        if (pending->empty()) {
-            return nullptr;
+        if (queue.empty()) return {};
+        if (queue.front()->commit != id) {
+            debug_assert(queue.front()->commit > id,
+                "Unexpected commit in queue with id {} attempting to peek {}", queue.front()->commit.value, id.value);
+            return {};
         }
-        pending->id = id;
-        auto* prev_pending = pending.get();
-        cached.emplace_back(std::move(pending));
-        pending = ref_create<T>();
-        return prev_pending;
+
+        return queue.front().get();
     }
 
-    template<typename ApplyFn>
-    void apply(WayCommitId id, ApplyFn&& apply_fn)
+    Ref<T> dequeue(WayCommitId id)
     {
-        while (cached.empty()) {
-            auto& packet = cached.front();
-            if (packet.id > id) break;
-            apply_fn(packet.state, packet.id);
-            cached.pop_front();
-        }
+        auto* front = peek(id);
+        if (!front) return nullptr;
+
+        Ref ref = front;
+        queue.pop_front();
+        return ref;
     }
 };
