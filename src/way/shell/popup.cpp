@@ -284,9 +284,8 @@ void way_get_popup(wl_client* client, wl_resource* resource, u32 id, wl_resource
 
     auto popup = ref_create<WayPopup>();
     popup->resource = way_resource_create_refcounted(xdg_popup, client, resource, id, popup.get());
-    popup->surface = surface;
     surface->popup = popup.get();
-    surface->addons.emplace_back(popup.get());
+    way_surface_addon_register(surface, popup.get());
 
     auto* parent = way_get_userdata<WayXdgSurface>(wl_parent)->surface;
     surface->parent = parent;

@@ -6,8 +6,7 @@ void ensure_tree(WaySurface* surface)
     if (surface->tree) return;
 
     surface->tree = ref_create<WaySurfaceTree>();
-    surface->tree->surface = surface;
-    surface->addons.emplace_back(surface->tree.get());
+    way_surface_addon_register(surface, surface->tree.get());
 }
 
 static
@@ -19,9 +18,8 @@ void get_subsurface(wl_client* client, wl_resource* resource, u32 id, wl_resourc
     auto subsurface = ref_create<WaySubsurface>();
     subsurface->resource = way_resource_create_refcounted(wl_subsurface, client, resource, id, subsurface.get());
 
-    subsurface->surface = surface;
     surface->subsurface = subsurface.get();
-    surface->addons.emplace_back(subsurface.get());
+    way_surface_addon_register(surface, subsurface.get());
 
     auto* parent = way_get_userdata<WaySurface>(wl_parent);
     surface->parent = parent;

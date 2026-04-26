@@ -18,6 +18,7 @@ struct WayClient;
 
 struct WaySubsurface;
 struct WaySurfaceTree;
+struct WayCursorSurface;
 struct WayXdgSurface;
 struct WayToplevel;
 struct WayPopup;
@@ -96,12 +97,15 @@ struct WaySurface : WayObject
     WayPopup*      popup;
     WaySubsurface* subsurface;
 
-    Ref<WaySurfaceTree> tree;
+    Ref<WaySurfaceTree>   tree;
+    Ref<WayCursorSurface> cursor_role;
 
     std::vector<WaySurfaceAddon*> addons;
 
     ~WaySurface();
 };
+
+void way_surface_addon_register(WaySurface*, WaySurfaceAddon*);
 
 void way_surface_on_redraw(WaySurface*);
 

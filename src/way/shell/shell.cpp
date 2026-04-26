@@ -10,9 +10,8 @@ void get_xdg_surface(wl_client* client, wl_resource* resource, u32 id, wl_resour
     auto* surface = way_get_userdata<WaySurface>(wl_surface);
     auto xdg_surface = ref_create<WayXdgSurface>();
     xdg_surface->resource = way_resource_create_refcounted(xdg_surface, client, resource, id, xdg_surface.get());
-    xdg_surface->surface=  surface;
     surface->xdg = xdg_surface.get();
-    surface->addons.emplace_back(xdg_surface.get());
+    way_surface_addon_register(surface, xdg_surface.get());
 }
 
 WAY_INTERFACE(xdg_wm_base) = {
@@ -36,10 +35,8 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
     surface->role = WaySurfaceRole::xdg_toplevel;
 
     auto toplevel = ref_create<WayToplevel>();
-    toplevel->surface = surface;
-
     surface->toplevel = toplevel.get();
-    surface->addons.emplace_back(toplevel.get());
+    way_surface_addon_register(surface, toplevel.get());
 
     toplevel->resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, toplevel.get());
 
@@ -90,7 +87,7 @@ WAY_INTERFACE(xdg_surface) = {
     .destroy = way_simple_destroy,
     .get_toplevel = get_toplevel,
     .get_popup = way_get_popup,
-    .set_window_geometry = [](wl_client *client, wl_resource *resource, i32 x, i32 y, i32 w, i32 h) {
+    .set_window_geometry = [](wl_client* client, wl_resource* resource, i32 x, i32 y, i32 w, i32 h) {
         auto* xdg = way_get_userdata<WayXdgSurface>(resource);
         xdg->queue.pending->geometry = rect2i32({x, y}, {w, h}, xywh);
         xdg->queue.pending->set |= WayXdgSurfaceStateComponent::geometry;
@@ -278,12 +275,12 @@ void WayToplevel::apply(WayCommitId id)
 WAY_INTERFACE(xdg_toplevel) = {
     .destroy = way_simple_destroy,
     WAY_STUB(set_parent),
-    .set_title  = [](wl_client *client, wl_resource *resource, const char *title) {
+    .set_title  = [](wl_client* client, wl_resource* resource, const char* title) {
         auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
         pending->title = title;
         pending->set |= WayToplevelStateComponent::title;
     },
-    .set_app_id = [](wl_client *client, wl_resource *resource, const char *app_id) {
+    .set_app_id = [](wl_client* client, wl_resource* resource, const char* app_id) {
         auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
         pending->app_id = app_id;
         pending->set |= WayToplevelStateComponent::app_id;
@@ -291,12 +288,12 @@ WAY_INTERFACE(xdg_toplevel) = {
     WAY_STUB(show_window_menu),
     WAY_STUB(move),
     WAY_STUB(resize),
-    .set_max_size = [](wl_client *client, wl_resource *resource, i32 w, i32 h) {
+    .set_max_size = [](wl_client* client, wl_resource* resource, i32 w, i32 h) {
         auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
         pending->max_size = vec2i32(w, h);
         pending->set |= WayToplevelStateComponent::max_size;
     },
-    .set_min_size = [](wl_client *client, wl_resource *resource, i32 w, i32 h) {
+    .set_min_size = [](wl_client* client, wl_resource* resource, i32 w, i32 h) {
         auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
         pending->min_size = vec2i32(w, h);
         pending->set |= WayToplevelStateComponent ::min_size;

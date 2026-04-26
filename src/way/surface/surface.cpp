@@ -206,15 +206,7 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     // Offset
 
-    if (from.surface.offset.x || from.surface.offset.y) {
-        switch (surface->role) {
-            break;case WaySurfaceRole::cursor:
-                  case WaySurfaceRole::drag_icon:
-                scene_tree_set_translation(surface->scene.tree.get(), surface->scene.tree->translation + vec2f32(from.surface.offset));
-            break;default:
-                ;
-        }
-    }
+    to.surface.offset += from.surface.offset;
 
     // Buffer state
 
@@ -369,12 +361,12 @@ WAY_INTERFACE(wl_surface) = {
     WAY_STUB_QUIET(set_opaque_region),
     .set_input_region = set_input_region,
     .commit = commit,
-    .set_buffer_transform = [](wl_client *client, wl_resource *resource, i32 bt) {
+    .set_buffer_transform = [](wl_client* client, wl_resource* resource, i32 bt) {
         auto* surface = way_get_userdata<WaySurface>(resource);
         surface->pending->buffer_transform = wl_output_transform(bt);
         surface->pending->set |= WaySurfaceStateComponent::buffer_transform;
     },
-    .set_buffer_scale = [](wl_client *client, wl_resource *resource, i32 scale) {
+    .set_buffer_scale = [](wl_client* client, wl_resource* resource, i32 scale) {
         auto* surface = way_get_userdata<WaySurface>(resource);
         surface->pending->buffer_scale = scale;
         surface->pending->set |= WaySurfaceStateComponent::buffer_scale;
@@ -393,4 +385,10 @@ WaySurface::~WaySurface()
     for (auto* addon : addons) {
         addon->surface = nullptr;
     }
+}
+
+void way_surface_addon_register(WaySurface* surface, WaySurfaceAddon* addon)
+{
+    addon->surface = surface;
+    surface->addons.emplace_back(addon);
 }

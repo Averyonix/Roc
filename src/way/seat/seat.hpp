@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../util.hpp"
+#include "../surface/state.hpp"
 
 #include <core/fd.hpp>
 #include <seat/seat.hpp>
@@ -63,6 +64,14 @@ struct WaySeatClient : WayObject
     } drag;
 
     ~WaySeatClient();
+};
+
+// -----------------------------------------------------------------------------
+
+struct WayCursorSurface : WaySurfaceAddon
+{
+    virtual void commit(WayCommitId) final override {};
+    virtual void apply( WayCommitId) final override;
 };
 
 // -----------------------------------------------------------------------------

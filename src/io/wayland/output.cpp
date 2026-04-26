@@ -101,7 +101,7 @@ IO_WL_LISTENER(xdg_toplevel) = {
 };
 
 IO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
-    .done = [](void*, zwp_linux_dmabuf_feedback_v1 *feedback) {
+    .done = [](void*, zwp_linux_dmabuf_feedback_v1* feedback) {
         zwp_linux_dmabuf_feedback_v1_destroy(feedback);
     },
     .format_table = format_table,
