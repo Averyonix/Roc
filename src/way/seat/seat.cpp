@@ -71,3 +71,54 @@ WaySeatClient::~WaySeatClient()
 {
     std::erase(client->seat_clients, this);
 }
+
+// ---------------------------------------------------------------------------------------
+
+static
+auto get_seat_client(WayClient* client, Seat* seat) -> WaySeatClient*
+{
+    for (auto* seat_client : client->seat_clients) {
+        if (seat_client->seat->scene == seat) {
+            return seat_client;
+        }
+    }
+    return nullptr;
+}
+
+static
+void handle_keyboard_event(WayClient* client, SeatEvent* event, auto&& fn)
+{
+    if (auto* seat_client = get_seat_client(client, seat_keyboard_get_seat(event->keyboard.keyboard))) {
+        fn(seat_client, event);
+    }
+}
+
+static
+void handle_pointer_event(WayClient* client, SeatEvent* event, auto&& fn)
+{
+    if (auto* seat_client = get_seat_client(client, seat_pointer_get_seat(event->pointer.pointer))) {
+        fn(seat_client, event);
+    }
+}
+
+
+void way_seat_handle_event(WayClient* client, SeatEvent* event)
+{
+    switch (event->type) {
+        break;case SeatEventType::keyboard_enter:    handle_pointer_event(client, event, way_seat_on_keyboard_enter);
+        break;case SeatEventType::keyboard_leave:    handle_pointer_event(client, event, way_seat_on_keyboard_leave);
+        break;case SeatEventType::keyboard_key:      handle_pointer_event(client, event, way_seat_on_key);
+        break;case SeatEventType::keyboard_modifier: handle_pointer_event(client, event, way_seat_on_modifier);
+
+        break;case SeatEventType::pointer_enter:  handle_pointer_event(client, event, way_seat_on_pointer_enter);
+        break;case SeatEventType::pointer_leave:  handle_pointer_event(client, event, way_seat_on_pointer_leave);
+        break;case SeatEventType::pointer_motion: handle_pointer_event(client, event, way_seat_on_motion);
+        break;case SeatEventType::pointer_button: handle_pointer_event(client, event, way_seat_on_button);
+        break;case SeatEventType::pointer_scroll: handle_pointer_event(client, event, way_seat_on_scroll);
+
+        break;case SeatEventType::selection:
+            if (auto* seat_client = get_seat_client(client, event->data.seat)) {
+                way_data_offer_selection(seat_client);
+            }
+    }
+}

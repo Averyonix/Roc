@@ -76,6 +76,8 @@ struct WayCursorSurface : WaySurfaceAddon
 
 // -----------------------------------------------------------------------------
 
+void way_seat_handle_event(WayClient*, SeatEvent*);
+
 void way_seat_init(         WayServer*);
 void way_seat_keyboard_init(WaySeat*);
 void way_seat_get_keyboard(wl_client*, wl_resource*, u32 id);
