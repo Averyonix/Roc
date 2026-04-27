@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 4.0)
 
-project(roc)
+project(Roc)
+
+set(PROGRAM_NAME roc)
 
 # ------------------------------------------------------------------------------
 #       Helpers
@@ -144,7 +146,7 @@ target_include_directories(renderdoc-api INTERFACE ${VENDOR_DIR}/renderdoc/rende
 # ------------------------------------------------------------------------------
 
 init_library(core)
-target_compile_definitions(core PUBLIC PROGRAM_NAME="roc" PROJECT_NAME="Roc")
+target_compile_definitions(core PUBLIC PROGRAM_NAME="${PROGRAM_NAME}" PROJECT_NAME="${PROJECT_NAME}")
 target_sources(core PRIVATE
     src/core/log.cpp
     src/core/object.cpp
@@ -326,15 +328,15 @@ target_sources(way PRIVATE
 target_link_libraries(way PUBLIC wm)
 
 # ------------------------------------------------------------------------------
-#       Roc
+#       Shell
 # ------------------------------------------------------------------------------
 
-init_executable(roc)
-target_sources(roc PRIVATE
+init_executable(${PROGRAM_NAME})
+target_sources(${PROGRAM_NAME} PRIVATE
     src/shell/main.cpp
     src/shell/xwayland.cpp
     src/shell/app/log-viewer.cpp
     src/shell/app/launcher.cpp
     src/shell/app/background.cpp
     )
-target_link_libraries(roc PUBLIC wm ui way)
+target_link_libraries(${PROGRAM_NAME} PUBLIC wm ui way)

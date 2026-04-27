@@ -9,6 +9,8 @@ auto main(int argc, char* argv[]) -> int
 {
     log_set_file(PROGRAM_NAME ".log");
 
+    log_info("{} ({:n:})", PROJECT_NAME, std::span<const char* const>(argv, argc));
+
     Shell shell = {};
 
     // Config

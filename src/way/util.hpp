@@ -15,7 +15,7 @@ auto way_to_span(wl_array* array) -> std::span<T>
 }
 
 template<typename T>
-auto way_to_wl_array(std::span<T> span) -> wl_array
+auto way_from_span(std::span<T> span) -> wl_array
 {
     return wl_array {
         .size = span.size_bytes(),
@@ -323,7 +323,7 @@ struct WayBindGlobalData
 
 // -----------------------------------------------------------------------------
 
-auto way_resource_create(wl_client*, const wl_interface*, i32 version, i32 id, const void* impl, WayObject*, bool refcount) -> wl_resource*;
+auto way_resource_create(wl_client* client, const wl_interface* interface, i32         version, i32 id, const void* impl, WayObject* object, bool refcount) -> wl_resource*;
 
 inline
 auto way_resource_create(wl_client* client, const wl_interface* interface, wl_resource* parent, i32 id, const void* impl, WayObject* object, bool refcount) -> wl_resource*

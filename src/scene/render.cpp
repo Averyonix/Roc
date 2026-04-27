@@ -1,6 +1,7 @@
 #include "internal.hpp"
 
 #include <core/math.hpp>
+#include <core/color.hpp>
 
 #include "scene_render_vert.hpp"
 #include "scene_render_frag.hpp"
@@ -24,7 +25,7 @@ void scene_render_init(Scene* scene)
         .usage = GpuImageUsage::texture | GpuImageUsage::transfer_dst
     });
 
-    gpu_copy_memory_to_image(scene->render.white.get(), as_bytes(ptr_to(vec4u8{255, 255, 255, 255}), 4), {{{1, 1}}});
+    gpu_copy_memory_to_image(scene->render.white.get(), as_bytes(ptr_to(color_from_hex("#FFFFFF")), 4), {{{1, 1}}});
 
     scene->render.nearest = gpu_sampler_create(scene->gpu, {
         .mag = VK_FILTER_NEAREST,

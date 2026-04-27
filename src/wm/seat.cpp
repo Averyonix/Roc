@@ -13,7 +13,7 @@ auto wm_get_seats(WmServer* wm) -> std::span<Seat* const>
 
 void wm_init_seat(WmServer* wm)
 {
-    wm->cursor_manager = scene_cursor_manager_create(wm->gpu, "breeze_cursors", 24);
+    wm->cursor_manager = seat_cursor_manager_create(wm->gpu, "breeze_cursors", 24);
 
     auto keyboard = seat_keyboard_create({
         .layout = "gb",

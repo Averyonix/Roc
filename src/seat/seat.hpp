@@ -20,7 +20,7 @@ auto seat_connect(SeatManager*) -> Ref<SeatClient>;
 
 struct SeatCursorManager;
 
-auto scene_cursor_manager_create(Gpu*, const char* theme, i32 size) -> Ref<SeatCursorManager>;
+auto seat_cursor_manager_create(Gpu*, const char* theme, i32 size) -> Ref<SeatCursorManager>;
 
 // -----------------------------------------------------------------------------
 

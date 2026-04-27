@@ -14,7 +14,6 @@ auto way_resource_create(wl_client* client, const wl_interface* interface, i32 v
     return resource;
 }
 
-
 void way_simple_destroy(wl_client* client, wl_resource* resource)
 {
     wl_resource_destroy(resource);

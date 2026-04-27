@@ -88,7 +88,7 @@ void send_feedback(WayServer* server, wl_resource* resource)
 
     way_send(zwp_linux_dmabuf_feedback_v1, tranche_target_device, resource, &dev_id);
     way_send(zwp_linux_dmabuf_feedback_v1, tranche_flags,   resource, 0);
-    way_send(zwp_linux_dmabuf_feedback_v1, tranche_formats, resource, ptr_to(way_to_wl_array<u16>(feedback.tranche_formats)));
+    way_send(zwp_linux_dmabuf_feedback_v1, tranche_formats, resource, ptr_to(way_from_span<u16>(feedback.tranche_formats)));
     way_send(zwp_linux_dmabuf_feedback_v1, tranche_done,    resource);
 
     way_send(zwp_linux_dmabuf_feedback_v1, done, resource);

@@ -167,7 +167,7 @@ void configure_toplevel(WayToplevel* toplevel, vec2u32 extent)
 {
     way_send(xdg_toplevel, configure, toplevel->resource,
         extent.x, extent.y,
-        ptr_to(way_to_wl_array<const xdg_toplevel_state>({
+        ptr_to(way_from_span<const xdg_toplevel_state>({
             XDG_TOPLEVEL_STATE_ACTIVATED,
         }))
     );
@@ -221,7 +221,7 @@ static
 void send_premap_configure(WayToplevel* toplevel)
 {
     if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        way_send(xdg_toplevel, wm_capabilities, toplevel->resource, ptr_to(way_to_wl_array<const xdg_toplevel_wm_capabilities>({
+        way_send(xdg_toplevel, wm_capabilities, toplevel->resource, ptr_to(way_from_span<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
         })));
     }

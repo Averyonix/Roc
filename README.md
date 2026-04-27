@@ -1,4 +1,4 @@
-# Wayland Roc
+# Roc
 
 An experiment in writing a simple opinionated independent Wayland compositor, with a few simple principals and goals:
 
@@ -19,18 +19,11 @@ An experiment in writing a simple opinionated independent Wayland compositor, wi
 
 # Architecture
 
-Roc is organized roughly into layers:
+Roc is organized roughly into several layers:
 
- - Core application support ─ `core`, `gpu`
- - Visual and input state ─ `scene`, `io`, `seat`
- - Window Manager ─ `wm`
+ - Core Utilities and I/O ─ `core`, `gpu`, `io`
+ - Window Manager ─ `scene`, `seat`, `wm`
  - Clients ─ `ui`, `way`, `shell`
-
-```
-     ┌─────── seat ─┐      ┌ ui ─┐
-core ┴ gpu ┬─ scene ┼─ wm ─┤     ├─ shell
-           └─ io ───┘      └ way ┘
-```
 
 ### `core` ─ Common Utilities
 
@@ -70,7 +63,7 @@ A spatial hierarchy providing hit-testing, damage tracking, and rendering logic.
 
 - Scene graph
 - Damage listeners
-- Core node types (tree, texture, mesh)
+- Rendering
 
 ### `seat` ─ Seat
 

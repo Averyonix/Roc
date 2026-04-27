@@ -112,7 +112,7 @@ void way_seat_on_keyboard_enter(WaySeatClient* seat_client, SeatEvent* event)
     auto serial = way_next_serial(server);
 
     if (surface->resource) {
-        auto pressed = way_to_wl_array<const u32>(seat_keyboard_get_pressed(seat->keyboard.scene));
+        auto pressed = way_from_span<const u32>(seat_keyboard_get_pressed(seat->keyboard.scene));
         for (auto* resource : seat_client->keyboards) {
             way_send(wl_keyboard, enter, resource, serial.value, surface->resource, &pressed);
         }

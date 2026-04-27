@@ -41,7 +41,7 @@ WAY_BIND_GLOBAL(wl_output, bind)
     }
 
     if (bind.version >= WL_OUTPUT_NAME_SINCE_VERSION) {
-        way_send(wl_output, name, resource, "ROC-1");
+        way_send(wl_output, name, resource, PROGRAM_NAME "-1");
     }
 
     if (bind.version >= WL_OUTPUT_DESCRIPTION_SINCE_VERSION) {

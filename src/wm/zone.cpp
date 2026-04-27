@@ -1,6 +1,7 @@
 #include "internal.hpp"
 
 #include <core/math.hpp>
+#include <core/color.hpp>
 
 static
 struct {
@@ -14,8 +15,8 @@ struct {
         i32 bottom = 9;
     } external_padding;
 
-    vec4f32 color_initial = {0.6, 0.6, 0.6, 0.4};
-    vec4f32 color_selected = {0.4, 0.4, 1.0, 0.6};
+    vec4u8 color_initial  = color_from_hex("#99999999");
+    vec4u8 color_selected = color_from_hex("#6666FF99");
 } c;
 
 static
@@ -52,7 +53,7 @@ void update_rectangle(WmServer* wm)
 
     scene_tree_place_above(wm_get_layer(wm, WmLayer::overlay), nullptr, wm->zone.texture.get());
     scene_texture_set_dst(wm->zone.texture.get(), rect);
-    scene_texture_set_tint(wm->zone.texture.get(), color * 255.f);
+    scene_texture_set_tint(wm->zone.texture.get(), color);
 }
 
 static

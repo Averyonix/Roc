@@ -73,21 +73,23 @@ void frame(ShellLogViewer* viewer)
     ImGui::SameLine();
     ImGui::Checkbox("Details", &viewer->show_details);
 
-    static constexpr auto make_color = [](std::string_view hex) { return vec4f32(color_from_hex(hex)) / 255.f; };
-    static constexpr auto to_imvec =   [](vec4f32 v)            { return ImVec4(v.x, v.y, v.z, v.w); };
+    static constexpr auto make_color = [](std::string_view hex) {
+        auto v = vec4f32(color_from_hex(hex)) / 255.f;
+        return ImVec4(v.x, v.y, v.z, v.w);
+    };
 
-    static constexpr vec4f32 color_trace = make_color("#63686D");
-    static constexpr vec4f32 color_debug = make_color("#16a085");
-    static constexpr vec4f32 color_info  = make_color("#1d99f3");
-    static constexpr vec4f32 color_warn  = make_color("#fdbc4b");
-    static constexpr vec4f32 color_error = make_color("#c0392b");
-    static constexpr vec4f32 color_fatal = make_color("#c0392b");
+    static constexpr auto color_trace = make_color("#63686D");
+    static constexpr auto color_debug = make_color("#16a085");
+    static constexpr auto color_info  = make_color("#1d99f3");
+    static constexpr auto color_warn  = make_color("#fdbc4b");
+    static constexpr auto color_error = make_color("#c0392b");
+    static constexpr auto color_fatal = make_color("#c0392b");
 
-    static constexpr vec4f32 color_hover_bg  = make_color("#242424");
-    static constexpr vec4f32 color_active_bg = make_color("#0b3b5e");
+    static constexpr auto color_hover_bg  = make_color("#242424");
+    static constexpr auto color_active_bg = make_color("#0b3b5e");
 
-    static constexpr vec4f32 color_stacktrace_description = make_color("#ffffff");
-    static constexpr vec4f32 color_stacktrace_location    = make_color("#9a5cb3");
+    static constexpr auto color_stacktrace_description = make_color("#ffffff");
+    static constexpr auto color_stacktrace_location    = make_color("#9a5cb3");
 
     int hovered = -1;
 
@@ -101,8 +103,8 @@ void frame(ShellLogViewer* viewer)
     // twice the expected content padding.
     auto base_x = ImGui::GetCursorPosX();
 
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, to_imvec(color_hover_bg));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, to_imvec(color_active_bg));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, color_hover_bg);
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, color_active_bg);
     defer { ImGui::PopStyleColor(2); };
 
     // Font metrics for computing spacing
@@ -115,12 +117,12 @@ void frame(ShellLogViewer* viewer)
         const char* format;
 
         switch (entry.semantic) {
-            break;case LogSemantic::trace: format = "[TRACE] %.*s"; color = to_imvec(color_trace);
-            break;case LogSemantic::debug: format = "[DEBUG] %.*s"; color = to_imvec(color_debug);
-            break;case LogSemantic::info:  format = " [INFO] %.*s"; color = to_imvec(color_info);
-            break;case LogSemantic::warn:  format = " [WARN] %.*s"; color = to_imvec(color_warn);
-            break;case LogSemantic::error: format = "[ERROR] %.*s"; color = to_imvec(color_error);
-            break;case LogSemantic::fatal: format = "[FATAL] %.*s"; color = to_imvec(color_fatal);
+            break;case LogSemantic::trace: format = "[TRACE] %.*s"; color = color_trace;
+            break;case LogSemantic::debug: format = "[DEBUG] %.*s"; color = color_debug;
+            break;case LogSemantic::info:  format = " [INFO] %.*s"; color = color_info;
+            break;case LogSemantic::warn:  format = " [WARN] %.*s"; color = color_warn;
+            break;case LogSemantic::error: format = "[ERROR] %.*s"; color = color_error;
+            break;case LogSemantic::fatal: format = "[FATAL] %.*s"; color = color_fatal;
         }
 
         ImGui::PushStyleColor(ImGuiCol_Text, color);
@@ -269,13 +271,13 @@ void frame(ShellLogViewer* viewer)
 
                         ImGui::SameLine();
                         ImGui::SetCursorPosX(base_x);
-                        ImGui::PushStyleColor(ImGuiCol_Text, to_imvec(color_stacktrace_description));
+                        ImGui::PushStyleColor(ImGuiCol_Text, color_stacktrace_description);
                         ImGui::Text("%4li# %s", i, e.description().c_str());
                         ImGui::PopStyleColor();
 
                         if (!e.source_file().empty()) {
                             ImGui::SetCursorPos(ImVec2(base_x, y + line_height));
-                            ImGui::PushStyleColor(ImGuiCol_Text, to_imvec(color_stacktrace_location));
+                            ImGui::PushStyleColor(ImGuiCol_Text, color_stacktrace_location);
                             ImGui::Text("      %s:%u", e.source_file().c_str(), e.source_line());
                             ImGui::PopStyleColor();
                         }
