@@ -309,7 +309,7 @@ void wm_init_io(WmServer* wm)
             output->io->request_frame();
         }
 
-        if (dynamic_cast<SeatInputRegion*>(node)) {
+        if (dynamic_cast<SceneInputRegion*>(node)) {
             exec_enqueue(wm->exec, [wm = Weak(wm)] {
                 if (wm) handle_input_region_damage(wm.get());
             });

@@ -7,6 +7,7 @@
 struct SeatManager
 {
     std::vector<Seat*> seats;
+    std::vector<SeatClient*> clients;
 };
 
 // -----------------------------------------------------------------------------
@@ -33,7 +34,7 @@ struct SeatClient
 
     std::move_only_function<SeatEventHandlerFn> event_handler;
 
-    std::vector<SeatInputRegion*> input_regions;
+    std::vector<SeatFocus*> foci;
 
     ~SeatClient();
 };
@@ -46,7 +47,7 @@ struct SeatInputDevice
 {
     Seat* seat;
 
-    SeatInputRegion* focus;
+    SeatFocus* focus;
 };
 
 auto seat_post_input_event(Weak<SeatInputDevice>, SeatEvent*) -> bool;
@@ -80,10 +81,8 @@ struct SeatPointer : SeatInputDevice
 
 // -----------------------------------------------------------------------------
 
-auto seat_find_input_region_at(SceneTree*, vec2f32 pos) -> SeatInputRegion*;
-
 inline
-auto seat_get_focus_client(SeatInputRegion* focus)
+auto seat_get_focus_client(SeatFocus* focus)
 {
     return focus ? focus->client : nullptr;
 }

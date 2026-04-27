@@ -143,8 +143,8 @@ void end_zone(WmServer* wm)
 
     if (auto* window = wm->zone.window.get()) {
         wm_window_request_reposition(window, wm->zone.final_zone, {1, 1});
-        if (!window->input_regions.empty()) {
-            seat_keyboard_focus(seat_get_keyboard(wm_get_seat(wm)), window->input_regions.front().get());
+        if (!window->foci.empty()) {
+            seat_keyboard_focus(seat_get_keyboard(wm_get_seat(wm)), window->foci.front().focus.get());
         }
     }
 }

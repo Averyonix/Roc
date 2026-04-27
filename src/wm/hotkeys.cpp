@@ -1,18 +1,20 @@
 #include "internal.hpp"
 
 static
-auto find_window_for_input_region(WmServer* wm, SeatInputRegion* region) -> WmWindow*
+auto find_window_for_input_region(WmServer* wm, SeatFocus* region) -> WmWindow*
 {
     for (auto* window : wm->windows) {
-        if (std::ranges::contains(window->input_regions, region)) {
-            return window;
+        for (auto& f : window->foci) {
+            if (f.focus.get() == region) {
+                return window;
+            }
         }
     }
     return nullptr;
 }
 
 static
-auto close_focused(WmServer* wm, Seat* seat, SeatInputRegion* focus) -> SeatEventFilterResult
+auto close_focused(WmServer* wm, Seat* seat, SeatFocus* focus) -> SeatEventFilterResult
 {
     auto mods = seat_get_modifiers(seat);
     if (!mods.contains(wm->main_mod)) return {};

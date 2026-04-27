@@ -148,9 +148,9 @@ void update_border_colors(WmServer* wm)
 {
     for (auto* w : wm->windows) {
         bool focused = std::ranges::any_of(wm->seats, [&](auto* seat) {
-            auto focus = seat_keyboard_get_focus(seat_get_keyboard(seat));
-            for (auto& ir : w->input_regions) {
-                if (focus == ir.get()) return true;
+            auto* focus = seat_keyboard_get_focus(seat_get_keyboard(seat));
+            for (auto& f : w->foci) {
+                if (focus == f.focus.get()) return true;
             }
             return false;
         });
@@ -199,7 +199,9 @@ auto wm_find_window_at(WmServer* wm, vec2f32 point) -> WmWindow*
     return window;
 }
 
-void wm_window_add_input_region(WmWindow* window, SeatInputRegion* region)
+auto wm_window_add_input_region(WmWindow* window, SceneInputRegion* region) -> Ref<SeatFocus>
 {
-    window->input_regions.emplace_back(region);
+    auto focus = seat_focus_create(window->client->seat_client.get(), region);
+    window->foci.emplace_back(focus.get(), region);
+    return focus;
 }

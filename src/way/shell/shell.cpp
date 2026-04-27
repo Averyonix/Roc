@@ -66,7 +66,7 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 
     toplevel->window = wm_window_create(surface->client->wm.get());
 
-    wm_window_add_input_region(toplevel->window.get(), surface->scene.input_region.get());
+    surface->scene.focus = wm_window_add_input_region(toplevel->window.get(), surface->scene.input_region.get());
 
     scene_tree_place_above(wm_window_get_tree(toplevel->window.get()), nullptr, surface->scene.tree.get());
 }
@@ -155,7 +155,7 @@ void way_toplevel_on_map_change(WaySurface* surface, bool mapped)
     if (mapped) {
         wm_window_map(toplevel->window.get());
         for (auto* seat : wm_get_seats(surface->client->server->wm)) {
-            seat_keyboard_focus(seat_get_keyboard(seat), surface->scene.input_region.get());
+            seat_keyboard_focus(seat_get_keyboard(seat), surface->scene.focus.get());
         }
     } else {
         wm_window_unmap(toplevel->window.get());

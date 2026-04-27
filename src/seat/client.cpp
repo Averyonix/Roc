@@ -3,13 +3,16 @@
 SeatClient::~SeatClient()
 {
     // TODO: Allow deletion of client resources in any order safely
-    debug_assert(input_regions.empty());
+    debug_assert(foci.empty());
+
+    std::erase(manager->clients, this);
 }
 
 auto seat_client_create(SeatManager* manager) -> Ref<SeatClient>
 {
     auto client = ref_create<SeatClient>();
     client->manager = manager;
+    manager->clients.emplace_back(client.get());
     return client;
 }
 

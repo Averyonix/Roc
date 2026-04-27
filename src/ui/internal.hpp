@@ -5,7 +5,8 @@
 struct UiViewportData {
     Ref<WmWindow> window;
     RefVector<SceneMesh> meshes;
-    Ref<SeatInputRegion> input_region;
+    Ref<SceneInputRegion> input_region;
+    Ref<SeatFocus> focus;
 
     // Pending reposition request. Requests are double-buffered so that
     // resizes requested during ImGui frames are handled correctly.
@@ -55,9 +56,9 @@ void ui_handle_mods(          Ui*);
 void ui_handle_motion(        Ui*);
 void ui_handle_button(        Ui*, SeatInputCode, bool pressed);
 void ui_handle_wheel(         Ui*, vec2f32 delta);
-void ui_handle_keyboard_enter(Ui*, SeatKeyboard*, SeatInputRegion*);
+void ui_handle_keyboard_enter(Ui*, SeatKeyboard*, SeatFocus*);
 void ui_handle_keyboard_leave(Ui*);
-void ui_handle_pointer_enter( Ui*, SeatPointer*, SeatInputRegion*);
+void ui_handle_pointer_enter( Ui*, SeatPointer*, SeatFocus*);
 void ui_handle_pointer_leave( Ui*);
 void ui_handle_output_layout( Ui*);
 

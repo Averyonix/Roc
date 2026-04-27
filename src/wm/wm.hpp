@@ -88,7 +88,7 @@ auto wm_get_seat_client(WmClient*) -> SeatClient*;
 
 auto wm_window_create(WmClient*) -> Ref<WmWindow>;
 
-void wm_window_add_input_region(WmWindow*, SeatInputRegion*);
+auto wm_window_add_input_region(WmWindow*, SceneInputRegion*) -> Ref<SeatFocus>;
 
 void wm_window_set_title(WmWindow*, std::string_view title);
 

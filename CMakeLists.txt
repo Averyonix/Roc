@@ -253,11 +253,11 @@ init_library(seat)
 target_sources(seat PRIVATE
     src/seat/keyboard.cpp
     src/seat/pointer.cpp
-    src/seat/input-region.cpp
     src/seat/seat.cpp
     src/seat/cursor.cpp
     src/seat/client.cpp
     src/seat/data.cpp
+    src/seat/focus.cpp
     )
 target_link_libraries(seat PUBLIC core)
 

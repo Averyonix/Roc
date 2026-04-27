@@ -64,9 +64,9 @@ auto main(int argc, char* argv[]) -> int
     scene_texture_set_dst(canvas.get(), {{}, initial_size, xywh});
     scene_tree_place_below(wm_window_get_tree(window.get()), nullptr, canvas.get());
 
-    auto input = seat_input_region_create(wm_get_seat_client(client.get()));
-    wm_window_add_input_region(window.get(), input.get());
-    seat_input_region_set_region(input.get(), {{{}, initial_size, xywh}});
+    auto input = scene_input_region_create();
+    scene_input_region_set_region(input.get(), {{{}, initial_size, xywh}});
+    auto focus = wm_window_add_input_region(window.get(), input.get());
     scene_tree_place_above(wm_window_get_tree(window.get()), nullptr, input.get());
 
     auto inner = scene_tree_create();
@@ -83,7 +83,7 @@ auto main(int argc, char* argv[]) -> int
             break;case WmEventType::window_reposition_requested: {
                 auto frame = event->window.reposition.frame;
                 scene_texture_set_dst(canvas.get(), {{}, frame.extent, xywh});
-                seat_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
+                scene_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
                 wm_window_set_frame(event->window.window, frame);
             }
             break;case WmEventType::window_close_requested:

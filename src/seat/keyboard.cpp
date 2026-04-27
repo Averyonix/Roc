@@ -120,7 +120,7 @@ auto seat_keyboard_key(SeatKeyboard* keyboard, SeatInputCode code, bool pressed,
     return changed;
 }
 
-void seat_keyboard_focus(SeatKeyboard* keyboard, SeatInputRegion* new_focus)
+void seat_keyboard_focus(SeatKeyboard* keyboard, SeatFocus* new_focus)
 {
     auto* old_focus = seat_keyboard_get_focus(keyboard);
 
@@ -153,7 +153,7 @@ void seat_keyboard_focus(SeatKeyboard* keyboard, SeatInputRegion* new_focus)
 
 // -----------------------------------------------------------------------------
 
-auto seat_keyboard_get_focus(SeatKeyboard* keyboard) -> SeatInputRegion*
+auto seat_keyboard_get_focus(SeatKeyboard* keyboard) -> SeatFocus*
 {
     return keyboard->focus;
 }

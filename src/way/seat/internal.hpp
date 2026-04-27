@@ -8,12 +8,12 @@
 #include "../shell/shell.hpp"
 
 static
-auto find_surface(WayClient* client, SeatInputRegion* region) -> WaySurface*
+auto find_surface(WayClient* client, SeatFocus* focus) -> WaySurface*
 {
-    if (!region) return nullptr;
-    if (region->client != wm_get_seat_client(client->wm.get())) return nullptr;
+    if (!focus) return nullptr;
+    if (focus->client != wm_get_seat_client(client->wm.get())) return nullptr;
     for (auto* surface : client->surfaces) {
-        if (surface->scene.input_region.get() == region) return surface;
+        if (surface->scene.focus.get() == focus) return surface;
     }
     return nullptr;
 }

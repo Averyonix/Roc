@@ -50,10 +50,10 @@ auto get_data(ImGuiViewport* vp) -> UiViewportData*
 // -----------------------------------------------------------------------------
 
 static
-auto find_viewport_for_input_region(Ui* ui, SeatInputRegion* focus) -> ImGuiViewport*
+auto find_viewport_for_focus(Ui* ui, SeatFocus* focus) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
-        if (auto* data = get_data(vp); data && data->input_region.get() == focus) {
+        if (auto* data = get_data(vp); data && data->focus.get() == focus) {
             return vp;
         }
     }
@@ -108,8 +108,8 @@ void Platform_CreateWindow(ImGuiViewport* vp)
 
     data->window = wm_window_create(ui->client.get());
 
-    data->input_region = seat_input_region_create(wm_get_seat_client(ui->client.get()));
-    wm_window_add_input_region(data->window.get(), data->input_region.get());
+    data->input_region = scene_input_region_create();
+    data->focus = wm_window_add_input_region(data->window.get(), data->input_region.get());
     scene_tree_place_above(wm_window_get_tree(data->window.get()), nullptr, data->input_region.get());
 
     vp->PlatformUserData = data;
@@ -130,7 +130,7 @@ void Platform_ShowWindow(ImGuiViewport* vp)
 
     wm_window_map(data->window.get());
     for (auto* seat : wm_get_seats(ui->wm)) {
-        seat_keyboard_focus(seat_get_keyboard(seat), data->input_region.get());
+        seat_keyboard_focus(seat_get_keyboard(seat), data->focus.get());
     }
 }
 
@@ -392,7 +392,7 @@ void render_viewport(Ui* ui, ImGuiViewport* vp)
     {
         rect2f32 rect {translation, from_imvec(vp->Size), xywh};
         if (rect != wm_window_get_frame(data->window.get())) {
-            seat_input_region_set_region(data->input_region.get(), {{{}, rect.extent, xywh}});
+            scene_input_region_set_region(data->input_region.get(), {{{}, rect.extent, xywh}});
             wm_window_set_frame(data->window.get(), rect);
         }
     }
@@ -527,13 +527,13 @@ void ui_set_frame_handler(Ui* ui, std::move_only_function<UiFrameFn>&& handler)
 
 // -----------------------------------------------------------------------------
 
-void ui_handle_keyboard_enter(Ui* ui, SeatKeyboard* keyboard, SeatInputRegion* region)
+void ui_handle_keyboard_enter(Ui* ui, SeatKeyboard* keyboard, SeatFocus* focus)
 {
     ui->keyboard = keyboard;
 
     ui->seats.emplace(seat_keyboard_get_seat(keyboard));
 
-    if (auto* vp = find_viewport_for_input_region(ui, region)) {
+    if (auto* vp = find_viewport_for_focus(ui, focus)) {
         wm_window_raise(get_data(vp)->window.get());
     }
 
@@ -613,14 +613,14 @@ void ui_handle_wheel(Ui* ui, vec2f32 delta)
     ui_request_frame(ui);
 }
 
-void ui_handle_pointer_enter(Ui* ui, SeatPointer* pointer, SeatInputRegion* focus)
+void ui_handle_pointer_enter(Ui* ui, SeatPointer* pointer, SeatFocus* focus)
 {
     ui->pointer = pointer;
 
     auto& io = ImGui::GetIO();
 
     if (focus) {
-        io.AddMouseViewportEvent(find_viewport_for_input_region(ui, focus)->ID);
+        io.AddMouseViewportEvent(find_viewport_for_focus(ui, focus)->ID);
     }
 
     auto pos = seat_pointer_get_position(pointer);

@@ -16,7 +16,7 @@ auto seat_pointer_create(const SeatPointerCreateInfo& info) -> Ref<SeatPointer>
 
 // -----------------------------------------------------------------------------
 
-void seat_pointer_focus(SeatPointer* pointer, SeatInputRegion* new_focus)
+void seat_pointer_focus(SeatPointer* pointer, SeatFocus* new_focus)
 {
     auto* old_focus = seat_pointer_get_focus(pointer);
 
@@ -54,14 +54,14 @@ void seat_pointer_focus(SeatPointer* pointer, SeatInputRegion* new_focus)
 static
 void update_pointer_focus(SeatPointer* pointer)
 {
-    SeatInputRegion* new_focus = nullptr;
+    SeatFocus* new_focus = nullptr;
 
     if (!seat_pointer_get_pressed(pointer).empty()) {
         // Pointer retains old focus while any pointer buttons pressed
         new_focus = seat_pointer_get_focus(pointer);
 
-    } else if (auto* region = seat_find_input_region_at(pointer->root, seat_pointer_get_position(pointer))) {
-        new_focus = region;
+    } else if (auto* region = scene_find_input_region_at(pointer->root, seat_pointer_get_position(pointer))) {
+        new_focus = seat_find_focus_for_input_region(pointer->seat->manager, region);
     }
 
     seat_pointer_focus(pointer, new_focus);
@@ -143,7 +143,7 @@ auto seat_pointer_get_pressed(SeatPointer* pointer) -> std::span<const SeatInput
     return pointer->pressed;
 }
 
-auto seat_pointer_get_focus(SeatPointer* pointer) -> SeatInputRegion*
+auto seat_pointer_get_focus(SeatPointer* pointer) -> SeatFocus*
 {
     return pointer->focus;
 }

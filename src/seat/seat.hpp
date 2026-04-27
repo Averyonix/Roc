@@ -2,7 +2,7 @@
 
 #include <scene/scene.hpp>
 
-struct SeatInputRegion;
+struct SeatFocus;
 
 // -----------------------------------------------------------------------------
 
@@ -67,10 +67,10 @@ struct SeatPointerCreateInfo
 
 auto seat_pointer_create(const SeatPointerCreateInfo&) -> Ref<SeatPointer>;
 
-void seat_pointer_focus(       SeatPointer*, SeatInputRegion*);
+void seat_pointer_focus(       SeatPointer*, SeatFocus*);
 auto seat_pointer_get_position(SeatPointer*) -> vec2f32;
 auto seat_pointer_get_pressed( SeatPointer*) -> std::span<const SeatInputCode>;
-auto seat_pointer_get_focus(   SeatPointer*) -> SeatInputRegion*;
+auto seat_pointer_get_focus(   SeatPointer*) -> SeatFocus*;
 auto seat_pointer_get_seat(    SeatPointer*) -> Seat*;
 
 void seat_pointer_button(SeatPointer*, SeatInputCode, bool pressd, bool quiet);
@@ -98,13 +98,13 @@ struct SeatKeyboardCreateInfo
 
 auto seat_keyboard_create(const SeatKeyboardCreateInfo&) -> Ref<SeatKeyboard>;
 
-void seat_keyboard_focus(        SeatKeyboard*, SeatInputRegion*);
+void seat_keyboard_focus(        SeatKeyboard*, SeatFocus*);
 auto seat_keyboard_get_modifiers(SeatKeyboard*, Flags<SeatModifierFlag> = {}) -> Flags<SeatModifier>;
 auto seat_keyboard_get_pressed(  SeatKeyboard*) -> std::span<const SeatInputCode>;
 auto seat_keyboard_get_sym(      SeatKeyboard*, SeatInputCode) -> xkb_keysym_t;
 auto seat_keyboard_get_utf8(     SeatKeyboard*, SeatInputCode) -> std::string;
 auto seat_keyboard_get_info(     SeatKeyboard*) -> const SeatKeyboardInfo&;
-auto seat_keyboard_get_focus(    SeatKeyboard*) -> SeatInputRegion*;
+auto seat_keyboard_get_focus(    SeatKeyboard*) -> SeatFocus*;
 auto seat_keyboard_get_seat(     SeatKeyboard*) -> Seat*;
 auto seat_keyboard_get_leds(     SeatKeyboard*) -> Flags<libinput_led>;
 
@@ -132,19 +132,18 @@ auto seat_get_selection(Seat*) -> SeatDataSource*;
 
 // -----------------------------------------------------------------------------
 
-struct SeatInputRegion : SceneNode
+struct SeatFocus
 {
     SeatClient* client;
 
-    region2f32 region;
+    Ref<SceneInputRegion> input_region;
 
-    virtual void damage(Scene*);
-
-    ~SeatInputRegion();
+    ~SeatFocus();
 };
 
-auto seat_input_region_create(SeatClient*) -> Ref<SeatInputRegion>;
-void seat_input_region_set_region(SeatInputRegion*, region2f32);
+auto seat_focus_create(SeatClient*, SceneInputRegion*) -> Ref<SeatFocus>;
+
+auto seat_find_focus_for_input_region(SeatManager*, SceneInputRegion*) -> SeatFocus*;
 
 // -----------------------------------------------------------------------------
 
@@ -174,7 +173,7 @@ struct SeatKeyboardEvent
             bool          pressed;
             bool          quiet;
         } key;
-        SeatInputRegion* focus;
+        SeatFocus* focus;
     };
 };
 
@@ -195,7 +194,7 @@ struct SeatPointerEvent
         struct {
             vec2f32 delta;
         } scroll;
-        SeatInputRegion* focus;
+        SeatFocus* focus;
     };
 };
 
