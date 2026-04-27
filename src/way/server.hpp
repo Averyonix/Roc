@@ -23,7 +23,7 @@ struct WayServer : WayObject
     std::chrono::steady_clock::time_point epoch;
 
     Gpu* gpu;
-    WindowManager* wm;
+    WmServer* wm;
     Uid userdata_id;
 
     wl_display* wl_display;

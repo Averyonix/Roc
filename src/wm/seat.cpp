@@ -1,17 +1,17 @@
 #include "internal.hpp"
 
-auto wm_get_seat(WindowManager* wm) -> Seat*
+auto wm_get_seat(WmServer* wm) -> Seat*
 {
     debug_assert(wm->seats.size() == 1, "TODO: Support multiple seats");
     return wm->seats.front();
 }
 
-auto wm_get_seats(WindowManager* wm) -> std::span<Seat* const>
+auto wm_get_seats(WmServer* wm) -> std::span<Seat* const>
 {
     return wm->seats;
 }
 
-void wm_init_seat(WindowManager* wm)
+void wm_init_seat(WmServer* wm)
 {
     wm->cursor_manager = scene_cursor_manager_create(wm->gpu, "breeze_cursors", 24);
 

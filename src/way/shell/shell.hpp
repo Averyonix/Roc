@@ -90,6 +90,8 @@ void way_toplevel_on_map_change(WaySurface*, bool mapped);
 void way_toplevel_on_reposition(WaySurface*, rect2f32 frame, vec2f32 gravity);
 void way_toplevel_on_close(     WaySurface*);
 
+void way_handle_window_event(WayClient*, WmWindowEvent*);
+
 // -----------------------------------------------------------------------------
 
 struct WayPopup : WaySurfaceAddon

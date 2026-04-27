@@ -9,7 +9,7 @@
 // -----------------------------------------------------------------------------
 
 static
-void reflow_outputs(WindowManager* wm, bool any_changed = false)
+void reflow_outputs(WmServer* wm, bool any_changed = false)
 {
     enum class LayoutDir { LeftToRight, RightToLeft };
     static constexpr LayoutDir dir = LayoutDir::RightToLeft;
@@ -31,16 +31,20 @@ void reflow_outputs(WindowManager* wm, bool any_changed = false)
 
         if (last != output->viewport) {
             any_changed = true;
-            wm_post_output_event(wm, ptr_to(WmOutputEvent {
-                .type = WmEventType::output_configured,
-                .output = output,
+            wm_broadcast_event(wm, ptr_to(WmEvent {
+                .output = {
+                    .type = WmEventType::output_configured,
+                    .output = output,
+                }
             }));
         }
     }
 
     if (any_changed) {
-        wm_post_output_event(wm, ptr_to(WmOutputEvent {
-            .type = WmEventType::output_layout,
+        wm_broadcast_event(wm, ptr_to(WmEvent {
+            .output = {
+                .type = WmEventType::output_layout,
+            }
         }));
         for (auto* output : wm->io.outputs) {
             output->io->request_frame();
@@ -49,7 +53,7 @@ void reflow_outputs(WindowManager* wm, bool any_changed = false)
 }
 
 static
-auto find_output_for_io(WindowManager* wm, IoOutput* io_output) -> WmOutput*
+auto find_output_for_io(WmServer* wm, IoOutput* io_output) -> WmOutput*
 {
     for (auto* output : wm->io.outputs) {
         if (output->io == io_output) {
@@ -59,19 +63,7 @@ auto find_output_for_io(WindowManager* wm, IoOutput* io_output) -> WmOutput*
     return nullptr;
 }
 
-void wm_add_output_listener(WindowManager* wm, WmOutputListener listener)
-{
-    wm->io.output_listeners.emplace_back(std::move(listener));
-}
-
-void wm_post_output_event(WindowManager* wm, WmOutputEvent* event)
-{
-    for (auto& listener : wm->io.output_listeners) {
-        listener(event);
-    }
-}
-
-void wm_request_frame(WindowManager* wm)
+void wm_request_frame(WmServer* wm)
 {
     for (auto* output : wm->io.outputs) {
         output->io->request_frame();
@@ -83,12 +75,12 @@ auto wm_output_get_viewport(WmOutput* output) -> rect2f32
     return output->viewport;
 }
 
-auto wm_list_outputs(WindowManager* wm) -> std::span<WmOutput* const>
+auto wm_list_outputs(WmServer* wm) -> std::span<WmOutput* const>
 {
     return wm->io.outputs;
 }
 
-auto wm_find_output_at(WindowManager* wm, vec2f32 point) -> WmFindOutputResult
+auto wm_find_output_at(WmServer* wm, vec2f32 point) -> WmFindOutputResult
 {
     vec2f32   best_position = point;
     f32       best_distance = INFINITY;
@@ -113,7 +105,7 @@ auto wm_find_output_at(WindowManager* wm, vec2f32 point) -> WmFindOutputResult
 // -----------------------------------------------------------------------------
 
 static
-void update_leds(WindowManager* wm, SeatKeyboard* keyboard)
+void update_leds(WmServer* wm, SeatKeyboard* keyboard)
 {
     if (wm->io.led_devices.empty()) return;
 
@@ -125,7 +117,7 @@ void update_leds(WindowManager* wm, SeatKeyboard* keyboard)
 }
 
 static
-void handle_key(WindowManager* wm, Seat* seat, const IoInputEvent& event, const IoInputChannel& channel)
+void handle_key(WmServer* wm, Seat* seat, const IoInputEvent& event, const IoInputChannel& channel)
 {
     switch (channel.code) {
         break;case BTN_MOUSE ... BTN_TASK:
@@ -169,7 +161,7 @@ auto apply_accel(vec2f32 delta) -> vec2f32
 }
 
 static
-void handle_motion(WindowManager* wm, SeatPointer* pointer, vec2f64 rel_unaccel)
+void handle_motion(WmServer* wm, SeatPointer* pointer, vec2f64 rel_unaccel)
 {
     auto rel_accel = apply_accel(rel_unaccel);
     auto position = wm_find_output_at(wm, seat_pointer_get_position(pointer) + rel_accel).position;
@@ -177,7 +169,7 @@ void handle_motion(WindowManager* wm, SeatPointer* pointer, vec2f64 rel_unaccel)
 }
 
 static
-void handle_input(WindowManager* wm, Seat* seat, const IoInputEvent& event)
+void handle_input(WmServer* wm, Seat* seat, const IoInputEvent& event)
 {
     vec2f32 motion = {};
     vec2f32 scroll = {};
@@ -203,7 +195,7 @@ void handle_input(WindowManager* wm, Seat* seat, const IoInputEvent& event)
 }
 
 static
-void handle_input_region_damage(WindowManager* wm)
+void handle_input_region_damage(WmServer* wm)
 {
     for (auto* seat : wm_get_seats(wm)) {
         auto pointer = seat_get_pointer(seat);
@@ -213,7 +205,7 @@ void handle_input_region_damage(WindowManager* wm)
 
 
 static
-void handle_input_added(WindowManager* wm, IoInputDevice* device)
+void handle_input_added(WmServer* wm, IoInputDevice* device)
 {
     if (device->info().capabilities.contains(IoInputDeviceCapability::libinput_led)) {
         wm->io.led_devices.emplace_back(device);
@@ -221,7 +213,7 @@ void handle_input_added(WindowManager* wm, IoInputDevice* device)
 }
 
 static
-void handle_input_removed(WindowManager* wm, IoInputDevice* device)
+void handle_input_removed(WmServer* wm, IoInputDevice* device)
 {
     std::erase(wm->io.led_devices, device);
 }
@@ -231,7 +223,7 @@ void handle_input_removed(WindowManager* wm, IoInputDevice* device)
 // -----------------------------------------------------------------------------
 
 static
-void handle_io_event(WindowManager* wm, IoEvent* event)
+void handle_io_event(WmServer* wm, IoEvent* event)
 {
     switch (event->type) {
         // shutdown
@@ -250,9 +242,11 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
         break;case IoEventType::output_added: {
             auto output = ref_create<WmOutput>(event->output.output);
             wm->io.outputs.emplace_back(output.get());
-            wm_post_output_event(wm, ptr_to(WmOutputEvent {
-                .type = WmEventType::output_added,
-                .output = output.get(),
+            wm_broadcast_event(wm, ptr_to(WmEvent {
+                .output = {
+                    .type = WmEventType::output_added,
+                    .output = output.get(),
+                }
             }));
             reflow_outputs(wm, true);
         }
@@ -261,9 +255,11 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
         break;case IoEventType::output_removed: {
             Ref output = find_output_for_io(wm, event->output.output);
             wm->io.outputs.erase_if([&](auto* p) { return p->io == event->output.output; });
-            wm_post_output_event(wm, ptr_to(WmOutputEvent {
-                .type = WmEventType::output_removed,
-                .output = output.get(),
+            wm_broadcast_event(wm, ptr_to(WmEvent {
+                .output = {
+                    .type = WmEventType::output_removed,
+                    .output = output.get(),
+                }
             }));
             reflow_outputs(wm, true);
         }
@@ -271,9 +267,11 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
         break;case IoEventType::output_frame: {
             auto output = find_output_for_io(wm, event->output.output);
 
-            wm_post_output_event(wm, ptr_to(WmOutputEvent {
-                .type = WmEventType::output_frame,
-                .output = output,
+            wm_broadcast_event(wm, ptr_to(WmEvent {
+                .output = {
+                    .type = WmEventType::output_frame,
+                    .output = output,
+                }
             }));
 
             // TODO: Only redraw with damage
@@ -298,7 +296,7 @@ void handle_io_event(WindowManager* wm, IoEvent* event)
     }
 }
 
-void wm_init_io(WindowManager* wm)
+void wm_init_io(WmServer* wm)
 {
     wm->io.pool = gpu_image_pool_create(wm->gpu);
 

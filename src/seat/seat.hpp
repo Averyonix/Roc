@@ -143,8 +143,8 @@ struct SeatInputRegion : SceneNode
     ~SeatInputRegion();
 };
 
-auto scene_input_region_create(SeatClient*) -> Ref<SeatInputRegion>;
-void scene_input_region_set_region(SeatInputRegion*, region2f32);
+auto seat_input_region_create(SeatClient*) -> Ref<SeatInputRegion>;
+void seat_input_region_set_region(SeatInputRegion*, region2f32);
 
 // -----------------------------------------------------------------------------
 

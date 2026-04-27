@@ -44,6 +44,8 @@ void scene_node_damage(  SceneNode*);
 
 void scene_post_damage(Scene*, SceneNode*);
 
+// -----------------------------------------------------------------------------
+
 struct SceneTree : SceneNode
 {
     Scene* scene;
@@ -78,6 +80,23 @@ void scene_tree_set_opacity(SceneTree*, f32 opacity);
 void scene_tree_set_translation(SceneTree*, vec2f32 translation);
 auto scene_tree_get_position(   SceneTree*) -> vec2f32;
 
+// -----------------------------------------------------------------------------
+
+struct SceneInputRegion : SceneNode
+{
+    region2f32 region;
+
+    virtual void damage(Scene*);
+
+    ~SceneInputRegion();
+};
+
+auto scene_input_region_create() -> Ref<SceneInputRegion>;
+void scene_input_region_set_region(SceneInputRegion*, region2f32);
+auto scene_find_input_region_at(SceneTree*, vec2f32 pos) -> SceneInputRegion*;
+
+// -----------------------------------------------------------------------------
+
 struct SceneTexture : SceneNode
 {
     Ref<GpuImage>   image;
@@ -99,6 +118,8 @@ void scene_texture_set_tint( SceneTexture*, vec4u8   tint);
 void scene_texture_set_src(  SceneTexture*, aabb2f32 src);
 void scene_texture_set_dst(  SceneTexture*, rect2f32 dst);
 void scene_texture_damage(   SceneTexture*, aabb2i32 damage);
+
+// -----------------------------------------------------------------------------
 
 struct SceneMeshSegment
 {

@@ -2,8 +2,7 @@
 
 #include "util.hpp"
 
-#include <scene/scene.hpp>
-#include <seat/seat.hpp>
+#include <wm/wm.hpp>
 
 // -----------------------------------------------------------------------------
 
@@ -14,10 +13,9 @@ struct WaySeatClient;
 struct WayClient : WayObject
 {
     WayServer* server;
+    Ref<WmClient> wm;
 
     wl_client* wl_client;
-
-    Ref<SeatClient> scene;
 
     std::vector<WaySurface*> surfaces;
     std::vector<WaySeatClient*> seat_clients;

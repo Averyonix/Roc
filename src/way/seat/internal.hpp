@@ -11,7 +11,7 @@ static
 auto find_surface(WayClient* client, SeatInputRegion* region) -> WaySurface*
 {
     if (!region) return nullptr;
-    if (region->client != client->scene.get()) return nullptr;
+    if (region->client != wm_get_seat_client(client->wm.get())) return nullptr;
     for (auto* surface : client->surfaces) {
         if (surface->scene.input_region.get() == region) return surface;
     }

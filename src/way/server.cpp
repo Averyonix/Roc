@@ -23,7 +23,7 @@ WayServer::~WayServer()
     wl_display_destroy(wl_display);
 }
 
-auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer>
+auto way_create(ExecContext* exec, Gpu* gpu, WmServer* wm) -> Ref<WayServer>
 {
     auto server = ref_create<WayServer>();
 
@@ -69,20 +69,6 @@ auto way_create(ExecContext* exec, Gpu* gpu, WindowManager* wm) -> Ref<WayServer
     server->client.created.data = server.get();
     server->client.created.listener.notify = way_on_client_create;
     wl_display_add_client_created_listener(server->wl_display, &server->client.created.listener);
-    wm_add_output_listener(wm, [server = server.get()](WmOutputEvent* event) {
-        switch (event->type) {
-            break;case WmEventType::output_frame:
-                wl_client* client;
-                wl_client_for_each(client, wl_display_get_client_list(server->wl_display)) {
-                    for (auto* surface : way_client_from(client)->surfaces) {
-                        way_surface_on_redraw(surface);
-                    }
-                }
-
-            break;default:
-                ;
-        }
-    });
 
     return server;
 }

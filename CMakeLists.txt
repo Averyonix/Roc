@@ -240,6 +240,7 @@ target_sources(scene PRIVATE
     src/scene/node/node.cpp
     src/scene/node/texture.cpp
     src/scene/node/tree.cpp
+    src/scene/node/input-region.cpp
     src/scene/damage.cpp
     )
 target_link_libraries(scene PUBLIC io)
@@ -267,6 +268,7 @@ target_link_libraries(seat PUBLIC core)
 init_library(wm)
 target_sources(wm PRIVATE
     src/wm/wm.cpp
+    src/wm/client.cpp
     src/wm/io.cpp
     src/wm/seat.cpp
     src/wm/window.cpp

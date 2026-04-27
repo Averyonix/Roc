@@ -37,7 +37,7 @@ auto get_zone_rect(rect2i32 workarea, vec2i32 zone) -> rect2i32
 }
 
 static
-void update_rectangle(WindowManager* wm)
+void update_rectangle(WmServer* wm)
 {
     bool show = wm->zone.pointer;
     bool selecting = wm->zone.selecting;
@@ -56,7 +56,7 @@ void update_rectangle(WindowManager* wm)
 }
 
 static
-void zone_update_regions(WindowManager* wm)
+void zone_update_regions(WmServer* wm)
 {
     auto pointer = wm->zone.pointer;
     vec2f64 point = seat_pointer_get_position(pointer);
@@ -108,14 +108,14 @@ auto is_interactable(WmWindow* window) -> bool
 }
 
 static
-void toggle_selecting(WindowManager* wm)
+void toggle_selecting(WmServer* wm)
 {
     wm->zone.selecting = !wm->zone.selecting;
     zone_update_regions(wm);
 }
 
 static
-void begin_zone(WindowManager* wm, SeatPointer* pointer)
+void begin_zone(WmServer* wm, SeatPointer* pointer)
 {
     wm->mode = WmInteractionMode::zone;
 
@@ -132,7 +132,7 @@ void begin_zone(WindowManager* wm, SeatPointer* pointer)
 }
 
 static
-void end_zone(WindowManager* wm)
+void end_zone(WmServer* wm)
 {
     wm->zone.pointer = nullptr;
     update_rectangle(wm);
@@ -150,7 +150,7 @@ void end_zone(WindowManager* wm)
 }
 
 static
-auto filter_event_zone(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event_zone(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (event->type) {
         break;case SeatEventType::pointer_motion:
@@ -177,7 +177,7 @@ auto filter_event_zone(WindowManager* wm, SeatEvent* event) -> SeatEventFilterRe
 }
 
 static
-auto filter_event_default(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event_default(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     if (event->type != SeatEventType::pointer_button) return {};
 
@@ -195,7 +195,7 @@ auto filter_event_default(WindowManager* wm, SeatEvent* event) -> SeatEventFilte
 }
 
 static
-auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (wm->mode) {
         break;case WmInteractionMode::none:
@@ -211,7 +211,7 @@ auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 
 // -----------------------------------------------------------------------------
 
-void wm_init_zone(WindowManager* wm)
+void wm_init_zone(WmServer* wm)
 {
     wm->zone.texture = scene_texture_create();
     wm->zone.filter = seat_add_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {

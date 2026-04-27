@@ -40,7 +40,7 @@ void create_surface(wl_client* client, wl_resource* resource, u32 id)
     surface->scene.texture = scene_texture_create();
     scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.texture.get());
 
-    surface->scene.input_region = scene_input_region_create(surface->client->scene.get());
+    surface->scene.input_region = seat_input_region_create(wm_get_seat_client(surface->client->wm.get()));
     scene_tree_place_above(surface->scene.tree.get(), nullptr, surface->scene.input_region.get());
 
     surface->resource = way_resource_create_refcounted(wl_surface, client, resource, id, surface.get());
@@ -237,11 +237,11 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     if (from.set.contains(WaySurfaceStateComponent::input_region)) {
         // TODO: Clip set input_regions against surface bounds?
-        scene_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
+        seat_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
 
     } else if (!to.set.contains(WaySurfaceStateComponent::input_region) && to.buffer) {
         // Unset input_region fills entire surface
-        scene_input_region_set_region(surface->scene.input_region.get(),
+        seat_input_region_set_region(surface->scene.input_region.get(),
             {{{}, to.buffer->extent, xywh}});
     }
 

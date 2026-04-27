@@ -19,8 +19,29 @@ void way_on_client_create(wl_listener* listener, void* data)
         object_remove_ref(way_get_userdata<WayClient>(data));
     });
 
-    client->scene = seat_client_create(wm_get_seat_manager(server->wm));
-    seat_client_set_event_handler(client->scene.get(), [client = client.get()](SeatEvent* event) {
+    client->wm = wm_connect(server->wm);
+
+    wm_listen(client->wm.get(), [client = client.get()](WmClient*, WmEvent* event) {
+        switch (event->type) {
+            break;case WmEventType::window_created:
+                  case WmEventType::window_destroyed:
+                  case WmEventType::window_mapped:
+                  case WmEventType::window_unmapped:
+                  case WmEventType::window_repositioned:
+                  case WmEventType::window_reposition_requested:
+                  case WmEventType::window_close_requested:
+                way_handle_window_event(client, &event->window);
+
+            break;case WmEventType::output_frame:
+                for (auto* surface : client->surfaces) {
+                    way_surface_on_redraw(surface);
+                }
+            break;default:
+                ;
+        }
+    });
+
+    seat_client_set_event_handler(wm_get_seat_client(client->wm.get()), [client = client.get()](SeatEvent* event) {
         way_seat_handle_event(client, event);
     });
 }

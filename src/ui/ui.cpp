@@ -106,23 +106,9 @@ void Platform_CreateWindow(ImGuiViewport* vp)
     auto* ui = get_context();
     auto* data = new UiViewportData();
 
-    data->window = wm_window_create(ui->wm);
+    data->window = wm_window_create(ui->client.get());
 
-    wm_window_set_event_listener(data->window.get(), [ui](WmWindowEvent* event) {
-        UiContextGuard _{ui->context};
-        switch (event->type) {
-            // window
-            break;case WmEventType::window_reposition_requested:
-                handle_reposition(ui, event->window, event->reposition.frame);
-            break;case WmEventType::window_close_requested:
-                handle_close(ui, event->window);
-
-            break;default:
-                ;
-        }
-    });
-
-    data->input_region = scene_input_region_create(ui->client.get());
+    data->input_region = seat_input_region_create(wm_get_seat_client(ui->client.get()));
     wm_window_add_input_region(data->window.get(), data->input_region.get());
     scene_tree_place_above(wm_window_get_tree(data->window.get()), nullptr, data->input_region.get());
 
@@ -192,7 +178,7 @@ void Platform_SetClipboardTextFn(ImGuiContext* imgui, const char* text)
 {
     auto* ui = get_context(imgui);
 
-    auto data_source = seat_data_source_create(ui->client.get(), {
+    auto data_source = seat_data_source_create(wm_get_seat_client(ui->client.get()), {
         .send = [message = std::string(text)](const char* mime, fd_t fd) {
             unix_check<write>(fd, message.data(), message.size());
         }
@@ -276,7 +262,8 @@ auto ui_get_texture(Ui* ui, GpuImage* image, GpuSampler* sampler, GpuBlendMode b
 
 // -----------------------------------------------------------------------------
 
-void ui_init(Ui* ui, const std::filesystem::path& path)
+static
+void init(Ui* ui, const std::filesystem::path& path)
 {
     ui->context = ImGui::CreateContext();
     ImGui::SetCurrentContext(nullptr);
@@ -405,7 +392,7 @@ void render_viewport(Ui* ui, ImGuiViewport* vp)
     {
         rect2f32 rect {translation, from_imvec(vp->Size), xywh};
         if (rect != wm_window_get_frame(data->window.get())) {
-            scene_input_region_set_region(data->input_region.get(), {{{}, rect.extent, xywh}});
+            seat_input_region_set_region(data->input_region.get(), {{{}, rect.extent, xywh}});
             wm_window_set_frame(data->window.get(), rect);
         }
     }
@@ -465,36 +452,40 @@ void ui_frame(Ui* ui)
 
 // -----------------------------------------------------------------------------
 
-auto ui_create(Gpu* gpu, WindowManager* wm, const std::filesystem::path& path) -> Ref<Ui>
+auto ui_create(Gpu* gpu, WmServer* wm, const std::filesystem::path& path) -> Ref<Ui>
 {
     auto ui = ref_create<Ui>();
     ui->wm  = wm;
+    ui->client = wm_connect(wm);
     ui->gpu = gpu;
     ui->sampler = gpu_sampler_create(ui->gpu, {
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
     });
-    ui->client  = seat_client_create(wm_get_seat_manager(wm));
 
-    ui_init(ui.get(), path);
+    init(ui.get(), path);
 
-    wm_add_output_listener(wm, [ui = ui.get()](WmOutputEvent* event) {
+    wm_listen(ui->client.get(), [ui = ui.get()](WmClient*, WmEvent* event) {
+        UiContextGuard _{ui->context};
         switch (event->type) {
-            break;case WmEventType::output_frame: {
-                UiContextGuard _{ui->context};
+            // output
+            break;case WmEventType::output_frame:
                 ui_frame(ui);
-            }
-            break;case WmEventType::output_layout: {
-                UiContextGuard _{ui->context};
+            break;case WmEventType::output_layout:
                 ui_handle_output_layout(ui);
-            }
+
+            // window
+            break;case WmEventType::window_reposition_requested:
+                handle_reposition(ui, event->window.window, event->window.reposition.frame);
+            break;case WmEventType::window_close_requested:
+                handle_close(ui, event->window.window);
 
             break;default:
                 ;
         }
     });
 
-    seat_client_set_event_handler(ui->client.get(), [ui = ui.get()](SeatEvent* event) {
+    seat_client_set_event_handler(wm_get_seat_client(ui->client.get()), [ui = ui.get()](SeatEvent* event) {
         UiContextGuard _{ui->context};
         switch (event->type) {
 

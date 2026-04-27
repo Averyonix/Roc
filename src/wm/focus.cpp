@@ -3,7 +3,7 @@
 #include "core/math.hpp"
 
 static
-void cycle_next_window(WindowManager* wm, SeatPointer* pointer, bool forward)
+void cycle_next_window(WmServer* wm, SeatPointer* pointer, bool forward)
 {
     auto in_cycle = [&](WmWindow* window) {
         if (pointer && !rect_contains(wm_window_get_frame(window), seat_pointer_get_position(pointer))) {
@@ -47,7 +47,7 @@ void cycle_next_window(WindowManager* wm, SeatPointer* pointer, bool forward)
 }
 
 static
-void focus_cycle(WindowManager* wm, Seat* seat, SeatPointer* pointer, bool forward)
+void focus_cycle(WmServer* wm, Seat* seat, SeatPointer* pointer, bool forward)
 {
     wm->mode = WmInteractionMode::focus_cycle;
     wm->focus.seat = seat;
@@ -59,7 +59,7 @@ void focus_cycle(WindowManager* wm, Seat* seat, SeatPointer* pointer, bool forwa
 }
 
 static
-void focus_cycle_end(WindowManager* wm)
+void focus_cycle_end(WmServer* wm)
 {
     wm->mode = WmInteractionMode::none;
 
@@ -77,7 +77,7 @@ void focus_cycle_end(WindowManager* wm)
 }
 
 static
-auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     if (wm->mode != WmInteractionMode::none && wm->mode != WmInteractionMode::focus_cycle) return {};
 
@@ -119,7 +119,7 @@ auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
 
 // -----------------------------------------------------------------------------
 
-void wm_init_focus_cycle(WindowManager* wm)
+void wm_init_focus_cycle(WmServer* wm)
 {
     wm->focus.filter = seat_add_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {
         return filter_event(wm, event);
@@ -128,7 +128,7 @@ void wm_init_focus_cycle(WindowManager* wm)
 
 // -----------------------------------------------------------------------------
 
-void wm_arrange_windows(WindowManager* wm)
+void wm_arrange_windows(WmServer* wm)
 {
     // TODO: More generic system for adjusting window arrangement
 

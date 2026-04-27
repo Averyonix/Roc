@@ -10,7 +10,7 @@
 
 struct Ui;
 
-auto ui_create(Gpu*, WindowManager*, const std::filesystem::path& ini_dir) -> Ref<Ui>;
+auto ui_create(Gpu*, WmServer*, const std::filesystem::path& ini_dir) -> Ref<Ui>;
 
 // -----------------------------------------------------------------------------
 

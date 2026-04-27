@@ -6,13 +6,13 @@
 
 struct ExecContext;
 struct Gpu;
-struct WindowManager;
 struct IoContext;
 
+struct WmServer;
 struct WmWindow;
 struct WmOutput;
 
-struct WindowManagerCreateInfo
+struct WmServerCreateInfo
 {
     ExecContext* exec;
     Gpu*         gpu;
@@ -21,7 +21,7 @@ struct WindowManagerCreateInfo
     SeatModifier main_mod;
 };
 
-auto wm_create(const WindowManagerCreateInfo&) -> Ref<WindowManager>;
+auto wm_create(const WmServerCreateInfo&) -> Ref<WmServer>;
 
 enum class WmLayer
 {
@@ -30,10 +30,8 @@ enum class WmLayer
     overlay,
 };
 
-auto wm_get_seat_manager(WindowManager*) -> SeatManager*;
-auto wm_get_scene(WindowManager*) -> Scene*;
-
-auto wm_get_layer(WindowManager*, WmLayer) -> SceneTree*;
+auto wm_get_scene(WmServer*) -> Scene*;
+auto wm_get_layer(WmServer*, WmLayer) -> SceneTree*;
 
 // -----------------------------------------------------------------------------
 
@@ -80,12 +78,15 @@ union WmEvent
     WmOutputEvent output;
 };
 
+struct WmClient;
+auto wm_connect(WmServer*) -> Ref<WmClient>;
+void wm_listen(WmClient*, std::move_only_function<void(WmClient*, WmEvent*)>);
+
+auto wm_get_seat_client(WmClient*) -> SeatClient*;
+
 // -----------------------------------------------------------------------------
 
-auto wm_window_create(WindowManager*) -> Ref<WmWindow>;
-
-using WmWindowListener = std::move_only_function<void(WmWindowEvent*)>;
-void wm_window_set_event_listener(WmWindow*, WmWindowListener);
+auto wm_window_create(WmClient*) -> Ref<WmWindow>;
 
 void wm_window_add_input_region(WmWindow*, SeatInputRegion*);
 
@@ -103,23 +104,20 @@ void wm_window_request_close(     WmWindow*);
 void wm_window_set_frame(WmWindow*, rect2f32 frame);
 auto wm_window_get_frame(WmWindow*) -> rect2f32;
 
-auto wm_find_window_at(WindowManager*, vec2f32 point) -> WmWindow*;
+auto wm_find_window_at(WmServer*, vec2f32 point) -> WmWindow*;
 
 // -----------------------------------------------------------------------------
 
-auto wm_get_seat(WindowManager*) -> Seat*;
-auto wm_get_seats(WindowManager*) -> std::span<Seat* const>;
+auto wm_get_seat( WmServer*) -> Seat*;
+auto wm_get_seats(WmServer*) -> std::span<Seat* const>;
 
 // -----------------------------------------------------------------------------
 
-void wm_request_frame(WindowManager*);
+void wm_request_frame(WmServer*);
 
-auto wm_list_outputs(WindowManager*) -> std::span<WmOutput* const>;
+auto wm_list_outputs(WmServer*) -> std::span<WmOutput* const>;
 
 auto wm_output_get_viewport(WmOutput*) -> rect2f32;
-
-using WmOutputListener = std::move_only_function<void(WmOutputEvent*)>;
-void wm_add_output_listener(WindowManager*, WmOutputListener);
 
 struct WmFindOutputResult
 {
@@ -127,4 +125,4 @@ struct WmFindOutputResult
     vec2f32   position;
 };
 
-auto wm_find_output_at(WindowManager*, vec2f32 point) -> WmFindOutputResult;
+auto wm_find_output_at(WmServer*, vec2f32 point) -> WmFindOutputResult;

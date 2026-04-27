@@ -23,7 +23,7 @@ struct WmOutput {
     rect2f32 viewport;
 };
 
-struct WindowManager
+struct WmServer
 {
     ExecContext* exec;
     Gpu*         gpu;
@@ -42,12 +42,12 @@ struct WindowManager
     Uid                    window_system_id;
     std::vector<WmWindow*> windows;
 
+    std::vector<WmClient*> clients;
+
     struct {
         IoContext*          context;
         Ref<GpuImagePool>   pool;
         RefVector<WmOutput> outputs;
-
-        std::vector<WmOutputListener> output_listeners;
 
         std::vector<IoInputDevice*> led_devices;
     } io;
@@ -91,27 +91,40 @@ struct WindowManager
     } focus;
 };
 
-void wm_init_io(     WindowManager*);
-void wm_init_seat(   WindowManager*);
-void wm_init_hotkeys(WindowManager*);
+void wm_init_io(     WmServer*);
+void wm_init_seat(   WmServer*);
+void wm_init_hotkeys(WmServer*);
 
-void wm_init_movesize(   WindowManager*);
-void wm_init_zone(       WindowManager*);
-void wm_init_focus_cycle(WindowManager*);
-
-// -----------------------------------------------------------------------------
-
-void wm_decoration_init(WindowManager*);
+void wm_init_movesize(   WmServer*);
+void wm_init_zone(       WmServer*);
+void wm_init_focus_cycle(WmServer*);
 
 // -----------------------------------------------------------------------------
 
-void wm_arrange_windows(WindowManager*);
+void wm_decoration_init(WmServer*);
+
+// -----------------------------------------------------------------------------
+
+void wm_arrange_windows(WmServer*);
+
+// -----------------------------------------------------------------------------
+
+struct WmClient
+{
+    WmServer* wm;
+
+    std::move_only_function<void(WmClient*, WmEvent*)> listener;
+
+    Ref<SeatClient> seat_client;
+
+    ~WmClient();
+};
 
 // -----------------------------------------------------------------------------
 
 struct WmWindow
 {
-    WindowManager* wm;
+    WmClient* client;
 
     vec2f32 extent;
     bool mapped;
@@ -123,8 +136,6 @@ struct WmWindow
 
     Ref<SceneTexture> borders;
 
-    WmWindowListener listener;
-
     std::vector<Weak<SeatInputRegion>> input_regions;
 
     ~WmWindow();
@@ -134,4 +145,7 @@ void wm_window_post_event(WmWindowEvent* event);
 
 // -----------------------------------------------------------------------------
 
-void wm_post_output_event(WindowManager*, WmOutputEvent*);
+auto wm_get_seat_manager(WmServer*) -> SeatManager*;
+
+void wm_broadcast_event(WmServer*, WmEvent*);
+void wm_client_post_event(WmClient*, WmEvent*);

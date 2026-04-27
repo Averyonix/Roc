@@ -12,17 +12,19 @@ WmWindow::~WmWindow()
 
     root_tree->userdata = {};
     wm_window_unmap(this);
-    std::erase(wm->windows, this);
+    std::erase(client->wm->windows, this);
 }
 
 static constexpr vec2f32 border_size = vec2f32(2);
 static constexpr auto    border_normal  = color_from_hex("#4C4C4C");
 static constexpr auto    border_focused = color_from_hex("#6666FF");
 
-auto wm_window_create(WindowManager* wm) -> Ref<WmWindow>
+auto wm_window_create(WmClient* client) -> Ref<WmWindow>
 {
+    auto* wm = client->wm;
+
     auto window = ref_create<WmWindow>();
-    window->wm = wm;
+    window->client = client;
 
     wm->windows.emplace_back(window.get());
 
@@ -44,11 +46,6 @@ auto wm_window_create(WindowManager* wm) -> Ref<WmWindow>
     return window;
 }
 
-void wm_window_set_event_listener(WmWindow* window, WmWindowListener listener)
-{
-    window->listener = std::move(listener);
-}
-
 auto wm_window_get_tree(WmWindow* window) -> SceneTree*
 {
     return window->client_tree.get();
@@ -61,9 +58,7 @@ void wm_window_set_title(WmWindow* window, std::string_view title)
 
 void wm_window_post_event(WmWindowEvent* event)
 {
-    if (event->window->listener) {
-        event->window->listener(event);
-    }
+    wm_client_post_event(event->window->client, reinterpret_cast<WmEvent*>(event));
 }
 
 void wm_window_request_reposition(WmWindow* window, rect2f32 frame, vec2f32 gravity)
@@ -113,7 +108,7 @@ void wm_window_map(WmWindow* window)
     if (window->mapped) return;
 
     window->mapped = true;
-    wm_arrange_windows(window->wm);
+    wm_arrange_windows(window->client->wm);
 
     wm_window_post_event(ptr_to(WmWindowEvent {
         .type = WmEventType::window_mapped,
@@ -125,7 +120,7 @@ void wm_window_raise(WmWindow* window)
 {
     if (!window->mapped) return;
 
-    auto* wm = window->wm;
+    auto* wm = window->client->wm;
 
     std::erase(wm->windows, window);
     wm->windows.emplace_back(window);
@@ -138,7 +133,7 @@ void wm_window_unmap(WmWindow* window)
     if (!window->mapped) return;
 
     window->mapped = false;
-    wm_arrange_windows(window->wm);
+    wm_arrange_windows(window->client->wm);
 
     wm_window_post_event(ptr_to(WmWindowEvent {
         .type = WmEventType::window_unmapped,
@@ -149,7 +144,7 @@ void wm_window_unmap(WmWindow* window)
 // -----------------------------------------------------------------------------
 
 static
-void update_border_colors(WindowManager* wm)
+void update_border_colors(WmServer* wm)
 {
     for (auto* w : wm->windows) {
         bool focused = std::ranges::any_of(wm->seats, [&](auto* seat) {
@@ -164,7 +159,7 @@ void update_border_colors(WindowManager* wm)
     }
 }
 
-void wm_decoration_init(WindowManager* wm)
+void wm_decoration_init(WmServer* wm)
 {
     for (auto* seat : wm->seats) {
         wm->decoration.filter.emplace_back(seat_add_event_filter(seat, [wm](SeatEvent* event) -> SeatEventFilterResult {
@@ -178,7 +173,7 @@ void wm_decoration_init(WindowManager* wm)
 
 // -----------------------------------------------------------------------------
 
-auto wm_find_window_at(WindowManager* wm, vec2f32 point) -> WmWindow*
+auto wm_find_window_at(WmServer* wm, vec2f32 point) -> WmWindow*
 {
     // TODO: This will ignore any `input_plane`s currently.
     //       Should we provide (optional) mappings from `input_plane` back to windows

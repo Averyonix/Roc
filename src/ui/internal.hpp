@@ -16,14 +16,14 @@ struct Ui
 {
     Gpu* gpu;
 
-    WindowManager* wm;
+    WmServer* wm;
+    Ref<WmClient> client;
 
     std::chrono::steady_clock::time_point last_frame = {};
 
     std::string ini_path;
 
     Ref<GpuSampler> sampler;
-    Ref<SeatClient> client;
     ImGuiContext* context;
     u32 frames_requested = 0;
 

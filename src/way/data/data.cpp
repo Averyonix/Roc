@@ -12,7 +12,7 @@ void create_data_source(wl_client* wl_client, wl_resource* resource, u32 id)
     auto source = ref_create<WayDataSource>();
     source->client = client;
     source->resource = way_resource_create_refcounted(wl_data_source, wl_client, resource, id, source.get());
-    source->source = seat_data_source_create(client->scene.get(), {
+    source->source = seat_data_source_create(wm_get_seat_client(client->wm.get()), {
         .cancel = [source = source.get()] {
             way_send(wl_data_source, cancelled, source->resource);
         },

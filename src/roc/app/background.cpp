@@ -6,8 +6,10 @@ struct RocBackground
 {
     Roc* roc;
 
-    Ref<GpuImage>    image;
-    Ref<GpuSampler>  sampler;
+    Ref<WmClient> client;
+
+    Ref<GpuImage>   image;
+    Ref<GpuSampler> sampler;
 
     RefVector<SceneTexture> textures;
 };
@@ -62,7 +64,8 @@ auto roc_init_background(Roc* roc) -> Ref<void>
         return image;
     }();
 
-    wm_add_output_listener(roc->wm, [bg = bg.get()](WmOutputEvent* event) {
+    bg->client = wm_connect(roc->wm);
+    wm_listen(bg->client.get(), [bg = bg.get()](WmClient*, WmEvent* event) {
         switch (event->type) {
             break;case WmEventType::output_layout:
                 update_backgrounds(bg);

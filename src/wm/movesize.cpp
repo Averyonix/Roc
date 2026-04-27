@@ -1,7 +1,7 @@
 #include "internal.hpp"
 
 static
-void begin_interaction(WindowManager* wm, SeatPointer* pointer, WmInteractionMode initial_mode)
+void begin_interaction(WmServer* wm, SeatPointer* pointer, WmInteractionMode initial_mode)
 {
     wm->movesize.pointer = pointer;
 
@@ -34,7 +34,7 @@ void begin_interaction(WindowManager* wm, SeatPointer* pointer, WmInteractionMod
 }
 
 static
-void end_interaction(WindowManager* wm)
+void end_interaction(WmServer* wm)
 {
     wm->movesize.pointer = nullptr;
     wm->mode = WmInteractionMode::none;
@@ -43,7 +43,7 @@ void end_interaction(WindowManager* wm)
 // -----------------------------------------------------------------------------
 
 static
-void handle_motion(WindowManager* wm)
+void handle_motion(WmServer* wm)
 {
     if (!wm->movesize.window) {
         return;
@@ -66,7 +66,7 @@ void handle_motion(WindowManager* wm)
 }
 
 static
-auto filter_event_movesize(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event_movesize(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (event->type) {
         break;case SeatEventType::pointer_motion:
@@ -88,7 +88,7 @@ auto filter_event_movesize(WindowManager* wm, SeatEvent* event) -> SeatEventFilt
 }
 
 static
-auto filter_event_default(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event_default(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     if (event->type != SeatEventType::pointer_button) return {};
 
@@ -111,7 +111,7 @@ auto filter_event_default(WindowManager* wm, SeatEvent* event) -> SeatEventFilte
 }
 static
 
-auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (wm->mode) {
         break;case WmInteractionMode::none:
@@ -126,7 +126,7 @@ auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
     return SeatEventFilterResult::passthrough;
 }
 
-void wm_init_movesize(WindowManager* wm)
+void wm_init_movesize(WmServer* wm)
 {
     wm->movesize.filter = seat_add_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {
         return filter_event(wm, event);

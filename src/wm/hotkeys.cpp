@@ -1,7 +1,7 @@
 #include "internal.hpp"
 
 static
-auto find_window_for_input_region(WindowManager* wm, SeatInputRegion* region) -> WmWindow*
+auto find_window_for_input_region(WmServer* wm, SeatInputRegion* region) -> WmWindow*
 {
     for (auto* window : wm->windows) {
         if (std::ranges::contains(window->input_regions, region)) {
@@ -12,7 +12,7 @@ auto find_window_for_input_region(WindowManager* wm, SeatInputRegion* region) ->
 }
 
 static
-auto close_focused(WindowManager* wm, Seat* seat, SeatInputRegion* focus) -> SeatEventFilterResult
+auto close_focused(WmServer* wm, Seat* seat, SeatInputRegion* focus) -> SeatEventFilterResult
 {
     auto mods = seat_get_modifiers(seat);
     if (!mods.contains(wm->main_mod)) return {};
@@ -25,7 +25,7 @@ auto close_focused(WindowManager* wm, Seat* seat, SeatInputRegion* focus) -> Sea
 }
 
 static
-auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
+auto filter_event(WmServer* wm, SeatEvent* event) -> SeatEventFilterResult
 {
     switch (event->type) {
         break;case SeatEventType::keyboard_key:
@@ -55,7 +55,7 @@ auto filter_event(WindowManager* wm, SeatEvent* event) -> SeatEventFilterResult
     return {};
 }
 
-void wm_init_hotkeys(WindowManager* wm)
+void wm_init_hotkeys(WmServer* wm)
 {
     wm->hotkeys.filter = seat_add_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) {
         return filter_event(wm, event);

@@ -1,0 +1,39 @@
+#include "internal.hpp"
+
+auto wm_connect(WmServer* server) -> Ref<WmClient>
+{
+    auto client = ref_create<WmClient>();
+    client->wm = server;
+    client->seat_client = seat_client_create(wm_get_seat_manager(server));
+    server->clients.emplace_back(client.get());
+    return client;
+}
+
+WmClient::~WmClient()
+{
+    std::erase(wm->clients, this);
+}
+
+void wm_listen(WmClient* client, std::move_only_function<void(WmClient*, WmEvent*)> listener)
+{
+    client->listener = std::move(listener);
+}
+
+auto wm_get_seat_client(WmClient* client) -> SeatClient*
+{
+    return client->seat_client.get();
+}
+
+void wm_client_post_event(WmClient* client, WmEvent* event)
+{
+    if (client->listener) {
+        client->listener(client, event);
+    }
+}
+
+void wm_broadcast_event(WmServer* server, WmEvent* event)
+{
+    for (auto* client : server->clients) {
+        wm_client_post_event(client, event);
+    }
+}

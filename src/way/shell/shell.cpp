@@ -29,6 +29,30 @@ WAY_BIND_GLOBAL(xdg_wm_base, bind)
 // -----------------------------------------------------------------------------
 
 static
+auto find_surface(WayClient* client, WmWindow* window) -> WaySurface*
+{
+    for (auto* surface : client->surfaces) {
+        if (surface->toplevel && surface->toplevel->window.get() == window) {
+            return surface;
+        }
+    }
+    return nullptr;
+}
+
+void way_handle_window_event(WayClient* client, WmWindowEvent* event)
+{
+    switch (event->type) {
+        break;case WmEventType::window_reposition_requested:
+            way_toplevel_on_reposition(find_surface(client, event->window), event->reposition.frame, event->reposition.gravity);
+        break;case WmEventType::window_close_requested:
+            way_toplevel_on_close(find_surface(client, event->window));
+
+        break;default:
+            ;
+    }
+}
+
+static
 void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 {
     auto* surface = way_get_userdata<WayXdgSurface>(resource)->surface;
@@ -40,18 +64,7 @@ void get_toplevel(wl_client* client, wl_resource* resource, u32 id)
 
     toplevel->resource = way_resource_create_refcounted(xdg_toplevel, client, resource, id, toplevel.get());
 
-    toplevel->window = wm_window_create(surface->client->server->wm);
-    wm_window_set_event_listener(toplevel->window.get(), [surface](WmWindowEvent* event) {
-        switch (event->type) {
-            break;case WmEventType::window_reposition_requested:
-                way_toplevel_on_reposition(surface, event->reposition.frame, event->reposition.gravity);
-            break;case WmEventType::window_close_requested:
-                way_toplevel_on_close(surface);
-
-            break;default:
-                ;
-        }
-    });
+    toplevel->window = wm_window_create(surface->client->wm.get());
 
     wm_window_add_input_region(toplevel->window.get(), surface->scene.input_region.get());
 

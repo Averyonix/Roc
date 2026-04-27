@@ -1,8 +1,8 @@
 #include "internal.hpp"
 
-auto wm_create(const WindowManagerCreateInfo& info) -> Ref<WindowManager>
+auto wm_create(const WmServerCreateInfo& info) -> Ref<WmServer>
 {
-    auto wm = ref_create<WindowManager>();
+    auto wm = ref_create<WmServer>();
 
     wm->exec = info.exec;
     wm->gpu = info.gpu;
@@ -34,17 +34,17 @@ auto wm_create(const WindowManagerCreateInfo& info) -> Ref<WindowManager>
     return wm;
 }
 
-auto wm_get_seat_manager(WindowManager* wm) -> SeatManager*
+auto wm_get_seat_manager(WmServer* wm) -> SeatManager*
 {
     return wm->seat_manager.get();
 }
 
-auto wm_get_scene(WindowManager* wm) -> Scene*
+auto wm_get_scene(WmServer* wm) -> Scene*
 {
     return wm->scene.get();
 }
 
-auto wm_get_layer(WindowManager* wm, WmLayer layer) -> SceneTree*
+auto wm_get_layer(WmServer* wm, WmLayer layer) -> SceneTree*
 {
     return wm->layers[layer].get();
 }

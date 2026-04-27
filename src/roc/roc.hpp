@@ -7,11 +7,11 @@
 
 struct Roc
 {
-    ExecContext*   exec;
-    Gpu*           gpu;
-    WindowManager* wm;
-    WayServer*     way;
-    IoContext*     io;
+    ExecContext* exec;
+    Gpu*         gpu;
+    WmServer*    wm;
+    WayServer*   way;
+    IoContext*   io;
 
     SeatModifier main_mod;
 
