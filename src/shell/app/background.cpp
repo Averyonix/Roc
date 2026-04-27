@@ -39,6 +39,21 @@ void update_backgrounds(ShellBackground* bg)
 
 auto shell_init_background(Shell* shell) -> Ref<void>
 {
+    if (shell->wallpaper.empty()) {
+        log_warn("WALLPAPER not set, no background will be loaded");
+        return {};
+    }
+
+    int w = {}, h = {};
+    int num_channels = {};
+    stbi_uc* data = stbi_load(shell->wallpaper.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
+    if (!data || !w || !h) {
+        log_error("WALLPAPER [{}] could not be loaded", shell->wallpaper.c_str());
+        return {};
+    }
+    defer { stbi_image_free(data); };
+    log_info("Loaded background ({}, {}x{})", shell->wallpaper.c_str(), w, h);
+
     auto bg = ref_create<ShellBackground>();
     bg->shell = shell;
 
@@ -47,23 +62,15 @@ auto shell_init_background(Shell* shell) -> Ref<void>
         .min = VK_FILTER_LINEAR,
     });
 
-    bg->image = [&] {
-        int w, h;
-        int num_channels;
-        stbi_uc* data = stbi_load(shell->wallpaper.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
-        defer { stbi_image_free(data); };
-        log_info("Loaded background ({}, width = {}, height = {})", shell->wallpaper.c_str(), w, h);
+    // Create background texture node
+    bg->image = gpu_image_create(shell->gpu, {
+        .extent = {w, h},
+        .format = gpu_format_from_drm(DRM_FORMAT_XBGR8888),
+        .usage = GpuImageUsage::texture | GpuImageUsage::transfer
+    });
+    gpu_copy_memory_to_image(bg->image.get(), as_bytes(data, w * h * 4), {{{bg->image->extent()}}});
 
-        // Create background texture node
-        auto image = gpu_image_create(shell->gpu, {
-            .extent = {w, h},
-            .format = gpu_format_from_drm(DRM_FORMAT_XBGR8888),
-            .usage = GpuImageUsage::texture | GpuImageUsage::transfer
-        });
-        gpu_copy_memory_to_image(image.get(), as_bytes(data, w * h * 4), {{{image->extent()}}});
-        return image;
-    }();
-
+    // Listen for outputs to assign backgrounds to
     bg->client = wm_connect(shell->wm);
     wm_listen(bg->client.get(), [bg = bg.get()](WmClient*, WmEvent* event) {
         switch (event->type) {

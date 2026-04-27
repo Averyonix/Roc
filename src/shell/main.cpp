@@ -14,7 +14,7 @@ auto main(int argc, char* argv[]) -> int
     // Config
 
     shell.app_share = std::filesystem::path(getenv("HOME")) / ".local/share" / PROGRAM_NAME;
-    shell.wallpaper = getenv("WALLPAPER");
+    shell.wallpaper = getenv("WALLPAPER") ?: "";
     if (getenv("WAYLAND_DISPLAY")) {
         log_debug("Running nested!");
         shell.main_mod = SeatModifier::alt;
