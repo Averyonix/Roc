@@ -4,8 +4,20 @@ auto wm_connect(WmServer* server) -> Ref<WmClient>
 {
     auto client = ref_create<WmClient>();
     client->wm = server;
-    client->seat_client = seat_client_create(wm_get_seat_manager(server));
+    client->seat_client = seat_connect(wm_get_seat_manager(server));
     server->clients.emplace_back(client.get());
+
+    seat_listen(client->seat_client.get(), [client = client.get()](SeatEvent* event) {
+        if (client->listener) {
+            client->listener(client, ptr_to(WmEvent {
+                .seat = {
+                    .type = WmEventType::seat_event,
+                    .event = event,
+                }
+            }));
+        }
+    });
+
     return client;
 }
 

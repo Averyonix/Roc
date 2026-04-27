@@ -78,23 +78,7 @@ auto main(int argc, char* argv[]) -> int
     scene_texture_set_dst(square.get(), {{}, {128, 128}, xywh});
     scene_tree_place_above(inner.get(), nullptr, square.get());
 
-    wm_listen(client.get(), [&](WmClient*, WmEvent* event) {
-        switch (event->type) {
-            break;case WmEventType::window_reposition_requested: {
-                auto frame = event->window.reposition.frame;
-                scene_texture_set_dst(canvas.get(), {{}, frame.extent, xywh});
-                scene_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
-                wm_window_set_frame(event->window.window, frame);
-            }
-            break;case WmEventType::window_close_requested:
-                log_warn("toplevel_close({})", (void*)event->window.window);
-
-            break;default:
-                ;
-        }
-    });
-
-    seat_client_set_event_handler(wm_get_seat_client(client.get()), [&](SeatEvent* event) {
+    auto handle_seat_event = [&](SeatEvent* event) {
         switch (event->type) {
             break;case SeatEventType::keyboard_key:
                 log_trace("keyboard_key({}, {})",
@@ -124,6 +108,25 @@ auto main(int argc, char* argv[]) -> int
                 log_trace("keyboard_leave({})", (void*)event->keyboard.keyboard);
             break;case SeatEventType::selection:
                 log_trace("selection({})", (void*)event->data.source);
+        }
+    };
+
+    wm_listen(client.get(), [&](WmClient*, WmEvent* event) {
+        switch (event->type) {
+            break;case WmEventType::window_reposition_requested: {
+                auto frame = event->window.reposition.frame;
+                scene_texture_set_dst(canvas.get(), {{}, frame.extent, xywh});
+                scene_input_region_set_region(input.get(), {{{}, frame.extent, xywh}});
+                wm_window_set_frame(event->window.window, frame);
+            }
+            break;case WmEventType::window_close_requested:
+                log_warn("toplevel_close({})", (void*)event->window.window);
+
+            break;case WmEventType::seat_event:
+                handle_seat_event(event->seat.event);
+
+            break;default:
+                ;
         }
     });
 
@@ -208,7 +211,6 @@ auto main(int argc, char* argv[]) -> int
     // Selection
 
     auto data_client = wm_connect(wm.get());
-    seat_client_set_event_handler(wm_get_seat_client(data_client.get()), [](SeatEvent*) {});
     auto data_source = seat_data_source_create(wm_get_seat_client(data_client.get()), {
         .send = [&](const char* mime, fd_t fd) {
             std::string message = "This is a test clipboard message.";

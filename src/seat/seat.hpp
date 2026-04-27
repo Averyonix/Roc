@@ -14,7 +14,7 @@ auto seat_manager_create() -> Ref<SeatManager>;
 
 struct SeatClient;
 
-auto seat_client_create(SeatManager*) -> Ref<SeatClient>;
+auto seat_connect(SeatManager*) -> Ref<SeatClient>;
 
 // -----------------------------------------------------------------------------
 
@@ -215,7 +215,7 @@ union SeatEvent
 
 using SeatEventHandlerFn = void(SeatEvent*);
 
-void seat_client_set_event_handler(SeatClient*, std::move_only_function<SeatEventHandlerFn>&&);
+void seat_listen(SeatClient*, std::move_only_function<SeatEventHandlerFn>&&);
 
 enum class SeatEventFilterResult
 {

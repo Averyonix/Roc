@@ -452,6 +452,39 @@ void ui_frame(Ui* ui)
 
 // -----------------------------------------------------------------------------
 
+static
+void handle_seat_event(Ui* ui, SeatEvent* event)
+{
+    switch (event->type) {
+
+        // keyboard
+        break;case SeatEventType::keyboard_enter:
+            ui_handle_keyboard_enter(ui, event->keyboard.keyboard, event->keyboard.focus);
+        break;case SeatEventType::keyboard_leave:
+            ui_handle_keyboard_leave(ui);
+        break;case SeatEventType::keyboard_key:
+            ui_handle_key(ui, event->keyboard.key.code, event->keyboard.key.pressed);
+        break;case SeatEventType::keyboard_modifier:
+            ui_handle_mods(ui);
+
+        // pointer
+        break;case SeatEventType::pointer_enter:
+            ui_handle_pointer_enter(ui, event->pointer.pointer, event->pointer.focus);
+        break;case SeatEventType::pointer_leave:
+            ui_handle_pointer_leave(ui);
+        break;case SeatEventType::pointer_motion:
+            ui_handle_motion(ui);
+        break;case SeatEventType::pointer_button:
+            ui_handle_button(ui, event->pointer.button.code, event->pointer.button.pressed);
+        break;case SeatEventType::pointer_scroll:
+            ui_handle_wheel(ui, event->pointer.scroll.delta);
+
+        // selection
+        break;case SeatEventType::selection:
+            ;
+    }
+}
+
 auto ui_create(Gpu* gpu, WmServer* wm, const std::filesystem::path& path) -> Ref<Ui>
 {
     auto ui = ref_create<Ui>();
@@ -480,39 +513,11 @@ auto ui_create(Gpu* gpu, WmServer* wm, const std::filesystem::path& path) -> Ref
             break;case WmEventType::window_close_requested:
                 handle_close(ui, event->window.window);
 
+            // seat
+            break;case WmEventType::seat_event:
+                handle_seat_event(ui, event->seat.event);
+
             break;default:
-                ;
-        }
-    });
-
-    seat_client_set_event_handler(wm_get_seat_client(ui->client.get()), [ui = ui.get()](SeatEvent* event) {
-        UiContextGuard _{ui->context};
-        switch (event->type) {
-
-            // keyboard
-            break;case SeatEventType::keyboard_enter:
-                ui_handle_keyboard_enter(ui, event->keyboard.keyboard, event->keyboard.focus);
-            break;case SeatEventType::keyboard_leave:
-                ui_handle_keyboard_leave(ui);
-            break;case SeatEventType::keyboard_key:
-                ui_handle_key(ui, event->keyboard.key.code, event->keyboard.key.pressed);
-            break;case SeatEventType::keyboard_modifier:
-                ui_handle_mods(ui);
-
-            // pointer
-            break;case SeatEventType::pointer_enter:
-                ui_handle_pointer_enter(ui, event->pointer.pointer, event->pointer.focus);
-            break;case SeatEventType::pointer_leave:
-                ui_handle_pointer_leave(ui);
-            break;case SeatEventType::pointer_motion:
-                ui_handle_motion(ui);
-            break;case SeatEventType::pointer_button:
-                ui_handle_button(ui, event->pointer.button.code, event->pointer.button.pressed);
-            break;case SeatEventType::pointer_scroll:
-                ui_handle_wheel(ui, event->pointer.scroll.delta);
-
-            // selection
-            break;case SeatEventType::selection:
                 ;
         }
     });

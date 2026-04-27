@@ -51,6 +51,8 @@ enum class WmEventType
     output_removed,
     output_layout,
     output_frame,
+
+    seat_event,
 };
 
 struct WmWindowEvent
@@ -71,11 +73,18 @@ struct WmOutputEvent
     WmOutput* output;
 };
 
+struct WmSeatEvent
+{
+    WmEventType type;
+    SeatEvent*  event;
+};
+
 union WmEvent
 {
     WmEventType type;
     WmWindowEvent window;
     WmOutputEvent output;
+    WmSeatEvent seat;
 };
 
 struct WmClient;

@@ -36,13 +36,13 @@ void way_on_client_create(wl_listener* listener, void* data)
                 for (auto* surface : client->surfaces) {
                     way_surface_on_redraw(surface);
                 }
+
+            break;case WmEventType::seat_event:
+                way_seat_handle_event(client, event->seat.event);
+
             break;default:
                 ;
         }
-    });
-
-    seat_client_set_event_handler(wm_get_seat_client(client->wm.get()), [client = client.get()](SeatEvent* event) {
-        way_seat_handle_event(client, event);
     });
 }
 
