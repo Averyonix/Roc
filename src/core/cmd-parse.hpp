@@ -20,7 +20,7 @@ struct CommandParser
 
     auto peek_rest() -> std::span<const std::string_view> { return args.subspan(index); }
 
-    auto peek()       -> std::string_view{ return index < args.size() ? args[index]   : std::string_view{}; }
+    auto peek()       -> std::string_view { return index < args.size() ? args[index]   : std::string_view{}; }
     auto get_string() -> std::string_view { return index < args.size() ? args[index++] : std::string_view{}; }
 
     template<typename T>
