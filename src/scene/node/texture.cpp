@@ -64,14 +64,14 @@ void scene_texture_set_src(SceneTexture* texture, aabb2f32 source)
     scene_node_damage(texture);
 }
 
-void scene_texture_set_dst(SceneTexture* texture, rect2f32 extent)
+void scene_texture_set_dst(SceneTexture* texture, rect2f32 dst)
 {
-    if (extent == texture->dst) return;
+    if (dst == texture->dst) return;
 
-    NODE_LOG("scene.texture{{{}}}.set_dst{}", (void*)texture, extent);
+    NODE_LOG("scene.texture{{{}}}.set_dst{}", (void*)texture, dst);
 
     scene_node_damage(texture);
-    texture->dst = extent;
+    texture->dst = dst;
     scene_node_damage(texture);
 }
 

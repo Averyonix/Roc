@@ -42,17 +42,18 @@ enum class WaySurfaceStateComponent : u32
 struct WayPositioner;
 struct WayBuffer;
 
+static constexpr aabb2f32 way_infinite_aabb = {{-INFINITY, -INFINITY}, {INFINITY, INFINITY}, minmax};
+
 struct WaySurfaceState
 {
     Flags<WaySurfaceStateComponent> set;
-    Flags<WaySurfaceStateComponent> unset;
     WayCommitId commit;
 
     struct {
         WayResourceList frame_callbacks;
         vec2i32         offset;
         region2f32      opaque_region;
-        region2f32      input_region;
+        region2f32      input_region = {way_infinite_aabb};
         WayDamageRegion damage;
     } surface;
 

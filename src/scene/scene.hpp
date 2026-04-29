@@ -84,7 +84,8 @@ auto scene_tree_get_position(   SceneTree*) -> vec2f32;
 
 struct SceneInputRegion : SceneNode
 {
-    region2f32 region;
+    region2f32 region = {{{-INFINITY, -INFINITY}, {INFINITY, INFINITY}, minmax}};
+    rect2f32   clip;
 
     virtual void damage(Scene*);
 
@@ -93,6 +94,7 @@ struct SceneInputRegion : SceneNode
 
 auto scene_input_region_create() -> Ref<SceneInputRegion>;
 void scene_input_region_set_region(SceneInputRegion*, region2f32);
+void scene_input_region_set_clip(SceneInputRegion*, rect2f32);
 auto scene_find_input_region_at(SceneTree*, vec2f32 pos) -> SceneInputRegion*;
 
 // -----------------------------------------------------------------------------

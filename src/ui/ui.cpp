@@ -393,7 +393,7 @@ void render_viewport(Ui* ui, ImGuiViewport* vp)
     {
         rect2f32 rect {translation, from_imvec(vp->Size), xywh};
         if (rect != wm_window_get_frame(data->window.get())) {
-            scene_input_region_set_region(data->input_region.get(), {{{}, rect.extent, xywh}});
+            scene_input_region_set_clip(data->input_region.get(), {{}, rect.extent, xywh});
             wm_window_set_frame(data->window.get(), rect);
         }
     }

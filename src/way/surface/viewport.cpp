@@ -24,6 +24,7 @@ static
 void set_destination(wl_client* client, wl_resource* resource, i32 width, i32 height)
 {
     auto* surface = way_get_userdata<WaySurface>(resource);
+
     surface->pending->buffer_destination = {width, height};
     surface->pending->set |= WaySurfaceStateComponent::buffer_destination;
 }
@@ -39,14 +40,8 @@ void set_source(wl_client* client, wl_resource* resource, wl_fixed_t x, wl_fixed
         xywh,
     };
 
-    if (src == rect2f32{{-1, -1}, {-1, -1}, xywh}) {
-        surface->pending->unset |= WaySurfaceStateComponent::buffer_source;
-        surface->pending->set   -= WaySurfaceStateComponent::buffer_source;
-    } else {
-        surface->pending->buffer_source = src;
-        surface->pending->set   |= WaySurfaceStateComponent::buffer_source;
-        surface->pending->unset -= WaySurfaceStateComponent::buffer_source;
-    }
+    surface->pending->buffer_source = src;
+    surface->pending->set |= WaySurfaceStateComponent::buffer_source;
 }
 
 WAY_INTERFACE(wp_viewport) = {
@@ -62,13 +57,21 @@ void way_viewport_apply(WaySurface* surface, WaySurfaceState& from)
     auto& to = surface->current;
 
     if (from.set.contains(WaySurfaceStateComponent::buffer_source)) {
-        to.set |= WaySurfaceStateComponent::buffer_source;
-        to.buffer_source = from.buffer_source;
+        if (from.buffer_source == rect2f32{{-1, -1}, {-1, -1}, xywh}) {
+            to.set -= WaySurfaceStateComponent::buffer_source;
+        } else {
+            to.set |= WaySurfaceStateComponent::buffer_source;
+            to.buffer_source = from.buffer_source;
+        }
     }
 
     if (from.set.contains(WaySurfaceStateComponent::buffer_destination)) {
-        to.set |= WaySurfaceStateComponent::buffer_destination;
-        to.buffer_destination = from.buffer_destination;
+        if (from.buffer_destination == vec2i32{-1, -1}) {
+            to.set -= WaySurfaceStateComponent::buffer_destination;
+        } else {
+            to.set |= WaySurfaceStateComponent::buffer_destination;
+            to.buffer_destination = from.buffer_destination;
+        }
     }
 
     auto* buffer = to.buffer.get();

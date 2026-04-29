@@ -77,14 +77,12 @@ void attach(wl_client* client, wl_resource* resource, wl_resource* wl_buffer, i3
 
     if (!wl_buffer) {
         pending->buffer = nullptr;
-        pending->unset |= WaySurfaceStateComponent::buffer;
-        pending->set   -= WaySurfaceStateComponent::buffer;
+        pending->set |= WaySurfaceStateComponent::buffer;
         return;
     }
 
     pending->buffer = way_get_userdata<WayBuffer>(wl_buffer);
-    pending->set   |= WaySurfaceStateComponent::buffer;
-    pending->unset -= WaySurfaceStateComponent::buffer;
+    pending->set |= WaySurfaceStateComponent::buffer;
 
     pending->surface.offset += vec2i32{dx, dy};
 }
@@ -142,14 +140,10 @@ void set_input_region(wl_client* client, wl_resource* resource, wl_resource* reg
     auto* surface = way_get_userdata<WaySurface>(resource);
     auto* pending = surface->pending.get();
 
-    if (region) {
-        pending->surface.input_region = way_get_userdata<WayRegion>(region)->region;
-        pending->set   |= WaySurfaceStateComponent::input_region;
-        pending->unset -= WaySurfaceStateComponent::input_region;
-    } else {
-        pending->unset |= WaySurfaceStateComponent::input_region;
-        pending->set   -= WaySurfaceStateComponent::input_region;
-    }
+    pending->set |= WaySurfaceStateComponent::input_region;
+    pending->surface.input_region = region
+        ? way_get_userdata<WayRegion>(region)->region
+        : region2f32{way_infinite_aabb};
 }
 
 WaySurfaceState::~WaySurfaceState()
@@ -190,9 +184,6 @@ void apply(WaySurface* surface, WaySurfaceState& from)
 
     to.commit = from.commit;
 
-    to.set |= from.set;
-    to.set -= from.unset;
-
     if (from.set.contains(WaySurfaceStateComponent::buffer_transform)) {
         to.set |= WaySurfaceStateComponent::buffer_transform;
         to.buffer_transform = from.buffer_transform;
@@ -212,22 +203,25 @@ void apply(WaySurface* surface, WaySurfaceState& from)
     // Buffer state
 
     if (from.set.contains(WaySurfaceStateComponent::buffer)) {
-        to.buffer = std::move(from.buffer);
-        to.image  = std::move(from.image);
+        if (from.buffer) {
+            to.set |= WaySurfaceStateComponent::buffer;
+            to.buffer = std::move(from.buffer);
+            to.image  = std::move(from.image);
 
-        scene_texture_set_image(surface->scene.texture.get(),
-            to.image.get(),
-            surface->client->server->sampler.get(),
-            GpuBlendMode::premultiplied);
+            scene_texture_set_image(surface->scene.texture.get(),
+                to.image.get(),
+                surface->client->server->sampler.get(),
+                GpuBlendMode::premultiplied);
 
-        if (from.buffer_damage) {
-            scene_texture_damage(surface->scene.texture.get(), from.buffer_damage.bounds());
+            if (from.buffer_damage) {
+                scene_texture_damage(surface->scene.texture.get(), from.buffer_damage.bounds());
+            }
+        } else {
+            to.set -= WaySurfaceStateComponent::buffer;
+            to.buffer = nullptr;
+
+            scene_texture_set_image(surface->scene.texture.get(), nullptr, nullptr, GpuBlendMode::none);
         }
-
-    } else if (from.unset.contains(WaySurfaceStateComponent::buffer)) {
-        to.buffer = nullptr;
-
-        scene_texture_set_image(surface->scene.texture.get(), nullptr, nullptr, GpuBlendMode::none);
     }
 
     // Buffer source / destination
@@ -237,14 +231,10 @@ void apply(WaySurface* surface, WaySurfaceState& from)
     // Input regions
 
     if (from.set.contains(WaySurfaceStateComponent::input_region)) {
-        // TODO: Clip set input_regions against surface bounds?
         scene_input_region_set_region(surface->scene.input_region.get(), std::move(from.surface.input_region));
-
-    } else if (!to.set.contains(WaySurfaceStateComponent::input_region) && to.buffer) {
-        // Unset input_region fills entire surface
-        scene_input_region_set_region(surface->scene.input_region.get(),
-            {{{}, to.buffer->extent, xywh}});
     }
+
+    scene_input_region_set_clip(surface->scene.input_region.get(), surface->scene.texture->dst);
 
     // Map state
 

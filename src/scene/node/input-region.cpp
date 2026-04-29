@@ -23,14 +23,23 @@ void scene_input_region_set_region(SceneInputRegion* input_region, region2f32 re
 {
     if (input_region->region == region) return;
 
-#if SCENE_NOISY_NODES
     NODE_LOG("scene.input_region{{{}}}.set_region([{:s}])", (void*)input_region,
         region.aabbs
             | std::views::transform([&](auto& aabb) { return std::format("{}", aabb); })
             | std::views::join_with(", "sv));
-#endif
 
     input_region->region = std::move(region);
+
+    scene_node_damage(input_region);
+}
+
+void scene_input_region_set_clip(SceneInputRegion* input_region, rect2f32 clip)
+{
+    if (input_region->clip == clip) return;
+
+    NODE_LOG("scene.input_region{{{}}}.set_clip{}", (void*)input_region, clip);
+
+    input_region->clip = clip;
 
     scene_node_damage(input_region);
 }
@@ -43,7 +52,8 @@ auto scene_find_input_region_at(SceneTree* tree, vec2f32 pos) -> SceneInputRegio
         scene_iterate_default,
         [&](SceneNode* node) {
             if (auto input_region = dynamic_cast<SceneInputRegion*>(node)) {
-                if (input_region->region.contains(pos - scene_tree_get_position(input_region->parent))) {
+                auto local = pos - scene_tree_get_position(input_region->parent);
+                if (rect_contains(input_region->clip, local) && input_region->region.contains(local)) {
                     region = input_region;
                     return SceneIterateAction::stop;
                 }

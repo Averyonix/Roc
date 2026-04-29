@@ -3,7 +3,6 @@
 #include "../data/data.hpp"
 #include "../surface/surface.hpp"
 #include "../client.hpp"
-#include "../shell/shell.hpp"
 
 // -----------------------------------------------------------------------------
 
