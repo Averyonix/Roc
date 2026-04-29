@@ -100,6 +100,7 @@ auto wm_window_create(WmClient*) -> Ref<WmWindow>;
 void wm_window_set_focus(WmWindow*, SeatFocus*);
 
 void wm_window_set_title(WmWindow*, std::string_view title);
+void wm_window_set_app_id(WmWindow*, std::string_view app_id);
 
 void wm_window_map(  WmWindow*);
 void wm_window_unmap(WmWindow*);

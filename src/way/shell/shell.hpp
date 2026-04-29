@@ -52,8 +52,6 @@ enum class WayToplevelStateComponent : u32
 {
     min_size = 1 << 0,
     max_size = 1 << 1,
-    title    = 1 << 2,
-    app_id   = 1 << 3
 };
 
 struct WayToplevelState
@@ -63,8 +61,6 @@ struct WayToplevelState
 
     vec2i32 min_size;
     vec2i32 max_size;
-    std::string title;
-    std::string app_id;
 };
 
 struct WayToplevel : WaySurfaceAddon

@@ -129,6 +129,7 @@ struct WmWindow
     vec2f32 extent;
     bool mapped;
 
+    std::string app_id;
     std::string title;
 
     Ref<SceneTree> root_tree;

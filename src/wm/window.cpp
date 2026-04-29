@@ -56,6 +56,11 @@ void wm_window_set_title(WmWindow* window, std::string_view title)
     window->title = title;
 }
 
+void wm_window_set_app_id(WmWindow* window, std::string_view app_id)
+{
+    window->app_id = app_id;
+}
+
 void wm_window_post_event(WmWindowEvent* event)
 {
     wm_client_post_event(event->window->client, reinterpret_cast<WmEvent*>(event));

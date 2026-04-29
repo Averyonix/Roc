@@ -239,16 +239,6 @@ void WayToplevel::apply(WayCommitId id)
     auto from = queue.dequeue(id);
     if (!from) return;
 
-    if (from->set.contains(WayToplevelStateComponent::title)) {
-        current.set |= WayToplevelStateComponent::title;
-        current.title = std::move(from->title);
-    }
-
-    if (from->set.contains(WayToplevelStateComponent::app_id)) {
-        current.set |= WayToplevelStateComponent::app_id;
-        current.app_id = std::move(from->app_id);
-    }
-
     if (from->set.contains(WayToplevelStateComponent::max_size)) {
         if (from->max_size == vec2i32(0, 0)) {
             current.set -= WayToplevelStateComponent::max_size;
@@ -288,14 +278,12 @@ WAY_INTERFACE(xdg_toplevel) = {
     .destroy = way_simple_destroy,
     WAY_STUB(set_parent),
     .set_title  = [](wl_client* client, wl_resource* resource, const char* title) {
-        auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
-        pending->title = title;
-        pending->set |= WayToplevelStateComponent::title;
+        auto* toplevel = way_get_userdata<WayToplevel>(resource);
+        wm_window_set_title(toplevel->window.get(), title);
     },
     .set_app_id = [](wl_client* client, wl_resource* resource, const char* app_id) {
-        auto* pending = way_get_userdata<WayToplevel>(resource)->queue.pending.get();
-        pending->app_id = app_id;
-        pending->set |= WayToplevelStateComponent::app_id;
+        auto* toplevel = way_get_userdata<WayToplevel>(resource);
+        wm_window_set_app_id(toplevel->window.get(), app_id);
     },
     WAY_STUB(show_window_menu),
     WAY_STUB(move),
