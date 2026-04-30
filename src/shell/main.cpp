@@ -1,9 +1,9 @@
 #include "shell.hpp"
 
-#include <wm/wm.hpp>
+#include <core/math.hpp>
 
-#include "way/way.hpp"
-#include "way/surface/surface.hpp"
+#include <wm/wm.hpp>
+#include <ui/ui.hpp>
 
 auto main(int argc, char* argv[]) -> int
 {
@@ -36,7 +36,6 @@ auto main(int argc, char* argv[]) -> int
         .io = io.get(),
         .main_mod = shell.main_mod,
     });
-    auto scene = wm_get_scene(wm.get());
     auto way = way_create(exec.get(), gpu.get(), wm.get());
 
     shell.exec = exec.get();
@@ -137,79 +136,7 @@ auto main(int argc, char* argv[]) -> int
 
     // ImGui
 
-    std::string ui_text_edit = "Hello, world!";
-    auto ui = ui_create(gpu.get(), wm.get(), shell.app_share / "ui");
-    ui_set_frame_handler(ui.get(), [&] {
-        ImGui::ShowDemoWindow();
-
-        defer { ImGui::End(); };
-        if (ImGui::Begin("Shell")) {
-
-            if (ImGui::Button("Shutdown")) {
-                io_stop(io.get());
-            }
-
-            if (ImGui::Button("New Output")) {
-                io_output_create(io.get());
-            }
-
-            if (ImGui::Button("Reposition")) {
-                if (auto* window = ui_get_window(ImGui::GetCurrentWindow())) {
-                    wm_window_request_reposition(window, {{}, {512, 512}, xywh}, {});
-                }
-            }
-
-            {
-                defer {  ImGui::EndDisabled(); };
-                ImGui::BeginDisabled(!gpu->renderdoc);
-                if (ImGui::Button("Capture")) {
-                    static u32 capture = 0;
-                    gpu->renderdoc->StartFrameCapture(nullptr, nullptr);
-                    gpu->renderdoc->SetCaptureTitle(std::format("Shell capture {}", ++capture).c_str());
-                    for (auto* output : wm_list_outputs(wm.get())) {
-                        auto viewport = wm_output_get_viewport(output);
-                        auto texture = gpu_image_create(gpu.get(), {
-                            .extent = viewport.extent,
-                            .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
-                            .usage = GpuImageUsage::render
-                        });
-                        scene_render(scene, texture.get(), viewport);
-                        gpu_wait(gpu_flush(gpu.get()));
-                    }
-                    gpu->renderdoc->EndFrameCapture(nullptr, nullptr);
-                }
-            }
-
-            if (ImGui::Button("Print Scene Graph")) {
-                u32 depth = 0;
-                auto indent = [&] { return std::string(depth, ' '); };
-                scene_iterate<SceneIterateDirection::back_to_front>(
-                    wm_get_layer(wm.get(), WmLayer::window)->parent,
-                    [&](SceneTree* tree) {
-                        WaySurface* surface;
-                        if (tree->userdata.id == way->userdata_id
-                                && (surface = way_get_userdata<WaySurface>(tree->userdata.data))) {
-                            log_warn("{}tree({}{}) {{", indent(),
-                                surface->role,
-                                tree->enabled ? "": ", disabled");
-                        } else {
-                            log_warn("{}tree{} {{", indent(), tree->enabled ? "": "(disabled)");
-                        }
-                        depth += 2;
-                    },
-                    [&](SceneNode* node) {
-                        log_warn("{}{}", indent(), typeid(*node).name());
-                    },
-                    [&](SceneTree* tree) {
-                        depth -= 2;
-                        log_warn("{}}}", indent());
-                    });
-            }
-
-            ImGui::InputText("Text", &ui_text_edit);
-        }
-    });
-    ui_request_frame(ui.get());
+    auto _ = shell_init_menu(&shell);
 
     // Selection
 

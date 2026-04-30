@@ -335,6 +335,7 @@ target_link_libraries(way PUBLIC wm)
 init_executable(${PROGRAM_NAME})
 target_sources(${PROGRAM_NAME} PRIVATE
     src/shell/main.cpp
+    src/shell/menu.cpp
     src/shell/xwayland.cpp
     src/shell/app/log-viewer.cpp
     src/shell/app/launcher.cpp

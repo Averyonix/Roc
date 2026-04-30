@@ -1,5 +1,7 @@
 #include "../shell.hpp"
 
+#include <ui/ui.hpp>
+
 struct ShellLauncher
 {
     Shell* shell;

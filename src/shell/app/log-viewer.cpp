@@ -1,5 +1,7 @@
 #include "../shell.hpp"
 
+#include <ui/ui.hpp>
+
 #include <core/chrono.hpp>
 #include <core/color.hpp>
 #include <core/stacktrace.hpp>
