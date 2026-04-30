@@ -32,6 +32,7 @@ struct WayObject
 };
 
 template<typename T>
+    requires std::derived_from<T, WayObject>
 auto way_get_userdata(void* data) -> T*
 {
     auto* base = static_cast<WayObject*>(data);
@@ -45,6 +46,7 @@ auto way_get_userdata(void* data) -> T*
 }
 
 template<typename T>
+    requires std::derived_from<T, WayObject>
 auto way_get_userdata(wl_resource* resource) -> T*
 {
     return resource ? way_get_userdata<T>(wl_resource_get_user_data(resource)) : nullptr;
