@@ -29,6 +29,10 @@ void frame(ShellMenu* menu)
     defer { ImGui::End(); };
     if (ImGui::Begin("Shell")) {
 
+        if (ImGui::Button("Destroy Clients")) {
+            way_clear(way);
+        }
+
         if (ImGui::Button("Shutdown")) {
             io_stop(io);
         }

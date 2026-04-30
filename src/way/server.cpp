@@ -98,3 +98,18 @@ void way_queue_flush(wl_resource* resource)
 {
     way_client_queue_flush(way_client_from(wl_resource_get_client(resource)));
 }
+
+void way_clear(WayServer* server)
+{
+    u32 count = 0;
+    wl_client* wl_client;
+    wl_client_for_each(wl_client, wl_display_get_client_list(server->wl_display)) {
+        pid_t pid;
+        uid_t uid;
+        gid_t gid;
+        wl_client_get_credentials(wl_client, &pid, &uid, &gid);
+        kill(pid, SIGTERM);
+        count++;
+    }
+    log_warn("way.shutdown - sent SIGTERM to {} clients", count);
+}
