@@ -28,7 +28,7 @@ struct WayPositionerRules
     u32 parent_configure;
 };
 
-struct WayPositioner : WayObject
+struct WayPositioner
 {
     WayServer* server;
 

@@ -27,7 +27,7 @@ WAY_INTERFACE(wp_linux_drm_syncobj_manager_v1) = {
 
 WAY_BIND_GLOBAL(wp_linux_drm_syncobj_manager_v1, bind)
 {
-    way_resource_create_unsafe(wp_linux_drm_syncobj_manager_v1, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
+    way_resource_create_unsafe(wp_linux_drm_syncobj_manager_v1, bind.client, bind.version, bind.id, bind.server);
 }
 
 WAY_INTERFACE(wp_linux_drm_syncobj_timeline_v1) = {

@@ -15,8 +15,7 @@ WAY_INTERFACE(wl_output) = {
 
 WAY_BIND_GLOBAL(wl_output, bind)
 {
-    auto* server = way_get_userdata<WayServer>(bind.data);
-    auto resource = way_resource_create_unsafe(wl_output, bind.client, bind.version, bind.id, server);
+    auto resource = way_resource_create_unsafe(wl_output, bind.client, bind.version, bind.id, bind.server);
 
     // TODO: This is just a temporary output to satisfy clients that need (but
     //       really shouldn't care about) a wl_output to function properly.

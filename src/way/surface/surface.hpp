@@ -26,7 +26,7 @@ struct WayPopup;
 
 // -----------------------------------------------------------------------------
 
-struct WayTimeline : WayObject
+struct WayTimeline
 {
     WayResource     resource;
     Ref<GpuSyncobj> syncobj;
@@ -86,7 +86,7 @@ struct WaySurfaceState
     ~WaySurfaceState();
 };
 
-struct WaySurface : WayObject
+struct WaySurface
 {
     WayClient* client;
 

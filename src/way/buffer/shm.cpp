@@ -43,8 +43,7 @@ WAY_INTERFACE(wl_shm) = {
 
 WAY_BIND_GLOBAL(wl_shm, bind)
 {
-    auto* server = way_get_userdata<WayServer>(bind.data);
-    auto resource = way_resource_create_unsafe(wl_shm, bind.client, bind.version, bind.id, server);
+    auto resource = way_resource_create_unsafe(wl_shm, bind.client, bind.version, bind.id, bind.server);
 
     way_send(wl_shm, format, resource, WL_SHM_FORMAT_ARGB8888);
     way_send(wl_shm, format, resource, WL_SHM_FORMAT_XRGB8888);
@@ -91,7 +90,7 @@ void create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset,
     auto* pool = way_get_userdata<WayShmPool>(resource);
 
     auto buffer = ref_create<WayShmBuffer>();
-    buffer->_resource = way_resource_create_refcounted(wl_buffer, client, resource, id, buffer.get());
+    buffer->_resource = way_resource_create_refcounted(wl_buffer, client, resource, id, static_cast<WayBuffer*>(buffer.get()));
 
     buffer->format = gpu_format_from_drm(to_drm(wl_shm_format(_format)));
     buffer->extent = {width, height};

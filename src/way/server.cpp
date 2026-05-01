@@ -66,7 +66,7 @@ auto way_create(ExecContext* exec, Gpu* gpu, WmServer* wm) -> Ref<WayServer>
         .min = VK_FILTER_LINEAR,
     });
 
-    server->client.created.data = server.get();
+    server->client.created.set(server.get(), server.get());
     server->client.created.listener.notify = way_on_client_create;
     wl_display_add_client_created_listener(server->wl_display, &server->client.created.listener);
 
@@ -83,10 +83,15 @@ auto way_get_elapsed(WayServer* server) -> std::chrono::steady_clock::duration
     return std::chrono::steady_clock::now() - server->epoch;
 }
 
-auto way_global_interface(WayServer* server, const wl_interface* interface, i32 version, wl_global_bind_func_t bind, WayObject* data) -> wl_global*
+auto way_global_interface(WayServer* server,
+    const wl_interface* interface, i32 version, wl_global_bind_func_t bind,
+    WayUserdata data) -> wl_global*
 {
     debug_assert(version <= interface->version);
-    return wl_global_create(server->wl_display, interface, version, data ?: server, bind);
+#if WAY_CHECKED_USERDATA
+    if (data.data) way_userdata_register(server, {data.data, data.type});
+#endif
+    return wl_global_create(server->wl_display, interface, version, data.data ?: server, bind);
 }
 
 auto way_next_serial(WayServer* server) -> WaySerial

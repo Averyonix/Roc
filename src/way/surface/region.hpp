@@ -7,7 +7,7 @@
 
 // -----------------------------------------------------------------------------
 
-struct WayRegion : WayObject
+struct WayRegion
 {
     WayResource resource;
 

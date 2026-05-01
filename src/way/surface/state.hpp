@@ -24,7 +24,7 @@ enum class WaySurfaceRole : u32
 
 struct WaySurface;
 
-struct WaySurfaceAddon : WayObject
+struct WaySurfaceAddon
 {
     WaySurface* surface;
 

@@ -5,6 +5,8 @@
 #include <core/util.hpp>
 #include <core/object.hpp>
 
+#define WAY_CHECKED_USERDATA 1
+
 // -----------------------------------------------------------------------------
 
 template<typename T>
@@ -26,30 +28,66 @@ auto way_from_span(std::span<T> span) -> wl_array
 
 // -----------------------------------------------------------------------------
 
-struct WayObject
+struct WayServer;
+
+struct WayUserdata
 {
-    virtual ~WayObject() = default;
+    void* data;
+#if WAY_CHECKED_USERDATA
+    const std::type_info* type;
+#endif
+
+    WayUserdata(std::nullptr_t = nullptr)
+        : data(nullptr)
+#if WAY_CHECKED_USERDATA
+        , type(nullptr)
+#endif
+    {}
+
+    template<typename T>
+    WayUserdata(T* t)
+        : data(t)
+#if WAY_CHECKED_USERDATA
+        , type(&typeid(T))
+#endif
+    {}
+
+#if WAY_CHECKED_USERDATA
+    WayUserdata(void* _data, const std::type_info* type)
+        : data(_data)
+        , type(type)
+    {}
+#endif
 };
 
-template<typename T>
-    requires std::derived_from<T, WayObject>
-auto way_get_userdata(void* data) -> T*
+#if WAY_CHECKED_USERDATA
+struct WayUserdataEntry
 {
-    auto* base = static_cast<WayObject*>(data);
-    if (!base) return nullptr;
-    auto* derived = dynamic_cast<T*>(base);
-    if (!derived) {
-        log_error("way_get_userdata<{}> failed, got {}", typeid(T).name(), typeid(*base).name());
-        debug_kill();
-    }
-    return derived;
+    const std::type_info* type;
+    AllocationVersion version;
+};
+void way_userdata_check(WayServer*, void* data, const std::type_info&);
+void way_userdata_check(wl_resource*, const std::type_info&);
+void way_userdata_register(WayServer*, WayUserdata);
+#endif
+
+template<typename T>
+auto way_get_userdata(WayServer* server, void* data) -> T*
+{
+#if WAY_CHECKED_USERDATA
+    way_userdata_check(server, data, typeid(T));
+#endif
+    return static_cast<T*>(data);
 }
 
 template<typename T>
-    requires std::derived_from<T, WayObject>
 auto way_get_userdata(wl_resource* resource) -> T*
 {
-    return resource ? way_get_userdata<T>(wl_resource_get_user_data(resource)) : nullptr;
+    if (!resource) return nullptr;
+#if WAY_CHECKED_USERDATA
+    way_userdata_check(resource, typeid(T));
+#endif
+    return static_cast<T*>(wl_resource_get_user_data(resource));
 }
 
 // -----------------------------------------------------------------------------
@@ -251,8 +289,15 @@ public:
 
 struct WayListener
 {
-    void* data;
     wl_listener listener;
+
+private:
+    void* data;
+#if WAY_CHECKED_USERDATA
+    WayServer* server;
+#endif
+
+public:
 
     WayListener() = default;
 
@@ -264,9 +309,22 @@ struct WayListener
     }
 
     template<typename T>
+    void set(WayServer* _server, T* _data)
+    {
+        data = _data;
+#if WAY_CHECKED_USERDATA
+        way_userdata_register(_server, _data);
+        server = _server;
+#endif
+    }
+
+    template<typename T>
     auto get() const -> T*
     {
-        return way_get_userdata<T>(data);
+#if WAY_CHECKED_USERDATA
+        way_userdata_check(server, data, typeid(T));
+#endif
+        return static_cast<T*>(data);
     }
 
     static
@@ -301,17 +359,20 @@ void way_simple_destroy(wl_client* client, wl_resource* resource);
 
 struct WayBindGlobalData
 {
+    WayServer* server;
     wl_client* client;
     void*      data;
     u32        version;
     u32        id;
 };
 
+auto way_bind_data_from(wl_client* client, void* data, u32 version, u32 id) -> WayBindGlobalData;
+
 #define WAY_BIND_GLOBAL(Name, Data) \
     static void way_##Name##_bind_global_impl(const WayBindGlobalData& Data); \
            void way_##Name##_bind_global(wl_client* client, void* data, u32 version, u32 id) \
     { \
-        way_##Name##_bind_global_impl({client, data, version, id}); \
+        way_##Name##_bind_global_impl(way_bind_data_from(client, data, version, id)); \
     } \
     static void way_##Name##_bind_global_impl(const WayBindGlobalData& Data)
 
@@ -325,10 +386,10 @@ struct WayBindGlobalData
 
 // -----------------------------------------------------------------------------
 
-auto way_resource_create(wl_client* client, const wl_interface* interface, i32         version, i32 id, const void* impl, WayObject* object, bool refcount) -> wl_resource*;
+auto way_resource_create(wl_client* client, const wl_interface* interface, i32         version, i32 id, const void* impl, WayUserdata object, bool refcount) -> wl_resource*;
 
 inline
-auto way_resource_create(wl_client* client, const wl_interface* interface, wl_resource* parent, i32 id, const void* impl, WayObject* object, bool refcount) -> wl_resource*
+auto way_resource_create(wl_client* client, const wl_interface* interface, wl_resource* parent, i32 id, const void* impl, WayUserdata object, bool refcount) -> wl_resource*
 {
     return way_resource_create(client, interface, wl_resource_get_version(parent), id, impl, object, refcount);
 }

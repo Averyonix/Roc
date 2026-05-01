@@ -3,7 +3,7 @@
 #include "../shell/shell.hpp"
 #include "../client.hpp"
 
-struct WayDecoration : WayObject
+struct WayDecoration
 {
     Weak<WaySurface> surface;
     WayResource resource;
@@ -40,7 +40,7 @@ WAY_INTERFACE(zxdg_decoration_manager_v1) = {
 
 WAY_BIND_GLOBAL(zxdg_decoration_manager_v1, bind)
 {
-    way_resource_create_unsafe(zxdg_decoration_manager_v1, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
+    way_resource_create_unsafe(zxdg_decoration_manager_v1, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------
@@ -84,8 +84,7 @@ WAY_INTERFACE(org_kde_kwin_server_decoration_manager) {
 
 WAY_BIND_GLOBAL(org_kde_kwin_server_decoration_manager, bind)
 {
-    auto* server = way_get_userdata<WayServer>(bind.data);
-    auto resource = way_resource_create_unsafe(org_kde_kwin_server_decoration_manager, bind.client, bind.version, bind.id, server);
+    auto resource = way_resource_create_unsafe(org_kde_kwin_server_decoration_manager, bind.client, bind.version, bind.id, bind.server);
     way_send(org_kde_kwin_server_decoration_manager, default_mode, resource, kde_decoration_mode);
 }
 

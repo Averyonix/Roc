@@ -16,7 +16,7 @@ WAY_INTERFACE(zwp_relative_pointer_manager_v1) = {
 
 WAY_BIND_GLOBAL(zwp_relative_pointer_manager_v1, bind)
 {
-    way_resource_create_unsafe(zwp_relative_pointer_manager_v1, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
+    way_resource_create_unsafe(zwp_relative_pointer_manager_v1, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------

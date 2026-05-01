@@ -10,7 +10,7 @@ struct WayServer;
 struct WaySurface;
 struct WaySeatClient;
 
-struct WayClient : WayObject
+struct WayClient
 {
     WayServer* server;
     Ref<WmClient> wm;

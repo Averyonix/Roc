@@ -15,7 +15,7 @@ enum class WayBufferAcquireFlags : u32
 
 struct WaySurface;
 
-struct WayBuffer : WayObject
+struct WayBuffer
 {
     WayResource _resource;
 
@@ -35,7 +35,7 @@ protected:
 
 // -----------------------------------------------------------------------------
 
-struct WayShmPool : WayObject
+struct WayShmPool
 {
     WayServer* server;
 

@@ -72,7 +72,7 @@ void frame(ShellMenu* menu)
                 [&](SceneTree* tree) {
                     WaySurface* surface;
                     if (tree->userdata.id == way->userdata_id
-                            && (surface = way_get_userdata<WaySurface>(tree->userdata.data))) {
+                            && (surface = way_get_userdata<WaySurface>(way, tree->userdata.data))) {
                         log_warn("{}tree({}{}) {{", indent(),
                             surface->role,
                             tree->enabled ? "": ", disabled");

@@ -79,7 +79,7 @@ WAY_INTERFACE(zwp_pointer_constraints_v1) = {
 
 WAY_BIND_GLOBAL(zwp_pointer_constraints_v1, bind)
 {
-    way_resource_create_unsafe(zwp_pointer_constraints_v1, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
+    way_resource_create_unsafe(zwp_pointer_constraints_v1, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------

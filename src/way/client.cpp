@@ -16,7 +16,7 @@ void way_on_client_create(wl_listener* listener, void* data)
     client->wl_client = wl_client;
 
     wl_client_set_user_data(wl_client, object_add_ref(client.get()), [](void* data) {
-        object_remove_ref(way_get_userdata<WayClient>(data));
+        object_remove_ref(static_cast<WayClient*>(data));
     });
 
     client->wm = wm_connect(server->wm);
@@ -54,7 +54,7 @@ void way_on_client_create(wl_listener* listener, void* data)
 auto way_client_from(const wl_client* client) -> WayClient*
 {
     // NOTE: `wl_client_get_user_data` does not actually require a non-const client.
-    return way_get_userdata<WayClient>(wl_client_get_user_data(const_cast<wl_client*>(client)));
+    return static_cast<WayClient*>(wl_client_get_user_data(const_cast<wl_client*>(client)));
 }
 
 auto way_client_is_behind(WayClient* client) -> bool

@@ -19,12 +19,7 @@ struct WayDataSource : SeatDataSource
     ~WayDataSource();
 };
 
-struct WayDataSourceHolder : WayObject
-{
-    Ref<WayDataSource> source;
-};
-
-struct WayDataOffer : WayObject
+struct WayDataOffer
 {
     WaySeatClient* seat_client;
 

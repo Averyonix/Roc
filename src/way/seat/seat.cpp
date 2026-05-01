@@ -44,7 +44,7 @@ WAY_INTERFACE(wl_seat) = {
 
 WAY_BIND_GLOBAL(wl_seat, bind)
 {
-    auto* seat = way_get_userdata<WaySeat>(bind.data);
+    auto* seat = way_get_userdata<WaySeat>(bind.server, bind.data);
     auto* client = way_client_from(bind.client);
 
     auto seat_client = ref_create<WaySeatClient>();

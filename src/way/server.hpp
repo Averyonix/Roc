@@ -16,7 +16,7 @@ DECLARE_TAGGED_INTEGER(WaySerial, u32);
 struct WaySeat;
 struct WayClient;
 
-struct WayServer : WayObject
+struct WayServer
 {
     ExecContext* exec;
 
@@ -42,6 +42,10 @@ struct WayServer : WayObject
         usz format_table_size;
         std::vector<u16> tranche_formats;
     } dmabuf;
+
+#if WAY_CHECKED_USERDATA
+    ankerl::unordered_dense::map<void*, WayUserdataEntry> userdata_types;
+#endif
 
     ~WayServer();
 };
@@ -80,6 +84,6 @@ void way_post_error(wl_resource* resource, u32 code, std::format_string<Args...>
 
 // -----------------------------------------------------------------------------
 
-auto way_global_interface(WayServer*, const wl_interface*, i32 version, wl_global_bind_func_t, WayObject* data = nullptr) -> wl_global*;
+auto way_global_interface(WayServer*, const wl_interface*, i32 version, wl_global_bind_func_t, WayUserdata = nullptr) -> wl_global*;
 #define way_global(Server, Interface, ...) \
     way_global_interface(Server, &Interface##_interface, way_##Interface##_version, way_##Interface##_bind_global __VA_OPT__(,) __VA_ARGS__)

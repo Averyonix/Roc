@@ -11,10 +11,8 @@ void create_data_source(wl_client* wl_client, wl_resource* resource, u32 id)
 
     auto source = ref_create<WayDataSource>();
     source->client = client;
-    auto holder = ref_create<WayDataSourceHolder>();
 
-    holder->source = source;
-    source->resource = way_resource_create_refcounted(wl_data_source, wl_client, resource, id, holder.get());
+    source->resource = way_resource_create_refcounted(wl_data_source, wl_client, resource, id, source.get());
 
     log_error("WayDataSource created {}", (void*)source.get());
 }
@@ -49,7 +47,7 @@ WAY_INTERFACE(wl_data_device_manager) = {
 
 WAY_BIND_GLOBAL(wl_data_device_manager, bind)
 {
-    way_resource_create_unsafe(wl_data_device_manager, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
+    way_resource_create_unsafe(wl_data_device_manager, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------
@@ -76,7 +74,7 @@ WAY_INTERFACE(wl_data_offer) = {
 static
 void offer(wl_client* client, wl_resource* resource, const char* mime_type)
 {
-    auto* source = way_get_userdata<WayDataSourceHolder>(resource)->source.get();
+    auto* source = way_get_userdata<WayDataSource>(resource);
     seat_data_source_offer(source, mime_type);
 }
 
@@ -108,7 +106,7 @@ static
 void set_selection(wl_client* wl_client, wl_resource* wl_data_device, wl_resource* wl_data_source, u32 serial)
 {
     auto* seat_client = way_get_userdata<WaySeatClient>(wl_data_device);
-    auto* source = way_get_userdata<WayDataSourceHolder>(wl_data_source)->source.get();
+    auto* source = way_get_userdata<WayDataSource>(wl_data_source);
     seat_set_selection(seat_client->seat->scene, source);
 }
 

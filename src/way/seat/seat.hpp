@@ -24,7 +24,7 @@ struct WayKeymap
 
 // -----------------------------------------------------------------------------
 
-struct WaySeat : WayObject
+struct WaySeat
 {
     WayServer* server;
     Seat* scene;
@@ -48,7 +48,7 @@ struct WaySeat : WayObject
     ~WaySeat();
 };
 
-struct WaySeatClient : WayObject
+struct WaySeatClient
 {
     WaySeat* seat;
     WayClient* client;

@@ -123,8 +123,7 @@ WAY_INTERFACE(zwp_linux_dmabuf_v1) = {
 
 WAY_BIND_GLOBAL(zwp_linux_dmabuf_v1, bind)
 {
-    auto* server = way_get_userdata<WayServer>(bind.data);
-    auto resource = way_resource_create_unsafe(zwp_linux_dmabuf_v1, bind.client, bind.version, bind.id, server);
+    auto resource = way_resource_create_unsafe(zwp_linux_dmabuf_v1, bind.client, bind.version, bind.id, bind.server);
 
     if (bind.version >= ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION) {
         return;
@@ -138,7 +137,7 @@ WAY_BIND_GLOBAL(zwp_linux_dmabuf_v1, bind)
         way_send(zwp_linux_dmabuf_v1, modifier, resource, format, modifier_hi, modifier_lo);
     };
 
-    for (auto[format, modifiers] : get_formats(server)) {
+    for (auto[format, modifiers] : get_formats(bind.server)) {
         way_send(zwp_linux_dmabuf_v1, format, resource, format->drm);
 
         for (auto modifier : modifiers) {
@@ -149,7 +148,7 @@ WAY_BIND_GLOBAL(zwp_linux_dmabuf_v1, bind)
 
 // -----------------------------------------------------------------------------
 
-struct WayDmaParams : WayObject
+struct WayDmaParams
 {
     WayServer* server;
 
@@ -255,7 +254,7 @@ auto create_buffer(WayDmaParams* dma_params, u32 buffer_id, vec2u32 extent, GpuF
     auto buffer = ref_create<WayDmaBuffer>();
     buffer->server = server;
     buffer->_resource = way_resource_create_refcounted(wl_buffer,
-        wl_resource_get_client(dma_params->resource), dma_params->resource, buffer_id, buffer.get());
+        wl_resource_get_client(dma_params->resource), dma_params->resource, buffer_id, static_cast<WayBuffer*>(buffer.get()));
     buffer->extent = extent;
 
     // TODO: Handle flags

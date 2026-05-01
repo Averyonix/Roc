@@ -54,7 +54,7 @@ WAY_INTERFACE(wl_compositor) = {
 
 WAY_BIND_GLOBAL(wl_compositor, bind)
 {
-    way_resource_create_unsafe(wl_compositor, bind.client, bind.version, bind.id, way_get_userdata<WayServer>(bind.data));
+    way_resource_create_unsafe(wl_compositor, bind.client, bind.version, bind.id, bind.server);
 }
 
 // -----------------------------------------------------------------------------
@@ -289,7 +289,7 @@ void flush(WaySurface* surface)
         auto* tree = dynamic_cast<SceneTree*>(child);
         if (!tree) continue;
         if (tree->userdata.id != server->userdata_id) continue;
-        flush(way_get_userdata<WaySurface>(tree->userdata.data));
+        flush(way_get_userdata<WaySurface>(server, tree->userdata.data));
     }
 }
 
