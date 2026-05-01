@@ -44,6 +44,9 @@ struct WmServer
 
     std::vector<WmClient*> clients;
 
+    WmPointerConstraint* active_pointer_constraint;
+    std::vector<WmPointerConstraint*> pointer_constraints;
+
     struct {
         IoContext*          context;
         Ref<GpuImagePool>   pool;
@@ -143,6 +146,25 @@ struct WmWindow
 };
 
 void wm_window_post_event(WmWindowEvent* event);
+
+// -----------------------------------------------------------------------------
+
+struct WmPointerConstraint
+{
+    WmServer* wm;
+
+    Weak<WmWindow> window;
+    Weak<SceneInputRegion> input_region;
+
+    WmPointerConstraintType type;
+
+    region2f32 region;
+
+    ~WmPointerConstraint();
+};
+
+void wm_update_active_pointer_constraint(WmServer*);
+auto wm_pointer_constraint_apply(WmServer*, vec2f32 position, vec2f32 delta) -> vec2f32;
 
 // -----------------------------------------------------------------------------
 

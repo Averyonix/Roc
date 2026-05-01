@@ -2,6 +2,8 @@
 
 auto way_resource_create(wl_client* client, const wl_interface* interface, i32 version, i32 id, const void* impl, WayObject* data, bool refcount) -> wl_resource*
 {
+    debug_assert(data || !refcount);
+
     auto resource = wl_resource_create(client, interface, version, id);
     if (refcount) {
         object_add_ref(data);

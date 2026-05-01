@@ -11,6 +11,7 @@ struct IoContext;
 struct WmServer;
 struct WmWindow;
 struct WmOutput;
+struct WmPointerConstraint;
 
 struct WmServerCreateInfo
 {
@@ -53,6 +54,9 @@ enum class WmEventType
     output_frame,
 
     seat_event,
+
+    pointer_constraint_enabled,
+    pointer_constraint_disabled,
 };
 
 struct WmWindowEvent
@@ -79,12 +83,19 @@ struct WmSeatEvent
     SeatEvent*  event;
 };
 
+struct WmPointerConstraintEvent
+{
+    WmEventType type;
+    WmPointerConstraint* constraint;
+};
+
 union WmEvent
 {
     WmEventType type;
     WmWindowEvent window;
     WmOutputEvent output;
     WmSeatEvent seat;
+    WmPointerConstraintEvent pointer_constraint;
 };
 
 struct WmClient;
@@ -119,6 +130,17 @@ void wm_window_focus(     WmWindow*);
 auto wm_find_window_for(WmServer*, SeatFocus*) -> WmWindow*;
 
 auto wm_find_window_at(WmServer*, vec2f32 point) -> WmWindow*;
+
+// -----------------------------------------------------------------------------
+
+enum class WmPointerConstraintType
+{
+    locked,
+    confined
+};
+
+auto wm_constrain_pointer(WmWindow*, SceneInputRegion*, region2f32, WmPointerConstraintType) -> Ref<WmPointerConstraint>;
+void wm_pointer_constraint_set_region(WmPointerConstraint*, region2f32);
 
 // -----------------------------------------------------------------------------
 

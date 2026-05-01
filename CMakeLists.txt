@@ -278,6 +278,7 @@ target_sources(wm PRIVATE
     src/wm/hotkeys.cpp
     src/wm/zone.cpp
     src/wm/focus.cpp
+    src/wm/pointer-constraints.cpp
     )
 target_link_libraries(wm PUBLIC scene seat)
 

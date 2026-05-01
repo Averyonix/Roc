@@ -96,6 +96,12 @@ void way_seat_on_scroll(       WaySeatClient*, SeatEvent*);
 
 // -----------------------------------------------------------------------------
 
+struct WmPointerConstraint;
+
+void way_pointer_constraint_on_active(WayClient*, WmPointerConstraint*, bool active);
+
+// -----------------------------------------------------------------------------
+
 WAY_INTERFACE_DECLARE(zwp_pointer_gestures_v1, 3);
 WAY_INTERFACE_DECLARE(zwp_pointer_gesture_swipe_v1);
 WAY_INTERFACE_DECLARE(zwp_pointer_gesture_pinch_v1);

@@ -40,6 +40,11 @@ void way_on_client_create(wl_listener* listener, void* data)
             break;case WmEventType::seat_event:
                 way_seat_handle_event(client, event->seat.event);
 
+            break;case WmEventType::pointer_constraint_enabled:
+                way_pointer_constraint_on_active(client, event->pointer_constraint.constraint, true);
+            break;case WmEventType::pointer_constraint_disabled:
+                way_pointer_constraint_on_active(client, event->pointer_constraint.constraint, false);
+
             break;default:
                 ;
         }

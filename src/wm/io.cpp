@@ -169,7 +169,8 @@ static
 void handle_motion(WmServer* wm, SeatPointer* pointer, vec2f64 rel_unaccel)
 {
     auto rel_accel = apply_accel(rel_unaccel);
-    auto position = wm_find_output_at(wm, seat_pointer_get_position(pointer) + rel_accel).position;
+    auto position = wm_pointer_constraint_apply(wm, seat_pointer_get_position(pointer), rel_accel);
+    position = wm_find_output_at(wm, position).position;
     seat_pointer_move(pointer, position, rel_accel, rel_unaccel);
 }
 
