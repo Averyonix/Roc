@@ -39,6 +39,7 @@ void registry_global(void* data, wl_registry*, u32 name, const char* interface, 
     }
     BIND_INTERFACE(zwp_relative_pointer_manager_v1){}
     BIND_INTERFACE(zwp_pointer_constraints_v1) {}
+    BIND_INTERFACE(wp_cursor_shape_manager_v1) {}
     BIND_INTERFACE(zwp_linux_dmabuf_v1) {
         auto feedback = zwp_linux_dmabuf_v1_get_default_feedback(wl->zwp_linux_dmabuf_v1);
         zwp_linux_dmabuf_feedback_v1_add_listener(feedback, &io_zwp_linux_dmabuf_feedback_v1_listener, io);
@@ -134,6 +135,7 @@ IoWayland::~IoWayland()
 
     IO_WL_DESTROY(zwp_relative_pointer_manager_v1);
     IO_WL_DESTROY(zwp_pointer_constraints_v1);
+    IO_WL_DESTROY(wp_cursor_shape_manager_v1);
 
     IO_WL_DESTROY(zxdg_decoration_manager_v1);
     IO_WL_DESTROY(wl_compositor);

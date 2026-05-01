@@ -112,13 +112,33 @@ IO_WL_LISTENER(zwp_linux_dmabuf_feedback_v1) = {
     IO_WL_STUB_QUIET(tranche_flags),
 };
 
+static
+void locked(void* data, zwp_locked_pointer_v1*)
+{
+    auto* output = static_cast<IoWaylandOutput*>(data);
+    output->pointer_locked = true;
+    for (auto* device : output->io->input_devices) {
+        if (auto* pointer = dynamic_cast<IoWaylandPointer*>(device)) {
+            wl_pointer_set_cursor(pointer->wl_pointer, pointer->last_serial, nullptr, 0, 0);
+        }
+    }
+}
+
+static
+void unlocked(void* data, zwp_locked_pointer_v1*)
+{
+    auto* output = static_cast<IoWaylandOutput*>(data);
+    output->pointer_locked = false;
+    for (auto* device : output->io->input_devices) {
+        if (auto* pointer = dynamic_cast<IoWaylandPointer*>(device)) {
+            wp_cursor_shape_device_v1_set_shape(pointer->wp_cursor_shape_device_v1, pointer->last_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+        }
+    }
+}
+
 IO_WL_LISTENER(zwp_locked_pointer_v1) = {
-    .locked   = [](void* udata, zwp_locked_pointer_v1*) {
-        static_cast<IoWaylandOutput*>(udata)->pointer_locked = true;
-    },
-    .unlocked = [](void* udata, zwp_locked_pointer_v1*) {
-        static_cast<IoWaylandOutput*>(udata)->pointer_locked = false;
-    },
+    .locked   = locked,
+    .unlocked = unlocked,
 };
 
 static

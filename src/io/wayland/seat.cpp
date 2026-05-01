@@ -59,8 +59,9 @@ void set_keyboard(IoContext* io)
 
 IoWaylandPointer::~IoWaylandPointer()
 {
-    zwp_relative_pointer_v1_destroy(zwp_relative_pointer_v1);
-    wl_pointer_destroy(wl_pointer);
+    IO_WL_DESTROY(zwp_relative_pointer_v1);
+    IO_WL_DESTROY(wp_cursor_shape_device_v1);
+    IO_WL_DESTROY(wl_pointer);
 }
 
 static
@@ -82,10 +83,14 @@ void pointer_enter(void* udata, wl_pointer*, u32 serial, wl_surface* surface, wl
     auto* ptr = io->wayland->pointer.get();
 
     ptr->last_serial = serial;
-    ptr->current_output = find_output_for_surface(io, surface);
+    auto* output = find_output_for_surface(io, surface);
+    ptr->current_output = output;
 
-    // Always hide parent compositor cursor
-    wl_pointer_set_cursor(ptr->wl_pointer, serial, nullptr, 0, 0);
+    if (output && output->pointer_locked) {
+        wl_pointer_set_cursor(ptr->wl_pointer, ptr->last_serial, nullptr, 0, 0);
+    } else {
+        wp_cursor_shape_device_v1_set_shape(ptr->wp_cursor_shape_device_v1, ptr->last_serial, WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT);
+    }
 }
 
 static
@@ -169,6 +174,8 @@ void set_pointer(IoContext* io)
         io->wayland->zwp_relative_pointer_manager_v1,
         ptr->wl_pointer);
     zwp_relative_pointer_v1_add_listener(ptr->zwp_relative_pointer_v1, &io_zwp_relative_pointer_v1_listener, ptr);
+
+    ptr->wp_cursor_shape_device_v1 = wp_cursor_shape_manager_v1_get_pointer(io->wayland->wp_cursor_shape_manager_v1, ptr->wl_pointer);
 
     io_input_device_add(ptr);
 }

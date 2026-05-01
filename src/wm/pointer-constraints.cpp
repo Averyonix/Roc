@@ -2,6 +2,16 @@
 
 #include <core/math.hpp>
 
+void wm_pointer_constraints_init(WmServer* wm)
+{
+    wm->pointer_constraints_filter = seat_add_event_filter(wm_get_seat(wm), [wm](SeatEvent* event) -> SeatEventFilterResult {
+        if (event->type == SeatEventType::keyboard_enter || event->type == SeatEventType::keyboard_leave) {
+            wm_update_active_pointer_constraint(wm);
+        }
+        return SeatEventFilterResult::passthrough;
+    });
+}
+
 auto wm_constrain_pointer(WmWindow* window, SceneInputRegion* input_region, region2f32 region, WmPointerConstraintType type) -> Ref<WmPointerConstraint>
 {
     auto constraint = ref_create<WmPointerConstraint>();

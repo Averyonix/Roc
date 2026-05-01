@@ -6,6 +6,7 @@
 
 #include <wayland/client/xdg-shell.h>
 #include <wayland/client/xdg-decoration-unstable-v1.h>
+#include <wayland/client/cursor-shape-v1.h>
 #include <wayland/client/relative-pointer-unstable-v1.h>
 #include <wayland/client/pointer-constraints-unstable-v1.h>
 #include <wayland/client/linux-dmabuf-v1.h>
@@ -76,6 +77,7 @@ struct IoWayland
     IO_WL_INTERFACE(zwp_pointer_constraints_v1);
     IO_WL_INTERFACE(zwp_linux_dmabuf_v1);
     IO_WL_INTERFACE(wp_linux_drm_syncobj_manager_v1);
+    IO_WL_INTERFACE(wp_cursor_shape_manager_v1);
 
     struct {
         std::vector<std::pair<GpuFormat, GpuDrmModifier>> table;
@@ -161,6 +163,7 @@ struct IoWaylandPointer : IoInputDeviceBase
 {
     IO_WL_INTERFACE(wl_pointer);
     IO_WL_INTERFACE(zwp_relative_pointer_v1);
+    IO_WL_INTERFACE(wp_cursor_shape_device_v1);
 
     Weak<IoOutput> current_output;
     u32 last_serial;

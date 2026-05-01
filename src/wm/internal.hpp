@@ -46,6 +46,7 @@ struct WmServer
 
     WmPointerConstraint* active_pointer_constraint;
     std::vector<WmPointerConstraint*> pointer_constraints;
+    Ref<SeatEventFilter> pointer_constraints_filter;
 
     struct {
         IoContext*          context;
@@ -163,6 +164,7 @@ struct WmPointerConstraint
     ~WmPointerConstraint();
 };
 
+void wm_pointer_constraints_init(WmServer*);
 void wm_update_active_pointer_constraint(WmServer*);
 auto wm_pointer_constraint_apply(WmServer*, vec2f32 position, vec2f32 delta) -> vec2f32;
 
