@@ -142,7 +142,7 @@ void way_xdg_surface_configure(WaySurface* surface)
 {
     auto* server = surface->client->server;
     surface->xdg->sent_serial = way_next_serial(server);
-    way_send(xdg_surface, configure, surface->xdg->resource, surface->xdg->sent_serial.value);
+    way_send<xdg_surface_send_configure>(surface->xdg->resource, surface->xdg->sent_serial.value);
 }
 
 // -----------------------------------------------------------------------------
@@ -164,7 +164,7 @@ void way_toplevel_on_map_change(WaySurface* surface, bool mapped)
 static
 void configure_toplevel(WayToplevel* toplevel, vec2u32 extent)
 {
-    way_send(xdg_toplevel, configure, toplevel->resource,
+    way_send<xdg_toplevel_send_configure>(toplevel->resource,
         extent.x, extent.y,
         ptr_to(way_from_span<const xdg_toplevel_state>({
             XDG_TOPLEVEL_STATE_ACTIVATED,
@@ -213,14 +213,14 @@ void way_toplevel_on_reposition(WaySurface* surface, rect2f32 frame, vec2f32 gra
 
 void way_toplevel_on_close(WaySurface* surface)
 {
-    way_send(xdg_toplevel, close, surface->toplevel->resource);
+    way_send<xdg_toplevel_send_close>(surface->toplevel->resource);
 }
 
 static
 void send_premap_configure(WayToplevel* toplevel)
 {
     if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION) {
-        way_send(xdg_toplevel, wm_capabilities, toplevel->resource, ptr_to(way_from_span<const xdg_toplevel_wm_capabilities>({
+        way_send<xdg_toplevel_send_wm_capabilities>(toplevel->resource, ptr_to(way_from_span<const xdg_toplevel_wm_capabilities>({
             XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN,
             XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE,
             XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE,

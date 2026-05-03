@@ -45,8 +45,8 @@ WAY_BIND_GLOBAL(wl_shm, bind)
 {
     auto resource = way_resource_create_unsafe(wl_shm, bind.client, bind.version, bind.id, bind.server);
 
-    way_send(wl_shm, format, resource, WL_SHM_FORMAT_ARGB8888);
-    way_send(wl_shm, format, resource, WL_SHM_FORMAT_XRGB8888);
+    way_send<wl_shm_send_format>(resource, WL_SHM_FORMAT_ARGB8888);
+    way_send<wl_shm_send_format>(resource, WL_SHM_FORMAT_XRGB8888);
 }
 
 // -----------------------------------------------------------------------------

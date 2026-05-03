@@ -115,15 +115,15 @@ void on_active(WayPointerConstraint* constraint, bool active)
 
     if (wl_resource_get_interface(constraint->resource) == &zwp_locked_pointer_v1_interface) {
         if (active) {
-            way_send(zwp_locked_pointer_v1, locked,   constraint->resource);
+            way_send<zwp_locked_pointer_v1_send_locked>(  constraint->resource);
         } else {
-            way_send(zwp_locked_pointer_v1, unlocked, constraint->resource);
+            way_send<zwp_locked_pointer_v1_send_unlocked>(constraint->resource);
         }
     } else if (wl_resource_get_interface(constraint->resource) == &zwp_confined_pointer_v1_interface) {
         if (active) {
-            way_send(zwp_confined_pointer_v1, confined,   constraint->resource);
+            way_send<zwp_confined_pointer_v1_send_confined>(  constraint->resource);
         } else {
-            way_send(zwp_confined_pointer_v1, unconfined, constraint->resource);
+            way_send<zwp_confined_pointer_v1_send_unconfined>(constraint->resource);
         }
     }
 }

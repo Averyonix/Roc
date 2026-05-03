@@ -19,12 +19,12 @@ void create_data_source(wl_client* wl_client, wl_resource* resource, u32 id)
 
 void WayDataSource::on_cancel()
 {
-    way_send(wl_data_source, cancelled, resource);
+    way_send<wl_data_source_send_cancelled>(resource);
 }
 
 void WayDataSource::on_send(const char* mime, fd_t fd)
 {
-    way_send(wl_data_source, send, resource, mime, fd);
+    way_send<wl_data_source_send_send>(resource, mime, fd);
 }
 
 WayDataSource::~WayDataSource()
@@ -98,7 +98,7 @@ void start_drag(
     log_error("TODO - wl_data_device{{{}}}::start_drag", (void*)data_device);
     if (data_source) {
         log_error("     - cancelling drag for wl_data_source{{{}}}", (void*)data_source);
-        way_send(wl_data_source, cancelled, data_source);
+        way_send<wl_data_source_send_cancelled>(data_source);
     }
 }
 
@@ -127,13 +127,13 @@ auto make_offer(WayClientSeat* client_seat, wl_resource* wl_data_device, SeatDat
 
     offer->resource = way_resource_create_refcounted(wl_data_offer, client_seat->client->wl_client, wl_data_device, 0, offer.get());
 
-    way_send(wl_data_device, data_offer, wl_data_device, offer->resource);
+    way_send<wl_data_device_send_data_offer>(wl_data_device, offer->resource);
     for (auto& mime : seat_data_source_get_offered(offer->source.get())) {
-        way_send(wl_data_offer, offer, offer->resource, mime.c_str());
+        way_send<wl_data_offer_send_offer>(offer->resource, mime.c_str());
     }
 
     if (wl_resource_get_version(offer->resource) >= WL_DATA_OFFER_SOURCE_ACTIONS_SINCE_VERSION) {
-        way_send(wl_data_offer, source_actions, offer->resource, 0);
+        way_send<wl_data_offer_send_source_actions>(offer->resource, 0);
     }
 
     return offer;
@@ -149,6 +149,6 @@ void way_data_offer_selection(WayClientSeat* client_seat)
 
     for (auto* wl_data_device : client_seat->data_devices) {
         auto offer = make_offer(client_seat, wl_data_device, source);
-        way_send(wl_data_device, selection, wl_data_device, offer->resource);
+        way_send<wl_data_device_send_selection>(wl_data_device, offer->resource);
     }
 }

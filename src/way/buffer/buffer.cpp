@@ -51,6 +51,6 @@ void WayBuffer::release()
     if (release_point.syncobj) {
         gpu_syncobj_signal_value(release_point.syncobj.get(), release_point.value);
     } else {
-        way_send(wl_buffer, release, _resource);
+        way_send<wl_buffer_send_release>(_resource);
     }
 }
