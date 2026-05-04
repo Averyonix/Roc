@@ -25,7 +25,7 @@ auto generate_formats() -> std::vector<GpuFormatInfo>
 
         // Find matching _SRGB VkFormat if present
         if (auto vk_name = std::string_view(string_VkFormat(vk)); vk_name.ends_with("_UNORM")) {
-            auto vk_formats = magic_enum::enum_values<VkFormat>();
+            auto vk_formats = enum_values<VkFormat>();
             auto srgb_name = std::format("{}{}", vk_name.substr(0, vk_name.size() - 6), "_SRGB");
             auto srgb = std::ranges::find(vk_formats, srgb_name, string_VkFormat);
             if (srgb != vk_formats.end()) info.vk_srgb = *srgb;

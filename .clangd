@@ -1,5 +1,5 @@
 CompileFlags:
-    Remove: [-fmodules-ts, -fmodule-mapper=*, -fdeps-format=*]
+    Remove: [-fmodules-ts, -fmodule-mapper=*, -fdeps-format=*, -freflection]
     Add:    [-Wno-unused-function]
     CompilationDatabase: .build
 

@@ -35,6 +35,7 @@
 #include <flat_map>
 #include <mutex>
 #include <deque>
+#include <meta>
 
 #include <cstring>
 #include <csignal>
@@ -91,8 +92,10 @@ extern "C" {
 
 // -----------------------------------------------------------------------------
 
+#ifndef __cpp_lib_reflection
 #define MAGIC_ENUM_ENABLE_HASH
 #include <magic_enum/magic_enum.hpp>
+#endif
 
 // -----------------------------------------------------------------------------
 

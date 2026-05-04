@@ -48,6 +48,8 @@ function(init_target target_name)
             )
     elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${target_name} PRIVATE
+            -freflection
+
             -Wno-changes-meaning # we use `foo* foo` a lot in wayland protocol bindings
             -Wno-maybe-uninitialized
             )

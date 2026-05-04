@@ -2,6 +2,7 @@
 
 #include "types.hpp"
 #include "object.hpp"
+#include "enum.hpp"
 
 // -----------------------------------------------------------------------------
 //      Enum Map
@@ -10,12 +11,10 @@
 template<typename E, typename T>
 struct EnumMap
 {
-    T _data[magic_enum::enum_count<E>()];
+    T _data[enum_values<E>().size()];
 
-    static constexpr auto enum_values = magic_enum::enum_values<E>();
-
-    constexpr auto operator[](E value)       ->       T& { return _data[magic_enum::enum_index(value).value()]; }
-    constexpr auto operator[](E value) const -> const T& { return _data[magic_enum::enum_index(value).value()]; }
+    constexpr auto operator[](E value)       ->       T& { return _data[enum_index(value).value()]; }
+    constexpr auto operator[](E value) const -> const T& { return _data[enum_index(value).value()]; }
 };
 
 // -----------------------------------------------------------------------------

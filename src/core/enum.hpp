@@ -2,13 +2,73 @@
 
 #include "types.hpp"
 
+#if __cpp_lib_reflection
+template<typename E>
+    requires (std::meta::is_enumerable_type(^^E))
+constexpr
+auto enum_values() -> std::span<const E>
+{
+    return std::define_static_array(std::meta::enumerators_of(^^E)
+        | std::views::transform([](std::meta::info e) {
+            return std::meta::extract<E>(e);
+        }));
+}
+
+template<typename E>
+    requires (std::meta::is_enumerable_type(^^E))
+constexpr
+auto enum_index(E value) -> std::optional<usz>
+{
+    usz i = 0;
+    template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^E))) {
+        if (value == [:e:]) return i;
+        i++;
+    }
+    return std::nullopt;
+}
+
+template<typename E, bool Enumerable = std::meta::is_enumerable_type(^^E)>
+    requires std::is_enum_v<E>
+constexpr
+auto enum_to_string(E value) -> std::string_view
+{
+    if constexpr (Enumerable) {
+        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^E))) {
+            if (value == [:e:]) return std::meta::identifier_of(e);
+        }
+    }
+  return "";
+}
+#else
+template<typename E>
+constexpr
+auto enum_values() -> std::span<const E>
+{
+    return magic_enum::enum_values<E>();
+}
+
+template<typename E>
+constexpr
+auto enum_index(E e) -> std::optional<usz>
+{
+    return magic_enum::enum_index(e);
+}
+
+template<typename E>
+constexpr
+auto enum_to_string(E e) -> std::string_view
+{
+    return magic_enum::enum_name(e);
+}
+#endif
+
 template<typename E>
     requires std::is_enum_v<E>
 struct std::formatter<E> {
     constexpr auto parse(auto& ctx) { return ctx.begin(); }
     constexpr auto format(E v, auto& ctx) const
     {
-        return std::format_to(ctx.out(), "{}", magic_enum::enum_name(v));
+        return std::format_to(ctx.out(), "{}", enum_to_string(v));
     }
 };
 
@@ -62,21 +122,35 @@ constexpr Flags<E> operator|(E a, E b)
 
 template<typename E>
     requires std::is_enum_v<E>
-struct std::formatter<Flags<E>> {
+struct std::formatter<Flags<E>>
+{
     constexpr auto parse(auto& ctx) { return ctx.begin(); }
     constexpr auto format(Flags<E> bitfield, auto& ctx) const
     {
-        using Type = Flags<E>::underlying_type;
-        // TODO: This breaks with enum flags with higher bits using magic_enum, switch to reflection
-        Type v = bitfield.value;
         bool first = true;
         auto out = ctx.out();
-        while (v) {
-            Type lsb = Type(1) << std::countr_zero(v);
+        auto append = [&]<typename ...Args>(std::format_string<Args...> fmt, Args&&... args) {
             if (!std::exchange(first, false)) out = std::format_to(out, "|");
-            first = false;
-            out = std::format_to(out, "{}", magic_enum::enum_name(E(lsb)));
-            v &= ~lsb;
+            out = std::format_to(out, fmt, std::forward<Args>(args)...);
+        };
+
+#if __cpp_lib_reflection
+        template for (constexpr auto n : std::define_static_array(std::meta::enumerators_of(^^E))) {
+            if (bitfield.contains([:n:])) {
+                append("{}", std::string_view(std::meta::identifier_of(n)));
+                bitfield -= [:n:];
+            }
+        }
+#else
+        for (auto n : magic_enum::enum_values<E>()) {
+            if (bitfield.contains(n)) {
+                append("{}", magic_enum::enum_name(n));
+                bitfield -= n;
+            }
+        }
+#endif
+        if (bitfield) {
+            append("<{:#b}>", std::to_underlying(bitfield.get()));
         }
         return out;
     }

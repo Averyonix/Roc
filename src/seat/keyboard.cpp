@@ -44,7 +44,7 @@ auto get_modifiers(SeatKeyboard* keyboard, Flags<xkb_state_component> component)
 {
     Flags<SeatModifier> down = {};
     auto xkb_mods = xkb_state_serialize_mods(keyboard->state, component.get());
-    for (auto mod : keyboard->mod_masks.enum_values) {
+    for (auto mod : enum_values<SeatModifier>()) {
         if (xkb_mods & keyboard->mod_masks[mod]) down |= mod;
     }
     return down;

@@ -11,7 +11,7 @@ auto wm_create(const WmServerCreateInfo& info) -> Ref<WmServer>
     wm->seat_manager = seat_manager_create();
 
     wm->scene = scene_create(wm->gpu);
-    for (auto layer : magic_enum::enum_values<WmLayer>()) {
+    for (auto layer : enum_values<WmLayer>()) {
         auto* tree = (wm->layers[layer] = scene_tree_create()).get();
         scene_tree_place_above(scene_get_root(wm->scene.get()), nullptr, tree);
     }
