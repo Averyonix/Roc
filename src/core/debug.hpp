@@ -6,7 +6,7 @@ CORE_NOINLINE inline
 void debug_break()
 {
     std::cerr << std::stacktrace::current() << std::endl;
-    raise(SIGTRAP);
+    std::breakpoint();
 }
 
 [[noreturn]] CORE_NOINLINE inline

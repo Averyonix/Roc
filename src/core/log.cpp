@@ -8,7 +8,7 @@
 #define VT_COLOR_RESET "\u001B[0m"
 #define VT_COLOR(color, text) VT_COLOR_BEGIN(color) text VT_COLOR_RESET
 
-static struct {
+struct LogState {
     std::ofstream log_file;
 
     struct {
@@ -21,55 +21,71 @@ static struct {
 
     StacktraceCache stacktraces;
     std::recursive_mutex mutex;
-} log_state = {};
+};
+
+static LogState* log_state;
+
+void log_init(const char* log_path)
+{
+    log_state = new LogState {};
+
+    if (log_path) {
+        log_state->log_file = std::ofstream(log_path);
+    }
+}
+
+void log_deinit()
+{
+    delete log_state;
+}
 
 auto log_history_is_enabled() -> bool
 {
-    std::scoped_lock _ { log_state.mutex };
+    std::scoped_lock _ { log_state->mutex };
 
-    return log_state.history.enabled;
+    return log_state->history.enabled;
 }
 
 void log_history_enable(bool enabled)
 {
-    std::scoped_lock _ { log_state.mutex };
+    std::scoped_lock _ { log_state->mutex };
 
-    log_state.history.enabled = enabled;
+    log_state->history.enabled = enabled;
 }
 
 void log_history_add_listener(std::move_only_function<void(LogEntry*)> listener)
 {
-    log_state.history.listeners.emplace_back(std::move(listener));
+    log_state->history.listeners.emplace_back(std::move(listener));
 }
 
 void log_history_clear()
 {
-    std::scoped_lock _ { log_state.mutex };
+    std::scoped_lock _ { log_state->mutex };
 
-    log_state.history.buffer.clear();
-    log_state.history.entries.clear();
-    log_state.history.lines = 0;
+    log_state->history.buffer.clear();
+    log_state->history.entries.clear();
+    log_state->history.lines = 0;
 }
 
 auto log_history_get() -> LogHistory
 {
-    std::unique_lock lock { log_state.mutex };
+    std::unique_lock lock { log_state->mutex };
     return {
         std::move(lock),
-        log_state.history.entries,
-        log_state.history.lines,
-        log_state.history.buffer.size()
+        log_state->history.entries,
+        log_state->history.lines,
+        log_state->history.buffer.size()
     };
 }
 
 auto LogEntry::message() const noexcept -> std::string_view
 {
-    return std::string_view(log_state.history.buffer).substr(start, len);
+    return std::string_view(log_state->history.buffer).substr(start, len);
 }
 
 auto LogHistory::find(u32 line) const noexcept -> const LogEntry*
 {
-    auto& state = log_state;
+    auto& state = *log_state;
 
     struct Compare
     {
@@ -98,7 +114,7 @@ auto LogHistory::find(u32 line) const noexcept -> const LogEntry*
 
 void log(LogSemantic semantic, std::string_view message)
 {
-    auto& state = log_state;
+    auto& state = *log_state;
 
     // Strip trailing newlines
     while (message.ends_with('\n')) message.remove_suffix(1);
@@ -114,7 +130,7 @@ void log(LogSemantic semantic, std::string_view message)
             state.log_file << std::format("s  {}\n", (void*)stacktrace);
             for (auto& entry : *stacktrace) {
                 if (entry.source_file().empty() && entry.description().empty()) continue;
-                state.log_file << std::format("se {} \"{}\" {}\n", entry.source_line(), entry.source_file().c_str(), entry.description());
+                state.log_file << std::format("se {} \"{}\" {}\n", entry.source_line(), entry.source_file(), entry.description());
                 state.log_file.flush();
             }
         }
@@ -160,9 +176,4 @@ void log(LogSemantic semantic, std::string_view message)
         }
         state.log_file.flush();
     }
-}
-
-void log_set_file(const std::filesystem::path& log_file)
-{
-    log_state.log_file = std::ofstream(log_file);
 }

@@ -55,13 +55,23 @@ struct FdRegistry
 };
 
 static
-FdRegistry fds;
+FdRegistry* fds;
+
+void fd_registry_init()
+{
+    fds = new FdRegistry {};
+}
+
+void fd_registry_deinit()
+{
+    delete fds;
+}
 
 auto fd_get_ref_count(fd_t fd) -> u32
 {
     if (!fd_is_valid(fd)) return 0;
 
-    return fds.ref_counts[fd];
+    return fds->ref_counts[fd];
 }
 
 #define NOISY_FDS 0
@@ -76,8 +86,8 @@ auto fd_add_ref(fd_t fd) -> fd_t
 {
     if (!fd_is_valid(fd)) return -1;
 
-    FD_LOG("fd_add_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] + 1);
-    fds.ref_counts[fd]++;
+    FD_LOG("fd_add_ref({}) {} -> {}", fd, fds->ref_counts[fd], fds->ref_counts[fd] + 1);
+    fds->ref_counts[fd]++;
     return fd;
 }
 
@@ -93,8 +103,8 @@ auto fd_remove_ref(fd_t fd) -> fd_t
 {
     if (!fd_is_valid(fd)) return -1;
 
-    FD_LOG("fd_remove_ref({}) {} -> {}", fd, fds.ref_counts[fd], fds.ref_counts[fd] - 1);
-    if (!--fds.ref_counts[fd]) {
+    FD_LOG("fd_remove_ref({}) {} -> {}", fd, fds->ref_counts[fd], fds->ref_counts[fd] - 1);
+    if (!--fds->ref_counts[fd]) {
         destroy_fd(fd);
         return -1;
     }
@@ -106,7 +116,7 @@ auto fd_extract(fd_t fd) -> fd_t
 {
     debug_assert(fd_is_valid(fd));
     debug_assert(fd_get_ref_count(fd) == 1);
-    fds.ref_counts[fd] = 0;
+    fds->ref_counts[fd] = 0;
     return fd;
 }
 

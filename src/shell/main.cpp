@@ -7,7 +7,14 @@
 
 auto main(int argc, char* argv[]) -> int
 {
-    log_set_file(PROGRAM_NAME ".log");
+    log_init(PROGRAM_NAME ".log");
+    fd_registry_init();
+    registry_init();
+    defer {
+        registry_deinit();
+        fd_registry_deinit();
+        log_deinit();
+    };
 
     log_info("{} ({:n:})", PROJECT_NAME, std::span<const char* const>(argv, argc));
 

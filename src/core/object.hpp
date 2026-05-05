@@ -37,6 +37,9 @@ struct RegistryStats
     u32 inactive_allocations;
 };
 
+void registry_init();
+void registry_deinit();
+
 auto registry_get_stats() -> RegistryStats;
 
 auto registry_allocate(u8 bin) -> Allocation*;

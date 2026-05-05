@@ -13,6 +13,9 @@ enum class LogSemantic : u32
     fatal,
 };
 
+void log_init(const char* log_path);
+void log_deinit();
+
 void log_set_file(const std::filesystem::path& log_file);
 void log(LogSemantic, std::string_view message);
 

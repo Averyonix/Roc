@@ -10,6 +10,11 @@ static constexpr fd_t fd_limit = 1024;
 
 // -----------------------------------------------------------------------------
 
+void fd_registry_init();
+void fd_registry_deinit();
+
+// -----------------------------------------------------------------------------
+
 auto fd_are_same(fd_t fd0, fd_t fd1) -> bool;
 auto fd_dup_unsafe(fd_t fd) -> fd_t;
 

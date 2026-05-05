@@ -48,11 +48,11 @@ auto shell_init_background(Shell* shell) -> Ref<void>
     int num_channels = {};
     stbi_uc* data = stbi_load(shell->wallpaper.c_str(), &w, &h, &num_channels, STBI_rgb_alpha);
     if (!data || !w || !h) {
-        log_error("WALLPAPER [{}] could not be loaded", shell->wallpaper.c_str());
+        log_error("WALLPAPER [{}] could not be loaded", shell->wallpaper);
         return {};
     }
     defer { stbi_image_free(data); };
-    log_info("Loaded background ({}, {}x{})", shell->wallpaper.c_str(), w, h);
+    log_info("Loaded background ({}, {}x{})", shell->wallpaper, w, h);
 
     auto bg = ref_create<ShellBackground>();
     bg->shell = shell;

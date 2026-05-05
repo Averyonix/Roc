@@ -26,7 +26,17 @@ struct Registry
     ~Registry();
 };
 
-static struct Registry registry;
+static struct Registry* registry;
+
+void registry_init()
+{
+    registry = new Registry {};
+}
+
+void registry_deinit()
+{
+    delete registry;
+}
 
 // -----------------------------------------------------------------------------
 
@@ -62,7 +72,7 @@ Registry::~Registry()
 
 auto registry_get_stats() -> RegistryStats
 {
-    return registry.stats;
+    return registry->stats;
 }
 
 // -----------------------------------------------------------------------------
@@ -70,9 +80,9 @@ auto registry_get_stats() -> RegistryStats
 auto registry_allocate(u8 bin_idx) -> Allocation*
 {
     auto size = 1 << bin_idx;
-    auto& bin = registry.bins[bin_idx];
+    auto& bin = registry->bins[bin_idx];
 
-    registry.stats.active_allocations++;
+    registry->stats.active_allocations++;
 
     Allocation* header;
     if (bin.empty()) {
@@ -82,7 +92,7 @@ auto registry_allocate(u8 bin_idx) -> Allocation*
     } else {
         header = bin.back();
         bin.pop_back();
-        registry.stats.inactive_allocations--;
+        registry->stats.inactive_allocations--;
     }
 
     header->ref_count = 1;
@@ -92,8 +102,8 @@ auto registry_allocate(u8 bin_idx) -> Allocation*
 
 void registry_free(Allocation* header, u8 bin)
 {
-    registry.stats.active_allocations--;
-    registry.stats.inactive_allocations++;
+    registry->stats.active_allocations--;
+    registry->stats.inactive_allocations++;
 
     header->version++;
 
@@ -104,8 +114,8 @@ void registry_free(Allocation* header, u8 bin)
 #endif
 
 #if REGISTRY_DONT_FREE
-    registry.debug.freed.emplace_back(header);
+    registry->debug.freed.emplace_back(header);
 #else
-    registry.bins[bin].emplace_back(header);
+    registry->bins[bin].emplace_back(header);
 #endif
 }

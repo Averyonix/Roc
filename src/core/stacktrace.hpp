@@ -44,7 +44,7 @@ struct std::formatter<Stacktrace> {
         for (u32 i = 0; i < st.entries.size(); ++i) {
             if (!std::exchange(first, false)) out = std::format_to(out, "\n");
             auto& e = st.entries[i];
-            out = std::format_to(out, "{:4}# {:4} at {}:{}", i, e.description(), e.source_file().c_str(), e.source_line());
+            out = std::format_to(out, "{:4}# {:4} at {}:{}", i, e.description(), e.source_file(), e.source_line());
         }
         return ctx.out();
     }

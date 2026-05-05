@@ -36,6 +36,7 @@
 #include <mutex>
 #include <deque>
 #include <meta>
+#include <debugging>
 
 #include <cstring>
 #include <csignal>
