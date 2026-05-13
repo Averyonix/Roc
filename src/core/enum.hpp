@@ -30,7 +30,7 @@ auto enum_index(E value) -> std::optional<usz>
 template<typename E, bool Enumerable = std::meta::is_enumerable_type(^^E)>
     requires std::is_enum_v<E>
 constexpr
-auto enum_to_string(E value) -> std::string_view
+auto enum_name(E value) -> std::string_view
 {
     if constexpr (Enumerable) {
         template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^E))) {
@@ -56,7 +56,7 @@ auto enum_index(E e) -> std::optional<usz>
 
 template<typename E>
 constexpr
-auto enum_to_string(E e) -> std::string_view
+auto enum_name(E e) -> std::string_view
 {
     return magic_enum::enum_name(e);
 }
@@ -68,7 +68,7 @@ struct std::formatter<E> {
     constexpr auto parse(auto& ctx) { return ctx.begin(); }
     constexpr auto format(E v, auto& ctx) const
     {
-        return std::format_to(ctx.out(), "{}", enum_to_string(v));
+        return std::format_to(ctx.out(), "{}", enum_name(v));
     }
 };
 

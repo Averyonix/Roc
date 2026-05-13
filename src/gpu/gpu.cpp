@@ -259,13 +259,13 @@ auto VKAPI_CALL debug_callback(
         usz max_index_width = std::to_string(data->objectCount).length();
         usz max_type_len = 0;
         for (auto& object : objects) {
-            max_type_len = std::max(max_type_len, strlen(string_VkObjectType(object.objectType)));
+            max_type_len = std::max(max_type_len, enum_name(object.objectType).size());
         }
 
         // Print objects
         for (auto[i, object] : objects | std::views::enumerate) {
             auto prefix = sizeof("VK_OBJECT_TYPE_") - 1;
-            auto type_name = std::string_view(string_VkObjectType(object.objectType)).substr(prefix);
+            auto type_name = enum_name(object.objectType).substr(prefix);
             auto type_width = max_type_len - prefix;
 
             // clangd fails on the nested string width parameter, so we uese vformat directly

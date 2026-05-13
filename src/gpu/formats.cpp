@@ -2,67 +2,6 @@
 
 #include <core/util.hpp>
 
-auto generate_formats() -> std::vector<GpuFormatInfo>
-{
-#include "formats.inl"
-
-    std::vector<GpuFormatInfo> formats;
-
-    formats.emplace_back(GpuFormatInfo { .name = "UNDEFINED" });
-
-    for (auto[drm, vk, vk_flags] : drm_to_vk) {
-        auto fourcc = drmGetFormatName(drm);
-        defer { free(fourcc); };
-
-        auto& info = formats.emplace_back(GpuFormatInfo {
-            .name = fourcc,
-            .is_ycbcr = vkuFormatRequiresYcbcrConversion(vk),
-            .drm = drm,
-            .vk = vk,
-            .vk_flags = vk_flags,
-            .info = vkuGetFormatInfo(vk),
-        });
-
-        // Find matching _SRGB VkFormat if present
-        if (auto vk_name = std::string_view(string_VkFormat(vk)); vk_name.ends_with("_UNORM")) {
-            auto vk_formats = enum_values<VkFormat>();
-            auto srgb_name = std::format("{}{}", vk_name.substr(0, vk_name.size() - 6), "_SRGB");
-            auto srgb = std::ranges::find(vk_formats, srgb_name, string_VkFormat);
-            if (srgb != vk_formats.end()) info.vk_srgb = *srgb;
-        }
-    }
-
-    debug_assert(formats.size() < std::numeric_limits<decltype(GpuFormat::index)>::max());
-
-    return formats;
-}
-
-static
-const std::vector<GpuFormatInfo> gpu_format_infos = generate_formats();
-
-auto gpu_get_format_infos() -> std::span<const GpuFormatInfo>
-{
-    return gpu_format_infos;
-}
-
-// -----------------------------------------------------------------------------
-
-auto gpu_format_from_drm(GpuDrmFormat drm_format) -> GpuFormat
-{
-    for (auto[i, f] : gpu_format_infos | std::views::enumerate) {
-        if (f.drm == drm_format) return GpuFormat(i);
-    }
-    return {};
-}
-
-auto gpu_format_from_vulkan(VkFormat vk_format, Flags<GpuVulkanFormatFlag> vk_flags) -> GpuFormat
-{
-    for (auto[i, f] : gpu_format_infos | std::views::enumerate) {
-        if (f.vk == vk_format && f.vk_flags == vk_flags) return GpuFormat(i);
-    }
-    return {};
-}
-
 static
 auto query_format_support(
     Gpu* gpu,

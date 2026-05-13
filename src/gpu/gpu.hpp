@@ -56,9 +56,7 @@ enum class GpuVulkanFormatFlag : u32
 
 struct GpuFormatInfo
 {
-    std::string name;
-
-    bool is_ycbcr;
+    std::string_view name;
 
     GpuDrmFormat drm;
 
@@ -66,7 +64,11 @@ struct GpuFormatInfo
     VkFormat vk_srgb;
     Flags<GpuVulkanFormatFlag> vk_flags;
 
-    VKU_FORMAT_INFO info;
+    bool is_ycbcr;
+
+    u32 texel_block_size; // bytes
+    u32 texels_per_block;
+    VkExtent3D block_extent;
 };
 
 auto gpu_get_format_infos() -> std::span<const GpuFormatInfo>;

@@ -121,8 +121,6 @@ extern "C" {
 
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
-#include <vulkan/vk_enum_string_helper.h>
-#include <vulkan/utility/vk_format_utils.h>
 
 #include <vk_mem_alloc.h>
 

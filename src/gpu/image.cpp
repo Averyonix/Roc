@@ -228,13 +228,11 @@ void gpu_copy_memory_to_image(GpuImage* image, std::span<const byte> data, std::
 
 auto gpu_image_compute_linear_offset(GpuFormat format, vec2u32 pos, u32 row_stride_bytes) -> u32
 {
-    auto& fmt = format->info;
-
-    u32 block_x = pos.x / fmt.block_extent.width;
-    u32 block_y = pos.y / fmt.block_extent.height;
+    u32 block_x = pos.x / format->block_extent.width;
+    u32 block_y = pos.y / format->block_extent.height;
 
     return block_y * row_stride_bytes
-         + block_x * fmt.texel_block_size;
+         + block_x * format->texel_block_size;
 }
 
 // -----------------------------------------------------------------------------

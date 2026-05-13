@@ -126,12 +126,11 @@ add_subdirectory(${VENDOR_DIR}/concurrent-queue EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
-add_subdirectory(${VENDOR_DIR}/vulkan-headers           EXCLUDE_FROM_ALL)
-add_subdirectory(${VENDOR_DIR}/vulkan-utility-libraries EXCLUDE_FROM_ALL)
+add_subdirectory(${VENDOR_DIR}/vulkan-headers EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
-add_subdirectory(${VENDOR_DIR}/vulkan-memory-allocator  EXCLUDE_FROM_ALL)
+add_subdirectory(${VENDOR_DIR}/vulkan-memory-allocator EXCLUDE_FROM_ALL)
 
 add_library(vma-object)
 target_generated_source(   vma-object PRIVATE vk_mem_alloc.cpp "#define VMA_IMPLEMENTATION" "#include <vk_mem_alloc.h>")
@@ -171,7 +170,6 @@ target_link_libraries(core PUBLIC
     stdc++exp
     magic_enum::magic_enum
     Vulkan::Headers
-    Vulkan::UtilityHeaders
     vma-object
     stb-image
     glm::glm
@@ -204,6 +202,7 @@ target_sources(gpu PRIVATE
     src/gpu/commands.cpp
     src/gpu/semaphore.cpp
     src/gpu/image-pool.cpp
+    .build/formats/formats.cpp
     )
 target_link_libraries(gpu PUBLIC core shaders)
 

@@ -177,9 +177,8 @@ auto WayShmBuffer::do_acquire(WaySurface* surface, WayDamageRegion damage, Flags
         log_trace("  damage {}", rect);
 #endif
 
-        auto& info = format->info;
         auto read_start = gpu_image_compute_linear_offset(format, aabb.min,     stride);
-        auto read_end   = gpu_image_compute_linear_offset(format, aabb.max - 1, stride) + info.texel_block_size;
+        auto read_end   = gpu_image_compute_linear_offset(format, aabb.max - 1, stride) + format->texel_block_size;
 
         debug_assert((offset + read_end) <= pool->size, "accessed {} > available {}", offset + read_end, pool->size);
         gpu_copy_memory_to_image(image.get(),
@@ -187,7 +186,7 @@ auto WayShmBuffer::do_acquire(WaySurface* surface, WayDamageRegion damage, Flags
             {{{
                 .image_extent = rect.extent,
                 .image_offset = rect.origin,
-                .buffer_row_length = u32(stride) / info.texel_block_size,
+                .buffer_row_length = u32(stride) / format->texel_block_size,
             }}});
     }
 #if NOISY_SHM_BUFFER_IMAGES

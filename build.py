@@ -51,6 +51,11 @@ shaders.build_shaders(cwd=cwd, build_dir=build_dir)
 
 # -----------------------------------------------------------------------------
 
+import scripts.formats as formats
+formats.generate_formats(build_dir=build_dir)
+
+# -----------------------------------------------------------------------------
+
 local_bin_dir  = ensure_dir(os.path.expanduser("~/.local/bin"))
 xdg_portal_dir = ensure_dir(os.path.expanduser("~/.config/xdg-desktop-portal"))
 
