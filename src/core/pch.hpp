@@ -93,13 +93,6 @@ extern "C" {
 
 // -----------------------------------------------------------------------------
 
-#ifndef __cpp_lib_reflection
-#define MAGIC_ENUM_ENABLE_HASH
-#include <magic_enum/magic_enum.hpp>
-#endif
-
-// -----------------------------------------------------------------------------
-
 #include <ankerl/unordered_dense.h>
 
 // -----------------------------------------------------------------------------
@@ -119,7 +112,6 @@ extern "C" {
 # define VK_NO_PROTOTYPES
 #endif
 
-#define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
 
 #include <vk_mem_alloc.h>

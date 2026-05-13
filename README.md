@@ -124,7 +124,7 @@ Shell components and compositor entry point
 - xkbcommon
 - libgio2
 - mold (optional)
-- clang/gcc (C++26 capable version at minimum)
+- gcc/clang (C++26 reflection capable)
 - glslang
 
 ### Quickstart

@@ -11,7 +11,7 @@
 template<typename E, typename T>
 struct EnumMap
 {
-    T _data[enum_values<E>().size()];
+    std::array<T, enum_values<E>().size()> _data;
 
     constexpr auto operator[](E value)       ->       T& { return _data[enum_index(value).value()]; }
     constexpr auto operator[](E value) const -> const T& { return _data[enum_index(value).value()]; }

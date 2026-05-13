@@ -20,11 +20,6 @@
             "commit": "18afc45c092857e998c890afce1e7e71f808d819",
             "repo": "https://github.com/KDE/plasma-wayland-protocols.git"
         },
-        "magic-enum": {
-            "branch": "master",
-            "commit": "1384769c66bd16ec9bb1353f45fe8ec8ccc12dbd",
-            "repo": "https://github.com/Neargye/magic_enum.git"
-        },
         "renderdoc": {
             "branch": "v1.x",
             "commit": "c79d939445993666d2355079f5a38fe4c00e7ab0",

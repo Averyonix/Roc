@@ -44,21 +44,21 @@ template<typename E>
 constexpr
 auto enum_values() -> std::span<const E>
 {
-    return magic_enum::enum_values<E>();
+    return {};
 }
 
 template<typename E>
 constexpr
 auto enum_index(E e) -> std::optional<usz>
 {
-    return magic_enum::enum_index(e);
+    return std::nullopt;
 }
 
 template<typename E>
 constexpr
 auto enum_name(E e) -> std::string_view
 {
-    return magic_enum::enum_name(e);
+    return "";
 }
 #endif
 
@@ -139,13 +139,6 @@ struct std::formatter<Flags<E>>
             if (bitfield.contains([:n:])) {
                 append("{}", std::string_view(std::meta::identifier_of(n)));
                 bitfield -= [:n:];
-            }
-        }
-#else
-        for (auto n : magic_enum::enum_values<E>()) {
-            if (bitfield.contains(n)) {
-                append("{}", magic_enum::enum_name(n));
-                bitfield -= n;
             }
         }
 #endif

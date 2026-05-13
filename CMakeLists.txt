@@ -88,10 +88,6 @@ add_subdirectory(.build/wayland EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------------------
 
-add_subdirectory(${VENDOR_DIR}/magic-enum EXCLUDE_FROM_ALL)
-
-# ------------------------------------------------------------------------------
-
 add_library(stb-image)
 target_include_directories(stb-image PUBLIC ${VENDOR_DIR}/stb)
 target_generated_source(stb-image PRIVATE stb_image.c       "#define STB_IMAGE_IMPLEMENTATION 1"       "#include <stb_image.h>")
@@ -168,7 +164,6 @@ target_link_libraries(core PUBLIC
     PkgConfig::libevdev
     input
     stdc++exp
-    magic_enum::magic_enum
     Vulkan::Headers
     vma-object
     stb-image
