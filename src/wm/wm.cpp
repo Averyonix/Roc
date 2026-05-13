@@ -40,6 +40,16 @@ auto wm_get_seat_manager(WmServer* wm) -> SeatManager*
     return wm->seat_manager.get();
 }
 
+auto wm_get_gpu(WmServer* wm) -> Gpu*
+{
+    return wm->gpu;
+}
+
+auto wm_get_exec(WmServer* wm) -> ExecContext*
+{
+    return wm->exec;
+}
+
 auto wm_get_scene(WmServer* wm) -> Scene*
 {
     return wm->scene.get();

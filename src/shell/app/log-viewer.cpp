@@ -8,7 +8,7 @@
 
 struct ShellLogViewer
 {
-    Ref<Ui> ui;
+    Listener<void()> frame;
     Shell* shell;
     bool requested;
     bool show_details;
@@ -30,13 +30,12 @@ auto shell_init_log_viewer(Shell* shell) -> Ref<void>
         if (std::exchange(viewer->requested, true)) return;
         exec_enqueue(viewer->shell->exec, [viewer] {
             if (viewer) {
-                ui_request_frame(viewer->ui.get());
+                ui_request_frame(viewer->shell->ui);
             }
         });
     });
 
-    viewer->ui = ui_create(shell->gpu, shell->wm, shell->app_share / "log-viewer");
-    ui_set_frame_handler(viewer->ui.get(), [viewer = viewer.get()] {
+    viewer->frame = ui_get_signals(shell->ui).frame.listen([viewer = viewer.get()] {
         frame(viewer);
     });
 

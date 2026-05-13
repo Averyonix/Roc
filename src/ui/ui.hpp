@@ -4,21 +4,25 @@
 #include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 
-// -----------------------------------------------------------------------------
+#include <core/signal.hpp>
 
 #include <wm/wm.hpp>
 
-struct Ui;
+struct UiClient;
 
-auto ui_create(Gpu*, WmServer*, const std::filesystem::path& ini_dir) -> Ref<Ui>;
+auto ui_create(WmServer*, const std::filesystem::path& ini_dir) -> Ref<UiClient>;
 
 // -----------------------------------------------------------------------------
 
 using UiFrameFn = void();
 
-void ui_request_frame(Ui*);
-void ui_set_frame_handler(Ui*, std::move_only_function<UiFrameFn>&&);
-auto ui_get_texture(Ui*, GpuImage*, GpuSampler*, GpuBlendMode) -> ImTextureID;
+struct UiSignals
+{
+    Signal<void()> frame;
+};
+auto ui_get_signals(UiClient*) -> UiSignals&;
+void ui_request_frame(UiClient*);
+auto ui_get_texture(UiClient*, GpuImage*, GpuSampler*, GpuBlendMode) -> ImTextureID;
 
 auto ui_get_window(ImGuiWindow*) -> WmWindow*;
 

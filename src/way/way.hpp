@@ -4,7 +4,7 @@
 
 struct WayServer;
 
-auto way_create(ExecContext*, Gpu*, WmServer*) -> Ref<WayServer>;
+auto way_create(WmServer*, ExecContext*) -> Ref<WayServer>;
 
 auto way_server_get_socket(WayServer*) -> const char*;
 

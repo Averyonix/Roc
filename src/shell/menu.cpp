@@ -8,7 +8,7 @@ struct ShellMenu
 {
     Shell* shell;
 
-    Ref<Ui> ui;
+    Listener<void()> frame;
     bool show_demo_window = false;
 };
 
@@ -97,11 +97,10 @@ auto shell_init_menu(Shell* shell) -> Ref<void>
     auto menu = ref_create<ShellMenu>();
     menu->shell = shell;
 
-    menu->ui = ui_create(shell->gpu, shell->wm, shell->app_share / "ui");
-    ui_set_frame_handler(menu->ui.get(), [menu = menu.get()] {
+    menu->frame = ui_get_signals(shell->ui).frame.listen([menu = menu.get()] {
         frame(menu);
     });
-    ui_request_frame(menu->ui.get());
+    ui_request_frame(shell->ui);
 
     return menu;
 }

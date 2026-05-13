@@ -22,6 +22,10 @@ struct WmServerCreateInfo
 
 auto wm_create(const WmServerCreateInfo&) -> Ref<WmServer>;
 
+auto wm_get_gpu(  WmServer*) -> Gpu*;
+auto wm_get_exec( WmServer*) -> ExecContext*;
+auto wm_get_scene(WmServer*) -> Scene*;
+
 enum class WmLayer
 {
     background,
@@ -29,7 +33,6 @@ enum class WmLayer
     overlay,
 };
 
-auto wm_get_scene(WmServer*) -> Scene*;
 auto wm_get_layer(WmServer*, WmLayer) -> SceneTree*;
 
 // -----------------------------------------------------------------------------

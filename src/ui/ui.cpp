@@ -30,9 +30,9 @@ auto to_span(ImVector<T>& v) -> std::span<T>
 }
 
 static
-auto get_context(ImGuiContext* imgui = ImGui::GetCurrentContext()) -> Ui*
+auto get_context(ImGuiContext* imgui = ImGui::GetCurrentContext()) -> UiClient*
 {
-    return static_cast<Ui*>(imgui->IO.BackendPlatformUserData);
+    return static_cast<UiClient*>(imgui->IO.BackendPlatformUserData);
 }
 
 static
@@ -50,7 +50,7 @@ auto get_data(ImGuiViewport* vp) -> UiViewportData*
 // -----------------------------------------------------------------------------
 
 static
-auto find_viewport_for_focus(Ui* ui, SeatFocus* focus) -> ImGuiViewport*
+auto find_viewport_for_focus(UiClient* ui, SeatFocus* focus) -> ImGuiViewport*
 {
     for (auto* vp : get_viewports()) {
         if (auto* data = get_data(vp); data && data->focus.get() == focus) {
@@ -83,7 +83,7 @@ auto ui_get_window(ImGuiWindow* window) -> WmWindow*
 // -----------------------------------------------------------------------------
 
 static
-void handle_reposition(Ui* ui, WmWindow* window, rect2f32 frame)
+void handle_reposition(UiClient* ui, WmWindow* window, rect2f32 frame)
 {
     if (auto* vp = find_viewport_for_window(window)) {
         auto* data = get_data(vp);
@@ -95,7 +95,7 @@ void handle_reposition(Ui* ui, WmWindow* window, rect2f32 frame)
 }
 
 static
-void handle_close(Ui* ui, WmWindow* window)
+void handle_close(UiClient* ui, WmWindow* window)
 {
     if (auto* vp = find_viewport_for_window(window)) {
         vp->PlatformRequestClose = true;
@@ -248,7 +248,7 @@ auto Platform_GetClipboardTextFn(ImGuiContext* imgui) -> const char*
 
 // -----------------------------------------------------------------------------
 
-Ui::~Ui()
+UiClient::~UiClient()
 {
     UiContextGuard _{context};
     ImGui::DestroyPlatformWindows();
@@ -259,14 +259,14 @@ Ui::~Ui()
 // -----------------------------------------------------------------------------
 
 static
-void reset_frame_textures(Ui* ui)
+void reset_frame_textures(UiClient* ui)
 {
     ui->textures.clear();
     // Leave 0 as an invalid texture id
     ui->textures.emplace_back();
 }
 
-auto ui_get_texture(Ui* ui, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend) -> ImTextureID
+auto ui_get_texture(UiClient* ui, GpuImage* image, GpuSampler* sampler, GpuBlendMode blend) -> ImTextureID
 {
     auto idx = ui->textures.size();
     ui->textures.emplace_back(image, sampler, blend);
@@ -276,7 +276,7 @@ auto ui_get_texture(Ui* ui, GpuImage* image, GpuSampler* sampler, GpuBlendMode b
 // -----------------------------------------------------------------------------
 
 static
-void init(Ui* ui, const std::filesystem::path& path)
+void init(UiClient* ui, const std::filesystem::path& path)
 {
     ui->context = ImGui::CreateContext();
     ImGui::SetCurrentContext(nullptr);
@@ -337,7 +337,7 @@ void init(Ui* ui, const std::filesystem::path& path)
 
 // -----------------------------------------------------------------------------
 
-void ui_request_frame(Ui* ui)
+void ui_request_frame(UiClient* ui)
 {
     // Double-pump frames: ImGui always works based on last frame state,
     // so input needs a second frame to react against the updated state.
@@ -346,7 +346,7 @@ void ui_request_frame(Ui* ui)
 }
 
 static
-void render_viewport(Ui* ui, ImGuiViewport* vp)
+void render_viewport(UiClient* ui, ImGuiViewport* vp)
 {
     auto* data = get_data(vp);
     if (!data || !vp->DrawData) return;
@@ -411,7 +411,8 @@ void render_viewport(Ui* ui, ImGuiViewport* vp)
     }
 }
 
-void ui_frame(Ui* ui)
+static
+void frame(UiClient* ui)
 {
     if (!ui->frames_requested) return;
     ui->frames_requested--;
@@ -432,7 +433,7 @@ void ui_frame(Ui* ui)
     ui->last_frame = now;
 
     ImGui::NewFrame();
-    ui->frame_handler();
+    ui->signals.frame();
     ImGui::Render();
 
     if (ui->pointer) {
@@ -456,44 +457,14 @@ void ui_frame(Ui* ui)
 // -----------------------------------------------------------------------------
 
 static
-void handle_seat_event(Ui* ui, SeatEvent* event)
+void handle_event(UiClient* ui, WmEvent* event);
+
+auto ui_create(WmServer* wm, const std::filesystem::path& path) -> Ref<UiClient>
 {
-    switch (event->type) {
-
-        // keyboard
-        break;case SeatEventType::keyboard_enter:
-            ui_handle_keyboard_enter(ui, event->keyboard.keyboard, event->keyboard.focus);
-        break;case SeatEventType::keyboard_leave:
-            ui_handle_keyboard_leave(ui);
-        break;case SeatEventType::keyboard_key:
-            ui_handle_key(ui, event->keyboard.key.code, event->keyboard.key.pressed);
-        break;case SeatEventType::keyboard_modifier:
-            ui_handle_mods(ui);
-
-        // pointer
-        break;case SeatEventType::pointer_enter:
-            ui_handle_pointer_enter(ui, event->pointer.pointer, event->pointer.focus);
-        break;case SeatEventType::pointer_leave:
-            ui_handle_pointer_leave(ui);
-        break;case SeatEventType::pointer_motion:
-            ui_handle_motion(ui);
-        break;case SeatEventType::pointer_button:
-            ui_handle_button(ui, event->pointer.button.code, event->pointer.button.pressed);
-        break;case SeatEventType::pointer_scroll:
-            ui_handle_wheel(ui, event->pointer.scroll.delta);
-
-        // selection
-        break;case SeatEventType::selection:
-            ;
-    }
-}
-
-auto ui_create(Gpu* gpu, WmServer* wm, const std::filesystem::path& path) -> Ref<Ui>
-{
-    auto ui = ref_create<Ui>();
+    auto ui = ref_create<UiClient>();
     ui->wm  = wm;
     ui->client = wm_connect(wm);
-    ui->gpu = gpu;
+    ui->gpu = wm_get_gpu(wm);
     ui->sampler = gpu_sampler_create(ui->gpu, {
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
@@ -503,39 +474,21 @@ auto ui_create(Gpu* gpu, WmServer* wm, const std::filesystem::path& path) -> Ref
 
     wm_listen(ui->client.get(), [ui = ui.get()](WmClient*, WmEvent* event) {
         UiContextGuard _{ui->context};
-        switch (event->type) {
-            // output
-            break;case WmEventType::output_frame:
-                ui_frame(ui);
-            break;case WmEventType::output_layout:
-                ui_handle_output_layout(ui);
-
-            // window
-            break;case WmEventType::window_reposition_requested:
-                handle_reposition(ui, event->window.window, event->window.reposition.frame);
-            break;case WmEventType::window_close_requested:
-                handle_close(ui, event->window.window);
-
-            // seat
-            break;case WmEventType::seat_event:
-                handle_seat_event(ui, event->seat.event);
-
-            break;default:
-                ;
-        }
+        handle_event(ui, event);
     });
 
     return ui;
 }
 
-void ui_set_frame_handler(Ui* ui, std::move_only_function<UiFrameFn>&& handler)
+auto ui_get_signals(UiClient* ui) -> UiSignals&
 {
-    ui->frame_handler = std::move(handler);
+    return ui->signals;
 }
 
 // -----------------------------------------------------------------------------
 
-void ui_handle_keyboard_enter(Ui* ui, SeatKeyboard* keyboard, SeatFocus* focus)
+static
+void handle_keyboard_enter(UiClient* ui, SeatKeyboard* keyboard, SeatFocus* focus)
 {
     ui->keyboard = keyboard;
 
@@ -551,7 +504,8 @@ void ui_handle_keyboard_enter(Ui* ui, SeatKeyboard* keyboard, SeatFocus* focus)
     ui_request_frame(ui);
 }
 
-void ui_handle_keyboard_leave(Ui* ui)
+static
+void handle_keyboard_leave(UiClient* ui)
 {
     ui->seats.emplace(seat_keyboard_get_seat(ui->keyboard));
 
@@ -563,7 +517,8 @@ void ui_handle_keyboard_leave(Ui* ui)
     ui_request_frame(ui);
 }
 
-void ui_handle_key(Ui* ui, SeatInputCode code, bool pressed)
+static
+void handle_key(UiClient* ui, SeatInputCode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
@@ -573,7 +528,8 @@ void ui_handle_key(Ui* ui, SeatInputCode code, bool pressed)
     ui_request_frame(ui);
 }
 
-void ui_handle_mods(Ui* ui)
+static
+void ui_handle_mods(UiClient* ui)
 {
     auto& io = ImGui::GetIO();
 
@@ -587,7 +543,8 @@ void ui_handle_mods(Ui* ui)
     ui_request_frame(ui);
 }
 
-void ui_handle_motion(Ui* ui)
+static
+void handle_motion(UiClient* ui)
 {
     auto& io = ImGui::GetIO();
 
@@ -597,7 +554,8 @@ void ui_handle_motion(Ui* ui)
     ui_request_frame(ui);
 }
 
-void ui_handle_button(Ui* ui, SeatInputCode code, bool pressed)
+static
+void handle_button(UiClient* ui, SeatInputCode code, bool pressed)
 {
     auto& io = ImGui::GetIO();
 
@@ -613,7 +571,8 @@ void ui_handle_button(Ui* ui, SeatInputCode code, bool pressed)
     ui_request_frame(ui);
 }
 
-void ui_handle_wheel(Ui* ui, vec2f32 delta)
+static
+void handle_wheel(UiClient* ui, vec2f32 delta)
 {
     auto& io = ImGui::GetIO();
 
@@ -621,7 +580,8 @@ void ui_handle_wheel(Ui* ui, vec2f32 delta)
     ui_request_frame(ui);
 }
 
-void ui_handle_pointer_enter(Ui* ui, SeatPointer* pointer, SeatFocus* focus)
+static
+void handle_pointer_enter(UiClient* ui, SeatPointer* pointer, SeatFocus* focus)
 {
     ui->pointer = pointer;
 
@@ -637,7 +597,8 @@ void ui_handle_pointer_enter(Ui* ui, SeatPointer* pointer, SeatFocus* focus)
     ui_request_frame(ui);
 }
 
-void ui_handle_pointer_leave(Ui* ui)
+static
+void handle_pointer_leave(UiClient* ui)
 {
     auto& io = ImGui::GetIO();
 
@@ -645,7 +606,7 @@ void ui_handle_pointer_leave(Ui* ui)
     io.AddMousePosEvent(-FLT_MAX,-FLT_MAX);
 
     for (auto code : seat_pointer_get_pressed(ui->pointer)) {
-        ui_handle_button(ui, code, false);
+        handle_button(ui, code, false);
     }
 
     ui->pointer = nullptr;
@@ -653,7 +614,8 @@ void ui_handle_pointer_leave(Ui* ui)
     ui_request_frame(ui);
 }
 
-void ui_handle_output_layout(Ui* ui)
+static
+void handle_output_layout(UiClient* ui)
 {
     auto& platform_io = ImGui::GetPlatformIO();
 
@@ -669,6 +631,66 @@ void ui_handle_output_layout(Ui* ui)
     }
 
     ui_request_frame(ui);
+}
+
+// -----------------------------------------------------------------------------
+
+static
+void handle_seat_event(UiClient* ui, SeatEvent* event)
+{
+    switch (event->type) {
+
+        // keyboard
+        break;case SeatEventType::keyboard_enter:
+            handle_keyboard_enter(ui, event->keyboard.keyboard, event->keyboard.focus);
+        break;case SeatEventType::keyboard_leave:
+            handle_keyboard_leave(ui);
+        break;case SeatEventType::keyboard_key:
+            handle_key(ui, event->keyboard.key.code, event->keyboard.key.pressed);
+        break;case SeatEventType::keyboard_modifier:
+            ui_handle_mods(ui);
+
+        // pointer
+        break;case SeatEventType::pointer_enter:
+            handle_pointer_enter(ui, event->pointer.pointer, event->pointer.focus);
+        break;case SeatEventType::pointer_leave:
+            handle_pointer_leave(ui);
+        break;case SeatEventType::pointer_motion:
+            handle_motion(ui);
+        break;case SeatEventType::pointer_button:
+            handle_button(ui, event->pointer.button.code, event->pointer.button.pressed);
+        break;case SeatEventType::pointer_scroll:
+            handle_wheel(ui, event->pointer.scroll.delta);
+
+        // selection
+        break;case SeatEventType::selection:
+            ;
+    }
+}
+
+static
+void handle_event(UiClient* ui, WmEvent* event)
+{
+    switch (event->type) {
+        // output
+        break;case WmEventType::output_frame:
+            frame(ui);
+        break;case WmEventType::output_layout:
+            handle_output_layout(ui);
+
+        // window
+        break;case WmEventType::window_reposition_requested:
+            handle_reposition(ui, event->window.window, event->window.reposition.frame);
+        break;case WmEventType::window_close_requested:
+            handle_close(ui, event->window.window);
+
+        // seat
+        break;case WmEventType::seat_event:
+            handle_seat_event(ui, event->seat.event);
+
+        break;default:
+            ;
+    }
 }
 
 // -----------------------------------------------------------------------------

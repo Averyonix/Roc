@@ -6,7 +6,7 @@ struct ShellLauncher
 {
     Shell* shell;
 
-    Ref<Ui> ui;
+    Listener<void()> frame;
 
     std::vector<struct WmLauncherApp> apps;
     std::string filter;
@@ -139,7 +139,7 @@ void show(ShellLauncher* launcher)
     launcher->show = true;
     launcher->grab_focus = true;
     launcher->filter = {};
-    ui_request_frame(launcher->ui.get());
+    ui_request_frame(launcher->shell->ui);
 
     scan_apps(launcher);
 }
@@ -152,8 +152,7 @@ auto shell_init_launcher(Shell* shell) -> Ref<void>
     auto launcher = ref_create<ShellLauncher>();
     launcher->shell = shell;
 
-    launcher->ui = ui_create(shell->gpu, shell->wm, shell->app_share / "launcher");
-    ui_set_frame_handler(launcher->ui.get(), [launcher = launcher.get()] {
+    launcher->frame = ui_get_signals(shell->ui).frame.listen([launcher = launcher.get()] {
         frame(launcher);
     });
 

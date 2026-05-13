@@ -23,14 +23,14 @@ WayServer::~WayServer()
     wl_display_destroy(wl_display);
 }
 
-auto way_create(ExecContext* exec, Gpu* gpu, WmServer* wm) -> Ref<WayServer>
+auto way_create(WmServer* wm, ExecContext* exec) -> Ref<WayServer>
 {
     auto server = ref_create<WayServer>();
 
     server->epoch = std::chrono::steady_clock::now();
 
     server->exec = exec;
-    server->gpu = gpu;
+    server->gpu = wm_get_gpu(wm);
     server->wm = wm;
     server->userdata_id = uid_allocate();
 
@@ -61,7 +61,7 @@ auto way_create(ExecContext* exec, Gpu* gpu, WmServer* wm) -> Ref<WayServer>
 
     way_seat_init(server.get());
 
-    server->sampler = gpu_sampler_create(gpu, {
+    server->sampler = gpu_sampler_create(server->gpu, {
         .mag = VK_FILTER_NEAREST,
         .min = VK_FILTER_LINEAR,
     });
