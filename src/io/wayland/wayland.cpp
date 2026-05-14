@@ -116,6 +116,8 @@ void io_wayland_start(IoContext* io)
 
 void io_wayland_deinit(IoContext* io)
 {
+    if (!io->wayland) return;
+
     fd_unlisten(io->exec, wl_display_get_fd(io->wayland->wl_display));
 
     io->wayland.destroy();

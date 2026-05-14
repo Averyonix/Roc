@@ -20,11 +20,11 @@ auto io_create(ExecContext* exec, Gpu* gpu) -> Ref<IoContext>
 static
 void shutdown(IoContext* io)
 {
-    io_session_deinit(io);
-    io_libinput_deinit(io);
-    io_evdev_deinit(io);
-    io_drm_deinit(io);
     io_wayland_deinit(io);
+    io_drm_deinit(io);
+    io_evdev_deinit(io);
+    io_libinput_deinit(io);
+    io_session_deinit(io);
     io_udev_deinit(io);
 
     exec_stop(io->exec);
