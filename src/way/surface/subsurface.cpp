@@ -150,7 +150,7 @@ void WaySurfaceTree::apply(WayCommitId id)
     if (!from) return;
 
     for (auto& move : from->moves) {
-        scene_tree_set_translation(move.surface->scene.tree.get(), move.position);
+        scene_tree_set_translation(move.surface->scene.tree.get(), vec_cast<f32>(move.position));
     }
     from->moves.clear();
 

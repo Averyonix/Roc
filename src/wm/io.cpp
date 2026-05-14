@@ -23,7 +23,7 @@ void reflow_outputs(WmServer* wm, bool any_changed = false)
             }
         }
         auto last = output->viewport;
-        output->viewport = {{x, 0.f}, size, xywh};
+        output->viewport = {{x, 0.f}, vec_cast<f32>(size), xywh};
         if constexpr (dir == LayoutDir::LeftToRight) {
             x += f32(size.x);
         }
@@ -82,7 +82,7 @@ WmOutput::~WmOutput()
     reflow_outputs(server, true);
 }
 
-void wm_output_set_pixel_size(WmOutput* output, vec2i32 pixel_size)
+void wm_output_set_pixel_size(WmOutput* output, vec2u32 pixel_size)
 {
     output->pixel_size = pixel_size;
     reflow_outputs(output->server);
@@ -128,7 +128,7 @@ auto wm_find_output_at(WmServer* wm, vec2f32 point) -> WmFindOutputResult
             best_position = point;
             best_output = output;
             break;
-        } else if (f32 dist = glm::distance(clamped, point); dist < best_distance) {
+        } else if (f32 dist = vec_distance(clamped, point); dist < best_distance) {
             best_position = clamped;
             best_distance = dist;
             best_output = output;
@@ -211,14 +211,14 @@ auto apply_accel(vec2f32 delta) -> vec2f32
     // ___/
     //  ^-- Offset
 
-    f32 speed = glm::length(delta);
-    vec2f32 sens = vec2f32(multiplier * (1 + (std::max(speed, offset) - offset) * rate));
+    f32 speed = vec_distance(delta, {});
+    f32 sens = multiplier * (1 + (std::max(speed, offset) - offset) * rate);
 
     return delta * sens;
 }
 
 static
-void handle_motion(WmServer* wm, SeatPointer* pointer, vec2f64 rel_unaccel)
+void handle_motion(WmServer* wm, SeatPointer* pointer, vec2f32 rel_unaccel)
 {
     auto rel_accel = apply_accel(rel_unaccel);
     auto position = wm_pointer_constraint_apply(wm, seat_pointer_get_position(pointer), rel_accel);

@@ -21,7 +21,7 @@ struct WmOutput
 {
     WmServer* server;
 
-    vec2i32 pixel_size;
+    vec2u32 pixel_size;
     rect2f32 viewport;
 
     void* userdata;

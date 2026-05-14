@@ -154,7 +154,7 @@ void pointer_relative(
     auto* ptr = static_cast<IoWaylandPointer*>(udata);
     auto* output = get_impl(ptr->current_output.get());
     if (!output || !output->pointer_locked) return;
-    io_input_device_pointer_motion(ptr, {wl_fixed_to_double(dx_unaccel), wl_fixed_to_double(dy_unaccel)});
+    io_input_device_pointer_motion(ptr, {f32(wl_fixed_to_double(dx_unaccel)), f32(wl_fixed_to_double(dy_unaccel))});
 }
 
 IO_WL_LISTENER(zwp_relative_pointer_v1) = {

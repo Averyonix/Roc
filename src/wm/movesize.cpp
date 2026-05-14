@@ -15,11 +15,11 @@ void begin_interaction(WmServer* wm, SeatPointer* pointer, WmInteractionMode ini
     wm->movesize.frame = frame;
     wm->movesize.grab = pos;
 
-    auto dirs = (vec2i32(pos - frame.origin) * 3 / vec2i32(frame.extent)) - 1;
+    auto dirs = (vec_cast<i32>(pos - frame.origin) * 3 / vec_cast<i32>(frame.extent)) - 1;
 
     wm->movesize.relative = {
-        dirs.x || !dirs.y,
-        dirs.y || !dirs.x,
+        f32(dirs.x || !dirs.y),
+        f32(dirs.y || !dirs.x),
     };
 
     if (initial_mode == WmInteractionMode::move && dirs.y < 0) {
@@ -28,7 +28,7 @@ void begin_interaction(WmServer* wm, SeatPointer* pointer, WmInteractionMode ini
         if (!dirs.x && !dirs.y) {
             wm->mode = WmInteractionMode::move;
         } else {
-            wm->movesize.relative = dirs;
+            wm->movesize.relative = vec_cast<f32>(dirs);
         }
     }
 }
@@ -57,8 +57,8 @@ void handle_motion(WmServer* wm)
         frame.origin += delta;
 
     } else if (wm->mode == WmInteractionMode::size) {
-        delta = glm::max(delta, 100.f - frame.extent);
-        frame.origin += glm::min(wm->movesize.relative, {0,0}) * delta;
+        delta = vec_max(delta, 100.f - frame.extent);
+        frame.origin += vec_min(wm->movesize.relative, {0,0}) * delta;
         frame.extent += delta;
     }
 

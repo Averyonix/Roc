@@ -93,7 +93,7 @@ void create_buffer(wl_client* client, wl_resource* resource, u32 id, i32 offset,
     buffer->_resource = way_resource_create_refcounted(wl_buffer, client, resource, id, static_cast<WayBuffer*>(buffer.get()));
 
     buffer->format = gpu_format_from_drm(to_drm(wl_shm_format(_format)));
-    buffer->extent = {width, height};
+    buffer->extent = {u32(width), u32(height)};
     buffer->pool = pool;
     buffer->stride = stride;
     buffer->offset = offset;
@@ -161,14 +161,14 @@ auto WayShmBuffer::do_acquire(WaySurface* surface, WayDamageRegion damage, Flags
             .usage = GpuImageUsage::transfer_dst | GpuImageUsage::texture,
         });
 
-        damage.damage({{}, extent, minmax});
+        damage.damage({{}, vec_cast<i32>(extent), minmax});
 
 #if NOISY_SHM_BUFFER_IMAGES
         log_warn("ALLOCATING shm buffer image {}", extent);
 #endif
     }
 
-    damage.clip_to({{}, extent, minmax});
+    damage.clip_to({{}, vec_cast<i32>(extent), minmax});
 
     if (damage) {
         aabb2i32 aabb = damage.bounds();
@@ -177,14 +177,14 @@ auto WayShmBuffer::do_acquire(WaySurface* surface, WayDamageRegion damage, Flags
         log_trace("  damage {}", rect);
 #endif
 
-        auto read_start = gpu_image_compute_linear_offset(format, aabb.min,     stride);
-        auto read_end   = gpu_image_compute_linear_offset(format, aabb.max - 1, stride) + format->texel_block_size;
+        auto read_start = gpu_image_compute_linear_offset(format, vec_cast<u32>(aabb.min),     stride);
+        auto read_end   = gpu_image_compute_linear_offset(format, vec_cast<u32>(aabb.max - 1), stride) + format->texel_block_size;
 
         debug_assert((offset + read_end) <= pool->size, "accessed {} > available {}", offset + read_end, pool->size);
         gpu_copy_memory_to_image(image.get(),
             as_bytes(byte_offset_pointer<void>(pool->data, offset + read_start), read_end - read_start),
             {{{
-                .image_extent = rect.extent,
+                .image_extent = vec_cast<u32>(rect.extent),
                 .image_offset = rect.origin,
                 .buffer_row_length = u32(stride) / format->texel_block_size,
             }}});

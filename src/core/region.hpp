@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.hpp"
+#include "math.hpp"
 
 template<typename T>
 struct Region
@@ -124,10 +125,10 @@ struct Region
         Vec<2, T2> closest = {};
 
         for (auto aabb : aabbs) {
-            auto pos = aabb_clamp_point<T2>(aabb, point);
+            auto pos = aabb_clamp_point(aabb_cast<T2>(aabb), point);
             if (pos == point) return point;
 
-            f64 dist = glm::distance(vec2f64(pos), vec2f64(point));
+            f64 dist = vec_distance(vec_cast<f64>(pos), vec_cast<f64>(point));
             if (dist < closest_dist) {
                 closest = pos;
                 closest_dist = dist;

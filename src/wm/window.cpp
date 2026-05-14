@@ -15,7 +15,7 @@ WmWindow::~WmWindow()
     std::erase(client->wm->windows, this);
 }
 
-static constexpr vec2f32 border_size    = vec2f32(2);
+static constexpr vec2f32 border_size    = vec2f32(2, 2);
 static constexpr auto    border_normal  = color_from_hex("#4C4C4C");
 static constexpr auto    border_focused = color_from_hex("#6666FF");
 

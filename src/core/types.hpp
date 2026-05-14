@@ -28,8 +28,49 @@ using f64 = double;
 
 // -----------------------------------------------------------------------------
 
-template<glm::length_t L, typename T>
-using Vec = glm::vec<L, T>;
+template<u8 L, typename T>
+struct Vec;
+
+#define VEC_CONSTRUCTORS 0
+
+template<typename T>
+struct Vec<2, T>
+{
+    T x, y;
+
+#if VEC_CONSTRUCTORS
+    constexpr Vec() = default;
+    constexpr Vec(T x, T y): x(x), y(y) {}
+#endif
+
+    constexpr auto operator<=>(const Vec&) const -> std::strong_ordering = default;
+
+    constexpr auto operator[](usz i) const -> T  { return i == 1 ? y : x; }
+    constexpr auto operator[](usz i)       -> T& { return i == 1 ? y : x; }
+
+    constexpr decltype(auto) operator+=(T s) { x += s;   y += s;   return *this; }
+    constexpr decltype(auto) operator-=(T s) { x -= s;   y -= s;   return *this; }
+    constexpr decltype(auto) operator*=(T s) { x *= s;   y *= y;   return *this; }
+    constexpr decltype(auto) operator/=(T s) { x /= s;   y /= s;   return *this; }
+
+    constexpr decltype(auto) operator+=(Vec b) { x += b.x; y += b.y; return *this; }
+    constexpr decltype(auto) operator-=(Vec b) { x -= b.x; y -= b.y; return *this; }
+    constexpr decltype(auto) operator*=(Vec b) { x *= b.x; y *= b.y; return *this; }
+    constexpr decltype(auto) operator/=(Vec b) { x /= b.x; y /= b.y; return *this; }
+};
+
+template<typename T>
+struct Vec<4, T>
+{
+    T x, y, z, w;
+
+#if VEC_CONSTRUCTORS
+    constexpr Vec() = default;
+    constexpr Vec(T x, T y, T z, T w): x(x), y(y), z(z), w(w) {}
+#endif
+
+    constexpr auto operator<=>(const Vec&) const -> std::strong_ordering = default;
+};
 
 using vec2u32 = Vec<2, u32>;
 using vec2i32 = Vec<2, i32>;
@@ -73,14 +114,7 @@ struct Rect
         , extent(max - min)
     {}
 
-    template<typename T2>
-        requires (!std::same_as<T2, T>)
-    constexpr Rect(const Rect<T2>& other)
-        : Rect(other.origin, other.extent, xywh)
-    {}
-
-    template<typename T2>
-    constexpr Rect(const Aabb<T2>& other)
+    constexpr Rect(const Aabb<T>& other)
         : Rect(other.min, other.max, minmax)
     {}
 
@@ -110,14 +144,7 @@ struct Aabb
         , max(max)
     {}
 
-    template<typename T2>
-        requires (!std::same_as<T2, T>)
-    constexpr Aabb(const Aabb<T2>& other)
-        : Aabb(other.min, other.max, minmax)
-    {}
-
-    template<typename T2>
-    constexpr Aabb(const Rect<T2>& other)
+    constexpr Aabb(const Rect<T>& other)
         : Aabb(other.origin, other.extent, xywh)
     {}
 

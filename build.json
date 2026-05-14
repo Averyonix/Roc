@@ -5,11 +5,6 @@
             "commit": "d655418bb644b7f85159d94c591d7d983949fb81",
             "repo": "https://github.com/cameron314/concurrentqueue.git"
         },
-        "glm": {
-            "branch": "master",
-            "commit": "6f14f4792a0cde5d0cf2c910506724d61cb95834",
-            "repo": "https://github.com/g-truc/glm.git"
-        },
         "imgui": {
             "branch": "docking",
             "commit": "dc5c6b3688d27dac69ae9e72f33c8f8fdb6cac69",

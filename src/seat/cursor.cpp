@@ -1,5 +1,7 @@
 #include "internal.hpp"
 
+#include <core/math.hpp>
+
 struct SeatCursorManager
 {
     Gpu* gpu;
@@ -89,7 +91,7 @@ auto get_xcursor(SeatCursorManager* manager, const char* semantic) -> SceneNode*
 
     auto visual = scene_texture_create();
     scene_texture_set_image(visual.get(), image.get(), manager->sampler.get(), GpuBlendMode::premultiplied);
-    scene_texture_set_dst(visual.get(), {-vec2f32{cursor->xhot, cursor->yhot}, {cursor->width, cursor->height}, xywh});
+    scene_texture_set_dst(visual.get(), {-vec2f32{f32(cursor->xhot), f32(cursor->yhot)}, {f32(cursor->width), f32(cursor->height)}, xywh});
 
     manager->cache.insert({semantic, visual});
 

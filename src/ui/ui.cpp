@@ -1,6 +1,7 @@
 #include "internal.hpp"
 
 #include <core/stack.hpp>
+#include <core/math.hpp>
 
 thread_local ImGuiContext* ui_imgui_ctx;
 
@@ -308,11 +309,11 @@ void init(UiClient* ui, const std::filesystem::path& path)
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
         ui->font_image = gpu_image_create(ui->gpu, {
-            .extent = {width, height},
+            .extent = {u32(width), u32(height)},
             .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
             .usage = GpuImageUsage::texture | GpuImageUsage::transfer
         });
-        gpu_copy_memory_to_image(ui->font_image.get(), as_bytes(pixels, width * height * 4), {{{{width, height}}}});
+        gpu_copy_memory_to_image(ui->font_image.get(), as_bytes(pixels, width * height * 4), {{{ui->font_image->extent()}}});
     }
 
     auto& platform_io = ImGui::GetPlatformIO();

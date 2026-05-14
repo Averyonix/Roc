@@ -53,7 +53,7 @@ void frame(ShellMenu* menu)
                 for (auto* output : wm_list_outputs(wm)) {
                     auto viewport = wm_output_get_viewport(output);
                     auto texture = gpu_image_create(gpu, {
-                        .extent = viewport.extent,
+                        .extent = vec_cast<u32>(viewport.extent),
                         .format = gpu_format_from_drm(DRM_FORMAT_ABGR8888),
                         .usage = GpuImageUsage::render
                     });

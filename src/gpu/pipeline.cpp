@@ -276,10 +276,10 @@ void gpu_render(Gpu* gpu, const GpuRenderPassInfo& info, std::function_ref<void(
                 ? VkClearValue {
                     .color = {
                         .float32 = {
-                            info.clear_color->r,
-                            info.clear_color->g,
-                            info.clear_color->b,
-                            info.clear_color->a
+                            info.clear_color->x,
+                            info.clear_color->y,
+                            info.clear_color->z,
+                            info.clear_color->w
                         }
                     }
                 }

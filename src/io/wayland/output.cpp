@@ -79,7 +79,7 @@ void toplevel_configure(void* udata, xdg_toplevel* toplevel, i32 width, i32 heig
 {
     auto output = static_cast<IoWaylandOutput*>(udata);
 
-    output->configure.size = (width && height) ? vec2i32{width, height} : vec2i32{1920, 1080};
+    output->configure.size = (width && height) ? vec2u32{u32(width), u32(height)} : vec2u32{1920, 1080};
 }
 
 static

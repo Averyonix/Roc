@@ -17,7 +17,7 @@ void set_cursor(wl_client* wl_client, wl_resource* resource, u32 serial, wl_reso
     auto* surface = wl_surface ? way_get_userdata<WaySurface>(wl_surface) : nullptr;
 
     if (surface) {
-        scene_tree_set_translation(surface->scene.tree.get(), {-hot_x, -hot_y});
+        scene_tree_set_translation(surface->scene.tree.get(), {f32(-hot_x), f32(-hot_y)});
 
         if (surface->role != WaySurfaceRole::cursor) {
             surface->role = WaySurfaceRole::cursor;
@@ -199,7 +199,7 @@ void WayCursorSurface::apply(WayCommitId)
 {
     if (surface->current.surface.offset != vec2i32{}) {
         scene_tree_set_translation(surface->scene.tree.get(),
-            surface->scene.tree->translation + vec2f32(surface->current.surface.offset));
+            surface->scene.tree->translation + vec_cast<f32>(surface->current.surface.offset));
 
         surface->current.surface.offset = {};
     }

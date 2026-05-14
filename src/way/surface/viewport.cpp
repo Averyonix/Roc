@@ -35,8 +35,8 @@ void set_source(wl_client* client, wl_resource* resource, wl_fixed_t x, wl_fixed
     auto* surface = way_get_userdata<WaySurface>(resource);
 
     rect2f32 src {
-        {wl_fixed_to_double(x),     wl_fixed_to_double(y)},
-        {wl_fixed_to_double(width), wl_fixed_to_double(height)},
+        {f32(wl_fixed_to_double(x)),     f32(wl_fixed_to_double(y))},
+        {f32(wl_fixed_to_double(width)), f32(wl_fixed_to_double(height))},
         xywh,
     };
 
@@ -80,8 +80,8 @@ void way_viewport_apply(WaySurface* surface, WaySurfaceState& from)
 
     if (buffer && to.set.contains(WaySurfaceStateComponent::buffer_source)) {
         auto src = to.buffer_source;
-        src.origin /= vec2f32(buffer->extent);
-        src.extent /= vec2f32(buffer->extent);
+        src.origin /= vec_cast<f32>(buffer->extent);
+        src.extent /= vec_cast<f32>(buffer->extent);
         scene_texture_set_src(surface->scene.texture.get(), src);
 
     } else if (!to.set.contains(WaySurfaceStateComponent::buffer_source)) {
@@ -91,13 +91,13 @@ void way_viewport_apply(WaySurface* surface, WaySurfaceState& from)
     // Destination
 
     if (to.set.contains(WaySurfaceStateComponent::buffer_destination)) {
-        scene_texture_set_dst(surface->scene.texture.get(), {{}, to.buffer_destination, xywh});
+        scene_texture_set_dst(surface->scene.texture.get(), {{}, vec_cast<f32>(to.buffer_destination), xywh});
 
     } else if (to.set.contains(WaySurfaceStateComponent::buffer_source)) {
         scene_texture_set_dst(surface->scene.texture.get(), {{}, to.buffer_source.extent, xywh});
 
     } else if (buffer) {
         // Use buffer extent if destination and source have not been set before
-        scene_texture_set_dst(surface->scene.texture.get(), {{}, buffer->extent, xywh});
+        scene_texture_set_dst(surface->scene.texture.get(), {{}, vec_cast<f32>(buffer->extent), xywh});
     }
 }

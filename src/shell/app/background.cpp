@@ -23,7 +23,7 @@ void update_backgrounds(ShellBackground* bg)
     bg->textures.clear();
 
     for (auto* output : wm_list_outputs(shell->wm)) {
-        vec2f32 image_size = bg->image->extent();
+        auto image_size = vec_cast<f32>(bg->image->extent());
         auto viewport = wm_output_get_viewport(output);
 
         // Create texture node
@@ -64,7 +64,7 @@ auto shell_init_background(Shell* shell) -> Ref<void>
 
     // Create background texture node
     bg->image = gpu_image_create(shell->gpu, {
-        .extent = {w, h},
+        .extent = {u32(w), u32(h)},
         .format = gpu_format_from_drm(DRM_FORMAT_XBGR8888),
         .usage = GpuImageUsage::texture | GpuImageUsage::transfer
     });

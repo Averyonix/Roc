@@ -1,5 +1,7 @@
 #include "../shell.hpp"
 
+#include <core/math.hpp>
+
 #include <ui/ui.hpp>
 
 struct ShellLauncher

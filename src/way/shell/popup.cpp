@@ -240,7 +240,7 @@ void popup_update_geometry(WaySurface* surface)
     auto geom        = surface->xdg->current.geometry;
     auto parent_geom = surface->parent->xdg->current.geometry;
     scene_tree_set_translation(surface->scene.tree.get(),
-        position + vec2f32(parent_geom.origin) - vec2f32(geom.origin));
+        position + vec_cast<f32>(parent_geom.origin - geom.origin));
 }
 
 static
@@ -252,13 +252,13 @@ void position(WaySurface* surface, const WayPositionerRules& rules, std::optiona
 
     {
         auto anchor = rules.anchor_rect;
-        auto point = vec2f32(anchor.origin) + vec2f32(anchor.extent) * 0.5f;
+        auto point = vec_cast<f32>(anchor.origin + anchor.extent) * 0.5f;
         if (auto* output = wm_find_output_at(server->wm, point).output) {
             aabb2f32 vp = wm_output_get_viewport(output);
             auto translation = scene_tree_get_position(surface->parent->scene.tree.get());
             constraint = {
-                vp.min - translation,
-                vp.max - translation,
+                vec_cast<i32>(vp.min - translation),
+                vec_cast<i32>(vp.max - translation),
                 minmax
             };
         }
@@ -266,7 +266,7 @@ void position(WaySurface* surface, const WayPositionerRules& rules, std::optiona
 
     auto geometry = positioner_apply(rules, constraint);
     log_debug("popup geometry: {}", geometry);
-    surface->popup->position = geometry.origin;
+    surface->popup->position = vec_cast<f32>(geometry.origin);
 
     if (token) {
         way_send<xdg_popup_send_repositioned>(surface->popup->resource, *token);

@@ -134,7 +134,7 @@ void WayXdgSurface::apply(WayCommitId id)
     }
 
     if (!current.set.contains(WayXdgSurfaceStateComponent::geometry) && surface->mapped) {
-        current.geometry = { {}, surface->current.buffer->extent, xywh };
+        current.geometry = { {}, vec_cast<i32>(surface->current.buffer->extent), xywh };
     }
 }
 
@@ -178,7 +178,7 @@ void reposition(WaySurface* surface)
     auto* xdg = surface->xdg;
     auto* toplevel = surface->toplevel;
 
-    vec2f32 extent = xdg->current.geometry.extent;
+    vec2f32 extent = vec_cast<f32>(xdg->current.geometry.extent);
     rect2f32 anchor = toplevel->anchor;
 
     rect2f32 frame { anchor.origin, extent, xywh };
@@ -188,7 +188,7 @@ void reposition(WaySurface* surface)
     frame.origin -= rel * (extent - anchor.extent);
 
     wm_window_set_frame(toplevel->window.get(), frame);
-    scene_tree_set_translation(surface->scene.tree.get(), -xdg->current.geometry.origin);
+    scene_tree_set_translation(surface->scene.tree.get(), -vec_cast<f32>(xdg->current.geometry.origin));
 }
 
 void way_toplevel_on_reposition(WaySurface* surface, rect2f32 frame, vec2f32 gravity)
@@ -202,7 +202,7 @@ void way_toplevel_on_reposition(WaySurface* surface, rect2f32 frame, vec2f32 gra
         if (toplevel->pending > surface->xdg->acked_serial) {
             toplevel->queued = true;
         } else {
-            configure_toplevel(toplevel, frame.extent);
+            configure_toplevel(toplevel, vec_cast<u32>(frame.extent));
             way_xdg_surface_configure(surface);
             toplevel->pending = surface->xdg->sent_serial;
         }
@@ -264,7 +264,7 @@ void WayToplevel::apply(WayCommitId id)
         reposition(surface);
 
         if (queued) {
-            configure_toplevel(this, anchor.extent);
+            configure_toplevel(this, vec_cast<u32>(anchor.extent));
             way_xdg_surface_configure(surface);
             pending = surface->xdg->sent_serial;
             queued = false;

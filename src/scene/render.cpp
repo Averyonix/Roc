@@ -191,11 +191,11 @@ void scene_render(Scene* scene, GpuImage* target, rect2f32 viewport)
         .target = target,
         .clear_color = {{0,0,0,1}},
     }, [&](GpuRenderPass* pass) {
-        gpu_set_viewports(pass, {{{{}, target->extent(), xywh}}});
+        gpu_set_viewports(pass, {{{{}, vec_cast<f32>(target->extent()), xywh}}});
 
         rect2f32 scissor = default_clip;
         scissor.origin -= viewport.origin;
-        gpu_set_scissors(pass, {{scissor}});
+        gpu_set_scissors(pass, {{rect_cast<i32>(scissor)}});
 
         gpu_set_blend_state(pass, {{GpuBlendMode::premultiplied}});
 

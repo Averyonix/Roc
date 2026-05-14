@@ -61,7 +61,7 @@ auto wm_pointer_constraint_apply(WmServer* wm, vec2f32 position, vec2f32 delta) 
 
     // TODO: Force pointer focus while applying constraint
     rect2f32 clip = input_region->clip;
-    clip.extent -= vec2f32(1);
+    clip.extent -= 1.f;
 
     position = rect_clamp_point(clip, position);
     position = input_region->region.constrain(position);

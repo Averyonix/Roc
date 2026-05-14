@@ -95,10 +95,6 @@ target_generated_source(stb-image PRIVATE stb_image_write.c "#define STB_IMAGE_W
 
 # ------------------------------------------------------------------------------
 
-add_subdirectory(${VENDOR_DIR}/glm EXCLUDE_FROM_ALL)
-
-# ------------------------------------------------------------------------------
-
 add_library(imgui)
 target_include_directories(imgui PUBLIC ${VENDOR_DIR}/imgui)
 target_include_directories(imgui PRIVATE src)
@@ -167,7 +163,6 @@ target_link_libraries(core PUBLIC
     Vulkan::Headers
     vma-object
     stb-image
-    glm::glm
     unordered_dense::unordered_dense
     concurrentqueue
     Xcursor

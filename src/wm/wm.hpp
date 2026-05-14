@@ -44,7 +44,7 @@ struct WmOutputInterface
 };
 
 auto wm_output_create(WmServer*, void*, WmOutputInterface) -> Ref<WmOutput>;
-void wm_output_set_pixel_size(WmOutput*, vec2i32);
+void wm_output_set_pixel_size(WmOutput*, vec2u32);
 void wm_output_frame(WmOutput*);
 
 // -----------------------------------------------------------------------------

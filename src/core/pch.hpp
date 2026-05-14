@@ -101,13 +101,6 @@ extern "C" {
 
 // -----------------------------------------------------------------------------
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/string_cast.hpp>
-
-// -----------------------------------------------------------------------------
-
 #ifndef VK_NO_PROTOTYPES
 # define VK_NO_PROTOTYPES
 #endif

@@ -1,5 +1,7 @@
 #include "libinput.hpp"
 
+#include <core/math.hpp>
+
 // -----------------------------------------------------------------------------
 
 IoLibinputDevice::~IoLibinputDevice()
@@ -56,24 +58,25 @@ void handle_pointer_button(IoLibinputDevice* device, libinput_event_pointer* eve
 static
 void handle_pointer_motion(IoLibinputDevice* device, libinput_event_pointer* event)
 {
-    vec2f64 delta = {libinput_event_pointer_get_dx(event), libinput_event_pointer_get_dy(event)};
-
-    io_input_device_pointer_motion(device, delta);
+    io_input_device_pointer_motion(device, {
+        f32(libinput_event_pointer_get_dx(event)),
+        f32(libinput_event_pointer_get_dy(event))
+    });
 }
 
 static
 void handle_pointer_scroll_wheel(IoLibinputDevice* device, libinput_event_pointer* event)
 {
-    auto get = [&](libinput_pointer_axis axis) {
+    auto get = [&](libinput_pointer_axis axis) -> f32 {
         return libinput_event_pointer_has_axis(event, axis)
             ? libinput_event_pointer_get_scroll_value_v120(event, axis) / 120.0
             : 0.0;
     };
 
-    f64 dx = get(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
-    f64 dy = get(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
-
-    io_input_device_pointer_scroll(device, {dx, dy});
+    io_input_device_pointer_scroll(device, {
+        get(LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL),
+        get(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)
+    });
 }
 
 // -----------------------------------------------------------------------------

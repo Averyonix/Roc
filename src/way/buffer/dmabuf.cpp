@@ -277,7 +277,7 @@ void create_buffer(wl_client* client, wl_resource* _params, i32 width, i32 heigh
 {
     auto* params = way_get_userdata<WayDmaParams>(_params);
 
-    auto buffer = create_buffer(params, 0, {width, height}, gpu_format_from_drm(format), zwp_linux_buffer_params_v1_flags(flags));
+    auto buffer = create_buffer(params, 0, {u32(width), u32(height)}, gpu_format_from_drm(format), zwp_linux_buffer_params_v1_flags(flags));
     if (buffer) {
         way_send<zwp_linux_buffer_params_v1_send_created>(_params, buffer->_resource);
     } else {
@@ -289,7 +289,7 @@ static
 void create_buffer_immed(wl_client* client, wl_resource* _params, u32 buffer_id, i32 width, i32 height, u32 format, u32 flags)
 {
     auto* params = way_get_userdata<WayDmaParams>(_params);
-    create_buffer(params, buffer_id, {width, height}, gpu_format_from_drm(format), zwp_linux_buffer_params_v1_flags(flags));
+    create_buffer(params, buffer_id, {u32(width), u32(height)}, gpu_format_from_drm(format), zwp_linux_buffer_params_v1_flags(flags));
 }
 
 WAY_INTERFACE(zwp_linux_buffer_params_v1) = {

@@ -5,6 +5,7 @@
 #include <core/chrono.hpp>
 #include <core/color.hpp>
 #include <core/stacktrace.hpp>
+#include <core/math.hpp>
 
 struct ShellLogViewer
 {
@@ -75,7 +76,7 @@ void frame(ShellLogViewer* viewer)
     ImGui::Checkbox("Details", &viewer->show_details);
 
     static constexpr auto make_color = [](std::string_view hex) {
-        auto v = vec4f32(color_from_hex(hex)) / 255.f;
+        auto v = vec_cast<f32>(color_from_hex(hex)) / 255.f;
         return ImVec4(v.x, v.y, v.z, v.w);
     };
 
