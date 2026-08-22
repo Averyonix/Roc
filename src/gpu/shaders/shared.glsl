@@ -16,6 +16,8 @@
     layout(buffer_reference, scalar, buffer_reference_align=Align) readonly buffer T##_ConstPtr { T _; }; \
     layout(buffer_reference, scalar, buffer_reference_align=Align)          buffer T##_Ptr      { T _; };
 
+#define GPU_STATIC_ASSERT(Expr)
+
 // -----------------------------------------------------------------------------
 
 #define u8  uint8_t

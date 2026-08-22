@@ -13,17 +13,19 @@ void main()
 
     // Get coarse bin inputs
 
-    u32 coarse_bin_index = (gl_GlobalInvocationID.y / SCENE_RENDER_COARSE_FINE_BIN_RATIO) * pc.coarse_bin_row_stride
-                         + (gl_GlobalInvocationID.x / SCENE_RENDER_COARSE_FINE_BIN_RATIO)
-                         + SCENE_RENDER_RESERVED_COARSE_BIN_COUNT;
+    const u32 groups_per_coarse_bin = SCENE_RENDER_COARSE_FINE_BIN_RATIO / SCENE_RENDER_BIN_PASS_LOCAL_SIZE;
+    const u32 coarse_bin_index = (gl_WorkGroupID.y / groups_per_coarse_bin) * pc.coarse_bin_row_stride
+                               + (gl_WorkGroupID.x / groups_per_coarse_bin)
+                               +  SCENE_RENDER_RESERVED_COARSE_BIN_COUNT;
 
     GPU_CONST_PTR(SceneRenderBin)           coarse_bin      = pc.coarse_bins[     coarse_bin_index];
     GPU_CONST_PTR(SceneRenderCoarseBinInfo) coarse_bin_info = pc.coarse_bin_infos[coarse_bin_index];
 
     // Compute fine bin output locations
 
-    u32 fine_bin_index = ((gl_GlobalInvocationID.y % SCENE_RENDER_COARSE_FINE_BIN_RATIO) * SCENE_RENDER_COARSE_FINE_BIN_RATIO)
-                        + (gl_GlobalInvocationID.x % SCENE_RENDER_COARSE_FINE_BIN_RATIO);
+    const u32 fine_bin_index = ((gl_GlobalInvocationID.y % SCENE_RENDER_COARSE_FINE_BIN_RATIO) * SCENE_RENDER_COARSE_FINE_BIN_RATIO)
+                              + (gl_GlobalInvocationID.x % SCENE_RENDER_COARSE_FINE_BIN_RATIO);
+
     GPU_PTR(u16) fine_bin = pc.fine_bins[coarse_bin_info._.offset + fine_bin_index * coarse_bin_info._.depth];
 
     // Fine bin bounds
@@ -35,12 +37,12 @@ void main()
     u32 in_slot = 0;
     u32 out_slot = 0;
     while (true) {
-        u32 quad_id = coarse_bin._.quads[in_slot];
+        const u32 quad_id = coarse_bin._.quads[in_slot];
         if (quad_id == 0) break;
 
         {
-            aabb2f32 bounds = pc.quad_bounds[quad_id]._;
-            aabb2f32 inner = aabb2f32(max(tile.min, bounds.min), min(tile.max, bounds.max));
+            const aabb2f32 bounds = pc.quad_bounds[quad_id]._;
+            const aabb2f32 inner = aabb2f32(max(tile.min, bounds.min), min(tile.max, bounds.max));
 
             if (inner.max.x > inner.min.x && inner.max.y > inner.min.y) {
                 fine_bin[out_slot]._ = SCENE_RENDER_QUAD_INDEX_TYPE(quad_id);

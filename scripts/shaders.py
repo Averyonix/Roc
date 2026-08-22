@@ -24,8 +24,8 @@ def build_shaders(cwd, build_dir):
     cmake_out += f"target_compile_options({target} PRIVATE -std=c++26 -Wno-c23-extensions)\n"
     cmake_out += f"target_sources({target} PRIVATE\n"
 
-    # Dependency tracking: glslang doesn't give us dependency info,
-    # so we just check mtime against all .glsl/.h files.
+    # Dependency tracking: just check mtime against all glsl/C-header files.
+    # TODO: Use --depfile
     shader_source_files = list(cwd.glob("src/**/*.glsl")) + list(cwd.glob("src/**/*.h"))
     shader_dep_mtime = max((f.stat().st_mtime for f in shader_source_files if f.exists()), default=0.0)
 

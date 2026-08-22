@@ -44,6 +44,8 @@ auto scene_renderer_create(Gpu* gpu) -> Ref<SceneRenderer>
         .entry = "main",
     });
 
+    renderer->buffer = gpu_buffer_create(gpu, 0, {});
+
     return renderer;
 }
 
@@ -51,7 +53,9 @@ auto scene_renderer_create(Gpu* gpu) -> Ref<SceneRenderer>
 
 void scene_render(SceneRenderer* renderer, const SceneRenderInfo& info)
 {
+#if SCENE_NOISY_RENDER
     [[maybe_unused]] auto start = std::chrono::steady_clock::now();
+#endif
 
     debug_assert(info.target->base()->usage.contains(GpuImageUsage::storage));
 
@@ -163,7 +167,9 @@ void scene_render(SceneRenderer* renderer, const SceneRenderInfo& info)
 
     // 2. Coarse binning CPU pass
 
+#if SCENE_NOISY_RENDER
     [[maybe_unused]] auto coarse_bin_start = std::chrono::steady_clock::now();
+#endif
 
     auto coarse_bin_counts = (extent + literal_cast<u32>(SCENE_RENDER_COARSE_BIN_SIZE) - 1u) / literal_cast<u32>(SCENE_RENDER_COARSE_BIN_SIZE);
     auto coarse_bin_count = coarse_bin_counts.x * coarse_bin_counts.y + SCENE_RENDER_RESERVED_COARSE_BIN_COUNT;
@@ -211,9 +217,18 @@ void scene_render(SceneRenderer* renderer, const SceneRenderInfo& info)
     std::vector<SceneRenderCoarseBinInfo> coarse_bin_infos;
     coarse_bin_infos.resize(coarse_bin_count);
 
+#if SCENE_NOISY_RENDER
     [[maybe_unused]] auto coarse_bin_complete = std::chrono::steady_clock::now();
+#endif
 
-    u32 fine_bin_slots = 0;
+    struct FineBins
+    {
+        using value_type = SCENE_RENDER_QUAD_INDEX_TYPE;
+        u32 count;
+        auto size() -> usz { return count; };
+    };
+    FineBins fine_bins = {};
+
     for (u32 bin = 1; bin < coarse_bin_count; ++bin) {
         u32 depth = coarse_bin_next_slot[bin];
         u32 next = bin;
@@ -222,46 +237,35 @@ void scene_render(SceneRenderer* renderer, const SceneRenderInfo& info)
         }
 
         coarse_bin_infos[bin] = {
-            .offset = fine_bin_slots,
+            .offset = fine_bins.count,
             .depth = depth,
         };
 
-        fine_bin_slots += SCENE_RENDER_COARSE_FINE_BIN_RATIO * SCENE_RENDER_COARSE_FINE_BIN_RATIO * depth;
+        fine_bins.count += SCENE_RENDER_COARSE_FINE_BIN_RATIO * SCENE_RENDER_COARSE_FINE_BIN_RATIO * depth;
     }
 
     // 3. Fine binning GPU pass
 
     auto* gpu = renderer->gpu;
-
     auto cmd = gpu_record(gpu);
 
-    usz quad_bounds_offset       = 0;
-    usz quad_opaque_flags_offset = 0;
-    usz quads_offset             = 0;
-    usz coarse_bins_offset       = 0;
-    usz coarse_bin_infos_offset  = 0;
-    usz fine_bins_offset         = 0;
-    usz gpu_buffer_size          = 0;
+    usz gpu_buffer_size = 0;
 
-    {
-        auto next_offset = [&]<typename T>(std::span<T> elements) {
-            usz current = align_up_power2(gpu_buffer_size, alignof(T));
-            gpu_buffer_size = current + elements.size() * sizeof(T);
-            return current;
-        };
+#define OFFSET(Field) \
+    usz Field##_offset = align_up_power2(gpu_buffer_size, alignof(decltype(Field)::value_type)); \
+    gpu_buffer_size = Field##_offset + Field.size() * sizeof(decltype(Field)::value_type)
 
-        quad_bounds_offset       = next_offset(std::span(quad_bounds));
-        quad_opaque_flags_offset = next_offset(std::span(quad_opaque_flags));
-        quads_offset             = next_offset(std::span(quads));
-        coarse_bins_offset       = next_offset(std::span(coarse_bins));
-        coarse_bin_infos_offset  = next_offset(std::span(coarse_bin_infos));
-        fine_bins_offset         = next_offset(std::span(static_cast<SCENE_RENDER_QUAD_INDEX_TYPE*>(nullptr),
-                                                         fine_bin_slots));
-    }
+    OFFSET(quad_bounds);
+    OFFSET(quad_opaque_flags);
+    OFFSET(quads);
+    OFFSET(coarse_bins);
+    OFFSET(coarse_bin_infos);
+    OFFSET(fine_bins);
 
-    if (!renderer->buffer || renderer->buffer->size < gpu_buffer_size) {
-        usz new_size = compute_geometric_growth(renderer->buffer ? renderer->buffer->size : 0, gpu_buffer_size);
-        renderer->buffer = gpu_buffer_create(gpu, new_size, {});
+#undef OFFSET
+
+    if (gpu_buffer_size > renderer->buffer->size) {
+        renderer->buffer = gpu_buffer_create(gpu, compute_geometric_growth(renderer->buffer->size, gpu_buffer_size), {});
     }
 
 #define UPLOAD(Field) gpu_copy_memory_to_buffer(renderer->buffer.get(), Field##_offset, as_bytes(Field));
@@ -275,9 +279,6 @@ void scene_render(SceneRenderer* renderer, const SceneRenderInfo& info)
 #undef UPLOAD
 
 #define GET_DEVICE_PTR(Field) renderer->buffer->device<decltype(Field)::value_type>(Field##_offset)
-
-    // NOTE: Dummy span used to provide ::value_type for GPU_DEVICE_PTR
-    std::span<SCENE_RENDER_QUAD_INDEX_TYPE> fine_bins;
 
     vec2u32 fine_bin_counts = coarse_bin_counts * literal_cast<u32>(SCENE_RENDER_COARSE_FINE_BIN_RATIO);
 
@@ -315,9 +316,8 @@ void scene_render(SceneRenderer* renderer, const SceneRenderInfo& info)
     gpu_dispatch(cmd, vec_join((extent + literal_cast<u32>(SCENE_RENDER_PIXEL_PASS_LOCAL_SIZE - 1))
                                        / literal_cast<u32>(SCENE_RENDER_PIXEL_PASS_LOCAL_SIZE), 1u));
 
-    [[maybe_unused]] auto end = std::chrono::steady_clock::now();
-
 #if SCENE_NOISY_RENDER
+    [[maybe_unused]] auto end = std::chrono::steady_clock::now();
     log_debug("Render dispatched {} quads in {} (coarse: {})", quad_count, FmtDuration{end - start}, FmtDuration{coarse_bin_complete - coarse_bin_start});
     log_trace("  coarse bins: {:6} | {:3} * {:3} + {:4} = {}",
         coarse_bin_counts.x * coarse_bin_counts.y,

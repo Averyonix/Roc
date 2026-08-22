@@ -59,6 +59,14 @@ auto range_count(auto&& range)
 
 // -----------------------------------------------------------------------------
 
+constexpr
+auto is_multiple_of(usz value, usz factor) -> bool
+{
+    return value >= factor && (value % factor) == 0;
+}
+
+// -----------------------------------------------------------------------------
+
 constexpr auto round_up_power2(usz v) noexcept -> usz
 {
     v--;

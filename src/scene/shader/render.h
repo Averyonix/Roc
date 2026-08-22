@@ -17,7 +17,7 @@ struct SceneRenderQuad
     u32 flags;
 };
 
-GPU_PTR_ENABLE_FOR(SceneRenderQuad, 4);
+GPU_PTR_ENABLE_FOR(SceneRenderQuad, 4)
 
 // -----------------------------------------------------------------------------
 
@@ -30,19 +30,25 @@ struct SceneRenderBin
     u32 next_bin;
 };
 
-GPU_PTR_ENABLE_FOR(SceneRenderBin, 4);
+GPU_PTR_ENABLE_FOR(SceneRenderBin, 4)
 
 // -----------------------------------------------------------------------------
 
 #define SCENE_RENDER_COARSE_BIN_SIZE 128
-#define SCENE_RENDER_FINE_BIN_SIZE 16
+#define SCENE_RENDER_FINE_BIN_SIZE    16
+
+GPU_STATIC_ASSERT(is_multiple_of(SCENE_RENDER_COARSE_BIN_SIZE, SCENE_RENDER_FINE_BIN_SIZE))
+
 #define SCENE_RENDER_COARSE_FINE_BIN_RATIO (SCENE_RENDER_COARSE_BIN_SIZE / SCENE_RENDER_FINE_BIN_SIZE)
 
 // The [0] bin is reserved as an invalid bin index
 #define SCENE_RENDER_RESERVED_COARSE_BIN_COUNT 1
 
-#define SCENE_RENDER_BIN_PASS_LOCAL_SIZE 8
+#define SCENE_RENDER_BIN_PASS_LOCAL_SIZE   8
 #define SCENE_RENDER_PIXEL_PASS_LOCAL_SIZE 8
+
+GPU_STATIC_ASSERT(is_multiple_of(SCENE_RENDER_COARSE_FINE_BIN_RATIO, SCENE_RENDER_BIN_PASS_LOCAL_SIZE))
+GPU_STATIC_ASSERT(is_multiple_of(SCENE_RENDER_FINE_BIN_SIZE, SCENE_RENDER_PIXEL_PASS_LOCAL_SIZE))
 
 struct SceneRenderCoarseBinInfo
 {
@@ -50,7 +56,7 @@ struct SceneRenderCoarseBinInfo
     u32 depth;  // Maximum number of quads per fine bin
 };
 
-GPU_PTR_ENABLE_FOR(SceneRenderCoarseBinInfo, 4);
+GPU_PTR_ENABLE_FOR(SceneRenderCoarseBinInfo, 4)
 
 struct SceneRenderBinPassInput
 {
