@@ -90,6 +90,8 @@ struct FdListener
     Flags<FdListenFlag> flags;
 
     virtual void handle(fd_t fd, Flags<FdEventBit> events) = 0;
+
+    virtual ~FdListener() = default;
 };
 
 // -----------------------------------------------------------------------------

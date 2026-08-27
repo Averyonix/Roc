@@ -13,7 +13,7 @@ auto shell_main(int argc, char* argv[]) -> int
     CommandArgs args{argc, argv};
     DebugSignalHandlers _;
     Logger _;
-    Allocator _;
+    MemRegistry _;
     FdRegistry _;
 
     bool in_direct_session = env_get("WAYLAND_DISPLAY").value_or("").empty();

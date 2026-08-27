@@ -29,7 +29,7 @@ struct WayDataSource : SeatDataSourceInterface
     virtual void dnd_drop_performed() final override;
     virtual void dnd_finished() final override;
 
-    ~WayDataSource();
+    virtual ~WayDataSource();
 };
 
 struct WayDataOffer

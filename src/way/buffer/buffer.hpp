@@ -30,8 +30,7 @@ struct WayBuffer
     auto acquire(WaySurface*, WaySurfaceState* pending) -> Ref<GpuImage>;
     void release(WayTimelinePoint&&);
 
-protected:
-    ~WayBuffer() = default;
+    virtual ~WayBuffer() = default;
 };
 
 #define WAY_BUFFER_NOISY_WAITS 0

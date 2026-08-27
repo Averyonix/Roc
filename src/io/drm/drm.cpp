@@ -239,20 +239,20 @@ void io_drm_start(IoContext* io)
 //
 struct alignas(void*) IoDrmWeakOutput
 {
-    Allocation allocation;
-    AllocationVersion version;
+    MemRegion allocation;
+    MemVersion version;
 
     IoDrmWeakOutput() = default;
 
     IoDrmWeakOutput(IoDrmOutput* output)
-        : allocation(allocation_from(output))
-        , version(allocation_get_version(allocation))
+        : allocation(mem_from(output))
+        , version(mem_get_version(allocation))
     {}
 
     auto get() const -> IoDrmOutput*
     {
-        if (allocation_get_version(allocation) != version) return nullptr;
-        return static_cast<IoDrmOutput*>(allocation_get_data(allocation));
+        if (mem_get_version(allocation) != version) return nullptr;
+        return static_cast<IoDrmOutput*>(mem_get_data(allocation));
     }
 };
 

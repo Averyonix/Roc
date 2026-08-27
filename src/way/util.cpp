@@ -41,7 +41,7 @@ void way_userdata_register(WayServer* server, WayUserdata data)
 {
     server->userdata_types[data.data] = {
         .type = data.type,
-        .version = allocation_get_version(allocation_from(data.data)),
+        .version = mem_get_version(mem_from(data.data)),
     };
 }
 
@@ -53,7 +53,7 @@ void way_userdata_check(WayServer* server, void* data, const std::type_info& typ
             std::format("way_check_type({})", data),
             std::format("expected {}, but no userdata was registered at this location", type.name()));
     }
-    if (iter->second.version != allocation_get_version(allocation_from(data))) [[unlikely]] {
+    if (iter->second.version != mem_get_version(mem_from(data))) [[unlikely]] {
         debug_assert_fail(
             std::format("way_check_type({})", data),
             std::format("expected {}, but userdata has been destroyed", type.name()));

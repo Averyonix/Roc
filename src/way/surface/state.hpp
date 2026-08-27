@@ -32,7 +32,7 @@ struct WaySurfaceAddon
     virtual auto test(  WayCommitId) -> bool { return true; };
     virtual void apply( WayCommitId) = 0;
 
-    ~WaySurfaceAddon();
+    virtual ~WaySurfaceAddon();
 };
 
 // -----------------------------------------------------------------------------

@@ -64,7 +64,7 @@ struct WayUserdata
 struct WayUserdataEntry
 {
     const std::type_info* type;
-    AllocationVersion version;
+    MemVersion version;
 };
 void way_userdata_check(WayServer*, void* data, const std::type_info&);
 void way_userdata_check(wl_resource*, const std::type_info&);

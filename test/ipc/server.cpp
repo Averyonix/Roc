@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 {
     DebugSignalHandlers _;
     Logger _;
-    Allocator _;
+    MemRegistry _;
     FdRegistry _;
     fd_mark_open_as_inherited();
 
