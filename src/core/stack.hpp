@@ -16,14 +16,14 @@ struct ThreadStackStorage
     static constexpr usz size = literal_cast<usz>(1) * 1024 * 1024;
 
     ThreadStackStorage()
-        : head(static_cast<byte*>(unix_check<mmap>(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, FD_INVALID, 0).value))
+        : head(memory_map<byte>(size))
         , start(head)
         , end(head + size)
     {}
 
     ~ThreadStackStorage()
     {
-        munmap(start, size);
+        memory_unmap(start, size);
     }
 
     auto remaining_bytes() const -> usz
