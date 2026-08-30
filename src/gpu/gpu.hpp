@@ -175,12 +175,6 @@ auto gpu_get_modifier_name(GpuDrmModifier) -> std::string;
 
 // -----------------------------------------------------------------------------
 
-enum class GpuFeature : u32
-{
-    validation = 1 << 0,
-    timelines  = 1 << 1,
-};
-
 struct GpuResource
 {
     virtual ~GpuResource() = default;
@@ -190,7 +184,10 @@ struct Gpu
 {
     GpuVulkanFunctions vk;
 
-    Flags<GpuFeature> features;
+    struct {
+        bool validation;
+        bool timelines;
+    } options;
 
     ExecContext* exec;
 
@@ -249,7 +246,7 @@ struct Gpu
     ~Gpu();
 };
 
-auto gpu_create(ExecContext*, Flags<GpuFeature>) -> Ref<Gpu>;
+auto gpu_create(ExecContext*) -> Ref<Gpu>;
 
 // -----------------------------------------------------------------------------
 

@@ -136,7 +136,7 @@ void handle_waits(GpuSyncobj* syncobj)
 #if GPU_VALIDATION_COMPATIBILITY
     // Validation layers need to see the new semaphore value.
     auto* gpu = syncobj->gpu;
-    if (syncobj->semaphore && gpu->features.contains(GpuFeature::validation)) {
+    if (syncobj->semaphore && gpu->options.validation) {
         u64 value = 0;
         gpu_check(gpu->vk.GetSemaphoreCounterValue(gpu->device, syncobj->semaphore, &value));
     }

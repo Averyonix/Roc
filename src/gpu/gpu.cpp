@@ -54,9 +54,12 @@ Gpu::~Gpu()
 }
 
 static
+std::array required_instance_extensions {
+    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+};
+
+static
 std::array required_device_extensions = {
-    VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-    VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
     VK_KHR_GLOBAL_PRIORITY_EXTENSION_NAME,
 
     VK_KHR_MAINTENANCE_8_EXTENSION_NAME,
@@ -313,10 +316,9 @@ auto test_timeline_syncobj_export(Gpu* gpu) -> bool
     return res.ok();
 }
 
-auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
+auto gpu_create(ExecContext* exec) -> Ref<Gpu>
 {
     auto gpu = ref_create<Gpu>();
-    gpu->features = _features;
 
     gpu->exec = exec;
 
@@ -353,10 +355,6 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
 
     gpu_init_functions(gpu->vk, vkGetInstanceProcAddr);
 
-    std::vector<const char*> instance_extensions {
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-    };
-
     gpu_check(gpu->vk.CreateInstance(ptr_to(VkInstanceCreateInfo {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pNext = ptr_to(VkValidationFeaturesEXT {
@@ -367,8 +365,8 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .apiVersion = VK_API_VERSION_1_4,
         }),
-        .enabledExtensionCount = num_cast<u32>(instance_extensions.size()),
-        .ppEnabledExtensionNames = instance_extensions.data(),
+        .enabledExtensionCount = num_cast<u32>(required_instance_extensions.size()),
+        .ppEnabledExtensionNames = required_instance_extensions.data(),
     }), nullptr, &gpu->instance));
 
     gpu_load_instance_functions(gpu->vk, gpu->instance);
@@ -401,13 +399,13 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
         for (auto& tool : tools) {
             if (tool.layer == "VK_LAYER_KHRONOS_validation"sv) {
                 log_warn("Detected validation layers, enabling validation support");
-                gpu->features |= GpuFeature::validation;
+                gpu->options.validation = true;
             }
         }
     }
 
 #if !GPU_VALIDATION_COMPATIBILITY
-    debug_assert(!gpu->features.contains(GpuFeature::validation), PROJECT_NAME " was not compiled with validation compatibility");
+    debug_assert(!gpu->options.validation, PROJECT_NAME " was not compiled with validation compatibility");
 #endif
 
     // Queue selection
@@ -519,7 +517,6 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
         } else {
             log_info("Sucessfully created device with high global queue priority");
         }
-        process_drop_cap(CAP_SYS_NICE);
     } else {
         create_device(false);
     }
@@ -528,10 +525,9 @@ auto gpu_create(ExecContext* exec, Flags<GpuFeature> _features) -> Ref<Gpu>
 
     if (test_timeline_syncobj_export(gpu.get())) {
         log_info("Timeline semaphores importable as DRM syncobj");
-        gpu->features |= GpuFeature::timelines;
+        gpu->options.timelines = true;
     } else {
         log_warn("Timeline semaphores cannot be imported as DRM syncobj: falling back to binary semaphores");
-        gpu->features -= GpuFeature::timelines;
     }
 
     gpu_queue_init(gpu.get());

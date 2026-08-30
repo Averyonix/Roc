@@ -12,16 +12,6 @@ auto process_has_cap(cap_value_t cap) -> bool
     return value == CAP_SET;
 }
 
-void process_drop_cap(cap_value_t cap)
-{
-    cap_t caps = unix_check<cap_get_proc>().value;
-    if (!caps) return;
-    defer { unix_check<cap_free>(caps); };
-    unix_check<cap_set_flag>(caps, CAP_EFFECTIVE, 1, &cap, CAP_CLEAR);
-    unix_check<cap_set_flag>(caps, CAP_PERMITTED, 1, &cap, CAP_CLEAR);
-    unix_check<cap_set_proc>(caps);
-}
-
 // -----------------------------------------------------------------------------
 
 auto env_get(const char* name) -> std::optional<std::string>

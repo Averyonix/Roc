@@ -112,12 +112,12 @@ auto gpu_flush(Gpu* gpu) -> GpuSyncpoint
     };
 
     // Signal does not require protection, as exporting resets its payload.
-    auto signal = gpu->features.contains(GpuFeature::timelines)
+    auto signal = gpu->options.timelines
         ? Ref<GpuBinarySemaphore>{}
         : gpu_get_binary_semaphore(gpu);
 
 #if GPU_VALIDATION_COMPATIBILITY
-    if (signal && gpu->features.contains(GpuFeature::validation)) {
+    if (signal && gpu->options.validation) {
         // When validation layers are enabled, they need visibility of command completion
         // otherwise they will complain about resources still being used.
         gpu_check(gpu->vk.CreateFence(gpu->device, ptr_to(VkFenceCreateInfo {
