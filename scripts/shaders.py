@@ -1,19 +1,28 @@
 import subprocess
 import os
+from pathlib import Path
 
 from .utils import write_file_lazy, ensure_dir
 
-def build_shaders(cwd, build_dir):
-    shaders = [
-        ("src/scene/shader/bin.glsl",   "scene_shader_bin",   "comp"),
-        ("src/scene/shader/pixel.glsl", "scene_shader_pixel", "comp"),
-    ]
+def needs_rebuild(depfile, stamp):
+    if not depfile.exists() or not stamp.exists():
+        return True
 
+    stamp_time = stamp.stat().st_mtime
+
+    for dep in depfile.read_text().split(":", 1)[1].split():
+        if Path(dep).stat().st_mtime > stamp_time:
+            return True
+
+    return False
+
+def build_shaders(cwd, build_dir, shaders):
     shader_gen_dir         = ensure_dir(build_dir / "shaders")
     shader_gen_spv_dir     = ensure_dir(shader_gen_dir / "spv")
     shader_gen_include_dir = ensure_dir(shader_gen_dir / "include")
     shader_gen_source_dir  = ensure_dir(shader_gen_dir / "src")
     shader_gen_stamp_dir   = ensure_dir(shader_gen_dir / "stamp")
+    shader_gen_dep_dir     = ensure_dir(shader_gen_dir / "dep")
 
     target = "generated-shaders"
     alias = "generated::shaders"
@@ -24,11 +33,6 @@ def build_shaders(cwd, build_dir):
     cmake_out += f"target_compile_options({target} PRIVATE -std=c++26 -Wno-c23-extensions)\n"
     cmake_out += f"target_sources({target} PRIVATE\n"
 
-    # Dependency tracking: just check mtime against all glsl/C-header files.
-    # TODO: Use --depfile
-    shader_source_files = list(cwd.glob("src/**/*.glsl")) + list(cwd.glob("src/**/*.h"))
-    shader_dep_mtime = max((f.stat().st_mtime for f in shader_source_files if f.exists()), default=0.0)
-
     for src_file, prefix, stage_flag in shaders:
         cmake_out += f"    src/{prefix}.cpp\n"
 
@@ -37,12 +41,9 @@ def build_shaders(cwd, build_dir):
         header_path = shader_gen_include_dir / f"{prefix}.hpp"
         source_path = shader_gen_source_dir  / f"{prefix}.cpp"
         stamp_path  = shader_gen_stamp_dir   / f"{prefix}.stamp"
+        dep_path    = shader_gen_dep_dir     / f"{prefix}.depfile"
 
-        def needs_rebuild() -> bool:
-            return (any(not f.exists() for f in [stamp_path, spv_path, header_path, source_path])
-                    or shader_dep_mtime > stamp_path.stat().st_mtime)
-
-        if not needs_rebuild():
+        if not needs_rebuild(dep_path, stamp_path):
             continue
 
         print(f"Compiling shader: {src_path} [{stage_flag}] as {prefix}")
@@ -52,7 +53,9 @@ def build_shaders(cwd, build_dir):
         cmd  = ["glslang"]
         cmd += ["-V"]
         cmd += ["-S", stage_flag]
+        cmd += ["--quiet"]
         cmd += ["-Isrc"]
+        cmd += ["--depfile", dep_path]
         cmd += ["--target-env", "vulkan1.4"]
         cmd += ["-o", tmp_path]
         cmd += [str(src_path)]

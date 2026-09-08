@@ -55,7 +55,10 @@ wayland.generate_wayland_protocols(
 
 # -----------------------------------------------------------------------------
 
-shaders.build_shaders(cwd=cwd, build_dir=build_dir)
+shaders.build_shaders(cwd=cwd, build_dir=build_dir, shaders=[
+    ("src/scene/shader/bin.glsl",   "scene_shader_bin",   "comp"),
+    ("src/scene/shader/pixel.glsl", "scene_shader_pixel", "comp"),
+])
 
 # -----------------------------------------------------------------------------
 
