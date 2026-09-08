@@ -13,8 +13,8 @@
 #define GPU_PTR(T)       T##_Ptr
 
 #define GPU_PTR_ENABLE_FOR(T, Align) \
-    layout(buffer_reference, scalar, buffer_reference_align=Align) readonly buffer T##_ConstPtr { T _; }; \
-    layout(buffer_reference, scalar, buffer_reference_align=Align)          buffer T##_Ptr      { T _; };
+    layout(buffer_reference, scalar, buffer_reference_align = Align) readonly buffer T##_ConstPtr { T _; }; \
+    layout(buffer_reference, scalar, buffer_reference_align = Align)          buffer T##_Ptr      { T _; };
 
 #define GPU_STATIC_ASSERT(Expr)
 
@@ -40,9 +40,9 @@ struct aabb2f32 { vec2f32 min; vec2f32 max; };
 
 // -----------------------------------------------------------------------------
 
-layout(set=0, binding=0) uniform texture2D gpu_heap_texture[];
-layout(set=0, binding=1) uniform image2D   gpu_heap_storage[];
-layout(set=0, binding=2) uniform sampler   gpu_heap_sampler[];
+layout(set = 0, binding = 0) uniform texture2D gpu_heap_texture[];
+layout(set = 0, binding = 1) uniform image2D   gpu_heap_storage[];
+layout(set = 0, binding = 2) uniform sampler   gpu_heap_sampler[];
 
 // -----------------------------------------------------------------------------
 

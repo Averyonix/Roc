@@ -2,12 +2,12 @@ import os
 from pathlib import Path
 
 def ensure_dir(path: Path | str) -> Path:
-    os.makedirs(path, exist_ok=True)
+    os.makedirs(path, exist_ok = True)
     return Path(path)
 
 def ensure_parent(path: Path | str) -> Path:
     path = Path(path)
-    os.makedirs(path.parent, exist_ok=True)
+    os.makedirs(path.parent, exist_ok = True)
     return path
 
 def write_file_lazy(path: Path, data: str | bytes) -> bool:

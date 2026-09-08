@@ -3,34 +3,7 @@ from pathlib import Path
 
 from .utils import write_file_lazy, ensure_dir
 
-def list_wayland_protocols(deps):
-    wayland_protocols = []
-    def add(path, name=None):
-        wayland_protocols.append((path, name or path.stem))
-
-    system_protocol_dir = Path("/usr/share/wayland-protocols")
-
-    add(system_protocol_dir / "stable/xdg-shell/xdg-shell.xml")
-    add(system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml")
-    add(system_protocol_dir / "stable/viewporter/viewporter.xml")
-    add(system_protocol_dir / "stable/presentation-time/presentation-time.xml")
-    add(system_protocol_dir / "stable/tablet/tablet-v2.xml")
-
-    add(system_protocol_dir / "staging/cursor-shape/cursor-shape-v1.xml")
-    add(system_protocol_dir / "staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml")
-    add(system_protocol_dir / "staging/xdg-activation/xdg-activation-v1.xml")
-    add(system_protocol_dir / "staging/tearing-control/tearing-control-v1.xml")
-
-    add(system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
-    add(system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml")
-    add(system_protocol_dir / "unstable/relative-pointer/relative-pointer-unstable-v1.xml")
-    add(system_protocol_dir / "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml")
-
-    add(deps["kde-protocols"] / "src/protocols/server-decoration.xml")
-
-    return wayland_protocols
-
-def generate_wayland_protocols(wayland_dir, deps):
+def generate_wayland_protocols(wayland_dir, protocols):
 
     wayland_scanner = "wayland-scanner" # Wayland scanner executable
     wayland_src     = ensure_dir(wayland_dir / "src")
@@ -45,8 +18,9 @@ def generate_wayland_protocols(wayland_dir, deps):
 
     cmake = f"add_library({target} OBJECT\n"
 
-    for xml_path, name in list_wayland_protocols(deps):
+    for xml_path in protocols:
 
+        name = xml_path.stem
         header_name = f"{name}.h"
 
         # Generate client header

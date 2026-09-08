@@ -13,9 +13,9 @@ def read_stamp(vendor_dir: Path, name: str) -> str | None:
 def write_stamp(vendor_dir: Path, name: str, commit: str):
     write_file_lazy(ensure_parent(stamp_path(vendor_dir, name)), commit)
 
-def git(cmds, cwd=None):
+def git(cmds, cwd = None):
     print(f"git: {cmds}")
-    return subprocess.run(["git"] + cmds, cwd=cwd)
+    return subprocess.run(["git"] + cmds, cwd = cwd)
 
 def fetch_dep(dir: Path, repo: str, branch: str, commit: str|None) -> str:
 
@@ -25,18 +25,18 @@ def fetch_dep(dir: Path, repo: str, branch: str, commit: str|None) -> str:
 
     # Update to exact commit or latest on branch
     if commit:
-        git(["fetch", "--depth", "1", "origin", commit], cwd=dir)
-        git(["checkout", "--force", commit], cwd=dir)
+        git(["fetch", "--depth", "1", "origin", commit], cwd = dir)
+        git(["checkout", "--force", commit], cwd = dir)
     else:
-        git(["fetch", "--depth", "1", "origin", branch], cwd=dir)
-        git(["reset", "--hard", f"origin/{branch}"],  cwd=dir)
+        git(["fetch", "--depth", "1", "origin", branch], cwd = dir)
+        git(["reset", "--hard", f"origin/{branch}"],  cwd = dir)
 
     # Update submodules
-    git(["submodule", "update", "--init", "--recursive"], cwd=dir)
+    git(["submodule", "update", "--init", "--recursive"], cwd = dir)
 
     # Check actual commit
     return subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=dir, stdout=subprocess.PIPE,
+        ["git", "rev-parse", "HEAD"], cwd = dir, stdout = subprocess.PIPE,
     ).stdout.decode().strip()
 
 def fetch_deps(
@@ -78,6 +78,6 @@ def fetch_deps(
         else:
             entry["commit"] = head
 
-    write_file_lazy(build_data_path, json.dumps(lock, indent=4, sort_keys=True))
+    write_file_lazy(build_data_path, json.dumps(lock, indent = 4, sort_keys = True))
 
     return dep_dirs

@@ -45,24 +45,46 @@ dep_dirs = deps.fetch_deps(vendor_dir, cwd / "build.json", args.update)
 
 # -----------------------------------------------------------------------------
 
-math_gen.generate_math(build_dir=build_dir)
+math_gen.generate_math(build_dir = build_dir)
 
 # -----------------------------------------------------------------------------
 
+system_protocol_dir = Path("/usr/share/wayland-protocols")
 wayland.generate_wayland_protocols(
-    wayland_dir=build_dir / "wayland",
-    deps=dep_dirs)
+    wayland_dir = build_dir / "wayland",
+    protocols = [
+        system_protocol_dir / "stable/xdg-shell/xdg-shell.xml",
+        system_protocol_dir / "stable/linux-dmabuf/linux-dmabuf-v1.xml",
+        system_protocol_dir / "stable/viewporter/viewporter.xml",
+        system_protocol_dir / "stable/presentation-time/presentation-time.xml",
+        system_protocol_dir / "stable/tablet/tablet-v2.xml",
+
+        system_protocol_dir / "staging/cursor-shape/cursor-shape-v1.xml",
+        system_protocol_dir / "staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml",
+        system_protocol_dir / "staging/xdg-activation/xdg-activation-v1.xml",
+        system_protocol_dir / "staging/tearing-control/tearing-control-v1.xml",
+
+        system_protocol_dir / "unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",
+        system_protocol_dir / "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml",
+        system_protocol_dir / "unstable/relative-pointer/relative-pointer-unstable-v1.xml",
+        system_protocol_dir / "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml",
+
+        dep_dirs["kde-protocols"] / "src/protocols/server-decoration.xml",
+    ])
 
 # -----------------------------------------------------------------------------
 
-shaders.build_shaders(cwd=cwd, build_dir=build_dir, shaders=[
-    ("src/scene/shader/bin.glsl",   "scene_shader_bin",   "comp"),
-    ("src/scene/shader/pixel.glsl", "scene_shader_pixel", "comp"),
-])
+shaders.build_shaders(
+    cwd = cwd,
+    build_dir = build_dir,
+    shaders = [
+        ("src/scene/shader/bin.glsl",   "scene_shader_bin",   "comp"),
+        ("src/scene/shader/pixel.glsl", "scene_shader_pixel", "comp"),
+    ])
 
 # -----------------------------------------------------------------------------
 
-formats.generate_formats(build_dir=build_dir)
+formats.generate_formats(build_dir = build_dir)
 
 # -----------------------------------------------------------------------------
 
@@ -152,15 +174,15 @@ def build(build_type, compiler, linker_type, program_name: str, project_name: st
         if res.returncode != 0:
             os._exit(res.returncode)
 
-    install_file(cmake_dir / program_name, build_dir / program_name, make_executable=True)
+    install_file(cmake_dir / program_name, build_dir / program_name, make_executable = True)
 
     if install:
-        install_file(cmake_dir / program_name, local_bin_dir / program_name, make_executable=True)
+        install_file(cmake_dir / program_name, local_bin_dir / program_name, make_executable = True)
         install_file(cwd / "resources/portals.conf", xdg_portal_conf_dir / f"{program_name}-portals.conf")
         if use_systemd:
             install_file(cwd / "resources/session", local_bin_dir / f"{program_name}-session",
                 substitutions=[("${PROGRAM_NAME}", program_name)],
-                make_executable=True)
+                make_executable = True)
             if install_file(cwd / "resources/session.target", systemd_user_dir / f"{program_name}-session.target",
                     substitutions=[("{PROJECT_NAME}", project_name)]):
                 subprocess.run(["systemctl", "--user", "daemon-reload"])
