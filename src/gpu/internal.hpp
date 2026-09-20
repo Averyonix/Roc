@@ -35,12 +35,11 @@ void gpu_vulkan_enumerate(Container& container, Fn&& fn, Args&&... args)
 inline
 auto gpu_vulkan_make_chain(std::span<void* const> structures) -> void*
 {
-    VkBaseInStructure* last = nullptr;
+    void* last = nullptr;
     for (auto* s : structures) {
         if (!s) continue;
-        auto* vk_base = static_cast<VkBaseInStructure*>(s);
-        vk_base->pNext = last;
-        last = vk_base;
+        std::memcpy(byte_offset_pointer<void>(s, offsetof(VkBaseInStructure, pNext)), &last, sizeof(void*));
+        last = s;
     }
 
     return last;
