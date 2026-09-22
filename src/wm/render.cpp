@@ -30,6 +30,7 @@ bool try_commit(WmOutput* output, GpuImage* primary, bool use_cursor_plane)
         },
         .ready = gpu_flush(server->gpu),
         .flags = flags,
+        .wait_leeway = server->render.max_composition_time,
     });
 }
 

@@ -69,10 +69,10 @@ void try_add_output(IoContext* io, IoDrmConnector* connector)
     // Find CRTC currently used by this connector
 
     auto* crtc = io_drm_find_crtc(io, encoder->info->crtc_id);
-    if (!crtc) {{
+    if (!crtc) {
         log_warn("Connector {} has no active CRTC", connector->id);
         return;
-    }}
+    }
 
     // Ensure the CRTC is active
 
@@ -83,6 +83,8 @@ void try_add_output(IoContext* io, IoDrmConnector* connector)
 
     auto output = ref_create<IoDrmOutput>();
     output->io = io;
+
+    output->timer = timer_create(io->exec);
 
     // Find primary and cursor planes
 
@@ -105,12 +107,16 @@ void try_add_output(IoContext* io, IoDrmConnector* connector)
 
     u64 refresh = ((crtc->info->mode.clock * 1000000ul / crtc->info->mode.htotal) + (crtc->info->mode.vtotal / 2)) / crtc->info->mode.vtotal;
 
+    u64 refresh_nanos = 1'000'000'000'000ull / refresh;
+    output->refresh_period = std::chrono::nanoseconds(refresh_nanos);
+
     log_warn("Creating output");
     log_warn("  crtc: {}", crtc->id);
     log_warn("  conn: {}", connector->id);
     log_warn("  primary plane: {}", output->primary_plane->id);
     log_warn("  cursor plane: {}", output->cursor_plane->id);
     log_warn("  refresh: {} mHz", refresh);
+    log_warn("  refresh: {} ns", refresh_nanos);
     log_warn("  extent: ({}, {})", crtc->info->width, crtc->info->height);
 
     output->crtc = crtc;
@@ -266,11 +272,23 @@ void on_page_flip(fd_t fd, u32 sequence, u32 tv_sec, u32 tv_usec, u32 crtc_id, v
         return;
     }
 
+    auto timestamp = std::chrono::steady_clock::time_point(
+        std::chrono::nanoseconds(num_cast<u64>(tv_sec) * 1'000'000'000 + num_cast<u64>(tv_usec) * 1'000));
+
+    if (output->refresh_period > output->next_commit_wait_leeway) {
+        timestamp += output->refresh_period - output->next_commit_wait_leeway;
+    }
+
     output->current_image = output->pending_image;
     output->current_cursor_image = output->pending_cursor_image;
 
-    output->commit_available = true;
-    io_output_try_redraw(output);
+    timer_enqueue(output->timer.get(),
+        timestamp,
+        [output = Weak(output)] {
+            if (!output) return;
+            output->commit_available = true;
+            io_output_try_redraw(output.get());
+        });
 }
 
 // -----------------------------------------------------------------------------
@@ -393,7 +411,8 @@ auto IoDrmOutput::commit(const WmOutputCommitInfo& commit) -> bool
 
     pending_image = commit.primary.image;
     pending_cursor_image = commit.cursor.image;
-    last_commit_time = std::chrono::steady_clock::now();
+    next_commit_wait_leeway = commit.wait_leeway;
+
     commit_available = false;
 
     return true;

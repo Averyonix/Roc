@@ -178,6 +178,10 @@ struct WmServer
     Ref<SeatEventFilter> pointer_constraints_filter;
 
     struct {
+        std::chrono::nanoseconds max_composition_time = 600us;
+    } render;
+
+    struct {
         std::vector<WmOutput*> outputs;
         std::vector<WmInputDevice*> input_devices;
         u64 prev_frame_id = 0;

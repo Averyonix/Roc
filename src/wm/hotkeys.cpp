@@ -2,6 +2,7 @@
 
 #include <core/process.hpp>
 #include <core/log.hpp>
+#include <core/chrono.hpp>
 
 WmHotkey::~WmHotkey()
 {
@@ -77,8 +78,8 @@ void wm_init_hotkeys(WmServer* server)
         return filter_event(server, event);
     });
 
-    auto hotkey = [&](SeatInputCode code, std::function<WmHotkeyCallback> callback) {
-        server->hotkeys.builtins.emplace_back(wm_bind_hotkey(server, server->main_mod, code, callback));
+    auto hotkey = [&](SeatInputCode code, std::function<WmHotkeyCallback> callback, Flags<SeatModifier> extra_mods = {}) {
+        server->hotkeys.builtins.emplace_back(wm_bind_hotkey(server, server->main_mod | extra_mods, code, callback));
     };
 
     // Close focused
@@ -148,4 +149,19 @@ void wm_init_hotkeys(WmServer* server)
             wm_output_damage(output);
         }
     });
+
+    // Update Commit Wait Timing
+    static constexpr auto update_commit_wait = [](WmServer* server, auto amount, bool add) {
+        if (add) server->render.max_composition_time += amount;
+        else if (server->render.max_composition_time >= amount) server->render.max_composition_time -= amount;
+        wm_toast(server, std::format("Max Composition Time: {}", FmtDuration{server->render.max_composition_time}));
+    };
+
+    hotkey(KEY_COMMA, [server](auto...) { update_commit_wait(server, 10us,  false); });
+    hotkey(KEY_COMMA, [server](auto...) { update_commit_wait(server, 100us, false); }, SeatModifier::shift);
+    hotkey(KEY_COMMA, [server](auto...) { update_commit_wait(server, 1ms,   false); }, SeatModifier::shift | SeatModifier::ctrl);
+
+    hotkey(KEY_DOT,   [server](auto...) { update_commit_wait(server, 10us,  true ); });
+    hotkey(KEY_DOT,   [server](auto...) { update_commit_wait(server, 100us, true ); }, SeatModifier::shift);
+    hotkey(KEY_DOT,   [server](auto...) { update_commit_wait(server, 1ms,   true ); }, SeatModifier::shift | SeatModifier::ctrl);
 }

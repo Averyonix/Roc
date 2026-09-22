@@ -64,6 +64,11 @@ struct WmOutputCommitInfo
     } cursor;
     GpuSyncpoint ready;
     Flags<WmOutputCommitFlag> flags;
+
+    // NOTE: This affects the delay for the *next* frame.
+    // TODO: Waiting should be moved into the render logic, instead of handled by the output implementation.
+    //       We need the commit timing feedback to implement presentation timing feedback for clients anyway.
+    std::chrono::nanoseconds wait_leeway;
 };
 
 struct WmOutput;

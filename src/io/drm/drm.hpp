@@ -69,7 +69,9 @@ struct IoDrmOutput : IoOutputBase
     Ref<GpuImage> current_cursor_image;
     Ref<GpuImage> pending_cursor_image;
 
-    std::chrono::steady_clock::time_point last_commit_time = {};
+    std::chrono::nanoseconds next_commit_wait_leeway;
+    std::chrono::steady_clock::duration refresh_period;
+    Ref<Timer> timer;
 
     GpuFormatSet formats;
 
